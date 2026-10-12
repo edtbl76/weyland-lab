@@ -8,7 +8,7 @@ through each trial's own worktree.
 | Tool | Pinned version (2026-10-09) | Licence | Drives |
 |---|---|---|---|
 | Emdash | v1.2.7 (2026-09-27), x86_64 AppImage | Apache-2.0 | Claude Code / Codex / OpenCode CLIs (subscriptions, $0) |
-| OpenHands CLI | `openhands` 1.16.0 on PyPI (Python 3.12) | MIT core | a model API — **local model only** in this trial ($0) |
+| OpenHands CLI | `openhands` 1.16.0 on PyPI (Python 3.12) | MIT core | a model API — **local model only** in this trial ($0). **Torn down 2026-10-12** after run 5 (`uv tool uninstall openhands`, trial image deleted, inventory pruned). The 32K model build `qwen3-coder:30b-32k` is kept: it is only a tag over the base model's blobs |
 
 ## Install
 

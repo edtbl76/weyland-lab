@@ -2694,10 +2694,6 @@ hosts:
       kind: uv-tool
       status: keep
       rationale: B182 shared agent memory - serves ~/agent-memory over MCP on :8765 (user unit basic-memory.service)
-    - name: openhands
-      kind: uv-tool
-      status: keep
-      rationale: B179 software-factory trial - OpenHands CLI (headless issue-to-branch agent on a local model); keep until B179's verdict
   mother:
     role: ''
     packages:

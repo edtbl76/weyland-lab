@@ -4123,6 +4123,22 @@ A runbook (`docs/runbooks/software-factory.md`) with the pinned install and run 
 - Warp Factories / any paid tier (verdict recorded). Building a custom orchestrator (only if both fail, as a
   follow-up). New hardware.
 
+**Progress (2026-10-12) — both arms run; Emdash's last open question tonight.** Five runs recorded in
+`concepts/software-factory.md`:
+- **Emdash → Claude Code:** runs 1 to 3 met every criterion (7 to 9 min each; run 3 found its own issue through the
+  `agent-ready` label). Run 4, two scheduled 04:00 nights with the app open, stopped correctly on an empty queue.
+- **OpenHands → local `qwen3-coder:30b`** (run 5, 77 min): failed. No tests, 7 of 25 skills deleted and 4 rewritten
+  with invented text, the spec's empty-body trap missed, a success report anyway. All of it in a sandbox copy; the repo
+  and Bifrost were verified untouched.
+- **Torn down (owner):** OpenHands uninstalled, its trial image and workspace removed, the inventory pruned (Port 912,
+  verified). The `qwen3-coder:30b-32k` tag is kept.
+- **Emdash litter:** three empty GitHub branches and three worktrees, cleared by the owner. The cause is the
+  automation's `"pushBranch": true`; the owner unticks it in the app.
+- **Machine inventory gap closed along the way** (see B129): AppImages and uv tools were never cataloged.
+
+Left: the app-closed 04:00 run (Emdash quit 10-12; a missed run may start on the next launch, since each run carries a
+24 h deadline), the per-tool verdicts, then the DoD.
+
 **History (kept for the record).**
 
 Evaluate **Warp Software Factory** (warp.dev's agentic software-development offering) and decide whether anything in it is worth adopting — same discipline as B174 (Jev/TypeSafe AI) and B119 ("master the tool"): understand it against REAL lab context, land an **ADOPT / DON'T-ADOPT** verdict with rationale, don't adopt on hype.
