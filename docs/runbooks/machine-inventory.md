@@ -1,7 +1,7 @@
 # Runbook — machine-inventory catalog (B129)
 
 A living, queryable inventory of the software installed across the lab machines (rogueone, mother, weyland) —
-snaps, flatpaks, apt, pip/npm globals, container images — with a **keep/remove disposition + one-line rationale**
+snaps, flatpaks, apt, pip/npm globals, AppImages, uv tools, container images — with a **keep/remove disposition + one-line rationale**
 per discretionary item, so "what's installed and why" is a catalog we diff over time instead of an ad-hoc audit.
 
 **Pieces:**
@@ -11,7 +11,7 @@ per discretionary item, so "what's installed and why" is a catalog we diff over 
 - `machine-inventory.yaml` (repo root) — the **git SoT**: curated `status` + `rationale` per package.
   `status ∈ keep | remove | system | unreviewed`. **system** = dep-dominated baseline (apt/pip) + transient
   images, captured for completeness with no per-item rationale. **unreviewed** = a new discretionary item
-  (snap/flatpak/npm) awaiting a decision — the review queue and the drift signal.
+  (snap/flatpak/npm/appimage/uv-tool) awaiting a decision — the review queue and the drift signal.
 - `scripts/machine_inventory.py {merge,emit,verify} <host>` — `merge` folds the collector output (stdin) into the
   SoT; `emit` reads the committed SoT plus `placement.yaml` and syncs Port; `verify` reads Port back.
 - Port blueprints `host` + `installed_package` — `tofu/port/machine_inventory.tf`.
@@ -22,7 +22,7 @@ per discretionary item, so "what's installed and why" is a catalog we diff over 
 [rogueone] bash scripts/collect-machine-inventory.sh <host> | python3 scripts/machine_inventory.py merge <host>
 ```
 
-`merge` is **add-only + preserve**: new packages are added (apt/pip/image → `system`, snap/flatpak/npm →
+`merge` is **add-only + preserve**: new packages are added (apt/pip/image → `system`, snap/flatpak/npm/appimage/uv-tool →
 `unreviewed`), existing curated decisions are never overwritten, and anything cataloged but no longer collected
 is **reported to stderr** (never silently dropped — a human decides). It prints the count of `unreviewed` items
 still to curate. Then review those items in `machine-inventory.yaml` and set `status` (keep/remove) + a
@@ -96,7 +96,7 @@ Inputs: `<host>` (a **hostname**, never an IP — [feedback-ssh-conventions]) an
 
 ### 3. Curate the discretionary items `[decision]`
 - [ ] In `machine-inventory.yaml`, set `status` (`keep`/`remove`) + a one-line `rationale` for each new
-      `status: unreviewed` item. Only snap/flatpak/npm are decisions — **do not** curate apt/pip/images (that is
+      `status: unreviewed` item. Only snap/flatpak/npm/appimage/uv-tool are decisions — **do not** curate apt/pip/images (that is
       the bulk `system` baseline the tag exists to avoid). A harness should **pre-triage**: bulk-`keep` the obvious
       platform runtimes (snap `core*`/`gnome-*`/`gtk-*`/`mesa-*`, rationale "snap platform/runtime") and surface
       only the genuine per-app calls to the human. The committed diff IS the drift record.
@@ -155,6 +155,10 @@ in `scripts/.env` as `KUMA_INVENTORY_PUSH_URL`, then
 - **mother / weyland** are inventoried by running the collector against them (SSH) — mostly apt + container
   images (`crictl`/`ctr` on the k3s node), far fewer discretionary items than the desktop.
 - **Do not curate apt/pip individually** — that is the 578-item baseline the `system` bulk-tag exists to avoid.
-  Only snaps/flatpaks/npm-globals + a flagged app or two are decisions.
+  Only snaps/flatpaks/npm-globals/AppImages/uv tools + a flagged app or two are decisions.
+- **User-space installs (2026-10-12).** The collector also reads `~/Applications/*.AppImage` (name and version from
+  the file name; a `*.part` download is skipped) and `uv tool list` (ANSI escapes stripped: uv bolds names even when
+  piped). Emdash, Cursor, LM Studio and `basic-memory` had never been cataloged before this. A tool run with **`uvx`**
+  is only cached, not installed, so no collector sees it; install a tool you mean to keep with `uv tool install`.
 - The collector is **read-only** and the merge/emit write only the SoT + Port — nothing is installed or removed
   by this system; it *records* dispositions, acting on them is manual.

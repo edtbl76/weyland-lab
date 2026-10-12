@@ -240,3 +240,43 @@ import machine_inventory as m
 print(m.port_identifier('weyland', {'kind': 'systemd-unit', 'name': 'whisper/a:b.service'}))"
   [ "$output" = "weyland--systemd-unit--whisper_a_b.service" ]
 }
+
+# --- 2026-10-12: user-space installs the package managers never list -----------------------------------------
+# Emdash (an AppImage in ~/Applications) sat uncataloged for days, along with Cursor, LM Studio, Bruno, NexusMods and
+# the `basic-memory` uv tool. The collector now reads ~/Applications/*.AppImage and `uv tool list`. Run locally against
+# a fake HOME and a stub `uv`, keeping only the two new kinds (the real package managers on the box are noise here).
+collect_user_space() {
+  local home="$TMP/home" bin="$TMP/bin"
+  mkdir -p "$home/Applications" "$bin"
+  # The real `uv tool list` bolds each tool name with ANSI escapes even when piped — the stub does too.
+  printf '#!/bin/sh\nprintf "\\033[1mbasic-memory v0.23.2\\033[0m\\n- basic-memory\\n- bm\\n\\033[1mopenhands v1.16.0\\033[0m\\n- openhands\\n"\n' > "$bin/uv"
+  chmod +x "$bin/uv"
+  for f in "$@"; do : > "$home/Applications/$f"; done
+  HOME="$home" PATH="$bin:$PATH" bash "${BATS_TEST_DIRNAME}/../collect-machine-inventory.sh" "$(hostname -s)" 2>/dev/null \
+    | grep -E $'^(appimage|uv-tool)\t' | sort
+}
+
+@test "collector lists AppImages with name and version parsed from the file name" {
+  run collect_user_space emdash-1.2.7-x86_64.AppImage LM-Studio-0.3.16-6-x64_f2ef9558cbae4bd182120c07f8c28194.AppImage \
+    bruno_058de9f952b6944e1dc4e79cf70787a2.AppImage NexusMods.App.x86_64_b279e77ea427e7465dcfa61e4ea19c1c.AppImage \
+    Cursor-0.47.5-53d6da1322.deb.glibc2.25-x86_64.AppImage.part
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'appimage\temdash\t1.2.7'* ]]
+  [[ "$output" == *$'appimage\tLM-Studio\t0.3.16-6'* ]]
+  [[ "$output" == *$'appimage\tbruno\t'* ]]
+  [[ "$output" == *$'appimage\tNexusMods.App\t'* ]]
+  [[ "$output" != *"Cursor"* ]]          # a partial download (.part) is not an install
+}
+
+@test "collector lists uv tools, not their entry points" {
+  run collect_user_space
+  [[ "$output" == *$'uv-tool\tbasic-memory\t0.23.2'* ]]
+  [[ "$output" == *$'uv-tool\topenhands\t1.16.0'* ]]
+  [[ "$output" != *$'uv-tool\tbm'* ]]
+}
+
+@test "the new kinds are discretionary: they land unreviewed, never bulk system" {
+  printf 'host:h1\nappimage\temdash\t1.2.7\nuv-tool\topenhands\t1.16.0\n' | python3 "$TOOL" merge h1
+  [ "$(status_of h1 appimage emdash)" = "unreviewed" ]
+  [ "$(status_of h1 uv-tool openhands)" = "unreviewed" ]
+}

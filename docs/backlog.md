@@ -4382,6 +4382,19 @@ Build a living inventory of software installed across the lab machines (rogueone
 
 _Audit COMPLETE for rogueone 2026-08-15 (snap + flatpak + apt). mother + weyland still to inventory. Linear: EMA-188._
 
+**Closing a gap (2026-10-12, owner: "don't forget to update our package manifest in Port").** The collector never saw
+user-space installs. Emdash (an AppImage, installed 10-09 for B179), Cursor, LM Studio, Bruno, NexusMods and the
+`basic-memory` uv tool (B182's shared memory server) were all absent from the catalog. Fixed:
+- **Collector:** new kinds `appimage` (`~/Applications/*.AppImage`, name and version from the file name, `.part`
+  skipped) and `uv-tool` (`uv tool list`). The first live run cataloged `"\e[1mbasic-memory"`, because uv bolds names
+  even when piped and the test stub hadn't. The stub now matches the real output; the test failed on the old parser
+  and passes on the fix.
+- **Port:** the `installed_package` kind enum was extended (`tofu apply`: 1 changed).
+- **Inventory:** rogueone re-collected (+27: 5 AppImages, 1 uv tool, 11 npm, 10 images); emdash and basic-memory curated
+  `keep`; emitted and verified by read-back (912 entities, matches the SoT).
+- **The rule:** `uvx` only caches, so no collector can see it. The software-factory runbook now installs OpenHands
+  with `uv tool install`. Bats 24/24, shellcheck 0, guards pass.
+
 ---
 
 ### B169 — Onboard a new machine/client into the machine-inventory catalog — DONE 2026-09-19 (B129 follow-on, Linear EMA-230)

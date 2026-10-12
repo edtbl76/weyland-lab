@@ -22,12 +22,16 @@ Each command runs on rogueone. They download third-party executables, so the own
 mkdir -p /home/edwardmangini/Applications && curl -fL -o /home/edwardmangini/Applications/emdash-1.2.7-x86_64.AppImage https://github.com/generalaction/emdash/releases/download/v1.2.7/emdash-x86_64.AppImage && chmod +x /home/edwardmangini/Applications/emdash-1.2.7-x86_64.AppImage && sha256sum /home/edwardmangini/Applications/emdash-1.2.7-x86_64.AppImage
 ```
 
-**OpenHands CLI** (pinned, run through `uvx`, isolated from the system Python):
+**OpenHands CLI** (pinned, installed as a `uv` tool, isolated from the system Python). Use `uv tool install`, not
+`uvx`: `uvx` only caches the package, so the machine inventory (B129) cannot see it, and an install the inventory cannot
+see is the gap that left Emdash uncataloged until 2026-10-12:
 
 [rogueone]
 ```
-uvx --python 3.12 --from openhands==1.16.0 openhands --help
+uv tool install --python 3.12 openhands==1.16.0 && openhands --help
 ```
+
+Then refresh the inventory so it lands in Port (`docs/runbooks/machine-inventory.md`).
 
 ## Prerequisites the trials rely on
 

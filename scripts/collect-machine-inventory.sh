@@ -2,7 +2,7 @@
 # collect-machine-inventory.sh — the canonical machine-inventory collector (B129).
 #
 # Gathers the installed-software inventory of one lab machine and prints it NORMALIZED to stdout, one
-# record per line:  <kind>\t<name>\t<version>   (kind = snap|flatpak|apt|pip|npm|image).
+# record per line:  <kind>\t<name>\t<version>   (kind = snap|flatpak|apt|pip|npm|image|appimage|uv-tool).
 #
 # It is OUTPUT-ONLY: it reads nothing but the machine's own package managers and writes nothing on the
 # host. The curated decisions (keep/remove/rationale) live in `machine-inventory.yaml`; `machine_inventory.py
@@ -49,6 +49,25 @@ elif command -v crictl >/dev/null 2>&1; then
 elif command -v ctr >/dev/null 2>&1; then
   ctr -n k8s.io images ls -q 2>/dev/null | while IFS= read -r i; do
     printf 'image\t%s\t%s\n' "${i%:*}" "${i##*:}"; done; ran="$ran image(ctr)"
+fi
+# User-space installs no package manager lists (2026-10-12: Emdash, Cursor, LM Studio and the basic-memory uv tool
+# had never been cataloged). AppImages: ~/Applications/*.AppImage (a *.part download is not an install). The name and
+# version come from the file name: AppImageLauncher's _<32-hex> suffix and a trailing arch are dropped, and the
+# version is the first -<digit>... segment ("emdash-1.2.7-x86_64" → emdash 1.2.7; "bruno_<hex>" → bruno, no version).
+if [ -d "$HOME/Applications" ]; then
+  for f in "$HOME"/Applications/*.AppImage; do
+    [ -e "$f" ] || continue
+    b="${f##*/}"; b="${b%.AppImage}"
+    b="$(printf '%s' "$b" | sed -E 's/_[0-9a-f]{32}$//; s/[._-](x86_64|x64|amd64)$//')"
+    name="$(printf '%s' "$b" | sed -E 's/-[0-9].*$//')"
+    ver="${b#"$name"}"; ver="${ver#-}"
+    printf 'appimage\t%s\t%s\n' "$name" "$ver"
+  done; ran="$ran appimage"
+fi
+# uv tools (`uv tool install`): `uv tool list` prints "<name> v<version>" then "- <entry point>" lines, and bolds the
+# name with ANSI escapes EVEN WHEN PIPED (observed 2026-10-12: the first run cataloged "\e[1mbasic-memory"), so strip them.
+if command -v uv >/dev/null 2>&1; then
+  uv tool list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk '!/^-/ && NF>=2 {v=$2; sub(/^v/,"",v); printf "uv-tool\t%s\t%s\n",$1,v}'; ran="$ran uv-tool"
 fi
 printf 'sources:%s\n' "${ran:- NONE}" >&2
 SNIPPET
