@@ -4133,7 +4133,9 @@ A runbook (`docs/runbooks/software-factory.md`) with the pinned install and run 
 - **Torn down (owner):** OpenHands uninstalled, its trial image and workspace removed, the inventory pruned (Port 912,
   verified). The `qwen3-coder:30b-32k` tag is kept.
 - **Emdash litter:** three empty GitHub branches and three worktrees, cleared by the owner. The cause is the
-  automation's `"pushBranch": true`; the owner unticks it in the app.
+  automation's `"pushBranch": true`. **Set to false 2026-10-12** (owner: "do it now"), with Emdash closed,
+  directly in `~/.config/emdash/emdash4.db` (`automations.task_config`), after a `sqlite3` backup; `integrity_check` ok.
+  Tonight's run is the first that should leave no GitHub branch.
 - **Machine inventory gap closed along the way** (see B129): AppImages and uv tools were never cataloged.
 
 Left: the app-closed 04:00 run (Emdash quit 10-12; a missed run may start on the next launch, since each run carries a

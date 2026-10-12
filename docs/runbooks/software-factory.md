@@ -71,6 +71,10 @@ Each run ends at a branch in its own worktree. Tell the agent session (or me) wh
 the diff, the tests (`run-lang-tests.sh python` on the Dagster scripts project), whether it met EMA-291's six acceptance
 criteria, and the subscription usage. Nothing is pushed until you decide which branch, if any, becomes the real fix.
 
+## Emdash automation settings
+
+An automation's task template lives in `~/.config/emdash/emdash4.db`, table `automations`, column `task_config` (JSON). `workspaceConfig.git.pushBranch` decides whether each run publishes its task branch to GitHub; it is **false** for `agent-ready-nightly` since 2026-10-12 (it had pushed an empty branch every night). Change it in the app, or, with Emdash fully quit, in the database after a backup (`sqlite3` `.backup`, then `pragma integrity_check`). Each scheduled run is stored with a deadline 24 h after its slot, so a run missed while the app is closed may start on the next launch.
+
 ## Recording a run
 
 Per run, record in the concepts doc's trial table: reached a reviewable branch with no human step after the start (or
