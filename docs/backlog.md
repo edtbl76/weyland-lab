@@ -4167,6 +4167,29 @@ starts by itself seconds after launch, and with push off it left no GitHub branc
    label documented. The guard caught the missing LikeC4 placement row.
 9. **DR:** Emdash's state is in `~/.config/emdash`, which restic backs up nightly; the definition of record is in git.
 
+**DoD re-audit 2026-10-12 (owner: "I'm not seeing many changes in arch and runbooks").** The first grading listed the
+pillars from memory instead of walking the DoD's surfaces, and missed ten of them. Now updated:
+- `arch.md` (the rogueone row), `tools.md` (an Emdash row; plus the stale "shared agent memory: *planned*" row, live
+  since 10-03), `hosts.md` (the rogueone row) and the platform map (Agents & Interfaces; HTML balance unchanged).
+- `dr.md` (the rogueone row now names `~/.config`, including Emdash).
+- `runbooks/uptime-kuma.md` (the `emdash-conveyor` push monitor), `runbooks/parallel-agent-supervisor.md` (the adoption
+  note), `runbooks/issue-readiness.md` (releasing to the conveyor), `AGENTS.md` (the `agent-ready` rule: only the owner
+  adds the label) and `concepts/multi-harness.md`.
+
+Not applicable, with the reason: `api.md` (no endpoint); `applications.yaml` / onboarding (a desktop app, not a deployed
+service; it is cataloged as an installed package).
+
+**Tonight's runs prechecked:**
+- **The conveyor:** enabled, push null, run pending at 04:00, Emdash and its automations worker running.
+- **The 06:00 watch:** the timer is due, the URL is set, the first run pushed.
+- **`machine-inv-drift`:** dry run in systemd's environment, inventory in sync.
+
+The precheck found that the drift job would page tonight. **The placement guard reported every newly installed timer
+as "never triggered"** until its first slot (here 06:00, after the 03:45 job). Fixed: the gather now also reads the
+timer's `ActiveEnterTimestamp`, and a timer that has never fired is a finding only once it has been active for more than
+2× its interval; with no activation time it is still a finding (fail closed). `test_placement_check.py` 78/78 (3 new
+cases failed first); re-embedded. The dry run now reports `signal: up`.
+
 **History (kept for the record).**
 
 Evaluate **Warp Software Factory** (warp.dev's agentic software-development offering) and decide whether anything in it is worth adopting — same discipline as B174 (Jev/TypeSafe AI) and B119 ("master the tool"): understand it against REAL lab context, land an **ADOPT / DON'T-ADOPT** verdict with rationale, don't adopt on hype.

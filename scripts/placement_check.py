@@ -301,9 +301,13 @@ def host_script(paths, timers, user):
         scope = "--user " if is_user else ""
         # `--timestamp=unix` is ignored by `show --value` on systemd 255 (it returns "Tue 2026-09-29 02:56:39 EDT",
         # observed 2026-09-29), so convert the human date on the host; empty or "n/a" = never triggered.
+        # ActiveEnterTimestamp = when the timer was activated, so a timer installed today and not due yet is not
+        # reported "never triggered" (2026-10-12: a new 06:00 timer would have paged the 03:45 run).
         lines.append(f'v=$(systemctl {scope}show -p LastTriggerUSec --value {q} 2>/dev/null); '
                      f'e=$([ -n "$v" ] && [ "$v" != n/a ] && date -d "$v" +%s 2>/dev/null); '
-                     f'printf "T %s %s\\n" {q} "${{e:--}}"')
+                     f'a=$(systemctl {scope}show -p ActiveEnterTimestamp --value {q} 2>/dev/null); '
+                     f'b=$([ -n "$a" ] && [ "$a" != n/a ] && date -d "$a" +%s 2>/dev/null); '
+                     f'printf "T %s %s %s\\n" {q} "${{e:--}}" "${{b:--}}"')
     return "\n".join(lines) + "\n"
 
 
@@ -313,8 +317,12 @@ def _parse_file(g, rest):
 
 
 def _parse_timer(g, rest):
-    name, _, val = rest.partition(" ")
-    g["timers"][name] = int(val) if val.strip().isdigit() else None
+    """`T <timer> <last-trigger|-> [<activated|->]` — the activation field is absent from an older gather."""
+    name, *vals = rest.split()
+    num = lambda v: int(v) if v.isdigit() else None  # noqa: E731
+    g["timers"][name] = num(vals[0]) if vals else None
+    if len(vals) > 1:
+        g["timer_active"][name] = num(vals[1])
 
 
 _HOST_LINE = {  # the gather's line kinds (see host_script)
@@ -326,7 +334,7 @@ _HOST_LINE = {  # the gather's line kinds (see host_script)
 
 
 def parse_host_output(text):
-    g = {"files": {}, "units": set(), "failed": set(), "timers": {}}
+    g = {"files": {}, "units": set(), "failed": set(), "timers": {}, "timer_active": {}}
     lines = [ln for ln in text.splitlines() if ln.strip()]
     if not lines:
         raise CannotRead("the host gather returned nothing")
@@ -371,9 +379,12 @@ def _file_findings(entries, g, repo_read):
     return out
 
 
-def _timer_finding(r, last, now):
-    """None when the timer fired within 2x its interval."""
+def _timer_finding(r, last, now, active=None):
+    """None when the timer fired within 2x its interval, or has never fired but was activated less than 2x its interval
+    ago (installed, not yet due). Without an activation time a never-fired timer is a finding (fail closed)."""
     if last is None:
+        if active is not None and now - active <= 2 * every_seconds(r["every"]):
+            return None
         return f"{r['id']}: timer has never triggered"
     if now - last > 2 * every_seconds(r["every"]):
         return f"{r['id']}: timer stale — last fired {int((now - last) / 3600)}h ago, every {r['every']}"
@@ -386,7 +397,8 @@ def _unit_state_findings(units, g, now):
         name = r["id"].split("/", 1)[1]
         if name in g["failed"]:
             out.append(f"{r['id']}: unit is in the failed state")
-        timer = _timer_finding(r, g["timers"].get(name), now) if r.get("every") else None
+        timer = (_timer_finding(r, g["timers"].get(name), now, g.get("timer_active", {}).get(name))
+                 if r.get("every") else None)
         if timer:
             out.append(timer)
     return out

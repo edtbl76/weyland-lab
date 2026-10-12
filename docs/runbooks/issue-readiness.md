@@ -31,6 +31,13 @@ Every open High issue in project Weyland Lab (what CI runs):
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/issue-readiness.sh --sweep
 ```
 
+## Release a READY issue to the conveyor (B179)
+
+A READY issue can be handed to the unattended conveyor: add the Linear label **`agent-ready`**. At 04:00, or on the next
+Emdash launch, the `agent-ready-nightly` automation takes the **oldest** labelled open issue in Weyland Lab, runs this
+check again itself, and implements it in a local worktree (push off). Read the result in the morning, then remove the
+label. Recipe: [software-factory.md](software-factory.md) § The conveyor.
+
 ## The standard
 
 | Kind (how it is detected) | Required sections |

@@ -78,9 +78,10 @@ this page) links to the live tool.
 | **Claude Code** | local CLI (rogueone) — [concept](concepts/multi-harness.md) | Primary harness — MCP client of the tool-server, Bifrost and Linear |
 | **Codex** | local CLI + ChatGPT desktop — [runbook](runbooks/coding-agents.md) | Peer harness on the ChatGPT sub — MCP client of Bifrost + Linear; Linear "Work on issue" launcher |
 | **Editors — IntelliJ / VS Code** | local IDEs — [concept](concepts/multi-harness.md) | Hosts for the harnesses: IntelliJ's ACP agent registry + Claude Code/Codex plugins; VS Code's Codex (and Claude Code) extensions |
+| **Emdash** | local desktop app (rogueone) — [runbook](runbooks/software-factory.md) | The software-factory conveyor (B179): supervisor over the harnesses, one worktree per task; its `agent-ready-nightly` automation runs Claude Code on the oldest `agent-ready` Linear issue at 04:00, push off |
 | **Coding agents (B15)** | local CLIs — [runbook](runbooks/coding-agents.md) | `$0` agentic coding TUIs (opencode / Cline / Pi) → hosted models direct or ChatGPT sub (GPT-5.5) |
 | **Bifrost** | <https://bifrost.weyland.lab> | Agent edge — the MCP gateway every harness uses + skill/prompt registry |
-| **Shared agent memory** | *planned — B182* | One memory store for every harness; all components TBD ([design](design/shared-agent-memory-design.md)) |
+| **Shared agent memory** | Basic Memory MCP on rogueone `:8765` — [runbook](runbooks/shared-agent-memory.md) | One memory store for every harness (B182, live 2026-10-03): the notes in `~/agent-memory/weyland`, read by the operator and Open WebUI through Bifrost |
 
 ## Observability & Cost
 

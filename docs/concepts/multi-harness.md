@@ -20,6 +20,10 @@ Coding harnesses call hosted models **directly**, not through the MLflow AI Gate
 loop — see [arch.md §8a](../arch.md)). Model choice is a driver, not an architecture: the harness was never the
 bottleneck ([runbooks/coding-agents.md](../runbooks/coding-agents.md)).
 
+**Supervisor (B179, adopted 2026-10-12):** Emdash runs the harnesses unattended. Its `agent-ready-nightly` automation
+starts Claude Code on the oldest `agent-ready` Linear issue at 04:00 in a fresh worktree, push off. The harness still
+reads `AGENTS.md`, so the rules above apply unchanged ([runbooks/software-factory.md](../runbooks/software-factory.md)).
+
 ## Editors — where the harnesses run
 
 The IDEs are **hosts, not harnesses**: they run the harnesses above rather than being a separate agent layer.

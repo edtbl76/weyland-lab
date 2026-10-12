@@ -20,6 +20,8 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
   A Why + Scope issue is not done being written (EMA-240 was, 2026-09-25). Before delegating, run
   `scripts/issue-readiness.sh EMA-###` — it must print READY (every section the issue's kind requires, a real acceptance
   criterion, priority set). It replaced SpecBot (B190); runbook `docs/runbooks/issue-readiness.md`.
+  The Linear label **`agent-ready`** releases a READY issue to the unattended conveyor (Emdash `agent-ready-nightly`,
+  04:00, B179): only the owner adds it, and an agent never adds it on its own (`docs/runbooks/software-factory.md`).
 - **Docs** — arch/hosts/api/schedules/runbooks/demos/diagrams under `docs/`; keep them current on every change.
   Architecture model: `docs/architecture/weyland.likec4`. Design records: `docs/design/`; concepts: `docs/concepts/`.
 - **Knowledge libraries** — `knowledge-repos/` feed Bifrost skills/prompts + the DataHub glossary (data, not workflow).

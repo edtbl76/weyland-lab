@@ -7,6 +7,11 @@ The survey ([concepts/ai-dev-tooling-survey.md](../concepts/ai-dev-tooling-surve
 new capability, since the worktree-per-task pattern is already achievable directly with the CLIs. This
 runbook is the operator recipe if/when that convenience is wanted; nothing is deployed into the cluster.
 
+> **ADOPTED 2026-10-12 (B179) as the lab's software-factory conveyor**: the Emdash automation `agent-ready-nightly`
+> runs Claude Code unattended on `agent-ready` Linear issues. The operating recipe, its definition of record and Emdash's
+> internals (scheduler in the app, push off, never delete `pushRemote`) are in
+> [software-factory.md](software-factory.md); this page stays the general supervisor recipe.
+
 ## Recommended: Emdash (active, Apache-2.0)
 
 [`generalaction/emdash`](https://github.com/generalaction/emdash) — the **open-source agentic development

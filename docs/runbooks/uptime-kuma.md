@@ -27,6 +27,7 @@ after every successful push (found 2026-10-03: `machine-inventory-drift` and `ag
 | `rogueone-backup` | `restic-backup.timer` (rogueone) | daily 02:30 | **93600 s** (26 h) | `KUMA_BACKUP_PUSH_URL` |
 | `machine-inventory-drift` | `machine-inv-drift.timer` (rogueone) | nightly ~03:45 | **93600 s** (26 h) — fixed from 60 s 2026-10-03 | `KUMA_INVENTORY_PUSH_URL` |
 | `agent-memory` | `agent-memory-watch.timer` (rogueone, B182) | every 15 min | **1200 s** (20 min) — fixed from 60 s 2026-10-03 | `KUMA_MEMORY_PUSH_URL` |
+| `emdash-conveyor` | `emdash-conveyor-watch.timer` (rogueone, B179) | daily 06:00 | **90000 s** (25 h) | `KUMA_CONVEYOR_PUSH_URL` |
 
 A **down** push is not the same as a missed one: `machine-inventory-drift` pushes `down` on purpose when it finds
 host-software drift (it opens a `chore(inventory)` PR); it goes green again on the first clean night.

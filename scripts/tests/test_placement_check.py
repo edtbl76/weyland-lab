@@ -513,6 +513,29 @@ def test_a_timer_that_has_not_fired_within_twice_its_period_is_stale():
     assert any("never" in f for f in pc.check_hosts(_host_doc(), g, REPO.get, NOW))
 
 
+def test_a_just_installed_timer_that_is_not_due_yet_is_not_a_finding():
+    # 2026-10-12: emdash-conveyor-watch.timer was installed at ~15:30 for a first 06:00 slot; the 03:45 drift job would
+    # have reported "never triggered" and paged. Never triggered is a fault only once the timer should have fired.
+    g = _gathered(timers={"weyland-image-prune.timer": None}, timer_active={"weyland-image-prune.timer": NOW - 3600})
+    assert not any("weyland-image-prune.timer" in f for f in pc.check_hosts(_host_doc(), g, REPO.get, NOW))
+
+
+def test_a_timer_active_for_over_twice_its_period_that_never_fired_is_a_finding():
+    g = _gathered(timers={"weyland-image-prune.timer": None},
+                  timer_active={"weyland-image-prune.timer": NOW - 15 * 86400})     # 15 days > 2 x 7d
+    assert any("never triggered" in f for f in pc.check_hosts(_host_doc(), g, REPO.get, NOW))
+
+
+def test_the_gather_parses_a_timers_activation_time():
+    g = pc.parse_host_output("T x.timer - 1791800000\nT y.timer 1791700000 1791600000\nT z.timer 1791000000\n")
+    assert g["timers"] == {"x.timer": None, "y.timer": 1791700000, "z.timer": 1791000000}
+    assert g["timer_active"] == {"x.timer": 1791800000, "y.timer": 1791600000}    # z: an older gather, no field
+
+
+def test_the_host_script_asks_each_timer_when_it_was_activated():
+    assert "ActiveEnterTimestamp" in pc.host_script([], [("restic-backup.timer", True)], user=True)
+
+
 def test_an_uninventoried_hand_installed_unit_is_a_finding():
     g = _gathered(units={"weyland-image-prune.timer", "mystery.service"})
     assert any("mystery.service" in f for f in pc.check_hosts(_host_doc(), g, REPO.get, NOW))
