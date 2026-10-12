@@ -280,3 +280,18 @@ collect_user_space() {
   [ "$(status_of h1 appimage emdash)" = "unreviewed" ]
   [ "$(status_of h1 uv-tool openhands)" = "unreviewed" ]
 }
+
+# 2026-10-12: rogueone has TWO npms. The nightly job (a systemd user unit) finds /usr/bin/npm (apt), which has no
+# globals; an interactive shell finds nvm's, where codex/cline/opencode-ai live. Each collection pruned the other's rows.
+# The collector now reads nvm's global dirs directly, so the answer no longer depends on which npm is on PATH.
+@test "npm globals under nvm are listed even when npm is not on PATH (systemd's environment)" {
+  local home="$TMP/home"
+  mkdir -p "$home/.nvm/versions/node/v25.6.1/lib/node_modules/@openai/codex" \
+           "$home/.nvm/versions/node/v25.6.1/lib/node_modules/opencode-ai" \
+           "$home/.nvm/versions/node/v24.1.0/lib/node_modules/yarn"
+  run bash -c "HOME='$home' PATH=/usr/bin:/bin bash '${BATS_TEST_DIRNAME}/../collect-machine-inventory.sh' \"\$(hostname -s)\" 2>/dev/null | grep -E \$'^npm\t' | sort"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'npm\tcodex\t'* ]] || { echo "$output"; return 1; }
+  [[ "$output" == *$'npm\topencode-ai\t'* ]] || { echo "$output"; return 1; }
+  [[ "$output" == *$'npm\tyarn\t'* ]] || { echo "$output"; return 1; }
+}

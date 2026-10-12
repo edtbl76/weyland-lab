@@ -160,5 +160,9 @@ in `scripts/.env` as `KUMA_INVENTORY_PUSH_URL`, then
   the file name; a `*.part` download is skipped) and `uv tool list` (ANSI escapes stripped: uv bolds names even when
   piped). Emdash, Cursor, LM Studio and `basic-memory` had never been cataloged before this. A tool run with **`uvx`**
   is only cached, not installed, so no collector sees it; install a tool you mean to keep with `uv tool install`.
+- **Two npms (2026-10-12).** rogueone has apt's `/usr/bin/npm` (no globals) and nvm's (the real globals: codex,
+  cline, opencode-ai, …). The nightly job runs as a systemd unit and saw the first; an interactive shell saw the second;
+  so each collection pruned the other's rows. The collector now reads `~/.nvm/versions/node/*/lib/node_modules` directly,
+  so both environments give the same answer. Rule: a collector source must not depend on which binary is on `PATH`.
 - The collector is **read-only** and the merge/emit write only the SoT + Port — nothing is installed or removed
   by this system; it *records* dispositions, acting on them is manual.

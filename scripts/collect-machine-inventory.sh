@@ -41,6 +41,19 @@ if command -v npm >/dev/null 2>&1; then
     printf 'npm\t%s\t\n' "$b"
   done; ran="$ran npm"
 fi
+# nvm's npm globals, read directly: a box can have two npms (rogueone: apt's /usr/bin/npm with no globals, and nvm's with
+# codex/cline/opencode-ai), and the systemd job and an interactive shell each saw a different one, so each collection
+# pruned the other's rows (2026-10-12). Scoped packages (@scope/name) are listed by name, like `npm ls` above.
+nvm_seen=""
+for d in "$HOME"/.nvm/versions/node/*/lib/node_modules; do
+  [ -d "$d" ] || continue
+  for p in "$d"/* "$d"/@*/*; do
+    [ -d "$p" ] || continue
+    b="${p##*/}"; case "$b" in @*) continue ;; esac
+    printf 'npm\t%s\t\n' "$b"
+  done; nvm_seen=1
+done
+[ -n "$nvm_seen" ] && ran="$ran npm(nvm)"
 if command -v docker >/dev/null 2>&1; then
   docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -v '<none>' | while IFS= read -r i; do
     printf 'image\t%s\t%s\n' "${i%:*}" "${i##*:}"; done; ran="$ran image(docker)"

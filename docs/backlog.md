@@ -4437,6 +4437,11 @@ user-space installs. Emdash (an AppImage, installed 10-09 for B179), Cursor, LM 
   `keep`; emitted and verified by read-back (912 entities, matches the SoT).
 - **The rule:** `uvx` only caches, so no collector can see it. The software-factory runbook now installs OpenHands
   with `uv tool install`. Bats 24/24, shellcheck 0, guards pass.
+- **Follow-up, same day: two npms.** The nightly `machine-inv-drift` went down. It runs as a systemd unit and saw apt's
+  `/usr/bin/npm` (no globals), while my shell had seen nvm's. So its drift PR #130 proposed DELETING 11 real npm rows,
+  and listed 10 images `main` already had. The collector now reads nvm's global dirs directly: both environments give
+  the same 13 rows (verified live). The SoT was refreshed for all three hosts (+claude-code, corepack, i2c-tools) so
+  tonight's run finds no drift. Bats 25/25 (the new case failed first). **#130 must not be merged as it stands.**
 
 ---
 

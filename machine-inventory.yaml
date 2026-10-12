@@ -1338,6 +1338,10 @@ hosts:
     - name: zricethezav/gitleaks
       kind: image
       status: system
+    - name: claude-code
+      kind: npm
+      status: unreviewed
+      rationale: ''
     - name: cli
       kind: npm
       status: unreviewed
@@ -1347,6 +1351,10 @@ hosts:
       status: unreviewed
       rationale: ''
     - name: codex
+      kind: npm
+      status: unreviewed
+      rationale: ''
+    - name: corepack
       kind: npm
       status: unreviewed
       rationale: ''
@@ -3103,6 +3111,9 @@ hosts:
       kind: apt
       status: system
     - name: hostname
+      kind: apt
+      status: system
+    - name: i2c-tools
       kind: apt
       status: system
     - name: ifupdown2
