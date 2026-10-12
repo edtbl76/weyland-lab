@@ -132,17 +132,21 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     nightly fires** (#252, 2026-10-04, a lean ship started 00:54): at 05:01 UTC the server logged `database is locked`
     (SQLite, while the cron created the full matrix), the agent's lease extension failed (`sql: no rows in result
     set`), and the server expired the task (`queue: task expired`) — every remaining step `killed`. Nothing is wrong
-    with the change; re-run the ship once the nightly is past. Do not start a ship after ~00:30.
+    with the change; re-run the ship once the nightly is past. (The "no ship after ~00:30" rule this led to was
+    retired 2026-10-12, below.)
     **Fixed at the root 2026-10-05 (B201):** `WOODPECKER_DATABASE_MAX_CONNECTIONS: '1'` (woodpecker-values.yaml) — SQLite
     admits one writer; a 100-connection pool made the metrics writer, cron scheduler, lease extensions and log store
     race inside it (9 locks on 10-04). Alerts `WoodpeckerDatabaseLocked` / `WoodpeckerTaskExpired` (Loki ruler,
-    `k8s/loki/loki-rules-configmap.yaml`) — both fire on the 10-04 incident replayed. Keep the 00:30 rule until a lean
-    run started ~00:55 has survived the nightly (B201 acceptance), then drop it.
+    `k8s/loki/loki-rules-configmap.yaml`) — both fire on the 10-04 incident replayed. The 00:30 rule was kept until a lean
+    run started ~00:55 had survived the nightly (B201 acceptance).
     **Proven on demand 2026-10-06 03:01Z (no waiting for 01:00):** lean #270 started, then the REAL `nightly-images`
     cron fired via the API (`POST /api/repos/2/cron/2` → #271, event `cron`) 20 s later — the #252 collision. #270
     finished `success`; #271 ran 17 steps clean until stopped; server + agents logged **0** `database is locked` /
     `task expired` / lease failures (51 server lines scanned). Repeated twice more the same hour (#272/#273,
-    #274/#275): 3/3 lean runs `success`, 0 locks. The "no ship after 00:30" rule can go once 7 lock-free nights confirm it.
+    #274/#275): 3/3 lean runs `success`, 0 locks. **The "no ship after 00:30" rule is RETIRED (2026-10-12, owner):**
+    7 consecutive lock-free nights (10-05→12) confirmed it, two with real overlaps (night 2: lean #279 under the
+    nightly #280; night 6: a manual ship #320 alongside the nightly #319). Ships may start at any hour. If a lock ever
+    returns, `WoodpeckerDatabaseLocked` / `WoodpeckerTaskExpired` page Telegram; reinstate the rule while you look.
     **Soak check (one per night, B201 criterion 3)** — in Grafana → Explore → Loki (agents: the Grafana MCP
     `query_loki_logs`), over the night 04:00–11:00 UTC (00:00–07:00 NY), and its control:
     ```

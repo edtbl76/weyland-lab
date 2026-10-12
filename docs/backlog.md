@@ -2855,6 +2855,8 @@ the Woodpecker store (whichever store it ends on).
 - [x] 0 × `database is locked` over 7 consecutive nights after the fix (Loki). **7/7 (2026-10-12) — MET:** night
   10-11→12, 0 matching lines (04:00–11:00Z), with the same-filter control still returning the 10-06 line from
   `woodpecker-server-0`. The nightly #326 succeeded; SonarQube had 0 restarts on its first night with the new probe.
+  **The "no ship after 00:30" rule is retired (owner, 2026-10-12)**, as criterion 5 allowed once the soak passed;
+  `runbooks/woodpecker.md` updated, with the alerts as the backstop.
   **6/7 (2026-10-11):** night 10-10→11,
   0 matching lines, through a real collision: the 02:42 nightly #319 and a manual ship #320 ran together (both lost
   their Sonar scan to a SonarQube liveness restart, not to Woodpecker). Same stream proof and control as night 5. The
@@ -2863,7 +2865,7 @@ the Woodpecker store (whichever store it ends on).
   18:03:59, pipeline 297, same pod). The 10-04 positive control has aged out of the 7-day retention, so it was replaced by
   the same filter matching that last line (runbook updated). **4/7 (2026-10-09):** nights 10-07→08 and 10-08→09, 0 `database is locked` / `task expired` lines in 318,753 Woodpecker lines over 2 days (Loki, `{namespace="woodpecker"}`; the zero is real — the stream itself returned 318,753). **2/7 (2026-10-07):** nights 10-05→06 and 10-06→07, 0 matching lines in 1,782 server lines (10-05 20:10Z → 10-07; Loki, with the unfiltered stream and the 10-04 incident as controls; check in `runbooks/woodpecker.md` § Soak check). Night 2 included a real collision: lean #279 still running when the 01:00 nightly #280 fired — no step killed. **3/7 (2026-10-08):** night 10-07→08, 0 matching lines. The server logs at error level only and wrote nothing after 2026-10-06 18:03 (a clean, quiet night), so the unfiltered-window control cannot pass; stream visibility proven instead by the same pod's last line in Loki and the 10-04 positive control (runbook control rewritten).
 - [x] An alert fires on `database is locked` and on a `task expired` kill, proven (rule test or drill) and reaching Telegram — both rules replayed on the 10-04 incident (=1), live in the ruler; DRILL delivered 2026-10-06 (telegram 13,476 → 13,477, failed unchanged).
-- [x] `dr.md` has a Woodpecker row with a restore that was actually run (drill 2026-10-05); the "no ship after 00:30" rule is KEPT, with the reason (until criterion 2 proves the pool fix), in `woodpecker.md`.
+- [x] `dr.md` has a Woodpecker row with a restore that was actually run (drill 2026-10-05); the "no ship after 00:30" rule is KEPT, with the reason (until criterion 2 proves the pool fix), in `woodpecker.md`. **Rule retired 2026-10-12** once the 7-night soak passed (owner).
 
 **Edge cases & failure modes.** A migration to Postgres must carry repos, secrets, crons (`enabled:true`) and pipeline
 history — verify counts before/after (the 08-22 roll's check). WAL is not trivially reversible (journal_mode lives in the
