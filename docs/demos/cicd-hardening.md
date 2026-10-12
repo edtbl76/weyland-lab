@@ -138,6 +138,13 @@ with no unverified line. **Negative case:** with the local brain down the operat
 unavailable (free-only request)`, and `txn_ok` names `weyland-operator(TXN_FAIL 503 …)` and fails the ship (bats
 `ship-images.bats`, "TXN FAILS when the operator's free local brain is down").
 
+**The Realm (added 2026-10-12).** Two $0 halves: its consumer contracts (`/agents`, `/prompts`, the A2A card must
+agree, no empty prompt) and a free-only `POST /route` code-review question with a planted bug (`return a - b`), which
+a specialist must answer by naming it. First ship gated by it: `git-dbefa346`, `TXN: 3 service(s) answered`. Proof
+it spent nothing: the Realm's `/metrics` shows `realm_requests_total{agent="huginn",outcome="ok"} 1`, and LiteLLM's
+`litellm_proxy_total_requests_metric_total` over the ship window counts only `requested_model="wl-judge"` (local
+Ollama), with **no** `wl-agentic` request.
+
 ---
 
 ## #5 — Feature-flag deploy gate · `scripts/ship-images.sh` `ship_flag_allows`

@@ -30,7 +30,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B119** — Linear feature evaluation (master the tool) — **DONE (2026-09-26, Linear EMA-139)**: walked every Linear surface — features, the full integrations directory (294 checked; adopted Codex MCP, Figma Make, VS Code MCP, SpecBot), and Settings (workspace + team, incl. AI & Agents). Every verdict is in `docs/concepts/linear-evaluation.md`; follow-ups filed as B182–B195 + B119.1 (OKRs, still open). Detail section below.
 - **B194** — Nightly Linear workspace export to MinIO (backup/DR + the Linear data source) — **DONE (2026-09-27, Linear EMA-253)**: nightly snapshot (05:20 NY, read-only key, 90-day retention, NVMe mirror) verified 254 = live count; restore drill passing (`scripts/linear_restore.py --drill`, 0 mismatches); lakehouse `iceberg.linear.*` + 3 marts for B185 / EMA-172 / B119.1; alert drill 2026-09-27: a skipped run fired `DagsterJobStale` into Alertmanager → Telegram. Closing Gaps along the way: `docs/dr.md` + DoD Pillar 9, lean ships, FR-DRAIN, archive-inclusive linear-sync, DataHub dbt/MLflow ingestion repaired. Detail section below.
 - **B199** — mother runs out of memory overnight and stalls (CI killed, node NotReady) — **DONE 2026-10-08** (HIGH, 2026-09-30, Linear EMA-258). MemAvailable falls to ~1.6 GB and load1 to ~590 for 1–5 min several nights; the Woodpecker server expires the running CI task (pipelines 169/170/186/191/206–209 killed), and 09-30 06:44Z hit `NodeNotReady`. Attribute each stall to pods/jobs, fix the cause, alert on it. See §B199.
-- **B201** — Woodpecker's SQLite locks when the nightly fires and kills in-flight CI runs (`task expired`) — **MEDIUM (2026-10-05, Linear EMA-287).** 9 × `database is locked` on 10-04 05:01–08:26Z despite the 08-22 WAL fix; #252 (an ad-hoc ship) killed. See detail below.
+- **B201** — Woodpecker's SQLite locks when the nightly fires and kills in-flight CI runs (`task expired`) — **DONE 2026-10-12** (MEDIUM, 2026-10-05, Linear EMA-287). Fix: a 1-connection DB pool; 7/7 clean nights (10-05→12), alerts proven, DR row drilled. 9 × `database is locked` on 10-04 05:01–08:26Z despite the 08-22 WAL fix; #252 (an ad-hoc ship) killed. See detail below.
 - **B196** — Guard the Dagster watchdog: budgets must match schedules, and a never-run job must alert — **DONE (2026-09-27, Linear EMA-255)**: `scripts/check-dagster-watchdog-budgets.sh` in `repo-guards` (AST-parses every schedule incl. the `build_domain_jobs` factory against the watchdog `BUDGETS` block; 14 bats cases incl. reverting catalog to 8h fails naming `weyland_catalog_job`); watchdog fires `DagsterJobNeverRan`, fails closed on an empty run list, releases the sidecar on every exit (8 bats cases on the deployed script). First run found `feast_materialize_job` + `registrations_reconcile_job` unwatched and six code/live `default_status` mismatches — all fixed (code = live, no exception list). Live watchdog run checked all 13 budgeted jobs; CI #198 green. Detail section below.
 - **B198** — Placement inventory: where every workload runs, and whether it can move — **DONE (2026-09-28, Linear EMA-257)**: `placement.yaml` (196 rows) checked on every push (`check-placement.sh` in repo-guards) and nightly (`placement-coverage`, Prometheus only, incl. a systemd-only node-exporter on rogueone). All 9 DoD pillars: in-cluster Job clean, drills fail by name / refuse, owner UAT passed in Grafana, CI #201 green incl. the SonarQube gate (after fixing 4 findings). Migration table in B134. Along the way: Headlamp + trino-noauth-proxy onboarded to Argo, the last 3 manual Argo apps given selfHeal, and Grafana SSO fixed (every login had silently been Viewer). Detail section below.
 - **B197** — Alert on failing DataHub ingestion runs — **DONE (2026-09-28, Linear EMA-256)**: `datahub-ingestion-watchdog` CronJob (ns `weyland`, daily 05:55 NY) reads every ingestion source from GMS GraphQL and posts `DataHubIngestionFailed` / `Stale` / `NeverRan` to Alertmanager → Telegram; exit 2 when GMS is unreadable, exit 1 when an alert cannot be delivered. 29 pytest cases; in-cluster run clean (17 sources); live drill reached Telegram (owner UAT); CI #202 green incl. SonarQube. Cadence corrected from `*/30` to daily before shipping (Design Rule #5). Detail section below.
@@ -2797,7 +2797,7 @@ merges — that stays a human action).
  is committed in git. Do **all four at once** — piecemeal (ClickHouse-only) is inconsistent and gives no real
  benefit while the other three stay inline. Also the ClickHouse `users.d` Secret is already out-of-band (good).
 
-### B201 — Woodpecker's SQLite locks when the nightly fires and kills in-flight CI runs — MEDIUM (2026-10-05, Linear EMA-287)
+### B201 — Woodpecker's SQLite locks when the nightly fires and kills in-flight CI runs — **DONE 2026-10-12** (MEDIUM, 2026-10-05, Linear EMA-287)
 
 **FIX BUILT 2026-10-05 (owner: fix, don't file) — In Progress until proven.** `WOODPECKER_DATABASE_MAX_CONNECTIONS: '1'`
 (the 08-22 note's unpulled lever; flag verified in the v3.18.0 binary) + Loki alerts `WoodpeckerDatabaseLocked` /
@@ -2852,7 +2852,10 @@ the Woodpecker store (whichever store it ends on).
 **Acceptance criteria (pass/fail).**
 - [x] Each lock in the 10-04 window attributed to a named writer (7 × metrics writer, 2 × cron list; the 05:01 one cost #252's lease), recorded in `woodpecker.md` and `woodpecker-values.yaml`.
 - [x] A lean CI run survives the nightly cron firing on top of it — **3/3 on demand 2026-10-06** (the real `nightly-images` cron fired via `POST /api/repos/2/cron/2` 20 s after each lean start, instead of waiting for 01:00): lean #270/#272/#274 all `success`; cron #271/#273/#275 ran 16–17 steps clean until stopped; server log readable (155 lines), 0 `database is locked` / `task expired`.
-- [ ] 0 × `database is locked` over 7 consecutive nights after the fix (Loki). **6/7 (2026-10-11):** night 10-10→11,
+- [x] 0 × `database is locked` over 7 consecutive nights after the fix (Loki). **7/7 (2026-10-12) — MET:** night
+  10-11→12, 0 matching lines (04:00–11:00Z), with the same-filter control still returning the 10-06 line from
+  `woodpecker-server-0`. The nightly #326 succeeded; SonarQube had 0 restarts on its first night with the new probe.
+  **6/7 (2026-10-11):** night 10-10→11,
   0 matching lines, through a real collision: the 02:42 nightly #319 and a manual ship #320 ran together (both lost
   their Sonar scan to a SonarQube liveness restart, not to Woodpecker). Same stream proof and control as night 5. The
   control line (10-06 18:03Z) ages out on 10-13 18:03Z, after night 7's check. **5/7 (2026-10-11):** night 10-09→10
@@ -3997,6 +4000,9 @@ exec'd process (`REALM_MODEL=wl-judge`): huginn answered in about 2 s. Tests:
 
 **Slip:** I ran the probe once against the live (old) Realm, which ignores the flag, so one question went to Haiku.
 Memory: `feedback-free-only-probe-needs-deployed-flag`.
+**Shipped `git-dbefa346` (2026-10-12):** `TXN: 3 service(s) answered`, the Realm no longer unverified. The live
+`/openapi.json` has `allow_paid`. The Realm's metrics show 1 request, answered by huginn. LiteLLM counted only
+`wl-judge` (rogueone Ollama) requests in the ship window and **0** `wl-agentic`, so the check spent nothing.
 8. **Cascade:** operator API 1.1, with snapshot, lock and a test tying the snapshot to the code (no consumers). The
    three `operator_system` copies are held equal by two tests. ship-images: bats 106/106.
 9. **DR:** N/A. No new state; the prompt text in Bifrost and MLflow rebuilds from git.
