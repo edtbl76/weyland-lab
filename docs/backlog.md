@@ -3978,7 +3978,9 @@ after.
    `register_bifrost_skills.py` and the three new test files 10.0; `register_bifrost_prompts.py` 9.68 (one complex
    conditional at :627, B111 code, not this batch). Operator `app.py` 9.27 → **9.53**: this batch had pushed
    `operator_ask` to cc 11, so the agent call moved into `_run_agent` (89/89 tests, scratch Sonar gate passed); the
-   remaining `lifespan` smell is untouched code.
+   remaining `lifespan` smell is untouched code. **Shipped `git-e003cfac` (2026-10-12):** full CI green (incl.
+   `test-go`, after echo's root-owned `go.sum` was handed back and regenerated). The realm pod reports PyJWT 2.15.0 /
+   GitPython 3.1.62 / multidict 6.9.1 / Werkzeug 3.1.9. The operator transaction answered from `brain="local"`.
 8. **Cascade:** operator API 1.1, with snapshot, lock and a test tying the snapshot to the code (no consumers). The
    three `operator_system` copies are held equal by two tests. ship-images: bats 106/106.
 9. **DR:** N/A. No new state; the prompt text in Bifrost and MLflow rebuilds from git.
