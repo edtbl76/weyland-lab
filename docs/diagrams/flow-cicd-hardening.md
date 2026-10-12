@@ -63,7 +63,7 @@ sequenceDiagram
     participant Pod as in-cluster pod (kubectl exec)
     participant Svc as deployed service
     Ship->>Pod: per bumped image, run its transaction
-    Pod->>Svc: real op (Dagster loadStatus / feast feature / tool-server /context/search / operator /operator/ask free-only)
+    Pod->>Svc: real op (Dagster loadStatus / feast feature / tool-server /context/search / operator /operator/ask free-only / realm contracts + /route free-only)
     Svc-->>Pod: real result
     alt TXN_OK
         Pod-->>Ship: verified

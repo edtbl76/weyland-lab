@@ -82,6 +82,40 @@ def test_route_dispatch_failure_is_502(client, monkeypatch):
     assert client.post("/route", json={"message": "x"}).status_code == 502
 
 
+def test_route_is_paid_by_default_and_free_only_on_request(client, monkeypatch):
+    # 2026-10-12: an automatic caller (the ship-images Realm transaction) sends allow_paid false and the whole
+    # dispatch runs in budget.free_only(); a person's request keeps the hosted brain.
+    import budget
+    seen = []
+
+    async def fake_dispatch(msg, hist=None):
+        seen.append(budget.is_free_only())
+        return ("huginn", "it subtracts")
+    monkeypatch.setattr(realm_app.gna, "dispatch", fake_dispatch)
+    assert client.post("/route", json={"message": "x"}).status_code == 200
+    assert client.post("/route", json={"message": "x", "allow_paid": False}).status_code == 200
+    assert seen == [False, True]
+    assert not budget.is_free_only()   # the mode never outlives its request
+
+
+def test_route_documents_its_502():
+    assert "502" in realm_app.app.openapi()["paths"]["/route"]["post"]["responses"]
+
+
+def test_the_committed_contract_snapshot_matches_the_app():
+    # docs/api/specs/realm-of-agents.openapi.json is the locked contract the api-drift cron compares the LIVE service to.
+    import json
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[7]
+    sys.path.insert(0, str(root / "scripts" / "lib"))
+    import api_spec_diff
+    snapshot = json.loads((root / "docs" / "api" / "specs" / "realm-of-agents.openapi.json").read_text())
+    # The A2A router is stubbed above (a2a.py needs the a2a SDK), so its /a2a/* routes are out of this comparison.
+    snapshot["paths"] = {p: v for p, v in snapshot["paths"].items() if not p.startswith("/a2a")}
+    assert api_spec_diff.diff(snapshot, realm_app.app.openapi()) == []
+    assert api_spec_diff.diff(realm_app.app.openapi(), snapshot) == []
+
+
 def test_send_message_runs_agent_and_unknown_404(client, monkeypatch):
     async def fake_run(spec, msg, hist):
         return "done"

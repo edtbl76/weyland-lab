@@ -10,13 +10,15 @@ from langchain_core.tools import StructuredTool
 from langgraph.prebuilt import create_react_agent
 
 from agents import run_solo
+from budget import is_free_only
 from fleet import tools_for
 from llm import brain
 from obs import lf_config, log
 from prompts import load_role
 from roster import BY_KEY, AgentSpec
 
-_leads: dict[str, object] = {}
+# Keyed by (lead, free-only): the brain is baked into the graph, so a free-only run never reuses a paid graph.
+_leads: dict[tuple[str, bool], object] = {}
 
 
 def _member_tool(member: AgentSpec) -> StructuredTool:
@@ -43,14 +45,15 @@ def _member_tool(member: AgentSpec) -> StructuredTool:
 
 
 async def _lead_graph(lead: AgentSpec):
-    g = _leads.get(lead.key)
+    cache_key = (lead.key, is_free_only())
+    g = _leads.get(cache_key)
     if g is None:
         # A lead gets BOTH its own tools (so it can do its specialty directly — e.g. Verðandi's grafana_*) AND a
         # delegate_to_* tool per member (to hand off everything else). Two-mode: act on your specialty, delegate the rest.
         own_tools = await tools_for(lead.tool_prefixes)
         member_tools = [_member_tool(BY_KEY[k]) for k in lead.members if k in BY_KEY]
         g = create_react_agent(brain(lead.lane), own_tools + member_tools)
-        _leads[lead.key] = g
+        _leads[cache_key] = g
     return g
 
 

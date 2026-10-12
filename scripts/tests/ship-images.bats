@@ -1075,6 +1075,45 @@ txn_stub_pod() {
   grep -q '"allow_paid": False' "$STUB_LOG"
 }
 
+# 2026-10-12: realm-of-agents shipped with "no transaction defined". Its transaction checks the contracts its
+# consumers read (/agents, /prompts, the A2A card — counts agree, no empty prompt) AND asks a real code-review
+# question through POST /route FREE-ONLY ("allow_paid": false → the free local lane, LiteLLM fallbacks off), since
+# every Realm brain is otherwise paid Haiku.
+@test "TXN checks the Realm, passing on agreeing contracts and a free-only answer" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/realm-of-agents:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"no transaction"* ]]
+  [[ "$output" == *"1 service(s) answered"* ]]
+}
+
+@test "TXN asks the Realm FREE-ONLY and reads its consumer contracts" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/realm-of-agents:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  # The probe is a multi-line `python3 -c` argument, so read the whole call log (calls_to sees line 1 only).
+  grep -q '/route' "$STUB_LOG"
+  grep -q '"allow_paid": False' "$STUB_LOG"
+  grep -q '/prompts' "$STUB_LOG"
+  grep -q 'agent-card.json' "$STUB_LOG"
+}
+
+@test "TXN FAILS when the Realm's contracts disagree — named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/realm-of-agents:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_FAIL contracts disagree: 24 agents, 23 prompts (1 empty), 24 card skills'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"realm-of-agents"* ]]
+  [[ "$output" == *"contracts disagree"* ]]
+}
+
 @test "TXN FAILS when the operator's free local brain is down — named, not paid around" {
   SHIP_IMAGES_LIB=1 source "$SHIP"
   printf '+ registry.weyland.lab/weyland-operator:git-9a4996c6\n' > "$STUB_DIR/d.diff"

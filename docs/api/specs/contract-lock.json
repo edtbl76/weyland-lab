@@ -238,6 +238,11 @@
           },
           "TaskRequest": {
             "properties": {
+              "allow_paid": {
+                "default": true,
+                "title": "Allow Paid",
+                "type": "boolean"
+              },
               "history": {
                 "anyOf": [
                   {
@@ -635,6 +640,9 @@
                   }
                 },
                 "description": "Validation Error"
+              },
+              "502": {
+                "description": "Dispatch failed (the classifier or the agent run errored)"
               }
             },
             "summary": "Route"
@@ -679,7 +687,7 @@
         }
       }
     },
-    "version": "1.0"
+    "version": "1.1"
   },
   "weyland-agent": {
     "spec": {

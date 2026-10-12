@@ -564,6 +564,47 @@ except Exception as e:
 ' 2>/dev/null
 }
 
+# Realm of Agents (2026-10-12): two halves, both $0.
+#  1. The CONTRACTS its consumers read: GET /agents (the roster), GET /prompts (the registrations job pulls these
+#     into Bifrost) and the A2A card (how the operator finds the Realm). Counts must agree and no prompt may be empty
+#     — no fixed number, so a roster change does not break the check. Observed live: 24 / 24 / 24.
+#  2. A REAL answer through POST /route, FREE-ONLY (`"allow_paid": false` → the free local lane with LiteLLM
+#     fallbacks off; every Realm brain is otherwise paid Haiku). A code-review question with a planted bug: the
+#     reply must come from a real specialist (not Gná, the dispatcher) and name the bug. Observed 2026-10-12 on the
+#     free lane: routed to huginn in ~0.5s, answered in ~2s, "it subtracts b from a".
+txn_realm() {
+  local pod="${1:?usage: txn_realm <pod>}"
+  kubectl -n weyland exec "$pod" -- python3 -c '
+import json, re, urllib.request, urllib.error
+B = "http://realm-of-agents.weyland.svc.cluster.local:8080"
+def get(p):
+    return json.load(urllib.request.urlopen(B + p, timeout=20))
+try:
+    agents = get("/agents")["agents"]; prompts = get("/prompts")
+    skills = get("/.well-known/agent-card.json").get("skills") or []
+    empty = [k for k, v in prompts.items() if not (v or {}).get("prompt")]
+    if not agents or not (len(agents) == len(prompts) == len(skills)) or empty:
+        print("TXN_FAIL contracts disagree: %d agents, %d prompts (%d empty), %d card skills"
+              % (len(agents), len(prompts), len(empty), len(skills))); raise SystemExit
+    body = {"message": "Review this Python function for bugs: def add(a, b): return a - b", "allow_paid": False}
+    r = urllib.request.Request(B + "/route", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    d = json.load(urllib.request.urlopen(r, timeout=180))
+    who, answer = d.get("routed_to"), str(d.get("answer") or "")
+    if who not in prompts or who == "gna":
+        print("TXN_FAIL routed to " + repr(who) + ", not a specialist")
+    elif not re.search(r"subtract|minus", answer, re.I):
+        print("TXN_FAIL " + who + " did not name the bug: " + answer[:120])
+    else:
+        print("TXN_OK")
+except urllib.error.HTTPError as e:
+    print("TXN_FAIL " + str(e.code) + " " + e.read().decode(errors="replace")[:160])
+except SystemExit:
+    pass
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
 # ship_flag_allows — B88 #5, the Unleash deploy kill-switch. Returns 0 = ship allowed, 1 = HELD.
 #
 # WHY BEFORE THE MERGE, and why global. Every Argo app is `selfHeal: true`, so Argo re-syncs to git
@@ -680,6 +721,7 @@ txn_ok() {
       feast-server)              verdict="$(txn_feast "$pod")" ;;
       weyland-tool-server)       verdict="$(txn_tool_server "$pod")" ;;
       weyland-operator)          verdict="$(txn_operator "$pod")" ;;
+      realm-of-agents)           verdict="$(txn_realm "$pod")" ;;
       # NAMED, never silently passed — same discipline as smoke_ok. A CI image that runs as a Job has
       # no transaction to make; saying so is honest, implying it was verified is not.
       *) unchecked="${unchecked} ${img}"; continue ;;

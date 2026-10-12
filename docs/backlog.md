@@ -3981,6 +3981,22 @@ after.
    remaining `lifespan` smell is untouched code. **Shipped `git-e003cfac` (2026-10-12):** full CI green (incl.
    `test-go`, after echo's root-owned `go.sum` was handed back and regenerated). The realm pod reports PyJWT 2.15.0 /
    GitPython 3.1.62 / multidict 6.9.1 / Werkzeug 3.1.9. The operator transaction answered from `brain="local"`.
+
+**Realm transaction (owner, 2026-10-12):** realm-of-agents had shipped with "no transaction defined". It now has two
+$0 halves. (1) Its consumer contracts: `/agents`, `/prompts` and the A2A card must have agreeing counts and no empty
+prompt. (2) A real answer: `POST /route` sent **free-only** (`allow_paid: false`, API 1.1). Free-only is a per-request
+ContextVar (`budget.py`) that puts every brain in the dispatch, nested agents included, on the free local `wl-judge`
+lane with LiteLLM fallbacks off. Fallbacks have to be off because `wl-judge`'s chain reaches `wl-default`, whose own
+chain ends at the paid `wl-agentic`. Graphs are cached per (agent, mode). The check asks a code-review question with a
+planted bug and needs a specialist (not Gná) that names the bug. Before building, the free lane was observed in an
+exec'd process (`REALM_MODEL=wl-judge`): huginn answered in about 2 s. Tests:
+- Realm 63/63, including a check that every service module is in the Dockerfile's COPY list. `budget.py` was
+  missing from it, which would have crashed the image. Red on the old Dockerfile.
+- The image was built locally and imports.
+- bats 109/109, scratch Sonar gate passed.
+
+**Slip:** I ran the probe once against the live (old) Realm, which ignores the flag, so one question went to Haiku.
+Memory: `feedback-free-only-probe-needs-deployed-flag`.
 8. **Cascade:** operator API 1.1, with snapshot, lock and a test tying the snapshot to the code (no consumers). The
    three `operator_system` copies are held equal by two tests. ship-images: bats 106/106.
 9. **DR:** N/A. No new state; the prompt text in Bifrost and MLflow rebuilds from git.

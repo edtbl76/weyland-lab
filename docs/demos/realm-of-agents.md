@@ -11,6 +11,11 @@ Concept + decoder ring: [concepts/realm-of-agents.md](../concepts/realm-of-agent
 **Brain:** every agent runs on **Claude Haiku** (a Realm-wide `REALM_MODEL` override via LiteLLM's `wl-agentic` lane) —
 fast, reliable, and off the lab's local GPU. Tools load from the Bifrost VK; every hop is an MLflow trace.
 
+**Free-only requests (2026-10-12):** `POST /route` with `"allow_paid": false` runs the whole dispatch on the free local
+`wl-judge` lane (qwen2.5:7b on rogueone) with LiteLLM fallbacks off, so an automatic caller spends nothing. The
+ship-images Realm transaction uses it: a code-review question with a planted bug (`return a - b`) routed to huginn and
+answered in about 2 s on the free lane (observed 2026-10-12).
+
 ## How a request flows
 
 ```mermaid

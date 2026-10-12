@@ -19,6 +19,10 @@ LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "180"))
 # (wl-reason/wl-rag) cold-start-hang and we want that GPU idle. Set REALM_MODEL="" to restore per-agent lanes,
 # or ="claude-haiku" to pin to raw Haiku with no fallback.
 REALM_MODEL = os.getenv("REALM_MODEL", "wl-agentic")
+# Free-only requests (budget.free_only — automatic callers such as the ship-images transaction) think with this FREE
+# lane instead: wl-judge = the operator's local qwen2.5:7b build on rogueone, already resident. Observed 2026-10-12:
+# Gná routes a code-review question to huginn and answers in ~2s on it.
+REALM_FREE_MODEL = os.getenv("REALM_FREE_MODEL", "wl-judge")
 
 # --- Tools: the Bifrost VK MCP surface ---------------------------------------------------------------------------
 # CoreDNS forwards *.weyland.lab to LAN DNS, so the pod can resolve the ingress host directly.

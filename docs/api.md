@@ -194,7 +194,7 @@ realm **leads** act on their own tools or delegate to their members and reconcil
 | `/agents` | GET | every agent's card + a realm index |
 | `/agents/{key}/card` (or `/agents/{key}/.well-known/agent-card.json`) | GET | one agent's A2A card |
 | `/agents/{key}/message` | POST | `{message, history?}` → run a specific agent (a lead delegates; a plain agent answers) |
-| `/route` | POST | `{message, history?}` → Gná classifies and runs the best-fit agent; returns `{routed_to, god, role, realm, answer}` |
+| `/route` | POST | `{message, history?, allow_paid?}` → Gná classifies and runs the best-fit agent; returns `{routed_to, god, role, realm, answer}`. `allow_paid: false` (API 1.1, 2026-10-12) = **free-only**: the whole dispatch runs on the free local `wl-judge` lane (`REALM_FREE_MODEL`) with LiteLLM fallbacks disabled, never Haiku. Used by the ship-images Realm transaction. `502` = dispatch failed (also when the free brain is down) |
 | `/a2a` | POST | **A2A JSON-RPC** `message/send` → Gná dispatches; returns an A2A `Message`. This is the root card's `url` (what standard A2A clients POST to). |
 | `/a2a/{key}` | POST | **A2A JSON-RPC** `message/send` to one specific agent (a per-agent card's `url`) |
 | `/route/stream` | POST | `{message, history?}` → **SSE** live execution stream (route · delegate hops · tool + LLM events · answer tokens) — powers the Console |

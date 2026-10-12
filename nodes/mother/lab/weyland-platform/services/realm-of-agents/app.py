@@ -10,7 +10,7 @@ members come online."""
 import json
 import pathlib
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +22,7 @@ import mlflow
 
 import a2a
 import cards
+from budget import free_only
 import router as gna
 import stream as realm_stream
 from config import MLFLOW_EXPERIMENT, MLFLOW_TRACKING_URI, VERSION
@@ -71,6 +72,9 @@ def console():
 class TaskRequest(BaseModel):
     message: str
     history: list | None = None
+    # False = spend nothing: /route runs on the free local lane with LiteLLM fallbacks off (budget.free_only). For
+    # automatic callers such as the ship-images transaction; a person keeps the default hosted brain.
+    allow_paid: bool = True
 
 
 # --- Discovery (A2A Agent Cards) ---------------------------------------------------------------------------------
@@ -136,12 +140,13 @@ async def route_stream(req: TaskRequest):
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
-@app.post("/route")
+@app.post("/route", responses={502: {"description": "Dispatch failed (the classifier or the agent run errored)"}})
 async def route(req: TaskRequest):
     """Gná: classify the task, run the best-fit agent, and report which one handled it."""
     t0 = time.monotonic()
     try:
-        key, answer = await gna.dispatch(req.message, req.history)
+        with nullcontext() if req.allow_paid else free_only():
+            key, answer = await gna.dispatch(req.message, req.history)
     except Exception as exc:
         _REQS.labels("gna", "error").inc()
         raise HTTPException(502, f"dispatch failed: {exc}")

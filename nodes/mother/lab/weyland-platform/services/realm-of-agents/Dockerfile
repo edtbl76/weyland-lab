@@ -9,7 +9,7 @@ WORKDIR /app
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-COPY config.py roster.py roles.py obs.py prompts.py llm.py fleet.py agents.py realms.py router.py cards.py a2a.py stream.py console.html app.py /app/
+COPY config.py budget.py roster.py roles.py obs.py prompts.py llm.py fleet.py agents.py realms.py router.py cards.py a2a.py stream.py console.html app.py /app/
 
 RUN useradd -u 10001 -m appuser && chown -R appuser /app
 USER appuser
