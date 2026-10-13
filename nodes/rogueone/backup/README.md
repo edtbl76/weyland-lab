@@ -23,7 +23,8 @@ for each **allow-listed** git repo — its `git ls-files --others` (untracked WI
 - Git-repo allow-list: [`backup-repos.conf`](backup-repos.conf) (only these repos are touched; committed code is skipped — it's on the remote)
 - Excludes: [`restic-excludes.txt`](restic-excludes.txt) + restic `--exclude-caches`
 
-Excluded on purpose: `.docker`/`snap`/toolchains/caches, `.local/bin`, non-allow-listed repos,
+Excluded on purpose: `.docker`/`snap`/toolchains/caches, `.local/bin`, non-allow-listed repos, background-session
+scratch `~/.claude/jobs/*/tmp` (throwaway, 54 GB by 2026-10-13; root-owned files there failed that night's run),
 Drive-mirrored media, ISOs, Games, Music, `rag-embed`/`hermes-build`/`Applications`/
 `DataspellProjects`, CI agent workdirs.
 

@@ -63,3 +63,7 @@ neo4j-desktop
 /home/edwardmangini/.claude/paste-cache
 /home/edwardmangini/.claude/statsig
 /home/edwardmangini/.claude/projects/**/*.jsonl
+# Background-session scratch (2026-10-13): each job's tmp/ is throwaway — deleted with the job — and reached 54 GB.
+# A container run as root left unreadable files there (a cargo registry, a trivy cache), and restic exited 3, so
+# the 2026-10-13 backup reported FAILED although the snapshot was written.
+/home/edwardmangini/.claude/jobs/*/tmp
