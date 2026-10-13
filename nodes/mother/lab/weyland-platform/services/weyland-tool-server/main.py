@@ -11,6 +11,7 @@ import psycopg2
 import sentry_sdk
 import weaviate
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
+from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
 from fastmcp.server.providers.openapi import RouteMap, MCPType
 from neo4j import GraphDatabase
@@ -136,7 +137,8 @@ neo4j_driver = None
 # --- B14 guardrails → shared weyland-guard service (B70 Part 2) ------------------
 # The validator MODELS moved OUT to weyland-guard; the tool-server now POSTs each hook to it over HTTP. The service
 # owns the SHADOW/FLAG/BLOCK modes and answers fast for shadow (records the verdict async), so this is an in-cluster
-# round-trip, not model-inference latency. FAIL-OPEN: a guard outage degrades to "not guarded", never "no answer".
+# round-trip, not model-inference latency. INPUT/OUTPUT FAIL OPEN (a guard outage degrades to "not guarded", never
+# "no answer"); ACT FAILS CLOSED (an outage refuses the act) — see _guard_failed (B207).
 GUARD_BASE_URL = os.getenv("GUARD_BASE_URL", "http://weyland-guard.weyland.svc.cluster.local:8080")
 GUARD_TIMEOUT = float(os.getenv("GUARD_TIMEOUT", "10"))
 _GUARD_PATHS = {Hook.INPUT: "/guard/input", Hook.OUTPUT: "/guard/output", Hook.ACT: "/guard/act"}
@@ -324,6 +326,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Weyland Tool Server", lifespan=lifespan)
+
+_ENCODED_SEPARATORS = (b"%2f", b"%5c")   # "/" and "\\" percent-encoded, compared lower-cased
+
+
+@app.middleware("http")
+async def _refuse_encoded_separators(request, call_next):
+    """Refuse a path carrying an ENCODED separator before routing (B207, 2026-10-13). The act paths are protected by
+    an Istio DENY that matches exact paths; the mesh does not decode %2F, uvicorn does — so `/pipeline%2Ftrigger`
+    from any pod reached the act endpoint past the DENY (observed live). No route here needs one, so refuse them all."""
+    raw = (request.scope.get("raw_path") or request.url.path.encode()).lower()
+    if any(sep in raw for sep in _ENCODED_SEPARATORS):
+        return JSONResponse(status_code=400, content={"detail": "encoded path separators are not accepted"})
+    return await call_next(request)
 
 
 def _init_otel(app):
@@ -860,7 +875,8 @@ def metrics():
 #   Consumer: the weyland-mcp-compositor "context" upstream + direct clients — http://<host>:30080/mcp
 # ACT surface (B14): tools tagged "mcp-act" (/pipeline/trigger, /evals/run, /evals/score) at /mcp-act,
 # fronted by the gateway (B17+B19) with auth/policy while /mcp stays open. Read never implies act;
-# every act call is audited by the `act` hook (policy.audit) → guardrail_verdicts.
+# every act call passes the `act` hook: policy.audit records it and policy.gate decides it, ENFORCED by _guard_act
+# (403 before anything launches; B207) → guardrail_verdicts.
 mcp_read = FastMCP.from_fastapi(app, name="weyland-system-view",
     route_maps=[RouteMap(tags={"mcp"}, mcp_type=MCPType.TOOL), RouteMap(mcp_type=MCPType.EXCLUDE)])
 mcp_act = FastMCP.from_fastapi(app, name="weyland-act",

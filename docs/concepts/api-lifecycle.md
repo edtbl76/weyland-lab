@@ -58,3 +58,5 @@ index — every service's APIs — is `--list` on the guard.)
   required field, a dropped response field). What it cannot compare, it says so.
 - Contract *tests* (B152) are the other enforcement arm: a contract test asserts a consumer/provider
   agree on a seam; this asserts the published contract itself doesn't change incompatibly.
+
+Operations (check, re-lock, refresh a snapshot, answer a drift alert): [runbooks/api-lifecycle.md](../runbooks/api-lifecycle.md).

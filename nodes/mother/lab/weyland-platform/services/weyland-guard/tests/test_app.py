@@ -103,3 +103,16 @@ def test_admin_reset_clears_overrides(client, monkeypatch):
     client.post("/admin/mode", headers=h, json={"mode": "flag", "validators": ["policy.gate"]})
     r = client.post("/admin/mode/reset", headers=h)
     assert r.status_code == 200 and r.json()["overrides"] == {}
+
+
+# B207 (2026-10-13): /guard/act is reachable only by the tool-server's identity (Istio DENY, k8s/istio/authz-guard-act.yaml),
+# a rule that matches exact paths. The mesh does not decode %2F and uvicorn does, so `/guard%2Fact` would reach the
+# act route past the DENY — exactly what was observed live on the tool-server. Refuse encoded separators before routing.
+@pytest.mark.parametrize("raw", ["/guard%2Fact", "/guard%2fact", "/guard%5Cact", "/admin%2Fmode"])
+def test_an_encoded_slash_in_the_path_is_refused_before_routing(client, raw):
+    r = client.post(raw, json={"request_id": "r", "tool": "pipeline/trigger", "actor": "weyland-operator"})
+    assert r.status_code == 400 and r.json()["detail"] == "encoded path separators are not accepted"
+
+
+def test_ordinary_guard_paths_still_route(client):
+    assert client.get("/health").status_code == 200

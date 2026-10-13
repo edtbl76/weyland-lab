@@ -61,7 +61,7 @@ a **merge gate**, not just the nightly drift cron. (Git-independent: the baselin
 ```
 # fetches the tool-server's LIVE /openapi.json (NodePort) and diffs vs the committed snapshot
 python3 scripts/lib/api_drift.py <apis.yaml> docs/api/specs
-# OK — 1 reachable API(s) match their committed contract; 0 skipped (unreachable).   (exit 0)
+# OK — no breaking drift: 1 identical, 0 additive drift, 0 skipped (unreachable).   (exit 0; B208: additive drift is named + alerted)
 ```
 
 Negative/edge cases RUN: an operation removed on the live spec → **BREAKING DRIFT exit 1** (named + the

@@ -19,6 +19,7 @@ analysed, or a cleanup that left the project or token behind).
 import base64
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -95,6 +96,43 @@ def gate(project: str) -> int:
 
 
 SCANNER_IMAGE = "sonarsource/sonar-scanner-cli:latest"   # the image the CI sonar-gate step runs
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _exclusions() -> list:
+    """`sonar.exclusions` from the project's sonar-project.properties: the pre-check must scan what the CI gate scans
+    (it excludes **/*.yaml, Dockerfiles, Terraform…). Unreadable → no exclusions, which only scans MORE (stricter)."""
+    path = os.environ.get("SONAR_PROJECT_PROPERTIES", os.path.join(REPO_ROOT, "sonar-project.properties"))
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if line.strip().startswith("sonar.exclusions="):
+                    return [x.strip() for x in line.split("=", 1)[1].split(",") if x.strip()]
+    except OSError:
+        pass
+    return []
+
+
+def _excluded(path: str, patterns: list) -> bool:
+    """Ant-style match as Sonar does it: `**/` = any leading dirs (or none), `**` = anything, `*` = within a segment."""
+    for pat in patterns:
+        rx, i = "", 0
+        while i < len(pat):
+            if pat.startswith("**/", i):
+                rx, i = rx + "(?:.*/)?", i + 3
+            elif pat.startswith("**", i):
+                rx, i = rx + ".*", i + 2
+            elif pat[i] == "*":
+                rx, i = rx + "[^/]*", i + 1
+            elif pat[i] == "?":
+                rx, i = rx + "[^/]", i + 1
+            else:
+                rx, i = rx + re.escape(pat[i]), i + 1
+        if re.fullmatch(rx, path):
+            return True
+    return False
+
+
 # File types the server's analysers never index (no shell/bats/Markdown/data analyser on this Community server).
 NOT_ANALYSED = frozenset({".sh", ".bash", ".bats", ".md", ".txt", ".tsv", ".csv", ".service", ".timer", ".conf"})
 
@@ -211,6 +249,15 @@ def precheck(files: list) -> int:
     if missing:
         print(f"sonar_api: precheck: not a file: {', '.join(missing)}", file=sys.stderr)
         return 2
+    rel = {f: (os.path.relpath(f) if not os.path.relpath(f).startswith("..") else os.path.basename(f)) for f in files}
+    patterns = _exclusions()
+    excluded = sorted(rel[f] for f in files if _excluded(rel[f], patterns))
+    if excluded:
+        print(f"precheck: {len(excluded)} excluded by sonar-project.properties: {' '.join(excluded)}")
+        files = [f for f in files if rel[f] not in excluded]
+    if not files:
+        print("precheck: nothing for Sonar to analyse (every file is excluded by sonar-project.properties)")
+        return 0
     # Only KNOWN non-analysed types skip the scan; anything else is scanned, and 0 files analysed then fails closed.
     # A shell + Markdown change otherwise could never print `clean` (2026-10-13).
     exts = {os.path.splitext(f)[1].lower() for f in files}

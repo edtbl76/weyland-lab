@@ -76,7 +76,9 @@ healthy_guard() {
   # input returns `allow` in prod (the injection scorer records but does not block). The input
   # assertion is a CONTRACT check (valid decision), not a verdict check, so `allow` here is healthy.
   curl_resp /guard/input 0 200 '{"request_id":"bb","decision":"allow","verdict":null}'
-  curl_resp /guard/act   0 200 '{"request_id":"bb","decision":"block","verdict":{"validator":"policy.gate","decision":"block","reason":"no actor"}}'
+  # B207 (2026-10-13): /guard/act admits ONLY the tool-server's identity (k8s/istio/authz-guard-act.yaml), so this CI
+  # caller is refused by Istio before the guard sees it. Body OBSERVED live from the same mechanism on the tool-server.
+  curl_resp /guard/act   0 403 'RBAC: access denied'
 }
 
 @test "a fully-healthy guard passes with exit 0" {
@@ -138,11 +140,28 @@ healthy_guard() {
   [[ "$output" == *"input"* ]]
 }
 
-@test "an actor-less ACT that is ALLOWED is a real regression (1) — policy.gate not enforcing" {
+@test "/guard/act REACHING the guard from CI is a real regression (1) — the identity lockdown is gone" {
+  # A 200 means a non-tool-server caller got through to the act route, whatever the decision.
   healthy_guard
-  curl_resp /guard/act 0 200 '{"request_id":"bb","decision":"allow"}'
+  curl_resp /guard/act 0 200 '{"request_id":"bb","decision":"block","verdict":{"validator":"policy.gate"}}'
   run bash "$BB"
   [ "$status" -eq 1 ]
+  [[ "$output" == *"/guard/act"*"REACHED"* ]]
+}
+
+@test "/guard/act refused by something OTHER than Istio is a real regression (1) — say what refused it" {
+  healthy_guard
+  curl_resp /guard/act 0 403 '{"detail":"forbidden"}'
+  run bash "$BB"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"not the mesh"* ]]
+}
+
+@test "/guard/act refused by Istio is the healthy answer (contributes to exit 0)" {
+  healthy_guard
+  run bash "$BB"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"5/5"* ]]
 }
 
 @test "a benign OUTPUT that is BLOCKED is a real defect (1) — the guard is over-blocking" {

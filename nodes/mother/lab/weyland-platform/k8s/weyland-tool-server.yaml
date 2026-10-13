@@ -1,3 +1,14 @@
+# B207 (2026-10-13): a DEDICATED identity, so weyland-guard can admit /guard/act from the tool-server ALONE
+# (k8s/istio/authz-guard-act.yaml). The tool-server ran as `default`, shared with ~95 pods in this namespace, which made
+# an identity rule meaningless. It never calls the Kubernetes API, so no token is mounted.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: weyland-tool-server
+  namespace: weyland
+  labels: { app: weyland-tool-server }
+automountServiceAccountToken: false
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,6 +25,8 @@ spec:
         app: weyland-tool-server
         sidecar.istio.io/inject: "true"   # B8 — Istio sidecar (per-workload injection; weyland ns is unlabeled)
     spec:
+      serviceAccountName: weyland-tool-server
+      automountServiceAccountToken: false
       enableServiceLinks: false
       containers:
         - name: weyland-tool-server

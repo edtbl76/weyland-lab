@@ -296,6 +296,25 @@ def test_an_act_the_guard_blocks_is_403_and_never_launches(client, monkeypatch, 
     assert launched == []
 
 
+@pytest.mark.parametrize("raw", ["/pipeline%2Ftrigger", "/pipeline%2ftrigger", "/evals%2Frun", "/mcp-act%2Fx",
+                                 "/pipeline%5Ctrigger"])
+def test_an_encoded_slash_in_the_path_is_refused_before_routing(client, monkeypatch, raw):
+    # B207 (2026-10-13), OBSERVED LIVE: Istio's act-path DENY matches exact paths and the mesh does not decode %2F,
+    # while uvicorn does — so GET /pipeline%2Ftrigger from a non-gateway pod reached the tool-server (405), not
+    # Istio's 403. A POST with a forged `X-Forwarded-Consumer: weyland-operator` would have launched a job.
+    launched = []
+    monkeypatch.setattr(main, "_guard", lambda *a, **k: None)
+    monkeypatch.setattr(main, "_launch_dagster_job", lambda job: launched.append(job) or {"status": "ok"})
+    r = client.post(raw, json={"job_name": "weyland_ingestion_job"},
+                    headers={"X-Forwarded-Consumer": "weyland-operator"})
+    assert r.status_code == 400 and r.json()["detail"] == "encoded path separators are not accepted"
+    assert launched == []
+
+
+def test_ordinary_paths_still_route(client):
+    assert client.get("/health").status_code == 200
+
+
 def test_launch_dagster_job_maps_success(monkeypatch):
     class _R:
         def raise_for_status(self): pass

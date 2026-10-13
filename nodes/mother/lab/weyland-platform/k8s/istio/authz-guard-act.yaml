@@ -1,0 +1,34 @@
+# B207 (2026-10-13) — weyland-guard's /guard/act accepts ONLY the tool-server's SPIFFE identity.
+#
+# WHY: /guard/act takes the `actor` from the request BODY. Any in-cluster pod could post `actor=weyland-operator`
+# 30 times a minute and exhaust the operator's policy.gate rate cap (validators/policy.py), so real acts were refused —
+# and could pollute guardrail_verdicts with fabricated decisions. The only legitimate caller is the tool-server's act
+# endpoints (services/weyland-tool-server/main.py `_guard_act`), which forward the gateway-verified actor.
+#
+# HOW: a DENY scoped to the act route, keyed on `notPrincipals` = [the tool-server's dedicated SA]. A plaintext caller
+# has no principal and matches `notPrincipals` too, so it is denied. /guard/input, /guard/output, /health, /ready and
+# /metrics stay open. Both ends are meshed (weyland-guard for STRICT Postgres; the tool-server since B8).
+#
+# An exact-path rule can be dodged with an encoded slash (`/guard%2Fact`: the mesh does not decode it, uvicorn does);
+# weyland-guard refuses encoded separators before routing (app.py `_refuse_encoded_separators`), so it cannot.
+# CI: scripts/integration/guard-blackbox.sh asserts its own (non-tool-server) call to /guard/act is refused here.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: guard-act-toolserver-only
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: weyland-guard
+  action: DENY
+  rules:
+    - to:
+        - operation:
+            paths:
+              - /guard/act
+              - /guard/act/*
+      from:
+        - source:
+            notPrincipals:
+              - cluster.local/ns/weyland/sa/weyland-tool-server

@@ -51,6 +51,11 @@ spec:
                   set -eu
                   pip install --quiet pyyaml >/dev/null 2>&1
                   python /opt/api-drift/api_drift.py /opt/api-drift/apis.yaml /opt/api-drift
+              env:
+                # B208: additive drift posts a warning ApiContractStale here (same Alertmanager v2 API as
+                # pr-staleness); unset or unreachable with drift found → exit 2, never a quiet pass.
+                - name: ALERTMANAGER_URL
+                  value: http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts
               volumeMounts:
                 - name: logic
                   mountPath: /opt/api-drift

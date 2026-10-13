@@ -34,7 +34,10 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   has no new-code period, so that gate passed with a CRITICAL issue open); and findings `weyland-lab` already has for
   the same file (same rule and message; lines move) are listed but not counted: open issues and TO_REVIEW hotspots as
   `already open`, hotspots reviewed SAFE as `already reviewed`. Without that, a 3-line change to a big file reported
-  all 30 of the file's old findings (B207, 2026-10-13), and the rule could never be met.
+  all 30 of the file's old findings (B207, 2026-10-13), and the rule could never be met. It also scans only what the
+  CI gate scans: files matching `sonar.exclusions` in `sonar-project.properties` (`**/*.yaml`, Dockerfiles, Terraform…)
+  are dropped and named (`N excluded by sonar-project.properties`); a k8s manifest change otherwise reported findings
+  the real project never sees.
   ~12 s for 3 files. Files Sonar does not analyse (Markdown, YAML) are simply not counted. Flow:
   [flow-sonar-precheck.md](../diagrams/flow-sonar-precheck.md) · demo: [sonar-precheck.md](../demos/sonar-precheck.md).
 - Always-on (NOT KEDA scale-to-zero): the 32GB RAM bump made the cost moot; scale-to-zero would need the KEDA

@@ -22,14 +22,18 @@ class GuardrailPipeline:
         self._pending: set = set()
 
     def _run_one(self, name: str, payload: dict, hook: Hook) -> Verdict:
+        # A validator that is missing or raises cannot vouch for anything. On the CONTENT hooks that degrades to
+        # PASS (a guard problem must never take an answer offline); on ACT it is BLOCK, because ACT decides
+        # AUTHORITY and "the policy check crashed" must not mean "allowed" (B207, 2026-10-13).
+        on_failure = Decision.BLOCK if hook == Hook.ACT else Decision.PASS
         v = self._validators.get(name)
         if v is None:                          # configured but not loaded (e.g. model unavailable)
-            return Verdict(name, Decision.PASS, None, "validator not loaded", 0)
+            return Verdict(name, on_failure, None, "validator not loaded", 0)
         t0 = time.monotonic()
         try:
             verdict = v.check(payload, hook)
         except Exception as exc:               # a guard must never break the request
-            return Verdict(name, Decision.PASS, None, f"validator error: {exc}", 0)
+            return Verdict(name, on_failure, None, f"validator error: {exc}", 0)
         verdict.latency_ms = int((time.monotonic() - t0) * 1000)
         return verdict
 

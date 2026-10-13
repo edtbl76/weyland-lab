@@ -98,6 +98,20 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Weyland Guard", lifespan=lifespan)
+
+_ENCODED_SEPARATORS = (b"%2f", b"%5c")   # "/" and "\\" percent-encoded, compared lower-cased
+
+
+@app.middleware("http")
+async def _refuse_encoded_separators(request, call_next):
+    """Refuse a path carrying an ENCODED separator before routing (B207, 2026-10-13). /guard/act is reachable only by
+    the tool-server's identity through an Istio DENY that matches exact paths; the mesh does not decode %2F, uvicorn
+    does — so `/guard%2Fact` would reach the act route past the DENY (the same bypass was observed live on the
+    tool-server). No route here needs one, so refuse them all."""
+    raw = (request.scope.get("raw_path") or request.url.path.encode()).lower()
+    if any(sep in raw for sep in _ENCODED_SEPARATORS):
+        return JSONResponse(status_code=400, content={"detail": "encoded path separators are not accepted"})
+    return await call_next(request)
 app.mount("/metrics", make_asgi_app())
 
 

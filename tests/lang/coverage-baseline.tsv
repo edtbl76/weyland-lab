@@ -1,4 +1,4 @@
-python:nodes/mother/lab/weyland-platform/services/weyland-guard	93
+python:nodes/mother/lab/weyland-platform/services/weyland-guard	94
 java:nodes/mother/lab/weyland-platform/k8s/flink/health-job	33.0
 java:nodes/mother/lab/weyland-platform/k8s/flink/sql-runner	33.3
 python:nodes/mother/lab/weyland-platform/services/weyland-dagster	42

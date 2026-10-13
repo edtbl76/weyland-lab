@@ -70,8 +70,10 @@ Each addresses a **distinct failure mode** a single tool can't:
 
 ## Engineering realities (the honest part)
 
-- **Fail-open, everywhere.** Every guard degrades to "not guarded", never "no answer" — a guard outage must never take a
-  response offline. Scan/Classify verdicts ship **SHADOW** (record-only) first; you measure the false-positive rate on
+- **Fail-open on content, fail-closed on authority.** Every content guard (Scan/Classify on input and output) degrades
+  to "not guarded", never "no answer" — a guard outage must never take a response offline. The ACT hook is the
+  exception: it decides *authority*, so an unreachable guard, or a crashing `policy.gate`, refuses the act (B207,
+  2026-10-13). Scan/Classify verdicts ship **SHADOW** (record-only) first; you measure the false-positive rate on
   real traffic *before* promoting anything to `block`.
 - **Dependency isolation forced services.** Classify, Structure, and Dialog each run as their **own** service, not
   in-process — Guardrails AI pins `click<=8.2.0` (irreconcilable with the Dagster/dbt/huggingface stack), and NeMo's tree

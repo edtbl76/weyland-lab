@@ -31,13 +31,16 @@ self-documenting OpenAPI, independent evolution.
   and answers `allow` immediately, so a caller's synchronous call adds only an in-cluster round-trip (~ms), **not**
   model-inference latency. The caller never needs to know the mode — it 403s iff the service says `block` (which only
   happens in enforcing modes).
-- **Callers FAIL OPEN.** A guard outage (unreachable / timeout / error) is treated as `allow` by the client, so it
-  degrades to "not guarded", never "no answer". Verified: with `weyland-guard` scaled to 0, `/context/ask` still
-  answers.
+- **Callers fail OPEN on input/output, CLOSED on act.** A guard outage (unreachable / timeout / error / garbage) is
+  treated as `allow` on the INPUT and OUTPUT hooks, so it degrades to "not guarded", never "no answer" (verified: with
+  `weyland-guard` scaled to 0, `/context/ask` still answers). On the ACT hook the tool-server refuses the act instead
+  (403 `blocked by guard-unavailable: …`, B207), and inside the guard a missing or crashing ACT validator counts as
+  BLOCK — authority must not fail open.
 
 ## Validators & modes
 INPUT `prompt_guard.injection` + `llama_guard.safety` · OUTPUT `pii.presidio` + `grounding.nli` + `llama_guard.safety` (safety = toxicity) · ACT `policy.audit` + `policy.gate`.
-All SHADOW. Two ways to change a mode:
+All SHADOW except `policy.gate`, which runs `block` (the deployment sets `GUARDRAIL_MODE__policy__gate=block`). Two ways
+to change a mode:
 - **Persistent** — per-validator env on the `weyland-guard` deployment:
 ```
 GUARDRAIL_MODE__prompt_guard__injection=block   # dots in the name → double underscore; values: off|shadow|flag|block

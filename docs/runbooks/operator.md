@@ -29,8 +29,10 @@ propose (LLM) → store pending_action → "⚠️ Confirm …? yes/no" → user
   actor + the guard's enforcing **`policy.gate`** (identity-required allowlist + per-actor rate-cap). Any one holding
   is enough.
 - Acts are **Telegram-only** (the confirm needs a session). `/operator/ask` surfaces a proposal but never fires.
-- The 3 acts → the tool-server's `/mcp-act` jobs: `pipeline_trigger` (`job_name` ∈ `weyland_ingestion_job` /
-  `weyland_eval_job` / `weyland_eval_score_job`), `evals_run`, `evals_score`.
+- The 3 acts → the tool-server's REST act endpoints through the MCP gateway (`/pipeline/trigger`, `/evals/run`,
+  `/evals/score`; the same tools are on `/mcp-act` for MCP clients): `pipeline_trigger` (`job_name` ∈
+  `weyland_ingestion_job` / `weyland_eval_job` / `weyland_eval_score_job`), `evals_run`, `evals_score`. Each is refused
+  with 403 if `policy.gate` refuses it or the guard is unreachable (B207).
 - **Actor (B17+B19):** acts route through the **MCP gateway** (`mcp.weyland.lab`) with a Keycloak `client_credentials`
   token — the gateway validates it and injects the **verified** actor `weyland-operator` (the client_id), which is what
   the enforcing `policy.gate` allowlists. With no client secret wired (`OPERATOR_CLIENT_SECRET` unset), `act.py` falls
@@ -107,7 +109,8 @@ kubectl -n weyland logs deploy/weyland-operator | grep -i telegram
 ```
 kubectl -n weyland logs deploy/weyland-guard --tail=40 | grep -i "policy.gate\|actor"
 ```
-→ `actor=weyland-operator` (the gateway-injected client_id). A `<NULL>` or `operator:telegram:<chat_id>` actor here means the act bypassed the gateway (no `OPERATOR_CLIENT_SECRET`) — it must read `weyland-operator` before `policy.gate` is flipped from SHADOW to `block`.
+→ `actor=weyland-operator` (the gateway-injected client_id). A `<NULL>` or `operator:telegram:<chat_id>` actor here means the act bypassed the gateway (no `OPERATOR_CLIENT_SECRET`) — it must read `weyland-operator`: `policy.gate` runs `block` and only `weyland-operator` is allowlisted, so any other
+actor's act is refused (enforced by the tool-server since B207, 2026-10-13).
 
 ## Incident sweep (B45) — enrich-only, off the critical path
 A background loop (`incidents.py`, `INCIDENT_SWEEP_INTERVAL=180s`) reads `ALERTS{alertstate="firing"}` from Prometheus

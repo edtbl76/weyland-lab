@@ -321,12 +321,12 @@ def test_precheck_scans_when_any_file_might_be_analysed(tmp_path, monkeypatch):
     monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
     monkeypatch.chdir(tmp_path)
     (tmp_path / "a.md").write_text("x\n")
-    (tmp_path / "Dockerfile").write_text("FROM x\n")               # unknown/analysed types are always scanned
+    (tmp_path / "app.js").write_text("let x = 1\n")                # analysed types are always scanned
     scan = Scanner()
     _serve(monkeypatch, _precheck_routes())
     monkeypatch.setattr(sa, "_run_scanner", scan)
-    assert sa.main(["precheck", "a.md", "Dockerfile"]) == 0
-    assert scan.calls[0]["files"] == ["Dockerfile", "a.md"]
+    assert sa.main(["precheck", "a.md", "app.js"]) == 0
+    assert scan.calls[0]["files"] == ["a.md", "app.js"]
 
 
 def test_precheck_does_not_count_an_issue_already_open_on_the_real_project(tmp_path, monkeypatch, capsys):
@@ -404,3 +404,47 @@ def test_precheck_does_not_count_a_hotspot_already_open_to_review_on_the_real_pr
     out = capsys.readouterr().out
     assert "already open on weyland-lab: b.py:81" in out
     assert "precheck: clean (2 files scanned, 0 issues, 0 hotspots, 1 already open)" in out
+
+
+# The pre-check judges a change by the CI gate's rules, so it must scan what the gate scans. sonar-project.properties
+# excludes **/*.yaml, Dockerfiles, Terraform… (observed 2026-10-13: a k8s manifest change pre-checked as 1 issue + 6
+# hotspots that the real project never sees).
+def _props(tmp_path, monkeypatch, exclusions):
+    p = tmp_path / "sonar-project.properties"
+    p.write_text(f"sonar.projectKey=weyland-lab\nsonar.exclusions={exclusions}\n")
+    monkeypatch.setenv("SONAR_PROJECT_PROPERTIES", str(p))
+
+
+def test_precheck_drops_files_the_project_excludes(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    (tmp_path / "k8s").mkdir()
+    (tmp_path / "k8s" / "app.yaml").write_text("kind: x\n")
+    (tmp_path / "Dockerfile").write_text("FROM x\n")
+    _props(tmp_path, monkeypatch, "**/node_modules/**,**/*.yaml,**/Dockerfile")
+    scan = Scanner()
+    _serve(monkeypatch, _precheck_routes())
+    monkeypatch.setattr(sa, "_run_scanner", scan)
+    assert sa.main(["precheck", *files, "k8s/app.yaml", "Dockerfile"]) == 0
+    assert scan.calls[0]["files"] == ["b.py", "pkg/a.py"]
+    assert "2 excluded by sonar-project.properties: Dockerfile k8s/app.yaml" in capsys.readouterr().out
+
+
+def test_precheck_with_only_excluded_files_has_nothing_to_analyse(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "x.yaml").write_text("a: 1\n")
+    _props(tmp_path, monkeypatch, "**/*.yaml")
+    seen = []
+    _serve(monkeypatch, _precheck_routes(), seen)
+    assert sa.main(["precheck", "x.yaml"]) == 0
+    assert seen == []
+    assert "precheck: nothing for Sonar to analyse" in capsys.readouterr().out
+
+
+def test_ant_patterns_match_like_sonar():
+    m = sa._excluded
+    assert m("a/b/node_modules/c/d.js", ["**/node_modules/**"]) and m("node_modules/x.js", ["**/node_modules/**"])
+    assert m("deep/k.yaml", ["**/*.yaml"]) and m("k.yaml", ["**/*.yaml"])
+    assert m("site-techdocs/x/y.html", ["site-techdocs/**"]) and not m("docs/site-techdocs.md", ["site-techdocs/**"])
+    assert not m("app.py", ["**/*.yaml", "**/Dockerfile"]) and m("svc/Dockerfile.dev", ["**/Dockerfile.*"])
