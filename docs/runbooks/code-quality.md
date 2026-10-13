@@ -31,8 +31,10 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   that is genuinely fine, `sonar_api.py review-safe <file> "<reason>"` after the push) · **2** could not scan (a missing
   file, a scanner failure, a failed or timed-out analysis, 0 files analysed, or a cleanup that left something behind —
   never read as clean). Two deliberate choices: the verdict is the findings, never the scratch gate (a first analysis
-  has no new-code period, so that gate passed with a CRITICAL issue open); and a hotspot already reviewed SAFE on
-  `weyland-lab` (same file, rule and message — lines move) is listed as `already reviewed` and not counted.
+  has no new-code period, so that gate passed with a CRITICAL issue open); and findings `weyland-lab` already has for
+  the same file (same rule and message; lines move) are listed but not counted: open issues and TO_REVIEW hotspots as
+  `already open`, hotspots reviewed SAFE as `already reviewed`. Without that, a 3-line change to a big file reported
+  all 30 of the file's old findings (B207, 2026-10-13), and the rule could never be met.
   ~12 s for 3 files. Files Sonar does not analyse (Markdown, YAML) are simply not counted. Flow:
   [flow-sonar-precheck.md](../diagrams/flow-sonar-precheck.md) · demo: [sonar-precheck.md](../demos/sonar-precheck.md).
 - Always-on (NOT KEDA scale-to-zero): the 32GB RAM bump made the cost moot; scale-to-zero would need the KEDA

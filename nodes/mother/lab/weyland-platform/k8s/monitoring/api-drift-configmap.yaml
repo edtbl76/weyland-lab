@@ -351,8 +351,8 @@ data:
       - {id: weyland-tool-server, owner: weyland-tool-server, kind: openapi, status: published, version: "1.0", base: "http://mother:30080", spec: docs/api/specs/weyland-tool-server.openapi.json, spec_source: "http://weyland-tool-server.weyland.svc:8080/openapi.json", consumers: [weyland-operator, mcp-gateway, mcp-servers, claude-code]}
       - {id: weyland-guard, owner: weyland-guard, kind: openapi, status: published, version: "1.0", base: "http://weyland-guard.weyland.svc:8080", spec: docs/api/specs/weyland-guard.openapi.json, spec_source: "http://weyland-guard.weyland.svc:8080/openapi.json", consumers: [weyland-tool-server, weyland-agent, weyland-operator]}
       - {id: weyland-agent, owner: weyland-agent, kind: openapi, status: published, version: "1.0", base: "http://weyland-agent.weyland.svc:8080", spec: docs/api/specs/weyland-agent.openapi.json, spec_source: "http://weyland-agent.weyland.svc:8080/openapi.json", consumers: []}
-      - {id: weyland-operator, owner: weyland-operator, kind: openapi, status: published, version: "1.0", base: "http://weyland-operator.weyland.svc:8080", spec: docs/api/specs/weyland-operator.openapi.json, spec_source: "http://weyland-operator.weyland.svc:8080/openapi.json", consumers: []}
-      - {id: realm-of-agents-http, owner: realm-of-agents, kind: openapi, status: published, version: "1.0", base: "https://realm.weyland.lab", spec: docs/api/specs/realm-of-agents.openapi.json, spec_source: "http://realm-of-agents.weyland.svc:8080/openapi.json", consumers: [weyland-operator]}
+      - {id: weyland-operator, owner: weyland-operator, kind: openapi, status: published, version: "1.1", base: "http://weyland-operator.weyland.svc:8080", spec: docs/api/specs/weyland-operator.openapi.json, spec_source: "http://weyland-operator.weyland.svc:8080/openapi.json", consumers: []}
+      - {id: realm-of-agents-http, owner: realm-of-agents, kind: openapi, status: published, version: "1.1", base: "https://realm.weyland.lab", spec: docs/api/specs/realm-of-agents.openapi.json, spec_source: "http://realm-of-agents.weyland.svc:8080/openapi.json", consumers: [weyland-operator]}
 
       # ---- A2A contract (agent card captured) ----
       - {id: realm-of-agents-a2a, owner: realm-of-agents, kind: a2a, status: published, version: "1.0", base: "https://realm.weyland.lab/a2a", spec: docs/api/specs/realm-of-agents.a2a-card.json, spec_source: "http://realm-of-agents.weyland.svc:8080/.well-known/agent-card.json", consumers: [weyland-operator, a2a-inspector]}
@@ -607,6 +607,11 @@ data:
               },
               "TaskRequest": {
                 "properties": {
+                  "allow_paid": {
+                    "default": true,
+                    "title": "Allow Paid",
+                    "type": "boolean"
+                  },
                   "history": {
                     "anyOf": [
                       {
@@ -1004,6 +1009,9 @@ data:
                       }
                     },
                     "description": "Validation Error"
+                  },
+                  "502": {
+                    "description": "Dispatch failed (the classifier or the agent run errored)"
                   }
                 },
                 "summary": "Route"
@@ -1048,7 +1056,7 @@ data:
             }
           }
         },
-        "version": "1.0"
+        "version": "1.1"
       },
       "weyland-agent": {
         "spec": {
@@ -1767,6 +1775,11 @@ data:
             "schemas": {
               "AskRequest": {
                 "properties": {
+                  "allow_paid": {
+                    "default": true,
+                    "title": "Allow Paid",
+                    "type": "boolean"
+                  },
                   "message": {
                     "title": "Message",
                     "type": "string"
@@ -1911,6 +1924,9 @@ data:
                     },
                     "description": "Successful Response"
                   },
+                  "403": {
+                    "description": "Blocked by the input or output guard"
+                  },
                   "422": {
                     "content": {
                       "application/json": {
@@ -1920,6 +1936,12 @@ data:
                       }
                     },
                     "description": "Validation Error"
+                  },
+                  "502": {
+                    "description": "The operator run failed"
+                  },
+                  "503": {
+                    "description": "Free-only request (allow_paid false) and the local brain is unavailable"
                   }
                 },
                 "summary": "Operator Ask"
@@ -1943,7 +1965,7 @@ data:
             }
           }
         },
-        "version": "1.0"
+        "version": "1.1"
       },
       "weyland-tool-server": {
         "spec": {
@@ -1955,6 +1977,11 @@ data:
                     "default": "pgvector",
                     "title": "Backend",
                     "type": "string"
+                  },
+                  "langfuse": {
+                    "default": true,
+                    "title": "Langfuse",
+                    "type": "boolean"
                   },
                   "limit": {
                     "default": 5,
@@ -2290,6 +2317,9 @@ data:
                     },
                     "description": "Successful Response"
                   },
+                  "403": {
+                    "description": "The act guard refused this act (policy.gate), or the guard was unavailable"
+                  },
                   "422": {
                     "content": {
                       "application/json": {
@@ -2354,6 +2384,9 @@ data:
                       }
                     },
                     "description": "Successful Response"
+                  },
+                  "403": {
+                    "description": "The act guard refused this act (policy.gate), or the guard was unavailable"
                   },
                   "422": {
                     "content": {
@@ -2513,6 +2546,9 @@ data:
                       }
                     },
                     "description": "Successful Response"
+                  },
+                  "403": {
+                    "description": "The act guard refused this act (policy.gate), or the guard was unavailable"
                   },
                   "422": {
                     "content": {
@@ -2842,6 +2878,11 @@ data:
           },
           "TaskRequest": {
             "properties": {
+              "allow_paid": {
+                "default": true,
+                "title": "Allow Paid",
+                "type": "boolean"
+              },
               "history": {
                 "anyOf": [
                   {
@@ -3239,6 +3280,9 @@ data:
                   }
                 },
                 "description": "Validation Error"
+              },
+              "502": {
+                "description": "Dispatch failed (the classifier or the agent run errored)"
               }
             },
             "summary": "Route"
@@ -3996,6 +4040,11 @@ data:
         "schemas": {
           "AskRequest": {
             "properties": {
+              "allow_paid": {
+                "default": true,
+                "title": "Allow Paid",
+                "type": "boolean"
+              },
               "message": {
                 "title": "Message",
                 "type": "string"
@@ -4140,6 +4189,9 @@ data:
                 },
                 "description": "Successful Response"
               },
+              "403": {
+                "description": "Blocked by the input or output guard"
+              },
               "422": {
                 "content": {
                   "application/json": {
@@ -4149,6 +4201,12 @@ data:
                   }
                 },
                 "description": "Validation Error"
+              },
+              "502": {
+                "description": "The operator run failed"
+              },
+              "503": {
+                "description": "Free-only request (allow_paid false) and the local brain is unavailable"
               }
             },
             "summary": "Operator Ask"
@@ -4182,6 +4240,11 @@ data:
                 "default": "pgvector",
                 "title": "Backend",
                 "type": "string"
+              },
+              "langfuse": {
+                "default": true,
+                "title": "Langfuse",
+                "type": "boolean"
               },
               "limit": {
                 "default": 5,
@@ -4517,6 +4580,9 @@ data:
                 },
                 "description": "Successful Response"
               },
+              "403": {
+                "description": "The act guard refused this act (policy.gate), or the guard was unavailable"
+              },
               "422": {
                 "content": {
                   "application/json": {
@@ -4581,6 +4647,9 @@ data:
                   }
                 },
                 "description": "Successful Response"
+              },
+              "403": {
+                "description": "The act guard refused this act (policy.gate), or the guard was unavailable"
               },
               "422": {
                 "content": {
@@ -4740,6 +4809,9 @@ data:
                   }
                 },
                 "description": "Successful Response"
+              },
+              "403": {
+                "description": "The act guard refused this act (policy.gate), or the guard was unavailable"
               },
               "422": {
                 "content": {

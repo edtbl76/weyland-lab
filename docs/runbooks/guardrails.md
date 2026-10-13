@@ -56,6 +56,14 @@ env-overridable as JSON via `GUARD_ACT_POLICY`. **ENFORCING (`block`) live 2026-
 *"no actor…"*). Toggle to observe-only for a demo via the live `/admin/mode` toggle rather than editing the manifest.
 Full path + the fastapi-mcp header-allowlist gotcha: [runbooks/mcp-gateway.md](mcp-gateway.md).
 
+**Enforced only since B207 (2026-10-13).** From 2026-07-29 to 2026-10-13 the gate *decided* `block` but nothing
+enforced it: the tool-server's three act endpoints called `_guard(Hook.ACT, …)` and discarded the answer, and
+`_guard` failed open on every hook. The "proven: `decision:block`" above was the guard's answer, not the endpoint's.
+Now an act the gate refuses gets **403 `blocked by policy.gate: …`** before anything launches, and an unreachable
+guard refuses acts too (**403 `blocked by guard-unavailable: …`**, ACT fails closed; input and output stay
+fail-open). The CI step `scripts/integration/guard-blackbox.sh` proves the gate's DECISION; the tool-server tests
+(`test_an_act_the_guard_blocks_is_403_and_never_launches`) prove the ENFORCEMENT.
+
 ## grounding.nli — calibration (B35, 2026-07-28)
 `grounding.nli` scores answer-vs-sources by **sentence-level NLI**: split the answer into claims (markdown/citation-
 normalized, newline-aware — RAG answers are markdown lists), score each claim's best-supporting chunk with the

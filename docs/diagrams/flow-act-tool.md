@@ -22,9 +22,17 @@ sequenceDiagram
     MA->>TS: POST /pipeline/trigger (actor = weyland-operator)
     TS->>G: _guard(ACT, {tool, params, actor})
     G->>PG: gate verdict (allow if actor allowlisted + under rate-cap, else block)
-    TS->>Dag: launchRun(job_name)
-    Dag-->>TS: runId
-    TS-->>MA: {runId}
-    MA-->>Op: result
-    Note over GW,TS: B17+B19 gateway LIVE + enforcing — policy.gate blocks acts with no verified actor. /mcp stays open (read-only)
+    alt the gate blocks, or the guard is unreachable (ACT fails closed)
+        G-->>TS: decision block (or no answer)
+        TS-->>MA: 403 blocked by policy.gate or guard-unavailable, nothing launched
+        MA-->>Op: refused
+    else the gate allows
+        G-->>TS: decision allow
+        TS->>Dag: launchRun(job_name)
+        Dag-->>TS: runId
+        TS-->>MA: {runId}
+        MA-->>Op: result
+    end
+    Note over GW,TS: B17+B19 gateway LIVE + enforcing. Since B207 (2026-10-13) the tool-server honours the gate's verdict
+    Note over GW,TS: before that it called the gate and ignored the answer, so blocks were recorded but not enforced
 ```

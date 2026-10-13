@@ -93,6 +93,43 @@ def test_guard_fails_open_on_transport_error(monkeypatch):
     assert main._guard(Hook.OUTPUT, "req-3", {"answer": "a"}) is None   # outage => allow, never "no answer"
 
 
+# B207 (2026-10-13): the ACT hook decides AUTHORITY, not content, so it fails CLOSED — a guard that is down must not
+# mean "anyone may act". Before this, _guard failed open on every hook and the act endpoints ignored its answer.
+@pytest.mark.parametrize("exc, cause", [
+    (httpx.ConnectError("guard down"), "connection"),
+    (httpx.ReadTimeout("slow"), "timeout"),
+])
+def test_guard_act_fails_closed_on_transport_error(monkeypatch, exc, cause):
+    def _boom(*a, **k):
+        raise exc
+    monkeypatch.setattr(main.httpx, "post", _boom)
+    v = main._guard(Hook.ACT, "req-4", {"tool": "pipeline/trigger"}, "weyland-operator")
+    assert v is not None and v.decision == Decision.BLOCK and v.validator == "guard-unavailable"
+    assert v.reason == f"guard unavailable ({cause}): action refused"
+
+
+def test_guard_act_fails_closed_on_an_unreadable_answer(monkeypatch):
+    class _Bad:
+        def json(self):
+            raise ValueError("not json")
+    monkeypatch.setattr(main.httpx, "post", lambda *a, **k: _Bad())
+    v = main._guard(Hook.ACT, "req-5", {"tool": "evals/run"})
+    assert v is not None and v.decision == Decision.BLOCK and "bad_response" in v.reason
+
+
+def test_guard_act_with_an_unexpected_decision_fails_closed(monkeypatch):
+    monkeypatch.setattr(main.httpx, "post", lambda *a, **k: _Resp({"decision": "maybe"}))
+    assert main._guard(Hook.ACT, "req-6", {"tool": "evals/run"}).decision == Decision.BLOCK
+    assert main._guard(Hook.INPUT, "req-7", {"query": "q"}) is None      # content hooks stay fail-open
+
+
+def test_guard_input_still_fails_open_on_transport_error(monkeypatch):
+    def _boom(*a, **k):
+        raise httpx.ConnectError("guard down")
+    monkeypatch.setattr(main.httpx, "post", _boom)
+    assert main._guard(Hook.INPUT, "req-8", {"query": "q"}) is None
+
+
 # ── backend health checks (fail-open error dicts + ok shaping) ───────────────────────────────────────
 def test_check_ollama_ok_lists_models(monkeypatch):
     class _R:
@@ -237,6 +274,26 @@ def test_pipeline_trigger_launches_valid_job(client, monkeypatch):
                         lambda job: {"status": "ok", "run_id": "r1", "job_name": job})
     body = client.post("/pipeline/trigger", json={"job_name": "weyland_ingestion_job"}).json()
     assert body == {"status": "ok", "run_id": "r1", "job_name": "weyland_ingestion_job"}
+
+
+_ACT_BLOCK = main.Verdict("policy.gate", Decision.BLOCK, None, "actor 'rando' is not allowed to act", 0)
+
+
+@pytest.mark.parametrize("path, body", [
+    ("/pipeline/trigger", {"job_name": "weyland_ingestion_job"}),
+    ("/evals/run", None),
+    ("/evals/score", None),
+])
+def test_an_act_the_guard_blocks_is_403_and_never_launches(client, monkeypatch, path, body):
+    # B207 (2026-10-13): these endpoints used to call the act guard and DISCARD its answer — policy.gate recorded
+    # 223 blocks while every act still launched.
+    launched = []
+    monkeypatch.setattr(main, "_guard", lambda hook, *a, **k: _ACT_BLOCK if hook == Hook.ACT else None)
+    monkeypatch.setattr(main, "_launch_dagster_job", lambda job: launched.append(job) or {"status": "ok"})
+    r = client.post(path, json=body) if body is not None else client.post(path)
+    assert r.status_code == 403
+    assert r.json()["detail"] == "blocked by policy.gate: actor 'rando' is not allowed to act"
+    assert launched == []
 
 
 def test_launch_dagster_job_maps_success(monkeypatch):

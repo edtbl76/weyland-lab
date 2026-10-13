@@ -1609,6 +1609,11 @@
                 "title": "Backend",
                 "type": "string"
               },
+              "langfuse": {
+                "default": true,
+                "title": "Langfuse",
+                "type": "boolean"
+              },
               "limit": {
                 "default": 5,
                 "title": "Limit",
@@ -1943,6 +1948,9 @@
                 },
                 "description": "Successful Response"
               },
+              "403": {
+                "description": "The act guard refused this act (policy.gate), or the guard was unavailable"
+              },
               "422": {
                 "content": {
                   "application/json": {
@@ -2007,6 +2015,9 @@
                   }
                 },
                 "description": "Successful Response"
+              },
+              "403": {
+                "description": "The act guard refused this act (policy.gate), or the guard was unavailable"
               },
               "422": {
                 "content": {
@@ -2166,6 +2177,9 @@
                   }
                 },
                 "description": "Successful Response"
+              },
+              "403": {
+                "description": "The act guard refused this act (policy.gate), or the guard was unavailable"
               },
               "422": {
                 "content": {

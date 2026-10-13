@@ -149,22 +149,49 @@ def _actor(x_forwarded_consumer: str | None = Header(default=None)) -> str | Non
     return x_forwarded_consumer
 
 
+def _guard_failed(hook: Hook, cause: str) -> Verdict | None:
+    """What a guard failure means. INPUT/OUTPUT (content) FAIL OPEN: None = allow, so a guard outage never takes an
+    answer offline. ACT (authority) FAILS CLOSED (B207, 2026-10-13): a guard that is down must not mean "anyone may
+    act", so the act is refused with a verdict naming the cause."""
+    print(f"[guard] {hook.value} guard failed ({cause}) — {'refusing the act' if hook == Hook.ACT else 'allowing'}",
+          flush=True)
+    if hook == Hook.ACT:
+        return Verdict("guard-unavailable", Decision.BLOCK, None, f"guard unavailable ({cause}): action refused", 0)
+    return None
+
+
 def _guard(hook: Hook, request_id: str, payload: dict, actor: str | None = None):
     """POST the hook to the shared weyland-guard service. Returns a BLOCK Verdict if the guard blocked (enforcing
-    mode), else None. FAIL-OPEN: any error/timeout/unreachable degrades to None (allow) — a guard outage must never
-    take an answer offline. The guard service owns the modes and answers fast for SHADOW (records the verdict async),
-    so this is just an in-cluster round-trip, not model-inference latency. `payload` already carries the per-hook
-    keys the guard expects (input=query, output=answer+sources, act=tool+params)."""
+    mode), or if the guard could not answer on the ACT hook; else None. Content hooks fail OPEN, the act hook fails
+    CLOSED (see _guard_failed). The guard service owns the modes and answers fast for SHADOW (records the verdict
+    async), so this is just an in-cluster round-trip, not model-inference latency. `payload` already carries the
+    per-hook keys the guard expects (input=query, output=answer+sources, act=tool+params)."""
     body = {"request_id": request_id, "actor": actor, **payload}
     try:
         resp = httpx.post(f"{GUARD_BASE_URL}{_GUARD_PATHS[hook]}", json=body, timeout=GUARD_TIMEOUT)
         data = resp.json()
-        if data.get("decision") == "block":
-            v = data.get("verdict") or {}
-            return Verdict(v.get("validator", "guard"), Decision.BLOCK, v.get("score"), v.get("reason", ""), 0)
-        return None
+    except httpx.TimeoutException:
+        return _guard_failed(hook, "timeout")
+    except httpx.TransportError:
+        return _guard_failed(hook, "connection")
     except Exception:
-        return None
+        return _guard_failed(hook, "bad_response")
+    decision = data.get("decision") if isinstance(data, dict) else None
+    if decision == "block":
+        v = data.get("verdict") or {}
+        return Verdict(v.get("validator", "guard"), Decision.BLOCK, v.get("score"), v.get("reason", ""), 0)
+    if decision != "allow":
+        return _guard_failed(hook, "bad_response")
+    return None
+
+
+def _guard_act(request_id: str, tool: str, actor: str | None, params: dict | None = None) -> None:
+    """The act gate, ENFORCED: raise 403 before anything launches when the guard refuses the act. Until B207 the act
+    endpoints called _guard and discarded its answer, so policy.gate's blocks were recorded and ignored."""
+    payload = {"tool": tool, **({"params": params} if params is not None else {})}
+    blocked = _guard(Hook.ACT, request_id, payload, actor)
+    if blocked:
+        raise HTTPException(status_code=403, detail=f"blocked by {blocked.validator}: {blocked.reason}")
 
 
 # B100 Phase 1 — MLflow tracing for the RAG path. `/context/ask` generates via a raw httpx call to Ollama (not a
@@ -704,13 +731,14 @@ def _launch_dagster_job(job_name: str) -> dict:
     return {"status": "ok", "run_id": result["run"]["runId"], "job_name": job_name}
 
 
-@app.post("/pipeline/trigger", tags=["mcp-act"], operation_id="pipeline_trigger")
+@app.post("/pipeline/trigger", tags=["mcp-act"], operation_id="pipeline_trigger",
+           responses={403: {"description": "The act guard refused this act (policy.gate), or the guard was unavailable"}})
 def pipeline_trigger(request: PipelineTriggerRequest, actor: str | None = Depends(_actor)):
     """Trigger a Dagster job. Default (and usual choice) is `weyland_ingestion_job` — the docs/code
     ingestion pipeline. `job_name` must be one of the three defined jobs; leave it at the default to
     re-ingest the knowledge base."""
     request_id = str(uuid.uuid4())
-    _guard(Hook.ACT, request_id, {"tool": "pipeline/trigger", "params": {"job_name": request.job_name}}, actor)
+    _guard_act(request_id, "pipeline/trigger", actor, {"job_name": request.job_name})
     return _launch_dagster_job(request.job_name)
 
 
@@ -721,21 +749,23 @@ def _eval_pg_conn():
     )
 
 
-@app.post("/evals/run", tags=["mcp-act"], operation_id="evals_run")
+@app.post("/evals/run", tags=["mcp-act"], operation_id="evals_run",
+           responses={403: {"description": "The act guard refused this act (policy.gate), or the guard was unavailable"}})
 def evals_run(actor: str | None = Depends(_actor)):
     """Run the eval matrix (generate a question set + run all models). LONG-RUNNING — ~40-60 min of CPU
     and competes with the single loaded Ollama model; fire deliberately, not casually. Then POST /evals/score."""
     request_id = str(uuid.uuid4())
-    _guard(Hook.ACT, request_id, {"tool": "evals/run"}, actor)
+    _guard_act(request_id, "evals/run", actor)
     return _launch_dagster_job("weyland_eval_job")
 
 
-@app.post("/evals/score", tags=["mcp-act"], operation_id="evals_score")
+@app.post("/evals/score", tags=["mcp-act"], operation_id="evals_score",
+           responses={403: {"description": "The act guard refused this act (policy.gate), or the guard was unavailable"}})
 def evals_score(actor: str | None = Depends(_actor)):
     """Judge-panel scoring of the latest completed matrix run. LONG-RUNNING — ~70 min of CPU. Run after
     /evals/run has completed."""
     request_id = str(uuid.uuid4())
-    _guard(Hook.ACT, request_id, {"tool": "evals/score"}, actor)
+    _guard_act(request_id, "evals/score", actor)
     return _launch_dagster_job("weyland_eval_score_job")
 
 

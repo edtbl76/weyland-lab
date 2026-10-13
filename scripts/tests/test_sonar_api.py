@@ -195,9 +195,12 @@ def test_precheck_findings_are_exit_1_and_named(tmp_path, monkeypatch, capsys):
     hotspots = {"paging": {"total": 1}, "hotspots": [{"vulnerabilityProbability": "LOW", "line": 3,
                                                       "component": "weyland-lab-precheck-1:b.py", "message": "http"}]}
     _serve(monkeypatch, _precheck_routes(issues, hotspots), seen)
-    real = sa.get                                                  # weyland-lab has no reviewed hotspot for b.py
+    real = sa.get                              # weyland-lab has nothing open or reviewed for these files
     monkeypatch.setattr(sa, "get", lambda p, q: {"paging": {"total": 0}, "hotspots": []}
-                        if p == "hotspots/search" and q.get("projectKey") == sa.PROJECT else real(p, q))
+                        if p == "hotspots/search" and q.get("projectKey") == sa.PROJECT
+                        else ({"total": 0, "issues": []}
+                              if p == "issues/search" and q.get("componentKeys", "").startswith(sa.PROJECT + ":")
+                              else real(p, q)))
     monkeypatch.setattr(sa, "_run_scanner", Scanner())
     assert sa.main(["precheck", *files]) == 1
     out = capsys.readouterr().out
@@ -324,3 +327,80 @@ def test_precheck_scans_when_any_file_might_be_analysed(tmp_path, monkeypatch):
     monkeypatch.setattr(sa, "_run_scanner", scan)
     assert sa.main(["precheck", "a.md", "Dockerfile"]) == 0
     assert scan.calls[0]["files"] == ["Dockerfile", "a.md"]
+
+
+def test_precheck_does_not_count_an_issue_already_open_on_the_real_project(tmp_path, monkeypatch, capsys):
+    # Observed 2026-10-13 (B207): a 3-line change to weyland-tool-server/main.py pre-checked as 19 issues — exactly the
+    # 19 already open on weyland-lab for that file (a scratch project has no new-code period, so every line is "new").
+    # The rule ("must print clean") could never pass for an edit to a big file. Matched on file + rule + message.
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    scratch = {"total": 2, "issues": [
+        {"severity": "MAJOR", "rule": "python:S8415", "line": 80, "message": "Document this HTTPException",
+         "component": "weyland-lab-precheck-1:b.py"},
+        {"severity": "MAJOR", "rule": "python:S8415", "line": 12, "message": "Document this HTTPException",
+         "component": "weyland-lab-precheck-1:pkg/a.py"}]}
+    already = {"total": 1, "issues": [
+        {"severity": "MAJOR", "rule": "python:S8415", "line": 77, "message": "Document this HTTPException",
+         "component": "weyland-lab:b.py"}]}
+    _serve(monkeypatch, _precheck_routes())
+    real = sa.get
+    def fake_get(path, q):
+        if path == "issues/search":
+            return already if q.get("componentKeys", "").startswith(sa.PROJECT + ":") else scratch
+        if path == "hotspots/search":
+            return {"paging": {"total": 0}, "hotspots": []}
+        return real(path, q)
+    monkeypatch.setattr(sa, "get", fake_get)
+    monkeypatch.setattr(sa, "_run_scanner", Scanner())
+    assert sa.main(["precheck", *files]) == 1                      # pkg/a.py's is new
+    out = capsys.readouterr().out
+    assert "already open on weyland-lab: b.py:80" in out
+    assert "precheck: FINDINGS (2 files scanned, 1 issues, 0 hotspots, 1 already open)" in out
+
+
+def test_precheck_with_only_already_open_issues_is_clean(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    issue = {"severity": "MINOR", "rule": "python:S1313", "message": "IP address", "line": 5}
+    _serve(monkeypatch, _precheck_routes())
+    real = sa.get
+    monkeypatch.setattr(sa, "get", lambda path, q: (
+        {"total": 1, "issues": [{**issue, "component": f"{sa.PROJECT}:b.py"}]}
+        if q.get("componentKeys", "").startswith(sa.PROJECT + ":")
+        else {"total": 1, "issues": [{**issue, "component": "weyland-lab-precheck-9:b.py"}]})
+        if path == "issues/search" else
+        ({"paging": {"total": 0}, "hotspots": []} if path == "hotspots/search" else real(path, q)))
+    monkeypatch.setattr(sa, "_run_scanner", Scanner())
+    assert sa.main(["precheck", *files]) == 0
+    assert "precheck: clean (2 files scanned, 0 issues, 0 hotspots, 1 already open)" in capsys.readouterr().out
+
+
+def test_precheck_does_not_count_a_hotspot_already_open_to_review_on_the_real_project(tmp_path, monkeypatch, capsys):
+    # Observed 2026-10-13 (B207): main.py's 11 http:// hotspots are TO_REVIEW (not reviewed SAFE) on weyland-lab —
+    # old code, not this change's. Reviewed SAFE → "already reviewed"; still TO_REVIEW → "already open".
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    http = "Using http protocol is insecure. Use https instead"
+    scratch = {"paging": {"total": 1}, "hotspots": [
+        {"vulnerabilityProbability": "LOW", "line": 81, "ruleKey": "python:S5332", "message": http,
+         "component": "weyland-lab-precheck-1:b.py"}]}
+    to_review = {"paging": {"total": 1}, "hotspots": [
+        {"line": 79, "ruleKey": "python:S5332", "message": http, "component": "weyland-lab:b.py", "status": "TO_REVIEW"}]}
+    _serve(monkeypatch, _precheck_routes())
+    real = sa.get
+
+    def fake_get(path, q):
+        if path == "hotspots/search":
+            if q.get("projectKey") != sa.PROJECT:
+                return scratch
+            return to_review if q.get("status") == "TO_REVIEW" else {"paging": {"total": 0}, "hotspots": []}
+        if path == "issues/search" and q.get("componentKeys", "").startswith(sa.PROJECT + ":"):
+            return {"total": 0, "issues": []}
+        return real(path, q)
+    monkeypatch.setattr(sa, "get", fake_get)
+    monkeypatch.setattr(sa, "_run_scanner", Scanner())
+    assert sa.main(["precheck", *files]) == 0
+    out = capsys.readouterr().out
+    assert "already open on weyland-lab: b.py:81" in out
+    assert "precheck: clean (2 files scanned, 0 issues, 0 hotspots, 1 already open)" in out

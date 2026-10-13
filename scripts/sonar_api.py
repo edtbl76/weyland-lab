@@ -33,6 +33,7 @@ import urllib.request
 SONAR_URL = os.environ.get("SONAR_URL", "http://mother.weyland.lab:30969").rstrip("/")
 PROJECT = "weyland-lab"
 HOTSPOTS = "hotspots/search"
+ISSUES = "issues/search"
 
 
 class CannotRead(Exception):
@@ -81,7 +82,7 @@ def gate(project: str) -> int:
     print(f"gate {project}: {st['status']}")
     for c in st.get("conditions", []):
         print(f"  {c['status']} {c['metricKey']} {c.get('actualValue')} ({c.get('comparator')} {c.get('errorThreshold')})")
-    iss = get("issues/search", {"componentKeys": project, "inNewCodePeriod": "true", "resolved": "false", "ps": 100})
+    iss = get(ISSUES, {"componentKeys": project, "inNewCodePeriod": "true", "resolved": "false", "ps": 100})
     print(f"new-code issues: {iss['total']}")
     for i in iss["issues"]:
         where = f"{i['component'].split(':', 1)[-1]}:{i.get('line', '?')}"
@@ -137,17 +138,23 @@ def _scan_and_report(src: str, key: str, token: str) -> int:
     if scanned == 0:
         print("sonar_api: precheck scanned 0 files — analysed nothing, which is not clean", file=sys.stderr)
         return 2
-    iss = get("issues/search", {"componentKeys": key, "resolved": "false", "ps": 500})
-    for i in iss["issues"]:
+    new_iss, open_iss = _split_open(get(ISSUES, {"componentKeys": key, "resolved": "false", "ps": 500})
+                                    .get("issues", []))
+    for i in new_iss:
         print(f"  {i['severity']} {i['rule']} {_path(i)}:{i.get('line', '?')} — {i['message'][:120]}")
-    new_hs, known = _split_reviewed(get(HOTSPOTS, {"projectKey": key, "ps": 500}).get("hotspots", []))
+    for i in open_iss:
+        print(f"  already open on {PROJECT}: {_path(i)}:{i.get('line', '?')} — {i['rule']} {i['message'][:100]}")
+    new_hs, known, open_hs = _split_reviewed(get(HOTSPOTS, {"projectKey": key, "ps": 500}).get("hotspots", []))
     for h in new_hs:
         print(f"  {h['vulnerabilityProbability']} {_path(h)}:{h.get('line', '?')} — {h['message'][:120]}")
     for h in known:
         print(f"  already reviewed SAFE on {PROJECT}: {_path(h)}:{h.get('line', '?')} — {h['message'][:120]}")
-    verdict = "clean" if iss["total"] == 0 and not new_hs else "FINDINGS"
-    tail = f", {len(known)} already reviewed" if known else ""
-    print(f"precheck: {verdict} ({scanned} files scanned, {iss['total']} issues, {len(new_hs)} hotspots{tail})")
+    for h in open_hs:
+        print(f"  already open on {PROJECT}: {_path(h)}:{h.get('line', '?')} — {h['message'][:120]}")
+    verdict = "clean" if not new_iss and not new_hs else "FINDINGS"
+    tail = "".join(f", {n} {what}" for n, what in ((len(open_iss) + len(open_hs), "already open"),
+                                                  (len(known), "already reviewed")) if n)
+    print(f"precheck: {verdict} ({scanned} files scanned, {len(new_iss)} issues, {len(new_hs)} hotspots{tail})")
     return 0 if verdict == "clean" else 1
 
 
@@ -155,18 +162,42 @@ def _path(finding: dict) -> str:
     return finding["component"].split(":", 1)[-1]
 
 
-def _split_reviewed(hotspots: list) -> tuple:
-    """(new, already reviewed SAFE on the real project). A scratch project knows no review history, so a hotspot that
-    was reviewed SAFE on weyland-lab comes back every time (2026-10-13). Lines move, so the match is file + rule +
-    message; a second identical hotspot added to the same file is masked here, and the CI gate still sees it."""
-    if not hotspots:
+def _split_open(issues: list) -> tuple:
+    """(new, already open on the real project). A scratch project has no new-code period, so an edit to a big file
+    reports every finding the file already has — 19 for a 3-line change to one service (2026-10-13, B207). Those are
+    the CI gate's OLD code, not this change's; matched on file + rule + message (lines move)."""
+    if not issues:
         return [], []
-    files = sorted({_path(h) for h in hotspots})
-    safe = get(HOTSPOTS, {"projectKey": PROJECT, "status": "REVIEWED", "resolution": "SAFE",
-                          "files": ",".join(files), "ps": 500}).get("hotspots", [])
-    seen = {(_path(h), h.get("ruleKey"), h.get("message")) for h in safe}
-    new = [h for h in hotspots if (_path(h), h.get("ruleKey"), h.get("message")) not in seen]
-    return new, [h for h in hotspots if h not in new]
+    keys = ",".join(sorted({f"{PROJECT}:{_path(i)}" for i in issues}))
+    live = get(ISSUES, {"componentKeys": keys, "resolved": "false", "ps": 500}).get("issues", [])
+    seen = {(_path(i), i.get("rule"), i.get("message")) for i in live}
+    new = [i for i in issues if (_path(i), i.get("rule"), i.get("message")) not in seen]
+    return new, [i for i in issues if i not in new]
+
+
+def _split_reviewed(hotspots: list) -> tuple:
+    """(new, already reviewed SAFE, already open TO_REVIEW) against the real project. A scratch project knows no
+    review history, so a hotspot reviewed SAFE on weyland-lab comes back every time, and one still TO_REVIEW there is
+    old code, not this change's (11 on one service, 2026-10-13). Lines move, so the match is file + rule + message;
+    a second identical hotspot added to the same file is masked here, and the CI gate still sees it."""
+    if not hotspots:
+        return [], [], []
+    files = ",".join(sorted({_path(h) for h in hotspots}))
+
+    def keys(params):
+        return {(_path(h), h.get("ruleKey"), h.get("message"))
+                for h in get(HOTSPOTS, {"projectKey": PROJECT, "files": files, "ps": 500, **params}).get("hotspots", [])}
+    safe, to_review = keys({"status": "REVIEWED", "resolution": "SAFE"}), keys({"status": "TO_REVIEW"})
+    new, known, open_ = [], [], []
+    for h in hotspots:
+        k = (_path(h), h.get("ruleKey"), h.get("message"))
+        if k in safe:
+            known.append(h)
+        elif k in to_review:
+            open_.append(h)
+        else:
+            new.append(h)
+    return new, known, open_
 
 
 def precheck(files: list) -> int:
