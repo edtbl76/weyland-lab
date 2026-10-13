@@ -130,3 +130,171 @@ def test_review_safe_refuses_without_a_reason(monkeypatch, capsys):
     monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
     assert sa.main(["review-safe", CFG]) == 2
     assert "a reason is required" in capsys.readouterr().err
+
+
+# precheck (2026-10-13): scan changed files in a throwaway project BEFORE handoff — the CI sonar-gate blocks the build
+# and the nightly ship, and nothing local ran Sonar (B190's push failed CI #279 on 18 new-code issues). Shapes OBSERVED
+# 2026-10-13: user_tokens/generate → {"token": …}; measures/component → {"component": {"measures": [{"metric": "files",
+# "value": "374"}]}}. A scratch project's first analysis has no new-code period, so its gate PASSED with a CRITICAL
+# issue open — the verdict is the findings, never the scratch gate.
+
+class Scanner:
+    """Stands in for the docker sonar-scanner run; records what it was asked to scan."""
+
+    def __init__(self, rc=0, output="INFO  EXECUTION SUCCESS"):
+        self.rc, self.output, self.calls = rc, output, []
+
+    def __call__(self, src, key, token):
+        self.calls.append({"files": sorted(str(p.relative_to(src)) for p in __import__("pathlib").Path(src).rglob("*")
+                                           if p.is_file()), "key": key, "token": token})
+        return self.rc, self.output
+
+
+def _precheck_routes(issues=None, hotspots=None, files="2"):
+    return {"user_tokens/generate": {"token": "squ_secret"}, "user_tokens/revoke": {}, "projects/delete": {},
+            "ce/component": {"queue": [], "current": {"status": "SUCCESS"}},
+            "measures/component": {"component": {"measures": [{"metric": "files", "value": files}]}},
+            "issues/search": issues or {"total": 0, "issues": []},
+            "hotspots/search": hotspots or {"paging": {"total": 0}, "hotspots": []}}
+
+
+def _src(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "a.py").write_text("x = 1\n")
+    (tmp_path / "b.py").write_text("y = 2\n")
+    return ["pkg/a.py", "b.py"]
+
+
+def _posted(seen, path):
+    return [urllib.parse.parse_qs(r.data.decode()) for r in seen
+            if r.get_method() == "POST" and r.full_url.endswith(f"/api/{path}")]
+
+
+def test_precheck_clean_scan_is_exit_0_and_always_cleans_up(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files, seen, scan = _src(tmp_path, monkeypatch), [], Scanner()
+    _serve(monkeypatch, _precheck_routes(), seen)
+    monkeypatch.setattr(sa, "_run_scanner", scan)
+    assert sa.main(["precheck", *files]) == 0
+    assert scan.calls[0]["files"] == ["b.py", "pkg/a.py"]          # repo-relative paths kept, so findings read well
+    key = scan.calls[0]["key"]
+    assert key.startswith("weyland-lab-precheck-") and key != sa.PROJECT   # never the real project
+    assert _posted(seen, "projects/delete")[0]["project"] == [key]
+    assert _posted(seen, "user_tokens/revoke")[0]["name"] == [key]
+    out = capsys.readouterr()
+    assert "precheck: clean (2 files scanned, 0 issues, 0 hotspots)" in out.out
+    assert "squ_secret" not in out.out + out.err                   # the minted token is never printed
+
+
+def test_precheck_findings_are_exit_1_and_named(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files, seen = _src(tmp_path, monkeypatch), []
+    issues = {"total": 1, "issues": [{"severity": "CRITICAL", "rule": "python:S3776", "line": 97,
+                                      "component": "weyland-lab-precheck-1:pkg/a.py", "message": "Cognitive Complexity"}]}
+    hotspots = {"paging": {"total": 1}, "hotspots": [{"vulnerabilityProbability": "LOW", "line": 3,
+                                                      "component": "weyland-lab-precheck-1:b.py", "message": "http"}]}
+    _serve(monkeypatch, _precheck_routes(issues, hotspots), seen)
+    real = sa.get                                                  # weyland-lab has no reviewed hotspot for b.py
+    monkeypatch.setattr(sa, "get", lambda p, q: {"paging": {"total": 0}, "hotspots": []}
+                        if p == "hotspots/search" and q.get("projectKey") == sa.PROJECT else real(p, q))
+    monkeypatch.setattr(sa, "_run_scanner", Scanner())
+    assert sa.main(["precheck", *files]) == 1
+    out = capsys.readouterr().out
+    assert "CRITICAL python:S3776 pkg/a.py:97" in out and "LOW b.py:3" in out
+    assert _posted(seen, "projects/delete") and _posted(seen, "user_tokens/revoke")
+
+
+def test_precheck_does_not_count_a_hotspot_already_reviewed_safe_on_the_real_project(tmp_path, monkeypatch, capsys):
+    # Observed 2026-10-13: sonar_api.py's own http:// hotspot (reviewed SAFE on weyland-lab, line 26) came back on the
+    # scratch project at line 33 — lines move, so the match is file + rule + message.
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    http = "Using http protocol is insecure. Use https instead"
+    scratch = {"paging": {"total": 2}, "hotspots": [
+        {"vulnerabilityProbability": "LOW", "line": 33, "ruleKey": "python:S5332", "message": http,
+         "component": "weyland-lab-precheck-1:b.py"},
+        {"vulnerabilityProbability": "LOW", "line": 4, "ruleKey": "python:S5332", "message": http,
+         "component": "weyland-lab-precheck-1:pkg/a.py"}]}
+    reviewed = {"paging": {"total": 1}, "hotspots": [
+        {"line": 26, "ruleKey": "python:S5332", "message": http, "component": "weyland-lab:b.py"}]}
+    routes = _precheck_routes()
+    _serve(monkeypatch, routes)
+    real = sa.get
+    monkeypatch.setattr(sa, "get", lambda p, q: (reviewed if q.get("projectKey") == sa.PROJECT else scratch)
+                        if p == "hotspots/search" else real(p, q))
+    monkeypatch.setattr(sa, "_run_scanner", Scanner())
+    assert sa.main(["precheck", *files]) == 1                      # pkg/a.py's is new
+    out = capsys.readouterr().out
+    assert "already reviewed SAFE on weyland-lab: b.py:33" in out
+    assert "precheck: FINDINGS (2 files scanned, 0 issues, 1 hotspots, 1 already reviewed)" in out
+
+
+def test_precheck_scanner_failure_is_exit_2_not_clean(tmp_path, monkeypatch, capsys):
+    # Observed 2026-10-12: without host networking the scanner could not resolve mother.weyland.lab, exited 1, and a
+    # naive read of issues/search would have said "0 issues".
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files, seen = _src(tmp_path, monkeypatch), []
+    _serve(monkeypatch, _precheck_routes(), seen)
+    monkeypatch.setattr(sa, "_run_scanner", Scanner(rc=1, output="ERROR Failed to query server version"))
+    assert sa.main(["precheck", *files]) == 2
+    assert "Failed to query server version" in capsys.readouterr().err
+    assert _posted(seen, "user_tokens/revoke")                      # cleanup runs on the failure path too
+
+
+def test_precheck_that_scanned_no_files_is_exit_2(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    _serve(monkeypatch, _precheck_routes(files="0"))
+    monkeypatch.setattr(sa, "_run_scanner", Scanner())
+    assert sa.main(["precheck", *files]) == 2                      # analysed nothing ≠ found nothing
+    assert "scanned 0 files" in capsys.readouterr().err
+
+
+def test_precheck_waits_for_sonar_to_process_the_report(tmp_path, monkeypatch, capsys):
+    # Observed 2026-10-13 (first live run): the scanner returns once the report is UPLOADED; read at once, the project
+    # had 0 files. The precheck waits on ce/component (shape observed: {"queue": [...], "current": {"status": …}}).
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files, seen = _src(tmp_path, monkeypatch), []
+    states = iter([{"queue": [{"status": "PENDING"}]}, {"queue": [{"status": "IN_PROGRESS"}]},
+                   {"queue": [], "current": {"status": "SUCCESS"}}])
+    routes = _precheck_routes()
+    _serve(monkeypatch, routes, seen)
+    real = sa.get
+    monkeypatch.setattr(sa, "get", lambda p, q: next(states) if p == "ce/component" else real(p, q))
+    monkeypatch.setattr(sa.time, "sleep", lambda s: None)
+    monkeypatch.setattr(sa, "_run_scanner", Scanner())
+    assert sa.main(["precheck", *files]) == 0
+    assert next(states, "drained") == "drained"                    # it polled until the task finished
+
+
+def test_precheck_failed_analysis_is_exit_2(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    routes = _precheck_routes()
+    routes["ce/component"] = {"queue": [], "current": {"status": "FAILED", "errorMessage": "boom"}}
+    _serve(monkeypatch, routes)
+    monkeypatch.setattr(sa, "_run_scanner", Scanner())
+    assert sa.main(["precheck", *files]) == 2
+    assert "FAILED" in capsys.readouterr().err
+
+
+def test_precheck_refuses_missing_files_before_touching_sonar(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    _src(tmp_path, monkeypatch)
+    seen = []
+    _serve(monkeypatch, _precheck_routes(), seen)
+    assert sa.main(["precheck", "b.py", "no/such.py"]) == 2
+    assert "no/such.py" in capsys.readouterr().err and seen == []  # no token minted for a typo
+    assert sa.main(["precheck"]) == 2
+
+
+def test_precheck_reports_a_failed_token_revoke(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    routes = _precheck_routes()
+    del routes["user_tokens/revoke"]                               # 404 → a live admin token would be left behind
+    _serve(monkeypatch, routes)
+    monkeypatch.setattr(sa, "_run_scanner", Scanner())
+    assert sa.main(["precheck", *files]) == 2
+    assert "revoke" in capsys.readouterr().err

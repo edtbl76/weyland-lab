@@ -216,6 +216,12 @@ manifest** runs the relevant scan and **triages the result before "done":**
   `kubectl -n weyland create job scan-suite-adhoc --from=cronjob/code-scan-suite`) — and, for changes SonarQube covers,
   `sonar-scan`. Both feed Port `security_scan` / `code_quality` (the **Code Health** dashboard). It's also a weekly
   CronJob (B69); this pillar is the **per-batch** gate on top of that safety net, not a substitute for it.
+- **SonarQube pre-check BEFORE handoff** (2026-10-13). CI's `sonar-gate` step BLOCKS the build and that night's image
+  ship, and nothing in the local guard suite runs Sonar — B190 reported "all gates pass" and failed CI #279 on 18
+  new-code issues. Scan every changed file Sonar covers with
+  **`python3 scripts/sonar_api.py precheck <file>...`** (throwaway project, server default profiles = the ones
+  `weyland-lab` uses, always cleaned up): it must print `precheck: clean`. Exit 1 names each finding; fix it or, for a
+  hotspot that is genuinely fine, `sonar_api.py review-safe` after the push. Exit 2 means it could not scan — not clean.
 - **Triage every NEW critical / high.** Most highs are phantom (see [[code-quality-scan-triage]]) — **fix** the real
   ones; **explicitly accept** the false/systemic ones with a *documented reason* in the right place: `.trivyignore`
   (Trivy / KSV — rule-id + why), `osv-scanner.toml` (dependency CVEs), or a **bare `# nosemgrep: <rule-id>`** (Semgrep —

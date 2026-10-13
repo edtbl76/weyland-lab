@@ -147,4 +147,6 @@ nightly queue needs Emdash running on rogueone; otherwise it runs whenever the a
 
 Per run, record in the concepts doc's trial table: reached a reviewable branch with no human step after the start (or
 where it stopped), time to that point, subscription usage (Claude Code `/cost` or the session transcript via
-`scripts/ai_session_feeder.py`), CI and review-bot results once pushed, rework needed, and setup effort.
+`scripts/ai_session_feeder.py`), CI and review-bot results once pushed, rework needed, and setup effort. A run's agent
+time and tokens per issue come from the issue-time report ([issue-time.md](issue-time.md)): a conveyor run is attributed
+by its `issue-readiness.sh EMA-###` call.

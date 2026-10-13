@@ -39,7 +39,9 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
   (creds from `scripts/.env`; see `docs/runbooks/woodpecker.md`).
 - **Prove new/changed code in its Docker toolchain image BEFORE the push** — CI confirms, it does not discover.
 - **Run the FULL local guard suite before any handoff** (the `repo-guards` step in `.woodpecker.yml`), not one guard —
-  the first failure masks later ones.
+  the first failure masks later ones. **Plus the SonarQube pre-check** on the changed files —
+  `python3 scripts/sonar_api.py precheck <file>...` must print `precheck: clean` (CI's `sonar-gate` blocks the build
+  and the nightly ship; the full command is in `docs/runbooks/code-quality.md`).
 - **Fail closed:** an absent, empty, or errored result is NEVER success. Read a tool's OUTPUT, not just its exit code.
 - **Ship image bumps with `scripts/ship-images.sh`**, never a hand merge.
 

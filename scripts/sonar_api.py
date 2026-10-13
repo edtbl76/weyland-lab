@@ -3,6 +3,7 @@
 
     sonar_api.py gate [projectKey]          # why the quality gate passed/failed: conditions + new-code issues + hotspots
     sonar_api.py review-safe <file> <reason> # mark that file's new-code hotspots REVIEWED/SAFE, reason as comment
+    sonar_api.py precheck <file> [file ...]  # scan files in a throwaway project BEFORE handoff (the CI gate's rules)
     sonar_api.py <api-path> [key=value ...]  # any GET, raw JSON — e.g. rules/search activation=true languages=py,java
 
 Reaches Sonar through the LAN NodePort `sonarqube-api-lan` (mother.weyland.lab:30969 -> sonarqube:9000) as `admin`, with
@@ -12,11 +13,17 @@ The password is only ever sent as a Basic-auth header; it is never printed.
 
 Why this exists: the runbook command it replaces curled from INSIDE the sonarqube pod with `$SONAR_ADMIN_PW`, which the
 pod does not carry — it returned 401, so it had never worked. Exit: 0 ok / gate passed · 1 gate FAILED · 2 cannot read.
+precheck exits 0 clean · 1 issues or hotspots found (named) · 2 could not scan (missing file, scanner failure, nothing
+analysed, or a cleanup that left the project or token behind).
 """
 import base64
 import json
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -25,6 +32,7 @@ import urllib.request
 # Keycloak forward-auth and answers an API call with a 307 to the browser login. LAN-only; reviewed SAFE in Sonar.
 SONAR_URL = os.environ.get("SONAR_URL", "http://mother.weyland.lab:30969").rstrip("/")
 PROJECT = "weyland-lab"
+HOTSPOTS = "hotspots/search"
 
 
 class CannotRead(Exception):
@@ -56,7 +64,7 @@ def get(path: str, params: dict) -> dict:
 
 def review_safe(path: str, reason: str, project: str = PROJECT) -> int:
     """Mark every new-code TO_REVIEW hotspot in `path` REVIEWED/SAFE, with `reason` as the review comment."""
-    hs = get("hotspots/search", {"projectKey": project, "inNewCodePeriod": "true", "status": "TO_REVIEW", "ps": 100})
+    hs = get(HOTSPOTS, {"projectKey": project, "inNewCodePeriod": "true", "status": "TO_REVIEW", "ps": 100})
     mine = [h for h in hs.get("hotspots", []) if h["component"].split(":", 1)[-1] == path]
     if not mine:
         print(f"sonar_api: no new-code hotspots to review in {path}", file=sys.stderr)
@@ -78,11 +86,128 @@ def gate(project: str) -> int:
     for i in iss["issues"]:
         where = f"{i['component'].split(':', 1)[-1]}:{i.get('line', '?')}"
         print(f"  {i['severity']} {i['rule']} {where} — {i['message'][:120]}")
-    hs = get("hotspots/search", {"projectKey": project, "inNewCodePeriod": "true", "status": "TO_REVIEW", "ps": 50})
+    hs = get(HOTSPOTS, {"projectKey": project, "inNewCodePeriod": "true", "status": "TO_REVIEW", "ps": 50})
     print(f"hotspots to review: {hs['paging']['total']}")
     for h in hs.get("hotspots", []):
         print(f"  {h['vulnerabilityProbability']} {h['component'].split(':', 1)[-1]}:{h.get('line', '?')} — {h['message'][:120]}")
     return 0 if st["status"] == "OK" else 1
+
+
+SCANNER_IMAGE = "sonarsource/sonar-scanner-cli:latest"   # the image the CI sonar-gate step runs
+
+
+def _run_scanner(src: str, key: str, token: str) -> tuple:
+    """sonar-scanner over `src` as project `key`; returns (exit code, output). Host network: the container must resolve
+    mother.weyland.lab (on the default bridge it could not, 2026-10-12). Runs as the invoking user; token via env."""
+    cmd = ["docker", "run", "--rm", "--network", "host", "--user", f"{os.getuid()}:{os.getgid()}",
+           "-e", "SONAR_TOKEN", "-e", "HOME=/tmp", "-v", f"{src}:/usr/src", SCANNER_IMAGE,
+           f"-Dsonar.projectKey={key}", f"-Dsonar.host.url={SONAR_URL}", "-Dsonar.python.version=3.12",
+           "-Dsonar.working.directory=/tmp/.scannerwork"]
+    r = subprocess.run(cmd, env=dict(os.environ, SONAR_TOKEN=token), capture_output=True, text=True)
+    return r.returncode, r.stdout + r.stderr
+
+
+def _await_analysis(key: str, timeout: int = 300, poll: int = 3) -> str:
+    """Wait for Sonar to PROCESS the uploaded report: the scanner returns at upload, and a read before processing finds
+    a project with 0 files (2026-10-13). Returns the final task status, or "TIMEOUT"."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        ce = get("ce/component", {"component": key})
+        current = ce.get("current") or {}
+        if not ce.get("queue") and current.get("status"):
+            return current["status"]
+        time.sleep(poll)
+    return "TIMEOUT"
+
+
+def _scan_and_report(src: str, key: str, token: str) -> int:
+    rc, output = _run_scanner(src, key, token)
+    if rc != 0:
+        errors = [ln for ln in output.splitlines() if "ERROR" in ln] or output.splitlines()[-5:]
+        print("sonar_api: precheck scanner failed (exit %d):\n  %s" % (rc, "\n  ".join(errors)), file=sys.stderr)
+        return 2
+    status = _await_analysis(key)
+    if status != "SUCCESS":
+        print(f"sonar_api: precheck analysis did not complete: {status}", file=sys.stderr)
+        return 2
+    measures = get("measures/component", {"component": key, "metricKeys": "files"})["component"]["measures"]
+    scanned = int(next((m["value"] for m in measures if m["metric"] == "files"), "0"))
+    if scanned == 0:
+        print("sonar_api: precheck scanned 0 files — analysed nothing, which is not clean", file=sys.stderr)
+        return 2
+    iss = get("issues/search", {"componentKeys": key, "resolved": "false", "ps": 500})
+    for i in iss["issues"]:
+        print(f"  {i['severity']} {i['rule']} {_path(i)}:{i.get('line', '?')} — {i['message'][:120]}")
+    new_hs, known = _split_reviewed(get(HOTSPOTS, {"projectKey": key, "ps": 500}).get("hotspots", []))
+    for h in new_hs:
+        print(f"  {h['vulnerabilityProbability']} {_path(h)}:{h.get('line', '?')} — {h['message'][:120]}")
+    for h in known:
+        print(f"  already reviewed SAFE on {PROJECT}: {_path(h)}:{h.get('line', '?')} — {h['message'][:120]}")
+    verdict = "clean" if iss["total"] == 0 and not new_hs else "FINDINGS"
+    tail = f", {len(known)} already reviewed" if known else ""
+    print(f"precheck: {verdict} ({scanned} files scanned, {iss['total']} issues, {len(new_hs)} hotspots{tail})")
+    return 0 if verdict == "clean" else 1
+
+
+def _path(finding: dict) -> str:
+    return finding["component"].split(":", 1)[-1]
+
+
+def _split_reviewed(hotspots: list) -> tuple:
+    """(new, already reviewed SAFE on the real project). A scratch project knows no review history, so a hotspot that
+    was reviewed SAFE on weyland-lab comes back every time (2026-10-13). Lines move, so the match is file + rule +
+    message; a second identical hotspot added to the same file is masked here, and the CI gate still sees it."""
+    if not hotspots:
+        return [], []
+    files = sorted({_path(h) for h in hotspots})
+    safe = get(HOTSPOTS, {"projectKey": PROJECT, "status": "REVIEWED", "resolution": "SAFE",
+                          "files": ",".join(files), "ps": 500}).get("hotspots", [])
+    seen = {(_path(h), h.get("ruleKey"), h.get("message")) for h in safe}
+    new = [h for h in hotspots if (_path(h), h.get("ruleKey"), h.get("message")) not in seen]
+    return new, [h for h in hotspots if h not in new]
+
+
+def precheck(files: list) -> int:
+    """Scan `files` in a throwaway project with the server's default profiles (the ones weyland-lab uses) and report
+    every finding. The verdict is the findings, never the scratch project's gate: a first analysis has no new-code
+    period, so that gate passed with a CRITICAL issue open (2026-10-12). Project and token are always removed."""
+    if not files:
+        print("sonar_api: precheck <file> [file ...] — name the changed files", file=sys.stderr)
+        return 2
+    missing = [f for f in files if not os.path.isfile(f)]
+    if missing:
+        print(f"sonar_api: precheck: not a file: {', '.join(missing)}", file=sys.stderr)
+        return 2
+    key = f"{PROJECT}-precheck-{os.getpid()}"
+    with tempfile.TemporaryDirectory(prefix="sonar-precheck-") as src:
+        for f in files:                            # keep repo-relative paths so findings name the real file
+            rel = os.path.relpath(f)
+            rel = os.path.basename(f) if rel.startswith("..") else rel
+            os.makedirs(os.path.join(src, os.path.dirname(rel)), exist_ok=True)
+            shutil.copy(f, os.path.join(src, rel))
+        token = _call("POST", "user_tokens/generate", {"name": key})["token"]
+        try:
+            result = _scan_and_report(src, key, token)
+        finally:
+            cleaned = _precheck_cleanup(key) == 0
+    return result if cleaned else 2
+
+
+def _precheck_cleanup(key: str) -> int:
+    """Delete the scratch project (absent is fine: a failed scan never created it) and revoke the token (must work)."""
+    try:
+        _call("POST", "projects/delete", {"project": key})
+    except CannotRead as exc:
+        if "404" not in str(exc):
+            print(f"sonar_api: precheck could not delete project {key}: {exc}", file=sys.stderr)
+            return 2
+    try:
+        _call("POST", "user_tokens/revoke", {"name": key})
+    except CannotRead as exc:
+        print(f"sonar_api: precheck could not revoke token {key} — revoke it in Sonar (My Account → Security): {exc}",
+              file=sys.stderr)
+        return 2
+    return 0
 
 
 def main(argv: list) -> int:
@@ -92,6 +217,8 @@ def main(argv: list) -> int:
     try:
         if argv[0] == "gate":
             return gate(argv[1] if len(argv) > 1 else PROJECT)
+        if argv[0] == "precheck":
+            return precheck(argv[1:])
         if argv[0] == "review-safe":
             if len(argv) < 3 or not argv[2].strip():
                 print("sonar_api: review-safe <file> <reason> — a reason is required (it is the review record)",

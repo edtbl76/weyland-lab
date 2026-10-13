@@ -90,7 +90,7 @@ Re-ordered per RE-grounded audit (aidlc-docs/inception/backlog-reprioritization.
 - **B182** — **Shared agent memory across harnesses (Claude Code, Codex, OpenCode, Pi, Open WebUI, operator)** — **DONE (2026-10-05, Linear EMA-240).** One store (Basic Memory on rogueone, the notes in place); Claude Code native, Codex/OpenCode read+write via Bifrost, the operator and Open WebUI read-only via the governed MCP gateway — Open WebUI as each signed-in person, audited in Loki; compositors locked to the gateway (+ Bifrost). Was HIGH. The lab is multi-harness, but durable agent memory lives only in Claude Code's auto-memory, which no other harness can read — Codex (connected to Linear 2026-09-25) sees none of it. One shared store every harness reads and writes; candidate = an MCP memory server (Basic Memory) behind the Bifrost MCP gateway — store, transport and gateway all TBD. ContextStream rejected (a second, proprietary store). Concept `docs/concepts/multi-harness.md`, design `docs/design/shared-agent-memory-design.md`. See detail below.
 - **B183** — **Evaluate Figma Make Connectors, Designs and Skills** — **HIGH (2026-09-25, Linear EMA-241).** Figma Make (in the existing Figma Pro plan) has three surfaces worth a real evaluation for the lab's prototyping/UX work — MCP **Connectors** (the Linear connector reads issues/projects/docs into Make and writes back), **Designs** (existing designs / a design system as context) and **Skills** (standing instructions). Verdict per surface + credit cost observed. Found in the B119 integrations walk; linked (not parented) to the Stud.IO UX epic EMA-153. See detail below.
 - **B184** — **Adopt Slack (free) + audit every Slack integration across the platform** — **HIGH (2026-09-25, Linear EMA-242).** A free Slack workspace for the lab — useful even purely as a demo surface, since nearly every platform tool ships a Slack integration. Adopt it (free-plan limits verified first — an app cap would decide which integrations earn a slot), then audit EVERY component for its Slack integration (send/receive, overlap with today's Telegram alerting, verdict), then wire the chosen set with a channel map + demos. Found in the B119 integrations walk. See detail below.
-- **B185** — **Free time tracking per Linear issue (ActivityWatch + Linear-derived cycle time)** — **HIGH (2026-09-25, Linear EMA-243).** No time tracking today; Rize is paid and Reclaim's Linear link is paid-only. Recommended: **ActivityWatch** (automatic, local on rogueone — Linear tab titles carry the issue ID, so hours per issue are derivable) + **Linear status-history cycle time** (already in the API); **Clockify** (free, native Linear button) as the fallback. Found in the B119 integrations walk. See detail below.
+- **B185** — **Time per Linear issue: agent session time (lane 1) + owner time via ActivityWatch (lane 2)** (re-scoped 2026-10-12) — **HIGH (2026-09-25, Linear EMA-243). Lane 1 DONE 2026-10-12; lane 2 next.** Lane 1: agent time per issue, attributed inside B62's producer from what the prompts name, plus `issue_time_report.py` (lead and cycle time from the B194 snapshot); it also fixed B62's ~2.7x token overcount and counted subagent logs. Runbook `docs/runbooks/issue-time.md`, demo row 95. Lane 2: an ActivityWatch trial for the owner's own time (kill above 1% CPU or 150 MB RSS). Rize and Reclaim are paid. See detail below.
 - **B186** — **Configure GitLens in VS Code (Community; Pro only if it earns its cost)** — **WON'T DO (2026-09-26, Linear EMA-244 canceled — not used enough to pay for; Pro's first-year deal doesn't change that, since the full price after year one won't be kept up; was HIGH 2026-09-25).** VS Code is now a harness host (Codex + Claude Code extensions); GitLens is its git layer. Community is free and covers Commit Graph / Visual File History / Worktrees on public + local repos (most lab repos are public); Pro is ~$8/user/mo billed annually (~$96/yr — not $0, the owner's call) and mostly duplicates what's in place (PR triage, Claude/Codex AI) and it has **no Linear integration**. Upgrade only if a private repo needs it. See detail below.
 - **B187** — **Spike: Claude + Obsidian workflow (claude-obsidian, with graphify's Obsidian export)** — **MEDIUM (2026-09-25, Linear EMA-245).** Get hands-on competent with the Claude Code + Obsidian knowledge workflow (`AgriciDaniel/claude-obsidian`: ingest → linked, cited notes → vault-grounded Q&A → answers saved back), plus graphify's opt-in `--obsidian` export of the code graph. Doubles as evidence for B182 — Obsidian's Markdown + wikilinks is the same format as Claude's memory and Basic Memory. See detail below.
 - **B188** — **PostHog for the product apps (deferred until OJay Floyd / MyBodyGraph have users)** — **LOW · HELD (2026-09-25, Linear EMA-246, `parked:held`).** PostHog's free cloud tier (analytics, session replay, errors → Linear issues) is the natural analytics layer for the product apps, but nothing needs it until OJay Floyd or MyBodyGraph ships to real users. Un-hold then, and evaluate it together with website feedback/bug capture (Iteration X / Marker.io, rejected in the B119 walk only for lack of users). See detail below.
@@ -3578,7 +3578,39 @@ that is the owner's call.
 
 Relates B119, the multi-harness editors.
 
-### B185 — Free time tracking per Linear issue (ActivityWatch + Linear-derived cycle time) — HIGH (2026-09-25, Linear EMA-243)
+### B185 — Time per Linear issue: agent session time (lane 1) + owner time via ActivityWatch (lane 2) — HIGH (2026-09-25, Linear EMA-243)
+
+**Re-scoped 2026-10-12 (owner): two lanes; In Progress.** The owner rarely works an issue by hand (agents do), so window
+focus measures the wrong thing. **Lane 1** attributes the agents' session time per issue inside B62's existing producer
+(`ai_session_feeder.py`), with no new software. An issue becomes current on a human prompt, a session title, or a
+conveyor run's `issue-readiness.sh EMA-###` call; tool results and assistant text are ignored as noise, a gap over 5 min
+is idle, and unnamed work is `unattributed`. It adds a report with lead and cycle time from the B194 Linear export (only
+43 of 152 completed issues have `startedAt`, so the first attributed agent activity fills the start). **Lane 2:** an
+ActivityWatch trial for the owner's own time, killed above 1% CPU or 150 MB RSS. The full spec is in EMA-243 (READY).
+The text below is the original scope, kept for the record.
+
+**Lane 1 DONE 2026-10-12.** First real run: 35 issues, 126.5 agent hours, 1.8% unattributed; B179/EMA-237 3.8 h (the
+acceptance check). Running it on real logs surfaced four defects, each fixed with a regression test:
+- An attended `issue-readiness.sh` call stole attribution (EMA-292 3.5 h → 0.1 h). The call now switches only when nothing is current.
+- **B62 overcount:** Claude Code logs one record per content block, each repeating the message's usage, so tokens and
+  API-equivalent $ were ~2.7x high since B62. Usage is now counted once per message, and summaries are stamped
+  `usage_counted: per-message`. The 60 older summaries in MinIO can't be redone, because their transcripts are pruned.
+- Subagent logs (`<session>/subagents/`) were never read. Their tokens now go to the issue current when each subagent started.
+- An item named after it closed gave a negative cycle time (B152, −10.6 d). Post-close activity no longer starts a cycle.
+
+**Closing Gaps (2026-10-13): no runbook command for the Sonar pre-check.** The pre-handoff Sonar scan was a recipe in
+agent memory, run by hand. It is now `scripts/sonar_api.py precheck <files>`:
+- **DoD gate:** pillar 7 requires `precheck: clean` before handoff, and AGENTS.md carries the same rule for every harness.
+- **Docs:** `docs/runbooks/code-quality.md`.
+- **Audit:** 9 pytest cases covering fail-closed behaviour and guaranteed cleanup.
+
+Running it live found two traps in the old recipe. The scanner returns at upload, so a read too early saw 0 files.
+And a scratch project's gate passes with a CRITICAL issue open. Hotspots already reviewed SAFE on `weyland-lab` are
+listed but not counted.
+
+Limits are documented in the runbook: attribution sticks until a prompt names the next issue, and only transcripts from
+the last ~30 days remain on disk. Coverage ratchet for `weyland-platform/scripts`: 6% → 34%. Demo row 95; flow
+`flow-issue-time-attribution`.
 
 **Why.** The lab has no time tracking. Found in the B119 Linear integrations walk (2026-09-25): **Rize** is paid and
 **Reclaim.ai**'s Linear integration is paid-only (Lite gets Google Tasks/Slack/Zoom/Meet). Free options compared:

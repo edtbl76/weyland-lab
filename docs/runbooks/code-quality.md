@@ -18,6 +18,21 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   `./scripts/run-scan-suite.sh` (clears any prior adhoc job → launches from `cronjob/code-scan-suite` → waits →
   prints the findings to triage; runs from anywhere with kubectl). Raw form:
   `kubectl -n weyland create job <name>-smoke --from=cronjob/<code-scan-suite|sonar-scan>`.
+- **SonarQube pre-check before handoff** (2026-10-13) — the CI `sonar-gate` step blocks the build and the nightly ship,
+  so scan changed files first, on rogueone:
+  ```
+  set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && cd /home/edwardmangini/IdeaProjects/weyland && python3 scripts/sonar_api.py precheck $(git diff --name-only --diff-filter=d HEAD; git ls-files --others --exclude-standard)
+  ```
+  It mints a token, runs `sonar-scanner-cli:latest` (the CI image) in Docker as the invoking user over a temp copy of
+  the files, waits for Sonar to process the report, lists every issue and hotspot, then deletes the throwaway project
+  `weyland-lab-precheck-<pid>` and revokes the token. A scratch project uses the server default profiles and gate,
+  which are what `weyland-lab` uses. **Exit 0** `precheck: clean` · **1** findings, each named (fix it, or for a hotspot
+  that is genuinely fine, `sonar_api.py review-safe <file> "<reason>"` after the push) · **2** could not scan (a missing
+  file, a scanner failure, a failed or timed-out analysis, 0 files analysed, or a cleanup that left something behind —
+  never read as clean). Two deliberate choices: the verdict is the findings, never the scratch gate (a first analysis
+  has no new-code period, so that gate passed with a CRITICAL issue open); and a hotspot already reviewed SAFE on
+  `weyland-lab` (same file, rule and message — lines move) is listed as `already reviewed` and not counted.
+  ~12 s for 3 files. Files Sonar does not analyse (Markdown, YAML) are simply not counted.
 - Always-on (NOT KEDA scale-to-zero): the 32GB RAM bump made the cost moot; scale-to-zero would need the KEDA
   HTTP interceptor in front (cross-ns ingress rewire + scan-path-through-interceptor). Revisit only if RAM tightens.
 
