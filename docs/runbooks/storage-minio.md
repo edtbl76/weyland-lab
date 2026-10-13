@@ -244,6 +244,33 @@ and the browser then tries to resolve a host literally named `https` → `DNS_PR
 
 ---
 
+## Backup mirror — restore drill (2026-10-13)
+
+The `minio-backup` CronJob (`k8s/minio/backup.yaml`, 22:30 NY) mirrors the buckets in its `for b in …` list to PVC
+`minio-backup` on mother's NVMe. A restore is proven per bucket by a one-off Job that `scripts/minio-restore-drill.sh`
+prints: it mounts the backup PVC **read-only**, mirrors `/backup/minio/<bucket>` into a scratch bucket
+`restore-drill-<bucket>`, and passes only when the scratch bucket matches the backup exactly (same object count,
+`mc diff` empty). The scratch bucket is always removed. It also reports how far the live bucket has moved since the
+backup, for information. The image and credentials are read from the CronJob manifest, so the drill cannot drift; the
+generator refuses a bucket the CronJob does not mirror.
+
+1. Optional, to drill data newer than last night's run: back up now (mother):
+   ```
+   kubectl -n minio create job minio-backup-manual-$(date +%s) --from=cronjob/minio-backup
+   ```
+   Wait for `Complete`: `kubectl -n minio get jobs -l job-name --sort-by=.metadata.creationTimestamp | tail -2`.
+2. Run the drill for one bucket (from rogueone; the generator is in the repo):
+   ```
+   bash /home/edwardmangini/IdeaProjects/weyland/scripts/minio-restore-drill.sh ai-sessions | ssh emangini@mother 'KUBECONFIG=$HOME/.kube/config kubectl create -f -'
+   ```
+3. Read the verdict (mother): `kubectl -n minio logs -l app=minio-restore-drill,bucket=ai-sessions --tail=5`.
+   `DRILL OK bucket=… backup_objects=N restored_objects=N differences=0 …` passes; `DRILL FAIL …` names the cause
+   (no backup on the PVC, an empty backup, a leftover scratch bucket, a failed mirror, a count or content mismatch)
+   and the Job fails. Record the result in [dr.md](../dr.md) (Last restore test). The Job deletes itself after 24 h.
+
+A real restore uses the same mirror with the live bucket as the target: `mc mirror /backup/minio/<bucket> src/<bucket>`
+from a pod that mounts the PVC (the drill's manifest, with `D` set to the bucket). Drill first.
+
 ## Operational notes / gotchas
 
 - **After a weyland reboot or drive re-plug:** the UAS quirk persists (modprobe.d), and the
