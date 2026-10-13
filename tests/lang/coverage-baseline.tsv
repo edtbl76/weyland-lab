@@ -17,7 +17,7 @@ react:golden-paths/frontend/vite-react	100
 react:golden-paths/frontend/remix	100
 react:golden-paths/frontend/astro	100
 nextjs:golden-paths/frontend/nextjs	100
-python:nodes/mother/lab/weyland-platform/scripts	37
+python:nodes/mother/lab/weyland-platform/scripts	38
 python:nodes/mother/lab/weyland-platform/services/rag-embed	97
 python:nodes/mother/lab/weyland-platform/services/realm-of-agents	65
 python:nodes/mother/lab/weyland-platform/services/scan-suite	80

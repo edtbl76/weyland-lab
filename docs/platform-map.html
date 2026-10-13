@@ -85,7 +85,6 @@
   section.plane h2 .role{font-family:var(--mono); font-size:12.5px; color:var(--muted); font-weight:400; margin-left:10px}
 
   .grp-l{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); margin:18px 0 4px}
-  .rows{}
   .row{display:grid; grid-template-columns:212px 1fr; gap:18px; padding:9px 2px; border-top:1px solid var(--line)}
   .row .nm{display:flex; gap:9px; align-items:baseline; font-family:var(--mono); font-weight:600; font-size:13px; color:var(--ink); letter-spacing:-.01em}
   .row .cdot{width:7px; height:7px; border-radius:50%; flex:none; margin-top:5px; background:var(--live)}
@@ -277,7 +276,8 @@
         <div class="row"><span class="nm"><i class="cdot"></i>finance-trainer</span><div><div class="rl">remote volatility-training container (B113)</div><span class="ex">reads the Feast-joined lakeFS training set → registers price_volatility_regressor + regime classifier in MLflow (R²≈0.43)</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>LlamaIndex</span><div><div class="rl">RAG retrieval framework</div><span class="ex">tool-server single-shot + weyland-agent's 4 custom retrievers</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Model-eval leaderboard</span><div><div class="rl">data product · judge-panel scoring</div><span class="ex">eval_leaderboard over RAG × 6 models, 3-judge panel</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>AI-Dev usage</span><div><div class="rl">data product · Claude Code telemetry</div><span class="ex">ai_session_ingest → Port; api_equiv_value ≈ $12K, $0 spent</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>AI-Dev usage</span><div><div class="rl">data product · Claude Code telemetry</div><span class="ex">ai_session producer → MinIO → Port; tokens counted once per message since 2026-10-12 (older figures ~2.7x high); $0 spent</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>Time per Issue</span><div><div class="rl">data product · agent time per Linear issue (B185)</div><span class="ex">issue-time.sh --port → Port issue_time + dashboard; lead/cycle from the B194 snapshot</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>DataHub Data Products</span><div><div class="rl">mesh product bundles</div><span class="ex">9 products (Spotify Audio, Chronic Health Trends, Genre Classifier…)</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>DataHub Applications (B82)</span><div><div class="rl">app-centric ownership lens</div><span class="ex">29 Application entities + 4157 assets attached, + docs/tags/domain/capabilities, all from applications.yaml, the same registry that generates 54 Port components</span></div></div>
         <div class="row plan"><span class="nm"><i class="cdot"></i>Store-inventory · Tuning-feed</span><div><div class="rl">next data products</div><span class="ex">lineage/observability · Feast → MLflow fine-tuning loop</span></div></div>

@@ -1482,6 +1482,44 @@ and posts one alert per broken source to Alertmanager → Telegram: `DataHubInge
 | Unscheduled sources | alert unless an accepted on-demand URN | skip them | a UI-created source nobody scheduled is exactly a silent gap |
 | Could not read | exit 2 → `ScheduledJobFailed` | log and pass | the class this exists to close is absence read as health |
 
+### 10f. Time per Linear issue — measuring agent time, not screen time (B185 lane 1, 2026-10-12/13)
+
+**The problem.** How long did an issue take? The usual answer, time tracking on the person's machine (ActivityWatch,
+Rize, Clockify), measures the wrong thing here: the owner rarely touches an issue by hand. The agents do the work, so
+the effort is in the Claude Code session logs on rogueone, which B62 already parses.
+
+**The design.** The B62 producer (`ai_session_feeder.py`, every 4 h) walks each session in order and attributes
+active time and tokens to the issue that is *current*. An issue becomes current only on a strong marker: a human prompt
+naming exactly one id, a session title that changes to name one, or a conveyor run's `issue-readiness.sh EMA-###` call.
+Then `scripts/issue-time.sh` joins the summaries with the nightly B194 Linear snapshot for lead and cycle time, and
+`--port` writes one `issue_time` entity per issue to Port (read back) and upserts the **Time per Issue** dashboard.
+
+| Decision | Chosen | Rejected | Why |
+|---|---|---|---|
+| What to measure | agent session time (lane 1) | screen/window focus as the only measure | the owner's screen time on an issue is near zero; lane 2 (an ActivityWatch trial with CPU/RSS kill criteria) adds owner time later, beside it |
+| Attribution markers | human prompts, title changes, the conveyor's readiness call | every issue id in the log | tool results and assistant text quote ids constantly — 9,723 + 2,926 mentions in one session against 616 in its prompts |
+| Ambiguous prompt (two ids) | no switch | split the time | a comparison prompt is not a change of work |
+| Readiness call in an attended session | ignored once an issue is current | always switch | checking the conveyor's queue moved 3.5 h onto EMA-292 |
+| Cycle-time start | the B194 dbt mart's Linear start (`startedAt`, else the first move into a started-type state), made earlier by the first agent activity before completion | `startedAt` alone | one definition across the mart and this report; `startedAt` is null on most issues |
+| Where it is seen | a Port `issue_time` blueprint related to `linearIssue`, plus a dashboard defined in git | properties on `linearIssue` · a Grafana panel · a daily Linear comment | `linearIssue` is integration-owned and revised on upgrade (B137); Grafana had no data path; a comment rewritten daily is noise |
+| Dashboard source | JSON in git, upserted every push | built in the UI / Port MCP (how the older dashboards were) | an MCP-built page lives only in Port and cannot be rebuilt from the repo |
+
+**Relation to the dbt marts.** `mart_linear_issue_cycle_time` remains Linear's own view, built from the Linear
+history alone: lead and cycle time for every completed issue, used by the weekly-flow and DORA marts. This report adds
+what Linear cannot see: the agents' hours, sessions and tokens per issue. Its cycle time starts at the same Linear
+start, or earlier when an agent began first.
+
+**What it corrected on the way.** Running it on real logs found that B62 had overcounted tokens and API-equivalent $
+about 2.7x since it was built. Claude Code writes one record per content block, each repeating the message's usage;
+usage is now counted once per message. Subagent logs (`<session>/subagents/`) were never read at all.
+
+**Limits.** Attribution sticks until a prompt names the next issue (B119's 21.4 h covers a five-day walk-through).
+Claude Code prunes transcripts after about 30 days, so a first agent activity is the first one still on record. Only
+issue ids and numbers leave rogueone, never prompt text.
+
+Flow: [flow-issue-time-attribution.md](diagrams/flow-issue-time-attribution.md). Runbook:
+[issue-time.md](runbooks/issue-time.md). Demo: [issue-time.md](demos/issue-time.md).
+
 ## 11. Operational lessons (why the CTs are tuned the way they are)
 
 Both stem from the **same root: an LXC exposes the *host's* resources, not the container's cgroup**,

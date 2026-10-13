@@ -32,12 +32,13 @@ sequenceDiagram
     T->>M: mc mirror (only if the feeder succeeded)
     T->>R: issue-time.sh --port (only if the mirror succeeded)
     O->>R: issue-time.sh (table) or --json, by hand
-    R->>S: mc ls, then mc cp the newest issues.json.gz (none listed or copy failed → exit 2)
+    R->>S: mc ls, then mc cp the newest issues.json.gz + workflowStates.json.gz (none listed or copy failed → exit 2)
     R->>C: read summaries (none, unreadable, or none attributed → exit 2)
     R->>S: read snapshot (unreadable or empty → exit 2)
     Note over R: Bnnn → EMA by title prefix (unarchived wins, still ambiguous → unmapped)
     Note over R: lead = completed − created
-    Note over R: cycle = completed − min(startedAt, first agent activity ≤ completed)
+    Note over R: Linear start = startedAt, else first move into a started-type state (as the dbt mart)
+    Note over R: cycle = completed − min(Linear start, first agent activity ≤ completed)
     R-->>O: table, most agent time first (exit 0)
     R->>P: upsert one issue_time entity per issue, related to its linearIssue when Port has it
     R->>P: read every entity back (a mismatch → exit 1), delete stale ones

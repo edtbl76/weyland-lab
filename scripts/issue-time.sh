@@ -6,7 +6,7 @@
 #   scripts/issue-time.sh --port     push to Port: issue_time entities (read back) + the Time per Issue dashboard
 #
 # Reads the session summaries the ai-session producer writes (~/.cache/ai-sessions) and the newest B194 snapshot
-# (weyland/linear-backup/snapshots/<ts>/issues.json.gz, copied to ~/.cache). All logic lives in
+# (weyland/linear-backup/snapshots/<ts>/issues.json.gz + workflowStates.json.gz, copied to ~/.cache). All logic lives in
 # nodes/mother/lab/weyland-platform/scripts/issue_time_report.py.
 # EXIT: 0 ok · 1 Port read-back mismatch · 2 could not run (no snapshot, fetch failed, no Port credentials, bad input).
 # Seams (tests): ISSUE_TIME_MC, ISSUE_TIME_REPORT, ISSUE_TIME_CACHE, ISSUE_TIME_SESSIONS, ISSUE_TIME_PORT_ENV.
@@ -41,8 +41,11 @@ latest="${latest%/}"
 
 mkdir -p "$CACHE"
 issues="$CACHE/linear-issues.json.gz"
-$MC cp -q "$SNAPSHOTS/$latest/issues.json.gz" "$issues" >/dev/null \
-  || { echo "issue-time: could not fetch $SNAPSHOTS/$latest/issues.json.gz" >&2; exit 2; }
+states="$CACHE/linear-workflow-states.json.gz"   # the state types: the Linear start, as the B194 dbt mart defines it
+for pair in "issues.json.gz:$issues" "workflowStates.json.gz:$states"; do
+  $MC cp -q "$SNAPSHOTS/$latest/${pair%%:*}" "${pair#*:}" >/dev/null \
+    || { echo "issue-time: could not fetch $SNAPSHOTS/$latest/${pair%%:*}" >&2; exit 2; }
+done
 
 # shellcheck disable=SC2086  # REPORT is a command line (interpreter + script)
-$REPORT --sessions "$SESSIONS" --issues "$issues" "${mode[@]}"
+$REPORT --sessions "$SESSIONS" --issues "$issues" --states "$states" "${mode[@]}"

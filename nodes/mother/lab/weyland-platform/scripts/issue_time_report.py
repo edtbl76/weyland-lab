@@ -7,15 +7,18 @@ $ per issue, attributed by what the prompts named) with a B194 Linear snapshot (
 (B179) map to their Linear issue by the title prefix ("B179 — …"); EMA ids are used as they are.
 
   lead_days  = completedAt − createdAt
-  cycle_days = completedAt − min(startedAt, first agent activity)   (most issues never record startedAt; activity
-               that began after completion is rework and never starts the cycle — no known start → unknown)
+  cycle_days = completedAt − min(Linear start, first agent activity), where the Linear start is the one the B194 dbt
+               mart uses (mart_linear_issue_cycle_time.sql): startedAt, else the first history move into a
+               started-type workflow state. Activity that began after completion is rework and never starts the
+               cycle — no known start → unknown.
 
 Coverage limit: Claude Code prunes old transcripts, so `first agent activity` is the first one still on disk (or in
 the MinIO mirror the feeder ships to); an issue worked before the oldest retained log has too late a start.
 
 Only issue ids and numbers are read and printed — never prompt text. Pure stdlib.
 
-  usage: issue_time_report.py --sessions <dir of session JSONs> --issues <issues.json[.gz]> [--json | --port]
+  usage: issue_time_report.py --sessions <dir> --issues <issues.json[.gz]> --states <workflowStates.json[.gz]>
+                              [--json | --port]
   exit:  0 report printed (or, with --port, pushed to Port and read back) · 1 --port read-back did not match ·
          2 an input is absent, unreadable or carries nothing to report, or the Port API failed (fail closed)
 
@@ -97,6 +100,27 @@ def load_issues(path):
     return issues
 
 
+def load_states(path):
+    """The snapshot's workflow states (gzip or plain JSON); InputError unless at least one is `started`-type."""
+    states = load_issues(path) if path else []
+    if not any(st.get("type") == "started" for st in states):
+        raise InputError(f"no started-type workflow state in {path}")
+    return states
+
+
+def started_state_ids(states):
+    return frozenset(st["id"] for st in states if st.get("type") == "started")
+
+
+def _linear_start(lin, started_ids):
+    """As mart_linear_issue_cycle_time.sql: coalesce(startedAt, the first history move into a started-type state)."""
+    if lin.get("startedAt"):
+        return _ts(lin["startedAt"])
+    moves = [_ts(n["createdAt"]) for n in ((lin.get("history") or {}).get("nodes") or [])
+             if n.get("toStateId") in started_ids and n.get("createdAt")]
+    return min(moves) if moves else None
+
+
 def _backlog_map(issues):
     """B number → its issue. Two issues with one number: the unarchived one wins; still two → unmapped (never guess)."""
     by_b = defaultdict(list)
@@ -130,7 +154,7 @@ def _accumulate(row, buckets):
         row["first_agent_at"] = _earliest(row["first_agent_at"], b.get("first_at"))
 
 
-def _finish(row):
+def _finish(row, started_ids=frozenset()):
     """Lead and cycle time from the Linear record; the agent minutes become hours."""
     lin = row.pop("_linear") or {}
     if row["backlog"] is None:                      # an EMA id seen directly: name its backlog number when it has one
@@ -138,7 +162,7 @@ def _finish(row):
         row["backlog"] = m.group(1) if m else None
     completed = _ts(lin.get("completedAt"))
     # agent activity that began after completion is later rework (a closed item named again), never the cycle's start
-    starts = [t for t in (_ts(lin.get("startedAt")), _ts(row["first_agent_at"]))
+    starts = [t for t in (_linear_start(lin, started_ids), _ts(row["first_agent_at"]))
               if t and (completed is None or t <= completed)]
     row["lead_days"] = _days(_ts(lin.get("createdAt")), completed)
     row["cycle_days"] = _days(min(starts), completed) if starts else None
@@ -147,7 +171,7 @@ def _finish(row):
     return row
 
 
-def build(per_issue, issues):
+def build(per_issue, issues, started_ids=frozenset()):
     by_ident = {i["identifier"]: i for i in issues}
     by_b = _backlog_map(issues)
     rows = {}
@@ -160,7 +184,7 @@ def build(per_issue, issues):
         if key.startswith("B"):
             row["backlog"] = key
         _accumulate(row, buckets)
-    return sorted((_finish(r) for r in rows.values()), key=lambda x: (-x["agent_hours"], x["issue"]))
+    return sorted((_finish(r, started_ids) for r in rows.values()), key=lambda x: (-x["agent_hours"], x["issue"]))
 
 
 def _fmt(v):
@@ -276,12 +300,13 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--sessions", required=True, help="directory of ai_session_feeder JSONs")
     ap.add_argument("--issues", required=True, help="B194 snapshot issues.json.gz (or plain issues.json)")
+    ap.add_argument("--states", required=True, help="the same snapshot's workflowStates.json.gz (the Linear start)")
     out = ap.add_mutually_exclusive_group()
     out.add_argument("--json", action="store_true", help="print rows as JSON instead of a table")
     out.add_argument("--port", action="store_true", help="push to Port (issue_time entities + the dashboard)")
     args = ap.parse_args(argv)
     try:
-        rows = build(load_sessions(args.sessions), load_issues(args.issues))
+        rows = build(load_sessions(args.sessions), load_issues(args.issues), started_state_ids(load_states(args.states)))
         if args.port:
             cid, secret = os.environ.get("PORT_CLIENT_ID"), os.environ.get("PORT_CLIENT_SECRET")
             if not cid or not secret:

@@ -32,7 +32,8 @@ SH
   run bash "$SCRIPT"
   [ "$status" -eq 0 ]
   grep -q "cp -q weyland/linear-backup/snapshots/2026-10-13T092012Z/issues.json.gz $ISSUE_TIME_CACHE/linear-issues.json.gz" "$MC_LOG"
-  grep -q -- "--sessions $ISSUE_TIME_SESSIONS --issues $ISSUE_TIME_CACHE/linear-issues.json.gz" "$PY_LOG"
+  grep -q "cp -q weyland/linear-backup/snapshots/2026-10-13T092012Z/workflowStates.json.gz $ISSUE_TIME_CACHE/linear-workflow-states.json.gz" "$MC_LOG"
+  grep -q -- "--sessions $ISSUE_TIME_SESSIONS --issues $ISSUE_TIME_CACHE/linear-issues.json.gz --states $ISSUE_TIME_CACHE/linear-workflow-states.json.gz" "$PY_LOG"
 }
 
 @test "passes --json through, and reads no Port credentials for it" {

@@ -3598,6 +3598,17 @@ acceptance check). Running it on real logs surfaced four defects, each fixed wit
 - Subagent logs (`<session>/subagents/`) were never read. Their tokens now go to the issue current when each subagent started.
 - An item named after it closed gave a negative cycle time (B152, −10.6 d). Post-close activity no longer starts a cycle.
 
+**Port view + CLI script (2026-10-13).** Lane 1's output now has a page and a single command:
+- **Port:** an `issue_time` blueprint (OpenTofu) related to the integration-owned `linearIssue`, and a **Time per
+  Issue** dashboard defined in git (`tofu/port/pages/time_per_issue.json`). The producer pushes every 4 h and reads
+  every entity back.
+- **CLI:** `scripts/issue-time.sh` (table · `--json` · `--port`).
+- **Cycle time** now starts where the B194 dbt mart's does (`startedAt`, else the first move into a started-type
+  state), or earlier when an agent began first. Before, the lab had two definitions.
+- **Fixed after live runs:** Port 404s a relation to an issue its Linear integration never synced (EMA-206), and a
+  dashboard PATCH rejects create-only keys.
+- **DR:** `ai-sessions` added to the MinIO mirror; the Port data rebuilds from the script (drill passed).
+
 **Closing Gaps (2026-10-13): no runbook command for the Sonar pre-check.** The pre-handoff Sonar scan was a recipe in
 agent memory, run by hand. It is now `scripts/sonar_api.py precheck <files>`:
 - **DoD gate:** pillar 7 requires `precheck: clean` before handoff, and AGENTS.md carries the same rule for every harness.

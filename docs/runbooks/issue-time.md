@@ -23,9 +23,12 @@ All commands run on **rogueone**. Nothing leaves rogueone but issue ids and numb
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/issue-time.sh
 ```
 
-`scripts/issue-time.sh` fetches the newest B194 Linear snapshot into `~/.cache/linear-issues.json.gz` and prints one row
+`scripts/issue-time.sh` fetches the newest B194 Linear snapshot (`issues.json.gz` + `workflowStates.json.gz`) into
+`~/.cache` and prints one row
 per Linear issue, most agent time first: `agent_h` (active main-thread hours), `sessions`, `lead_d`
-(completedAt − createdAt), `cycle_d` (completedAt − the earlier of Linear's startedAt and the first agent activity),
+(completedAt − createdAt), `cycle_d` (completedAt − the earlier of the Linear start and the first agent activity; the
+Linear start is the one the B194 dbt mart `mart_linear_issue_cycle_time` uses: `startedAt`, else the first history move
+into a started-type state, read from the same snapshot's `workflowStates.json.gz`),
 `out_tok` (output tokens, subagents included). `-` = not known (open issue, or no start known before completion).
 
 | Option | Does |
@@ -90,7 +93,8 @@ issues constantly — 9,723 + 2,926 mentions in one session against 616 in its p
   only those written since 2026-10-12 carry `issues{}`. `first_agent_at` is the first activity still on record.
 - **Rework after close.** Agent activity that begins after `completedAt` (a closed item named again) is agent time but
   never starts the cycle.
-- **Linear `startedAt`** is null on 241 of 292 issues, so most cycle times start at the first agent activity.
+- **Linear `startedAt`** is null on 241 of 292 issues; the first history move into a started-type state fills 4 of
+  them (the mart's rule), and most of the rest start at the first agent activity.
 
 ## Token counts corrected 2026-10-12 (B62)
 

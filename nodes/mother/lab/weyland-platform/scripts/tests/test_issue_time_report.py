@@ -30,6 +30,12 @@ def _write_sessions(tmp_path, sessions):
     return str(d)
 
 
+def _states(tmp_path):
+    p = tmp_path / "workflowStates.json"
+    p.write_text(json.dumps([{"id": "s-prog", "name": "In Progress", "type": "started"}]))
+    return str(p)
+
+
 def _write_snapshot(tmp_path, issues, gz=True):
     p = tmp_path / ("issues.json.gz" if gz else "issues.json")
     data = json.dumps(issues).encode()
@@ -120,14 +126,14 @@ def test_an_unreadable_snapshot_exits_2_and_says_why(tmp_path, capsys):
     bad.write_bytes(b"not gzip, not json")
     sess = _write_sessions(tmp_path, [{"B1": _bucket(6, "2026-10-01T00:00:00Z")}])
     with pytest.raises(SystemExit) as e:
-        r.main(["--sessions", sess, "--issues", str(bad)])
+        r.main(["--sessions", sess, "--states", _states(tmp_path), "--issues", str(bad)])
     assert e.value.code == 2 and "snapshot" in capsys.readouterr().err
 
 
 def test_an_empty_snapshot_exits_2(tmp_path, capsys):
     sess = _write_sessions(tmp_path, [{"B1": _bucket(6, "2026-10-01T00:00:00Z")}])
     with pytest.raises(SystemExit) as e:
-        r.main(["--sessions", sess, "--issues", _write_snapshot(tmp_path, [])])
+        r.main(["--sessions", sess, "--states", _states(tmp_path), "--issues", _write_snapshot(tmp_path, [])])
     assert e.value.code == 2 and "no issues" in capsys.readouterr().err
 
 
@@ -137,7 +143,7 @@ def test_an_unreadable_session_file_exits_2_naming_it(tmp_path, capsys):
     d.mkdir()
     (d / "broken.json").write_text("{not json")
     with pytest.raises(SystemExit) as e:
-        r.main(["--sessions", str(d), "--issues", _write_snapshot(tmp_path, [_issue("EMA-1", "B1 — a")])])
+        r.main(["--sessions", str(d), "--states", _states(tmp_path), "--issues", _write_snapshot(tmp_path, [_issue("EMA-1", "B1 — a")])])
     assert e.value.code == 2 and "broken.json" in capsys.readouterr().err
 
 
@@ -146,17 +152,17 @@ def test_sessions_without_attribution_exit_2(tmp_path, capsys):
     d.mkdir()
     (d / "s.json").write_text(json.dumps({"session_id": "s"}))        # a pre-B185 summary: no issues{}
     with pytest.raises(SystemExit) as e:
-        r.main(["--sessions", str(d), "--issues", _write_snapshot(tmp_path, [_issue("EMA-1", "B1 — a")])])
+        r.main(["--sessions", str(d), "--states", _states(tmp_path), "--issues", _write_snapshot(tmp_path, [_issue("EMA-1", "B1 — a")])])
     assert e.value.code == 2 and "attribution" in capsys.readouterr().err
 
 
 def test_main_prints_a_table_or_json(tmp_path, capsys):
     snap = _write_snapshot(tmp_path, [_issue("EMA-237", "B179 — Software-factory experiments")])
     sess = _write_sessions(tmp_path, [{"B179": _bucket(90, "2026-10-05T10:00:00Z")}])
-    assert r.main(["--sessions", sess, "--issues", snap]) == 0
+    assert r.main(["--sessions", sess, "--states", _states(tmp_path), "--issues", snap]) == 0
     out = capsys.readouterr().out
     assert "EMA-237" in out and "B179" in out and "1.5" in out
-    assert r.main(["--sessions", sess, "--issues", snap, "--json"]) == 0
+    assert r.main(["--sessions", sess, "--states", _states(tmp_path), "--issues", snap, "--json"]) == 0
     assert json.loads(capsys.readouterr().out)[0]["issue"] == "EMA-237"
 
 
@@ -269,7 +275,7 @@ def test_main_port_without_credentials_exits_2(tmp_path, monkeypatch, capsys):
     snap = _write_snapshot(tmp_path, [_issue("EMA-237", "B179 — x")])
     sess = _write_sessions(tmp_path, [{"B179": _bucket(60, "2026-10-05T10:00:00Z")}])
     with pytest.raises(SystemExit) as e:
-        r.main(["--sessions", sess, "--issues", snap, "--port"])
+        r.main(["--sessions", sess, "--states", _states(tmp_path), "--issues", snap, "--port"])
     assert e.value.code == 2 and "PORT_CLIENT_ID" in capsys.readouterr().err
 
 
@@ -280,3 +286,44 @@ def test_an_issue_port_does_not_know_keeps_its_time_without_a_relation(tmp_path,
     assert r.push_to_port(_rows(tmp_path), port) == 0
     assert port.store["EMA-237"]["relations"] == {}
     assert "1 without a linearIssue in Port: EMA-237" in capsys.readouterr().out
+
+
+# --- the Linear start, defined as the B194 dbt mart defines it (2026-10-13) ----------------------------------------
+# mart_linear_issue_cycle_time.sql: started_at = coalesce(startedAt, first history transition into a `started`-type
+# state). The report used startedAt alone, so the lab had two cycle-time definitions (4 issues differed). Shapes
+# OBSERVED in 2026-10-13T092012Z: issue.history = {"nodes": [{"createdAt", "toStateId", …}], "pageInfo":
+# {"hasNextPage": false}}; workflowStates.json.gz = [{"id", "name", "type": "started" | "completed" | …}].
+STATES = [{"id": "s-prog", "name": "In Progress", "type": "started"}, {"id": "s-todo", "name": "Todo", "type": "unstarted"},
+          {"id": "s-done", "name": "Done", "type": "completed"}]
+
+
+def _with_history(issue, *moves):
+    issue["history"] = {"nodes": [{"createdAt": t, "toStateId": s} for t, s in moves],
+                        "pageInfo": {"hasNextPage": False}}
+    return issue
+
+
+def test_without_started_at_the_first_started_transition_is_the_linear_start(tmp_path):
+    snap = _write_snapshot(tmp_path, [_with_history(
+        _issue("EMA-1", "B1 — a", created="2026-10-01T00:00:00Z", completed="2026-10-05T00:00:00Z"),
+        ("2026-10-02T00:00:00Z", "s-todo"), ("2026-10-03T00:00:00Z", "s-prog"), ("2026-10-05T00:00:00Z", "s-done"))])
+    sess = _write_sessions(tmp_path, [{"B1": _bucket(6, "2026-10-04T00:00:00Z")}])
+    row = r.build(r.load_sessions(sess), r.load_issues(snap), r.started_state_ids(STATES))[0]
+    assert row["cycle_days"] == 2.0                    # the 10-03 move into In Progress, earlier than the agent (10-04)
+
+
+def test_started_at_wins_over_history_as_in_the_mart(tmp_path):
+    snap = _write_snapshot(tmp_path, [_with_history(
+        _issue("EMA-1", "B1 — a", created="2026-10-01T00:00:00Z", started="2026-10-04T00:00:00Z",
+               completed="2026-10-05T00:00:00Z"),
+        ("2026-10-02T00:00:00Z", "s-prog"))])
+    sess = _write_sessions(tmp_path, [{"B1": _bucket(6, "2026-10-04T12:00:00Z")}])
+    row = r.build(r.load_sessions(sess), r.load_issues(snap), r.started_state_ids(STATES))[0]
+    assert row["cycle_days"] == 1.0                    # coalesce(startedAt, history): startedAt 10-04 stands
+
+
+def test_the_states_file_must_name_a_started_state(tmp_path):
+    p = tmp_path / "workflowStates.json"
+    p.write_text(json.dumps([{"id": "x", "type": "completed"}]))
+    with pytest.raises(r.InputError, match="started"):
+        r.load_states(str(p))
