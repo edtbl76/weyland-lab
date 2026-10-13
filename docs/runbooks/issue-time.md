@@ -8,10 +8,11 @@ later trial (`docs/backlog.md` B185, Linear EMA-243).
 | Piece | Where |
 |---|---|
 | Producer (attribution) | `nodes/mother/lab/weyland-platform/scripts/ai_session_feeder.py` — the B62 producer; writes `issues{}` into each session summary |
-| Report | `nodes/mother/lab/weyland-platform/scripts/issue_time_report.py` |
+| Report | `scripts/issue-time.sh` (the command) → `nodes/mother/lab/weyland-platform/scripts/issue_time_report.py` (logic) |
+| Port view | blueprint `tofu/port/issue_time.tf` · dashboard `tofu/port/pages/time_per_issue.json` · entities pushed by `issue-time.sh --port` |
 | Session summaries | `~/.cache/ai-sessions/*.json` on rogueone, mirrored to MinIO `ai-sessions/` by `ai-session-producer.timer` (every 4 h at :07) |
 | Linear dates | the B194 nightly snapshot, `weyland/linear-backup/snapshots/<ts>/issues.json.gz` ([linear-backup.md](linear-backup.md)) |
-| Tests | `nodes/mother/lab/weyland-platform/scripts/tests/test_ai_session_feeder.py`, `test_issue_time_report.py` (CI `test-python`) |
+| Tests | `nodes/mother/lab/weyland-platform/scripts/tests/test_ai_session_feeder.py`, `test_issue_time_report.py` (CI `test-python`) · `scripts/tests/issue-time.bats` (CI `test-shell`) |
 | Flow | [flow-issue-time-attribution.md](../diagrams/flow-issue-time-attribution.md) |
 
 All commands run on **rogueone**. Nothing leaves rogueone but issue ids and numbers — never prompt text.
@@ -19,21 +20,46 @@ All commands run on **rogueone**. Nothing leaves rogueone but issue ids and numb
 ## Report time per issue
 
 ```
-mc cp -q "weyland/linear-backup/snapshots/$(mc ls weyland/linear-backup/snapshots/ | tail -1 | awk '{print $NF}')issues.json.gz" /home/edwardmangini/.cache/linear-issues.json.gz && python3 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/issue_time_report.py --sessions /home/edwardmangini/.cache/ai-sessions --issues /home/edwardmangini/.cache/linear-issues.json.gz
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/issue-time.sh
 ```
 
-One row per Linear issue, most agent time first: `agent_h` (active main-thread hours), `sessions`, `lead_d`
+`scripts/issue-time.sh` fetches the newest B194 Linear snapshot into `~/.cache/linear-issues.json.gz` and prints one row
+per Linear issue, most agent time first: `agent_h` (active main-thread hours), `sessions`, `lead_d`
 (completedAt − createdAt), `cycle_d` (completedAt − the earlier of Linear's startedAt and the first agent activity),
 `out_tok` (output tokens, subagents included). `-` = not known (open issue, or no start known before completion).
-`--json` prints the rows as JSON (adds `api_equiv_usd`, `first_agent_at`, `unmapped`).
 
-Exit codes: **0** report printed · **2** an input is absent or unreadable (no session summaries, a summary that is not
-JSON, no summary carrying attribution, a snapshot that is not gzip/JSON or holds no issues) — never an empty report.
+| Option | Does |
+|---|---|
+| (none) | the table |
+| `--json` | the same rows as JSON (adds `api_equiv_usd`, `first_agent_at`, `unmapped`) |
+| `--port` | push to Port: one `issue_time` entity per issue, every one read back, entities no longer in the report deleted, and the **Time per Issue** dashboard upserted from git. Reads `tofu/port/.env`. |
 
-To refresh the summaries first (the timer does this every 4 h):
+Exit codes: **0** ok · **1** `--port` read-back did not match what was written · **2** could not run — no snapshot
+listed, the fetch failed, no Port credentials, no or unreadable session summaries, an unreadable snapshot, or a Port API
+error. Never an empty report.
+
+To refresh the summaries first (the timer does this every 4 h, and then runs `--port` itself):
 ```
 systemctl --user start ai-session-producer.service
 ```
+
+## View it in Port
+
+**Port → Catalog sidebar → Time per Issue** (`https://app.port.io`, dashboard `time_per_issue`):
+- **Agent hours (all issues)** · **Issues with agent time** · **Average cycle time (days)** (issues with a cycle time).
+- **Time per issue** — a table of `issue_time` entities sorted by agent hours. Each row's `Linear issue` relation
+  opens the issue's own `linearIssue` page, which lists its time under related entities.
+
+How it is built:
+- **Blueprint** `issue_time` — OpenTofu, `nodes/mother/lab/weyland-platform/tofu/port/issue_time.tf`. The time lives
+  BESIDE the Linear integration's `linearIssue`, related to it, not on it: `linearIssue` is integration-owned and the
+  integration revises it on upgrade ([port.md](port.md) § What is deliberately UI-managed).
+- **Entities** — written by `issue-time.sh --port`, run by `ai-session-producer.service` after the MinIO mirror (every
+  4 h). A failure fails the unit, which the nightly `machine-inv-drift` placement check turns into a Kuma alert.
+- **Dashboard** — `tofu/port/pages/time_per_issue.json`, upserted on every push. Unlike the MCP-built dashboards it is
+  in git, so it rebuilds itself. Edit the JSON, not the page in the UI: the next push overwrites UI edits.
+- An issue with no `linearIssue` in Port (the integration did not sync it — EMA-206, 2026-10-13) keeps its time,
+  without the relation; the push names it (`N without a linearIssue in Port`).
 
 ## How a minute is attributed
 
@@ -79,6 +105,8 @@ in the totals (`subagents` = how many).
 | Symptom | Cause / fix |
 |---|---|
 | exit 2 `no session in … carries per-issue attribution` | Summaries predate B185: run `systemctl --user start ai-session-producer.service` |
-| exit 2 `cannot read Linear snapshot` | The `mc cp` failed or copied a partial file — re-run it; check the snapshot with [linear-backup.md](linear-backup.md) |
+| exit 2 `cannot read Linear snapshot` / `could not fetch` | The snapshot copy failed or is partial — re-run; check the snapshot with [linear-backup.md](linear-backup.md) |
+| exit 1 `read-back:` lines | Port stored something other than what was written — the named entity and property; re-run `--port`, then check the blueprint in `issue_time.tf` |
+| `ai-session-producer.service` failed | `journalctl --user -u ai-session-producer` — the last command is the Port push; run `bash /home/edwardmangini/IdeaProjects/weyland/scripts/issue-time.sh --port` to see why |
 | An issue's hours look far too high | Sticky attribution (above): check the session's prompts named the next issue when work moved on |
 | A B number shows `(unmapped)` | Two live Linear issues share the number — fix the duplicate title in Linear |

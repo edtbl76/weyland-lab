@@ -158,3 +158,125 @@ def test_main_prints_a_table_or_json(tmp_path, capsys):
     assert "EMA-237" in out and "B179" in out and "1.5" in out
     assert r.main(["--sessions", sess, "--issues", snap, "--json"]) == 0
     assert json.loads(capsys.readouterr().out)[0]["issue"] == "EMA-237"
+
+
+# --- Port view (2026-10-13): one `issue_time` entity per issue, related to the Linear integration's `linearIssue` -----
+# The blueprint is ours (tofu/port/issue_time.tf); linearIssue is integration-owned (port.md B137), so the time lives
+# beside it, not on it. Shapes OBSERVED 2026-10-13: entity upsert POST /v1/blueprints/<bp>/entities?upsert=true&merge=true;
+# dashboard pages as GET /v1/pages/code_health returned them ({"page": {..., "widgets": [{"type": "dashboard-widget"}]}}).
+
+class FakePort:
+    """Records requests; serves GET entities from what was upserted (or a preset)."""
+
+    def __init__(self, existing=None, page_exists=True, corrupt=None, fail=None, linear=("EMA-237", "EMA-92", "EMA-95")):
+        self.store = {e["identifier"]: e for e in (existing or [])}
+        self.linear = linear
+        self.page_exists, self.corrupt, self.fail = page_exists, corrupt or {}, fail
+        self.calls = []
+
+    def request(self, method, path, body=None):
+        self.calls.append((method, path, body))
+        if self.fail and self.fail in path:
+            raise r.InputError(f"{method} {path} -> HTTP 500")
+        if method == "POST" and path.startswith("/v1/blueprints/issue_time/entities"):
+            e = dict(body)
+            e["properties"] = {**e["properties"], **self.corrupt.get(e["identifier"], {})}
+            self.store[e["identifier"]] = e
+            return {"ok": True}
+        if method == "GET" and path.startswith("/v1/blueprints/linearIssue/entities"):
+            return {"entities": [{"identifier": i} for i in self.linear]}
+        if method == "GET" and path.startswith("/v1/blueprints/issue_time/entities"):
+            return {"entities": list(self.store.values())}
+        if method == "DELETE" and path.startswith("/v1/blueprints/issue_time/entities/"):
+            self.store.pop(path.rsplit("/", 1)[1].split("?")[0])
+            return {"ok": True}
+        if path.startswith("/v1/pages"):
+            if method == "GET":
+                if not self.page_exists:
+                    raise r.NotFound(path)
+                return {"page": {"identifier": "time_per_issue"}}
+            # OBSERVED 2026-10-13 (the second live push): PATCH /v1/pages/<id> answers 422 'Unrecognized keys: "type",
+            # "sidebar"' — those are create-only. The first push had created the page with POST, so only a re-run hit it.
+            if method == "PATCH" and {"type", "sidebar"} & set(body):
+                raise r.InputError(f"PATCH {path} -> HTTP 422: Unrecognized keys")
+            return {"ok": True}
+        raise AssertionError(f"unexpected {method} {path}")
+
+
+def _rows(tmp_path):
+    snap = _write_snapshot(tmp_path, [
+        _issue("EMA-237", "B179 — conveyor", created="2026-10-01T00:00:00Z", completed="2026-10-12T00:00:00Z"),
+        _issue("EMA-92", "B101 — x", archived="2026-09-01T00:00:00Z"),
+        _issue("EMA-95", "B101 — y", archived="2026-09-01T00:00:00Z")])
+    sess = _write_sessions(tmp_path, [{"B179": _bucket(228, "2026-10-05T10:00:00Z", out=285520, usd=12.5),
+                                       "B101": _bucket(30, "2026-10-01T00:00:00Z")}])
+    return r.build(r.load_sessions(sess), r.load_issues(snap))
+
+
+def test_port_entities_relate_mapped_issues_and_never_guess_an_unmapped_one(tmp_path):
+    ents = {e["identifier"]: e for e in r.port_entities(_rows(tmp_path), {"EMA-237"})}
+    e = ents["EMA-237"]
+    assert e["title"] == "EMA-237 · B179" and e["relations"] == {"issue": "EMA-237"}
+    assert e["properties"]["agent_hours"] == 3.8 and e["properties"]["output_tokens"] == 285520
+    assert e["properties"]["backlog"] == "B179" and e["properties"]["lead_days"] == 11.0
+    assert ents["B101"]["relations"] == {} and ents["B101"]["properties"]["unmapped"] is True
+
+
+def test_push_upserts_verifies_and_deletes_stale_entities(tmp_path, capsys):
+    port = FakePort(existing=[{"identifier": "B179", "properties": {}, "relations": {}}])  # since mapped to EMA-237
+    assert r.push_to_port(_rows(tmp_path), port) == 0
+    assert set(port.store) == {"EMA-237", "B101"}
+    posts = [c for c in port.calls if c[0] == "POST" and "entities" in c[1]]
+    assert all("upsert=true" in p[1] and "merge=true" in p[1] for p in posts)
+    assert ("DELETE", "/v1/blueprints/issue_time/entities/B179", None) in port.calls
+    assert "port: 2 issue_time entities upserted and read back, 1 stale deleted" in capsys.readouterr().out
+
+
+def test_push_fails_on_a_read_back_that_does_not_match(tmp_path, capsys):
+    port = FakePort(corrupt={"EMA-237": {"agent_hours": 0}})
+    assert r.push_to_port(_rows(tmp_path), port) == 1
+    assert "EMA-237: agent_hours" in capsys.readouterr().err
+
+
+def test_push_creates_the_dashboard_when_absent_and_updates_it_when_present(tmp_path):
+    rows = _rows(tmp_path)
+    for exists, verb in ((False, "POST"), (True, "PATCH")):
+        port = FakePort(page_exists=exists)
+        assert r.push_to_port(rows, port) == 0
+        page_writes = [c for c in port.calls if c[1].startswith("/v1/pages") and c[0] in ("POST", "PATCH")]
+        assert [c[0] for c in page_writes] == [verb]
+        assert page_writes[0][2]["identifier"] == "time_per_issue"
+
+
+def test_the_dashboard_in_git_tables_the_issue_time_blueprint():
+    page = r.dashboard_page()
+    assert page["identifier"] == "time_per_issue" and page["type"] == "dashboard"
+    widgets = page["widgets"][0]["widgets"]
+    assert any(w["type"] == "table-entities-explorer" and w["blueprint"] == "issue_time" for w in widgets)
+    ids = {w["id"] for w in widgets}
+    assert {c["id"] for row in page["widgets"][0]["layout"] for c in row["columns"]} == ids  # layout names real widgets
+
+
+def test_a_port_api_failure_is_exit_2(tmp_path, capsys):
+    port = FakePort(fail="/v1/blueprints/issue_time/entities")
+    assert r.push_to_port(_rows(tmp_path), port) == 2
+    assert "HTTP 500" in capsys.readouterr().err
+
+
+def test_main_port_without_credentials_exits_2(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("PORT_CLIENT_ID", raising=False)
+    monkeypatch.delenv("PORT_CLIENT_SECRET", raising=False)
+    snap = _write_snapshot(tmp_path, [_issue("EMA-237", "B179 — x")])
+    sess = _write_sessions(tmp_path, [{"B179": _bucket(60, "2026-10-05T10:00:00Z")}])
+    with pytest.raises(SystemExit) as e:
+        r.main(["--sessions", sess, "--issues", snap, "--port"])
+    assert e.value.code == 2 and "PORT_CLIENT_ID" in capsys.readouterr().err
+
+
+def test_an_issue_port_does_not_know_keeps_its_time_without_a_relation(tmp_path, capsys):
+    # Observed 2026-10-13 (first live push): EMA-206 has no linearIssue entity in Port (the integration does not sync
+    # it), Port answered 404 to the relation, and the whole push stopped. Its time still belongs in the catalog.
+    port = FakePort(linear=())
+    assert r.push_to_port(_rows(tmp_path), port) == 0
+    assert port.store["EMA-237"]["relations"] == {}
+    assert "1 without a linearIssue in Port: EMA-237" in capsys.readouterr().out

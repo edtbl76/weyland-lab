@@ -15,8 +15,13 @@ the MinIO mirror the feeder ships to); an issue worked before the oldest retaine
 
 Only issue ids and numbers are read and printed — never prompt text. Pure stdlib.
 
-  usage: issue_time_report.py --sessions <dir of session JSONs> --issues <issues.json[.gz]> [--json]
-  exit:  0 report printed · 2 an input is absent, unreadable or carries nothing to report (fail closed)
+  usage: issue_time_report.py --sessions <dir of session JSONs> --issues <issues.json[.gz]> [--json | --port]
+  exit:  0 report printed (or, with --port, pushed to Port and read back) · 1 --port read-back did not match ·
+         2 an input is absent, unreadable or carries nothing to report, or the Port API failed (fail closed)
+
+--port writes one `issue_time` entity per issue (blueprint tofu/port/issue_time.tf, related to the Linear integration's
+`linearIssue`), reads every one back, deletes entities no longer in the report, and upserts the `time_per_issue`
+dashboard from tofu/port/pages/time_per_issue.json. Credentials: PORT_CLIENT_ID / PORT_CLIENT_SECRET in the env.
 """
 import argparse
 import datetime as dt
@@ -26,6 +31,9 @@ import json
 import os
 import re
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections import defaultdict
 
 B_TITLE_RE = re.compile(r"(B\d+(?:\.\d+)?)\b")
@@ -33,6 +41,18 @@ B_TITLE_RE = re.compile(r"(B\d+(?:\.\d+)?)\b")
 
 class InputError(Exception):
     pass
+
+
+class NotFound(InputError):
+    pass
+
+
+BLUEPRINT = "issue_time"
+PAGE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tofu", "port", "pages",
+                         "time_per_issue.json")
+PAGE_CREATE_ONLY = ("type", "sidebar")
+PROPS = ("backlog", "agent_hours", "sessions", "output_tokens", "api_equiv_usd", "lead_days", "cycle_days",
+         "first_agent_at", "unmapped")
 
 
 def _ts(s):
@@ -157,14 +177,116 @@ def _table(rows):
     return "\n".join(lines)
 
 
+class PortClient:
+    """Port REST with a client-credentials token; every non-2xx is an InputError (404 → NotFound)."""
+
+    def __init__(self, client_id, client_secret, base=None):
+        self.base = (base or os.environ.get("PORT_API_BASE", "https://api.port.io")).rstrip("/")
+        body = {"clientId": client_id, "clientSecret": client_secret}
+        self.token = self._send("POST", "/v1/auth/access_token", body, auth=False)["accessToken"]
+
+    def _send(self, method, path, body=None, auth=True):
+        headers = {"Content-Type": "application/json"}
+        if auth:
+            headers["Authorization"] = f"Bearer {self.token}"
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(self.base + path, data=data, method=method, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                raw = resp.read()
+                return json.loads(raw) if raw else {}
+        except urllib.error.HTTPError as e:
+            err = NotFound if e.code == 404 else InputError
+            raise err(f"{method} {path} -> HTTP {e.code}: {e.read()[:200]!r}") from e
+        except (OSError, ValueError) as e:
+            raise InputError(f"{method} {path} failed: {e}") from e
+
+    def request(self, method, path, body=None):
+        return self._send(method, path, body)
+
+
+def port_entities(rows, in_port):
+    """One `issue_time` entity per row, related to its linearIssue only when that entity exists in Port (`in_port`):
+    an unmapped B number is never guessed, and Port 404s a relation to an issue its Linear integration did not sync
+    (EMA-206, 2026-10-13) — the time is still recorded."""
+    return [{"identifier": x["issue"],
+             "title": f"{x['issue']} · {x['backlog']}" if x["backlog"] else x["issue"],
+             "properties": {k: x[k] for k in PROPS},
+             "relations": {"issue": x["issue"]} if not x["unmapped"] and x["issue"] in in_port else {}}
+            for x in rows]
+
+
+def dashboard_page():
+    with open(PAGE_FILE, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _verify(wanted, live):
+    """Read-back: every property of every entity we wrote is live with the same value."""
+    problems = []
+    for e in wanted:
+        got = live.get(e["identifier"])
+        if got is None:
+            problems.append(f"{e['identifier']}: missing after upsert")
+            continue
+        for k, v in e["properties"].items():
+            if (got.get("properties") or {}).get(k) != v:
+                problems.append(f"{e['identifier']}: {k} is {(got.get('properties') or {}).get(k)!r}, wrote {v!r}")
+    return problems
+
+
+def push_to_port(rows, port):
+    """Upsert, read back, delete stale entities, upsert the dashboard. 0 ok · 1 read-back mismatch · 2 API failure."""
+    base = f"/v1/blueprints/{BLUEPRINT}/entities"
+    try:
+        in_port = {e["identifier"] for e in port.request("GET", "/v1/blueprints/linearIssue/entities")
+                   .get("entities", [])}
+        ents = port_entities(rows, in_port)
+        orphans = sorted(x["issue"] for x in rows if not x["unmapped"] and x["issue"] not in in_port)
+        for e in ents:
+            port.request("POST", base + "?upsert=true&merge=true", e)
+        live = {e["identifier"]: e for e in port.request("GET", base).get("entities", [])}
+        problems = _verify(ents, live)
+        stale = sorted(set(live) - {e["identifier"] for e in ents})
+        for ident in stale:
+            port.request("DELETE", f"{base}/{urllib.parse.quote(ident, safe='')}")
+        page = dashboard_page()
+        try:
+            port.request("GET", f"/v1/pages/{page['identifier']}")
+            # `type` and `sidebar` are create-only: PATCH answers 422 "Unrecognized keys" (observed 2026-10-13)
+            update = {k: v for k, v in page.items() if k not in PAGE_CREATE_ONLY}
+            port.request("PATCH", f"/v1/pages/{page['identifier']}", update)
+        except NotFound:
+            port.request("POST", "/v1/pages", page)
+    except InputError as e:
+        print(f"issue_time_report: Port: {e}", file=sys.stderr)
+        return 2
+    for p in problems:
+        print(f"issue_time_report: read-back: {p}", file=sys.stderr)
+    if problems:
+        return 1
+    print(f"port: {len(ents)} {BLUEPRINT} entities upserted and read back, {len(stale)} stale deleted; "
+          f"dashboard {page['identifier']} upserted")
+    if orphans:
+        print(f"port: {len(orphans)} without a linearIssue in Port: {', '.join(orphans)}")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--sessions", required=True, help="directory of ai_session_feeder JSONs")
     ap.add_argument("--issues", required=True, help="B194 snapshot issues.json.gz (or plain issues.json)")
-    ap.add_argument("--json", action="store_true", help="print rows as JSON instead of a table")
+    out = ap.add_mutually_exclusive_group()
+    out.add_argument("--json", action="store_true", help="print rows as JSON instead of a table")
+    out.add_argument("--port", action="store_true", help="push to Port (issue_time entities + the dashboard)")
     args = ap.parse_args(argv)
     try:
         rows = build(load_sessions(args.sessions), load_issues(args.issues))
+        if args.port:
+            cid, secret = os.environ.get("PORT_CLIENT_ID"), os.environ.get("PORT_CLIENT_SECRET")
+            if not cid or not secret:
+                raise InputError("PORT_CLIENT_ID / PORT_CLIENT_SECRET unset (tofu/port/.env)")
+            return push_to_port(rows, PortClient(cid, secret))
     except InputError as e:
         print(f"issue_time_report: {e}", file=sys.stderr)
         sys.exit(2)

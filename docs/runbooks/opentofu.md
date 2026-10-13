@@ -19,7 +19,7 @@ direct CI→CD wire; git is the seam.
 - `.gitignore` ignores `.terraform/`, `*.tfstate*`, `*.tfvars`; the **lock file IS committed**.
 
 ## Port lane (done) — `tofu/port/`
-**21 blueprints + 8 scorecards + 4 integrations + 1 action codified.** CLI-imported, `tofu plan` a clean no-op,
+**24 blueprints + 8 scorecards + 4 integrations + 1 action codified** (2026-10-13). CLI-imported, `tofu plan` a clean no-op,
 state in MinIO. Blueprints: 8 webhook/category (`cost`, `ci_pipeline`, `glitchtip_issue`, `feature_flag`,
 `code_quality`, `security_scan`, `code_hotspot`, `endpoint`) + 5 software-catalog (`domain`/`system`/`component`/
 `resource`/`api`) + the 8 that B137 recovered from the UI (`service`, `workload`, `deployment`, `environment`,

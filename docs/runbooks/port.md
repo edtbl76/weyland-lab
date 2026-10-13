@@ -98,7 +98,7 @@ To rebuild the catalog after a change: re-emit entities from the docs via MCP; r
 
 ## What is deliberately UI-managed, and why (B137)
 
-51 blueprints are live; **21 are codified**. The other 30 are UI-managed on purpose. The rule is
+54 blueprints are live; **24 are codified** (2026-10-13, `check-port-iac-coverage.sh --list`). The other 30 are UI-managed on purpose. The rule is
 **codify what cannot recreate itself; document what does** — and the decision is not prose only, it is
 executable: `scripts/check-port-iac-coverage.sh` fails on anything live that is neither codified nor excused
 by one of the three reasons below.

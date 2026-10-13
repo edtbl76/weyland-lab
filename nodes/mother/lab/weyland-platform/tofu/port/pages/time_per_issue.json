@@ -1,0 +1,44 @@
+{
+  "identifier": "time_per_issue",
+  "title": "Time per Issue",
+  "type": "dashboard",
+  "icon": "Clock",
+  "section": "software_catalog",
+  "sidebar": "catalog",
+  "showInSidebar": true,
+  "after": "ai_dev_usage",
+  "widgets": [
+    {
+      "id": "dashboard-widget-root",
+      "type": "dashboard-widget",
+      "layout": [
+        {"height": 400, "columns": [{"id": "it-hours", "size": 4}, {"id": "it-issues", "size": 4}, {"id": "it-cycle", "size": 4}]},
+        {"height": 600, "columns": [{"id": "it-table", "size": 12}]}
+      ],
+      "widgets": [
+        {
+          "id": "it-hours", "type": "entities-number-chart", "title": "Agent hours (all issues)", "icon": "Clock",
+          "unit": "none", "blueprint": "issue_time", "chartType": "aggregateByProperty", "calculationBy": "property",
+          "func": "sum", "property": "agent_hours", "dataset": {"combinator": "and", "rules": []}
+        },
+        {
+          "id": "it-issues", "type": "entities-number-chart", "title": "Issues with agent time", "icon": "Linear",
+          "unit": "none", "blueprint": "issue_time", "chartType": "countEntities", "calculationBy": "entities",
+          "func": "count", "dataset": {"combinator": "and", "rules": []}
+        },
+        {
+          "id": "it-cycle", "type": "entities-number-chart", "title": "Average cycle time (days)", "icon": "Clock",
+          "unit": "none", "blueprint": "issue_time", "chartType": "aggregateByProperty", "calculationBy": "property",
+          "func": "average", "averageOf": "total", "property": "cycle_days",
+          "dataset": {"combinator": "and", "rules": [{"property": "cycle_days", "operator": "isNotEmpty"}]}
+        },
+        {
+          "id": "it-table", "type": "table-entities-explorer", "title": "Time per issue (agent hours, most first)",
+          "blueprint": "issue_time", "dataset": {"combinator": "and", "rules": []}, "excludedFields": [],
+          "displayMode": "widget",
+          "blueprintConfig": {"issue_time": {"sortSettings": {"sortBy": [{"property": "agent_hours", "order": "desc"}]}}}
+        }
+      ]
+    }
+  ]
+}
