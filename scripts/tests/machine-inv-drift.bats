@@ -15,10 +15,12 @@ setup() {
   [[ "$output" == up*"clean, all hosts reachable"* ]]
 }
 
-@test "decide_signal: drift only => down naming the change" {
+# 2026-10-13 (owner): catalog-only drift is UP. It pushed down every night 10-05..10-12 while PR #130 waited — a red light
+# that meant "a PR is open" (any `docker pull` re-tripped it). The PR is where drift is curated; Kuma pages on failures.
+@test "decide_signal: catalog drift only => up, naming the change and the open PR" {
   run decide_signal 1 "" "+3/-1 lines"
-  [[ "$output" == down* ]]
-  [[ "$output" == *"drift: +3/-1 lines"* ]]
+  [[ "$output" == up* ]]
+  [[ "$output" == *"catalog drift +3/-1 lines → inventory PR open for review"* ]]
 }
 
 @test "decide_signal: a host unreachable (no drift) => down, never a false up" {
@@ -50,7 +52,7 @@ setup() {
 @test "decide_signal: catalog drift AND placement drift => down naming both" {
   run decide_signal 1 "" "+2/-0 lines" 1
   [[ "$output" == down* ]]
-  [[ "$output" == *"drift: +2/-0 lines"* ]]
+  [[ "$output" == *"catalog drift +2/-0 lines"* ]]
   [[ "$output" == *"placement: host drift"* ]]
 }
 
@@ -76,4 +78,30 @@ setup() {
 @test "decide_signal: Port ok (0) keeps up" {
   run decide_signal 0 "" "none" 0 0
   [[ "$output" == up* ]]
+}
+
+# 2026-10-13: the Kuma push-interval guard (kuma_push_check.py) rides the same heartbeat. 6th arg = its exit code.
+# emdash-conveyor sat at Kuma's 60 s default (red a minute after every daily push) with nothing checking it.
+@test "decide_signal: a push-monitor interval finding (rc 1) => down naming it" {
+  run decide_signal 0 "" "none" 0 0 1
+  [[ "$output" == down* ]]
+  [[ "$output" == *"kuma: push-monitor interval mismatch"* ]]
+}
+
+@test "decide_signal: the interval guard could not read Kuma (rc 2) => down, never a false up" {
+  run decide_signal 0 "" "none" 0 0 2
+  [[ "$output" == down* ]]
+  [[ "$output" == *"kuma: interval check could not read"* ]]
+}
+
+@test "decide_signal: catalog drift with an interval finding => down naming both" {
+  run decide_signal 1 "" "+3/-0 lines" 0 0 1
+  [[ "$output" == down* ]]
+  [[ "$output" == *"catalog drift +3/-0 lines"* ]]
+  [[ "$output" == *"kuma: push-monitor interval mismatch"* ]]
+}
+
+@test "decide_signal: interval guard clean (0) keeps up" {
+  run decide_signal 0 "" "none" 0 0 0
+  [[ "$output" == up*"clean, all hosts reachable"* ]]
 }

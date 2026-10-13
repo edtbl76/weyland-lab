@@ -123,7 +123,7 @@ machine-inv-drift.{service,timer}`, ~03:45 NY, `Persistent=true` so a missed run
 auth, and `PR_TOKEN` / Port creds / `KUMA_INVENTORY_PUSH_URL` in `scripts/.env` — no key in the cluster. Each run:
 
 1. **emit + verify** the committed SoT → Port (keeps Port tracking the accepted catalog; the B169 read-back gate).
-   A failure no longer only prints: it turns the heartbeat `down` (step 5).
+   A failure no longer only prints: it turns the heartbeat `down` (step 6).
 2. For each **reachable** host, `collect | machine_inventory.py merge --prune` **inside an isolated git worktree**
    off `origin/main` (your working checkout is never touched). `--prune` reconciles removals too. An
    **unreachable** host is **skipped, never pruned** — merge refuses empty stdin, so a host it could not scan can
@@ -133,10 +133,18 @@ auth, and `PR_TOKEN` / Port creds / `KUMA_INVENTORY_PUSH_URL` in `scripts/.env` 
 4. **Host placement check (B180)** — `placement_check.py --hosts` against the committed `placement.yaml`: every
    inventoried unit and host config file installed and identical to its repo copy, no unlisted unit, no failed
    unit, no stale timer (runbook `observability.md` § Placement inventory).
-5. **Kuma heartbeat → Telegram:** `up` when the catalog is clean, all hosts were reachable, the host check passed
-   and the Port emit + verify passed; `down` otherwise, naming which (same dead-man's-switch channel as the restic
-   backup). No ping for > the window (rogueone off for days) also
-   trips it — one monitor covers *ran / drifted / host-unreachable*. `pr-staleness` backstops an ignored PR.
+5. **Kuma push-interval guard (2026-10-13)** — `scripts/kuma_push_check.py` reads every Kuma push monitor
+   (read-only: `sqlite3 -readonly` in the Kuma pod, through mother) and compares its heartbeat interval with the
+   table in [uptime-kuma.md](uptime-kuma.md) § Push monitors. A mismatch, a paused or missing monitor, or a push
+   monitor with no row is a finding. Built because Kuma's 60 s default caught three monitors: each went red a
+   minute after every good push.
+6. **Kuma heartbeat → Telegram:** `down` when the JOB or the estate failed — an unreachable host, host placement
+   drift, a failed Port emit + verify, or a push-interval finding — naming which (same dead-man's-switch channel as
+   the restic backup). Otherwise `up`. **Catalog drift alone is `up`**, with the change in the message
+   (`catalog drift +3/-0 lines → inventory PR open for review`). Owner decision 2026-10-13: it pushed `down` every
+   night 10-05..10-12 while PR #130 waited, so red meant only "a PR is open" and any `docker pull` re-tripped it. The
+   PR is where drift is curated, and `pr-staleness` backstops an ignored one. No ping for > the window (rogueone off
+   for days) also trips the monitor.
 
 This resolves the old "a blind timer piles up `unreviewed`" worry: the job **doesn't nag you to type anything** —
 it writes the change into a PR and you merge it. Dispositions stay yours but never block accuracy. Manual dry-run

@@ -38,8 +38,9 @@ Runbook: [runbooks/machine-inventory.md](../runbooks/machine-inventory.md).
 ## Nightly drift check (B170)
 
 Runs on rogueone (user timer, `Persistent=true`). Reconciles each reachable host into an isolated worktree,
-opens/updates one inventory PR when the catalog changed, runs the B180 host placement check, and pushes a Kuma
-heartbeat (down reaches Telegram) that is `up` only when all of it passed.
+opens/updates one inventory PR when the catalog changed, runs the B180 host placement check and the Kuma
+push-interval guard, and pushes a Kuma heartbeat (down reaches Telegram). Catalog drift alone stays `up` with the
+PR named (2026-10-13): the PR is where it is curated. `down` means a failure.
 An unreachable host is skipped, never pruned. Merging the PR is the only human step.
 
 ```mermaid
@@ -52,9 +53,12 @@ flowchart TD
     M --> C{catalog changed}
     C -->|yes| PR[open or update ONE inventory PR<br/>merging IS the cataloging]
     C -->|no| OK[clean]
-    PR --> DOWN[Kuma down then Telegram]
+    PR --> H
+    PR -->|PR step failed| DOWN[Kuma down then Telegram]
     S --> DOWN
     OK --> H{host placement check<br/>placement_check.py --hosts}
     H -->|drift or unreadable| DOWN
-    H -->|clean| UP[Kuma up]
+    H -->|clean| K{push-monitor intervals<br/>kuma_push_check.py vs uptime-kuma.md}
+    K -->|mismatch or unreadable| DOWN
+    K -->|match| UP[Kuma up, drift and PR named in the message]
 ```

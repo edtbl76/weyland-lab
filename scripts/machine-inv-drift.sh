@@ -13,9 +13,11 @@
 #   3. If the catalog changed → commit it on ONE branch and open (or update) a single inventory PR. Merging the
 #      PR IS the cataloging — no hand data-entry.
 #   4. B180: `placement_check.py --hosts` — host units + config files vs the committed placement.yaml.
-#   5. Push a Kuma heartbeat: `up` when clean AND every host was reachable AND placement is clean; `down` (→ Telegram, same channel as
-#      the restic dead-man's-switch) on drift or an unreachable host. No ping for > the heartbeat window (box
-#      off for days) also trips Kuma — one monitor covers ran / drifted / host-unreachable.
+#   5. `kuma_push_check.py` — every Kuma push monitor's heartbeat interval matches docs/runbooks/uptime-kuma.md.
+#   6. Push a Kuma heartbeat: `down` (→ Telegram, same channel as the restic dead-man's-switch) on an unreachable
+#      host, placement drift, a Port emit/verify failure or a push-interval finding; otherwise `up` — catalog drift
+#      alone is `up`, named in the message, because the PR is where it is curated (2026-10-13). No ping for > the
+#      heartbeat window (box off for days) also trips Kuma.
 #
 #   usage: machine-inv-drift.sh            # the nightly run (systemd timer)
 #          machine-inv-drift.sh --dry-run  # scan + reconcile into a throwaway worktree, print the diff, but
@@ -35,19 +37,22 @@ COLLECT_CMD="${MACHINE_INV_COLLECT_CMD:-bash $REPO_ROOT/scripts/collect-machine-
 INV_CMD="${MACHINE_INV_PY_CMD:-python3 $REPO_ROOT/scripts/machine_inventory.py}"
 PORT_ENV="${MACHINE_INV_PORT_ENV:-$REPO_ROOT/nodes/mother/lab/weyland-platform/tofu/port/.env}"
 PLACEMENT_CMD="${MACHINE_INV_PLACEMENT_CMD:-python3 $REPO_ROOT/scripts/placement_check.py --hosts --file}"
+KUMA_CHECK_CMD="${MACHINE_INV_KUMA_CHECK_CMD:-python3 $REPO_ROOT/scripts/kuma_push_check.py}"
 
-# decide_signal <drift 0|1> <unreachable-hosts> <summary> [<placement-rc>] [<port-failed 0|1>] — the pure Kuma/
-# Telegram decision. Prints "<up|down>\t<msg>". `up` ONLY when the catalog is clean, every host was reachable, the
-# B180 host placement check (placement_check.py --hosts) exited 0 AND the Port emit + read-back verify passed; anything else is `down` so it reaches Telegram. Kept
-# separate + side-effect-free so bats can pin every state without a network.
+# decide_signal <drift 0|1> <unreachable-hosts> <summary> [<placement-rc>] [<port-failed 0|1>] [<kuma-check-rc>] —
+# the pure Kuma/Telegram decision. Prints "<up|down>\t<msg>". `down` (→ Telegram) when the JOB or the estate failed:
+# an unreachable host, B180 host placement drift or an unreadable check, a failed Port emit/verify, or a Kuma push
+# monitor whose interval differs from the runbook (kuma_push_check.py). Catalog drift ALONE is `up` with the change in
+# the message (owner, 2026-10-13): it pushed down every night 10-05..10-12 while the PR waited, so red meant "a PR is
+# open" and any `docker pull` re-tripped it. The PR is where drift is curated. Kept side-effect-free for bats.
 decide_signal() {
-  local drift="$1" unreachable="$2" summary="$3" placement="${4:-0}" port="${5:-0}" state msg
+  local drift="$1" unreachable="$2" summary="$3" placement="${4:-0}" port="${5:-0}" kuma="${6:-0}" state msg
   if [ -n "$unreachable" ] && [ "$drift" = "1" ]; then
     state=down; msg="machine-inventory drift ($summary) + unreachable:$unreachable"
   elif [ -n "$unreachable" ]; then
     state=down; msg="machine-inventory: host(s) unreachable:$unreachable"
   elif [ "$drift" = "1" ]; then
-    state=down; msg="machine-inventory drift: $summary"
+    state=up; msg="machine-inventory: catalog drift $summary → inventory PR open for review"
   else
     state=up; msg="machine-inventory: clean, all hosts reachable"
   fi
@@ -58,6 +63,12 @@ decide_signal() {
     *) state=down; msg="$msg; placement: host check exited $placement" ;;
   esac
   if [ "$port" != "0" ]; then state=down; msg="$msg; port: emit/verify failed"; fi
+  case "$kuma" in
+    0) ;;
+    1) state=down; msg="$msg; kuma: push-monitor interval mismatch" ;;
+    2) state=down; msg="$msg; kuma: interval check could not read" ;;
+    *) state=down; msg="$msg; kuma: interval check exited $kuma" ;;
+  esac
   printf '%s\t%s\n' "$state" "$msg"
 }
 
@@ -153,9 +164,13 @@ main() {
   local placement=0
   $PLACEMENT_CMD "$wt/placement.yaml" || placement=$?
 
-  # 5) heartbeat → Telegram on down (drift, unreachable, or placement)
+  # 5) every Kuma push monitor's heartbeat interval matches docs/runbooks/uptime-kuma.md (the 60 s default trap)
+  local kuma=0
+  $KUMA_CHECK_CMD || kuma=$?
+
+  # 6) heartbeat → Telegram on down (unreachable, placement, Port, Kuma intervals; catalog drift alone stays up)
   local sig state msg
-  sig="$(decide_signal "$drift" "$unreachable" "$summary" "$placement" "$port_failed")"
+  sig="$(decide_signal "$drift" "$unreachable" "$summary" "$placement" "$port_failed" "$kuma")"
   state="${sig%%$'\t'*}"; msg="${sig#*$'\t'}"
   echo "signal: $state — $msg"
   [ "$dry" = "0" ] && kuma_push "$state" "$msg"

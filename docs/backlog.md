@@ -4539,6 +4539,18 @@ Linear: EMA-230.
 
 **Key decisions:** (1) runs on rogueone, NOT a cluster CronJob — that's where installs happen and it already has the fleet SSH keys + `gh` auth + creds, so the whole "root-capable SSH key in a pod" surface **evaporated** (self-inflicted by putting it in the wrong place). (2) `merge --prune` (new flag) also **removes** rows for uninstalled software — but only from a host actually scanned; an **unreachable host is skipped, never pruned** (merge refuses empty stdin). (3) Reopened B129's "refresh is by-hand on purpose" stance: the old worry was a timer piling up `unreviewed` with nobody deciding — moot when the bot writes the change into a PR you merge rather than nagging you to type. **Half 1 (a DoD "log it before done" line) was dropped** — the nightly PR subsumes it. **Validated live** (`--dry-run`, RUN 2026-09-19): caught a real `maven` image on rogueone that was never catalogued (the exact "installed and forgot" case), worktree left no trace. Tests: `merge --prune` (add/remove/preserve/empty-safe) in `machine-inventory.bats`; `decide_signal` (up only when clean AND all reachable) in `machine-inv-drift.bats`; shellcheck-clean. Setup (one-time, on rogueone): a Kuma push monitor → `KUMA_INVENTORY_PUSH_URL` in `scripts/.env`, then enable the timer. Docs: [runbooks/machine-inventory.md](runbooks/machine-inventory.md) · [diagrams/flow-machine-inventory.md](diagrams/flow-machine-inventory.md) · [demos/machine-inventory.md](demos/machine-inventory.md). Linear: EMA-231. **Original scope below.**
 
+**Signal change + push-interval guard (2026-10-13, owner).** The monitor was red every night from 10-05 to 10-12. Each
+night's drift was real but only meant "PR #130 is waiting", and any `docker pull` re-tripped it. Now:
+- **Catalog drift alone is `up`**, with the change and the open PR named in the message.
+- **`down` is reserved for failures:** an unreachable host, placement drift, a Port emit/verify failure, or a push-interval finding.
+
+**Closing Gaps:** Kuma's 60 s default heartbeat has now caught three push monitors. The latest was `emdash-conveyor`,
+where 90000 went into the Retry field; the monitor went red a minute after every daily push and was never green.
+- **Audit:** a new `scripts/kuma_push_check.py` runs nightly in this job. It compares every push monitor in Kuma's store
+  (read-only, through mother) with the `uptime-kuma.md` table, and caught the conveyor on its first run.
+- **Docs:** the `uptime-kuma.md` rule is to add the row BEFORE creating a monitor.
+- **Tests:** 12 pytest cases and 4 new bats cases.
+
 Follow-on to [B129]: close the **drift gap** where host-level software installs bypass the machine-inventory catalog until someone remembers to re-collect. Surfaced 2026-09-15 installing Calibre + DeDRM/KFX plugins on rogueone for the B165 Kindle spike — a real install that would have silently gone uncatalogued. Two halves:
 
 1. **A conditional DoD step (NOT a universal 9th pillar).** Most deliverables are GitOps/k8s and install no host software, so a mandatory pillar would be dead weight. Instead add a **conditional line** to `docs/definition-of-done.md` (under cleanup/tracking): *"if this deliverable installed or removed host-level software, refresh the machine-inventory SoT (`collect | merge`) + `emit` to Port before calling it done."* Fires only when it applies.

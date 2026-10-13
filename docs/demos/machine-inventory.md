@@ -120,8 +120,9 @@ any real 4th machine is then the same checklist end to end: preflight → (ssh-c
 ## Keeping the catalog fresh — the nightly drift check (B170 / EMA-231)
 
 `scripts/machine-inv-drift.sh` runs on rogueone (user timer, `Persistent=true`): it reconciles each reachable
-host into an isolated worktree, opens/updates one inventory PR when the catalog changed, and pushes a Kuma
-heartbeat (down → Telegram). Merging the PR is the only human step — no hand data-entry.
+host into an isolated worktree, opens/updates one inventory PR when the catalog changed, checks every Kuma push
+monitor's interval, and pushes a Kuma heartbeat (down → Telegram on a failure; catalog drift alone is `up` with the
+PR named, since 2026-10-13). Merging the PR is the only human step — no hand data-entry.
 
 ### It found real drift on its first dry-run (RUN 2026-09-19)
 
@@ -144,7 +145,23 @@ inside a throwaway worktree (your checkout untouched — `git worktree list` sho
 and signalled `down`. In a real run this becomes an inventory PR + a Telegram ping; merging the PR catalogs the
 `maven` row with zero typing.
 
+### Catalog drift is `up`; the push-interval guard is `down` (RUN 2026-10-13)
+
+```
+[rogueone] bash /home/edwardmangini/IdeaProjects/weyland/scripts/machine-inv-drift.sh --dry-run
+── DRY RUN: catalog would change (+3/-0 lines) ──
+OK — placement.yaml: 222 rows, hosts check clean.
+  ❌ emdash-conveyor: heartbeat interval 60 s, runbook says 90000 s (Kuma → Edit → Heartbeat Interval, not Retry)
+kuma push monitors: 1 finding(s)
+signal: down — machine-inventory: catalog drift +3/-0 lines → inventory PR open for review; kuma: push-monitor interval mismatch
+```
+The catalog drift (an `osv-scanner` image pulled that day) is reported but no longer pages on its own. The `down`
+comes from the new guard, which found the real misconfiguration: `emdash-conveyor` was red a minute after every daily
+push since it was created. On its own: `python3 /home/edwardmangini/IdeaProjects/weyland/scripts/kuma_push_check.py`.
+
 ### Fail-closed behaviour
+- **Kuma unreadable = `down`.** If `kuma_push_check.py` cannot read Kuma (mother unreachable, pod gone, an empty or
+  malformed answer), it exits 2 and the signal says `kuma: interval check could not read`.
 - **Unreachable host = skipped, never pruned.** merge refuses empty stdin, so a host the scanner can't reach can
   never be blanked; `decide_signal` reports it as `down` ("host(s) unreachable") rather than a false `up`.
 - `--prune` removes rows for uninstalled software, but only from a host that was actually scanned.

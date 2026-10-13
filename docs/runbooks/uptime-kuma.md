@@ -29,8 +29,20 @@ after every successful push (found 2026-10-03: `machine-inventory-drift` and `ag
 | `agent-memory` | `agent-memory-watch.timer` (rogueone, B182) | every 15 min | **1200 s** (20 min) — fixed from 60 s 2026-10-03 | `KUMA_MEMORY_PUSH_URL` |
 | `emdash-conveyor` | `emdash-conveyor-watch.timer` (rogueone, B179) | daily 06:00 | **90000 s** (25 h) | `KUMA_CONVEYOR_PUSH_URL` |
 
-A **down** push is not the same as a missed one: `machine-inventory-drift` pushes `down` on purpose when it finds
-host-software drift (it opens a `chore(inventory)` PR); it goes green again on the first clean night.
+**This table is checked nightly** (2026-10-13): `machine-inv-drift.sh` runs `scripts/kuma_push_check.py`, which reads
+every push monitor from Kuma's store (read-only) and turns `machine-inventory-drift` down on any interval that differs
+from this table, a paused or missing monitor, or a push monitor with no row. **Add the row here BEFORE creating a push
+monitor.** In Kuma's edit form the value goes in **Heartbeat Interval**, the first interval field. `emdash-conveyor` had
+it in **Heartbeat Retry Interval**, leaving the heartbeat at 60 s, and the guard caught it on its first run. Check by
+hand on rogueone:
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/kuma_push_check.py
+```
+Exit 0 all match · 1 findings, named · 2 could not read Kuma (never clean).
+
+A **down** push is not the same as a missed one: `machine-inventory-drift` pushes `down` when the job or the estate
+failed (an unreachable host, host placement drift, Port emit/verify, a push-interval finding). Catalog drift alone is
+`up`, with the change and the open inventory PR in the message (since 2026-10-13).
 
 ## Gotchas (all hit during bring-up — don't repeat)
 1. **DNS — `*.weyland.lab` is `ENOTFOUND` from the pod by default.** The pod must point at the LAN CoreDNS,
