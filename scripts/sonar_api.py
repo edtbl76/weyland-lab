@@ -94,6 +94,8 @@ def gate(project: str) -> int:
 
 
 SCANNER_IMAGE = "sonarsource/sonar-scanner-cli:latest"   # the image the CI sonar-gate step runs
+# File types the server's analysers never index (no shell/bats/Markdown/data analyser on this Community server).
+NOT_ANALYSED = frozenset({".sh", ".bash", ".bats", ".md", ".txt", ".tsv", ".csv", ".service", ".timer", ".conf"})
 
 
 def _run_scanner(src: str, key: str, token: str) -> tuple:
@@ -178,6 +180,12 @@ def precheck(files: list) -> int:
     if missing:
         print(f"sonar_api: precheck: not a file: {', '.join(missing)}", file=sys.stderr)
         return 2
+    # Only KNOWN non-analysed types skip the scan; anything else is scanned, and 0 files analysed then fails closed.
+    # A shell + Markdown change otherwise could never print `clean` (2026-10-13).
+    exts = {os.path.splitext(f)[1].lower() for f in files}
+    if exts <= NOT_ANALYSED:
+        print(f"precheck: nothing for Sonar to analyse ({len(files)} files: {' '.join(sorted(exts))})")
+        return 0
     key = f"{PROJECT}-precheck-{os.getpid()}"
     with tempfile.TemporaryDirectory(prefix="sonar-precheck-") as src:
         for f in files:                            # keep repo-relative paths so findings name the real file

@@ -26,7 +26,8 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   It mints a token, runs `sonar-scanner-cli:latest` (the CI image) in Docker as the invoking user over a temp copy of
   the files, waits for Sonar to process the report, lists every issue and hotspot, then deletes the throwaway project
   `weyland-lab-precheck-<pid>` and revokes the token. A scratch project uses the server default profiles and gate,
-  which are what `weyland-lab` uses. **Exit 0** `precheck: clean` · **1** findings, each named (fix it, or for a hotspot
+  which are what `weyland-lab` uses. **Exit 0** `precheck: clean`, or `precheck: nothing for Sonar to analyse` when every
+  file is a type Sonar never indexes (`.sh` `.bats` `.md` `.txt` `.tsv` `.csv` `.service` `.timer` `.conf`; no scan) · **1** findings, each named (fix it, or for a hotspot
   that is genuinely fine, `sonar_api.py review-safe <file> "<reason>"` after the push) · **2** could not scan (a missing
   file, a scanner failure, a failed or timed-out analysis, 0 files analysed, or a cleanup that left something behind —
   never read as clean). Two deliberate choices: the verdict is the findings, never the scratch gate (a first analysis

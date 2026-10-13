@@ -45,6 +45,8 @@ spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 86400
   template:
+    metadata:
+      labels: { app: minio-restore-drill, bucket: ${bucket} }   # on the POD too: \`kubectl logs -l\` selects pods
     spec:
       restartPolicy: Never
       securityContext:

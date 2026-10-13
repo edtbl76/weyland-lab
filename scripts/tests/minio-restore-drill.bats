@@ -64,3 +64,13 @@ assert spec["containers"][0]["volumeMounts"][0]["readOnly"] is True
   run bash "$SCRIPT" 'x; rm -rf /'
   [ "$status" -eq 2 ]
 }
+
+@test "the pod carries the drill labels, so the runbook's 'logs -l app=minio-restore-drill' finds it" {
+  # Observed 2026-10-13 (the first live drill): labels on the Job only — `kubectl logs -l` found nothing.
+  run bash "$SCRIPT" ai-sessions
+  printf '%s\n' "$output" | python3 -c '
+import sys, yaml
+j = yaml.safe_load(sys.stdin)
+assert j["spec"]["template"]["metadata"]["labels"] == {"app": "minio-restore-drill", "bucket": "ai-sessions"}
+'
+}

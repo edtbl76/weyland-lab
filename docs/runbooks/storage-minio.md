@@ -263,7 +263,8 @@ generator refuses a bucket the CronJob does not mirror.
    ```
    bash /home/edwardmangini/IdeaProjects/weyland/scripts/minio-restore-drill.sh ai-sessions | ssh emangini@mother 'KUBECONFIG=$HOME/.kube/config kubectl create -f -'
    ```
-3. Read the verdict (mother): `kubectl -n minio logs -l app=minio-restore-drill,bucket=ai-sessions --tail=5`.
+3. Read the verdict (mother): `kubectl -n minio logs -l app=minio-restore-drill,bucket=ai-sessions --tail=5` (drills
+   generated before 2026-10-13 15:55 UTC carry the labels on the Job only: `kubectl -n minio logs job/<name>`).
    `DRILL OK bucket=… backup_objects=N restored_objects=N differences=0 …` passes; `DRILL FAIL …` names the cause
    (no backup on the PVC, an empty backup, a leftover scratch bucket, a failed mirror, a count or content mismatch)
    and the Job fails. Record the result in [dr.md](../dr.md) (Last restore test). The Job deletes itself after 24 h.

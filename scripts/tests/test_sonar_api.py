@@ -298,3 +298,29 @@ def test_precheck_reports_a_failed_token_revoke(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(sa, "_run_scanner", Scanner())
     assert sa.main(["precheck", *files]) == 2
     assert "revoke" in capsys.readouterr().err
+
+
+def test_precheck_with_only_files_sonar_does_not_analyse_is_exit_0_without_scanning(tmp_path, monkeypatch, capsys):
+    # Observed 2026-10-13: a shell + Markdown + bats change scanned 0 files and exited 2, so the AGENTS.md rule
+    # ("must print precheck: clean") could never pass for it. Only KNOWN non-analysed types skip; nothing is minted.
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    monkeypatch.chdir(tmp_path)
+    for name in ("a.sh", "b.md", "c.bats", "d.tsv"):
+        (tmp_path / name).write_text("x\n")
+    seen = []
+    _serve(monkeypatch, _precheck_routes(), seen)
+    assert sa.main(["precheck", "a.sh", "b.md", "c.bats", "d.tsv"]) == 0
+    assert seen == []
+    assert "precheck: nothing for Sonar to analyse (4 files: .bats .md .sh .tsv)" in capsys.readouterr().out
+
+
+def test_precheck_scans_when_any_file_might_be_analysed(tmp_path, monkeypatch):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a.md").write_text("x\n")
+    (tmp_path / "Dockerfile").write_text("FROM x\n")               # unknown/analysed types are always scanned
+    scan = Scanner()
+    _serve(monkeypatch, _precheck_routes())
+    monkeypatch.setattr(sa, "_run_scanner", scan)
+    assert sa.main(["precheck", "a.md", "Dockerfile"]) == 0
+    assert scan.calls[0]["files"] == ["Dockerfile", "a.md"]
