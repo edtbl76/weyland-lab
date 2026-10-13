@@ -99,7 +99,10 @@ trivy 88 → 84 (0 new; the `x/net` fix); semgrep, bandit, gitleaks, hadolint, s
 - The 25 removed are the earlier fixes landing (realm pins, `x/net`, `x/crypto`, `x/text`).
 
 **Pre-existing, not this batch:** `GO-2026-4950`, `fasthttp` 1.51.0 on `golden-paths/go/fiber` (an authorization
-bypass via double-encoded paths; fixed in 1.70.0), present since 10-09 and untriaged. Offered as a follow-up fix.
+bypass via double-encoded paths; fixed in 1.70.0), present since 10-09 and untriaged. **Fixed the same day (owner: "fix fasthttp"):** `fasthttp` 1.51.0 → 1.70.0
+(with `brotli` 1.1.0 → 1.2.1), bumped in a scratch copy, OSV clean, fiber tests pass, the Go lane passes. It needed
+126k root-owned files in the working tree handed back first (`sudo chown -R`): leftovers of fixture runs as root, the
+class AGENTS.md's "Docker runs as you" rule forbids, which also blocked the echo `go.sum` on 10-11.
 
 **2026-10-11 triage (B204 follow-ons + B205 DoD, scan `2026-10-12T02-29-39Z` diff vs `2026-10-09T16-03-18Z`, weyland-lab;
 critical/high only):** semgrep, bandit, gitleaks and hadolint **0 new**; trivy 104 → 88 and osv 867 → 813 overall. Every
