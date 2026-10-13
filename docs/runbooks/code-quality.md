@@ -85,6 +85,22 @@ RBAC (`KSV-0046`) → `/.trivyignore` (each documented). See [[cve-remediation-m
 **Accepted residuals:** `KSV-0118`/`KSV-0014` (readOnlyRootFilesystem, ~195 high) + `run-as-non-root` on root
 third-party images — systemic, blanket-applying breaks writers; documented, not per-item fixed.
 
+**2026-10-12 triage (B179 DoD, scan `2026-10-12T20-56-49Z` diff vs `2026-10-12T02-29-39Z`, weyland-lab; critical/high only):**
+trivy 88 → 84 (0 new; the `x/net` fix); semgrep, bandit, gitleaks, hadolint, shellcheck 0 new. **osv +92 / -25:**
+- **92 are Go stdlib advisories on `golden-paths/go/{echo,gin}`**, a side effect of the `x/net` bump: `go get` raised
+  the `go` directive to `1.26.0` (x/net v0.60.0 requires it), and OSV reads that as the stdlib version. CI builds with
+  `golang:1.26` = **go1.26.9** (pulled 2026-10-12), which has every fix (the latest fixed version among them is 1.26.9).
+  **Fixed by declaring it:** `toolchain go1.26.9` in all four Go samples (also un-hiding `fiber` and `nethttp`, whose
+  bare `go 1.26` masked the version). With `GOTOOLCHAIN=local` the line is advisory; the Go lane passes, and OSV then
+  reports 0 stdlib findings. A stale cached image older than 1.26.9 would still be exposed to the 13 net/http and
+  html/template fixes in 1.26.9.
+- **2 are `GO-2026-5932`** (`x/crypto/openpgp` unmaintained, no fix) on echo and gin: **accepted** in `osv-scanner.toml`
+  until 2027-04-12. They are module-level only; openpgp is never imported, and govulncheck reports 0.
+- The 25 removed are the earlier fixes landing (realm pins, `x/net`, `x/crypto`, `x/text`).
+
+**Pre-existing, not this batch:** `GO-2026-4950`, `fasthttp` 1.51.0 on `golden-paths/go/fiber` (an authorization
+bypass via double-encoded paths; fixed in 1.70.0), present since 10-09 and untriaged. Offered as a follow-up fix.
+
 **2026-10-11 triage (B204 follow-ons + B205 DoD, scan `2026-10-12T02-29-39Z` diff vs `2026-10-09T16-03-18Z`, weyland-lab;
 critical/high only):** semgrep, bandit, gitleaks and hadolint **0 new**; trivy 104 → 88 and osv 867 → 813 overall. Every
 new one was an advisory published after the baseline against an unchanged pin, none in this batch's files, all **REAL and

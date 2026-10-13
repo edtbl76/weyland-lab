@@ -2,6 +2,8 @@ module golden-go-gin
 
 go 1.26.0
 
+toolchain go1.26.9
+
 require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/prometheus/client_golang v1.24.1

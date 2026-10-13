@@ -2,6 +2,8 @@ module golden-go-fiber
 
 go 1.26
 
+toolchain go1.26.9
+
 require (
 	github.com/gofiber/fiber/v2 v2.52.15
 	github.com/prometheus/client_golang v1.24.1

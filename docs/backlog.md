@@ -4162,7 +4162,10 @@ starts by itself seconds after launch, and with push off it left no GitHub branc
    store: `exit 0 — last run started 0.3 h ago`. **Live 2026-10-12:** Kuma push monitor `emdash-conveyor` created,
    `KUMA_CONVEYOR_PUSH_URL` set, timer installed (units byte-identical to the repo); first run `exit 0 — last run started
    1.6 h ago`, pushed to Kuma.
-7. **Scan:** shellcheck 0 on the watch and the collector; bats 7/7 (watch) and 24/24 (inventory). No service image.
+7. **Scan:** shellcheck 0 on the watch and the collector; bats 7/7 (watch) and 25/25 (inventory). Scan suite
+   re-run after the re-audit (`2026-10-12T20-56-49Z`): 0 new on every scanner except osv. Its +92 were stdlib artifacts
+   of the `go 1.26.0` directive, fixed by declaring `toolchain go1.26.9`; plus 2 accepted (openpgp, unreachable).
+   Triage in `runbooks/code-quality.md`.
 8. **Cascade:** machine inventory (AppImages and uv tools, B129), placement, LikeC4, schedules, the `agent-ready`
    label documented. The guard caught the missing LikeC4 placement row.
 9. **DR:** Emdash's state is in `~/.config/emdash`, which restic backs up nightly; the definition of record is in git.
