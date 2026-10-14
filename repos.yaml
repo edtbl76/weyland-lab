@@ -124,6 +124,15 @@ repos:
     except:
       ci: "no pipeline yet — no .woodpecker.yml, not activated in Woodpecker (found 2026-09-24); flip to true on activation"
 
+  - name: grkit
+    visibility: public           # created public 2026-10-12 (MIT, open source); B206
+    status: active               # reusable guardrails kit; weyland consumes it (B206 slice 2)
+    linear_project: "grkit"
+    backup_path: ~/IdeaProjects/grkit
+    lanes: { iac: true, ci: false, scan: true, pr: true, catalog: true, backup: true }
+    except:
+      ci: "CI runs on GitHub Actions (.github/workflows/ci.yml) — public OSS, free; not activated in Woodpecker by design (2026-10-13)"
+
   - name: midi_real_book
     visibility: public           # CONFIRM visibility
     status: stale                # real repo, dormant — NOT retired (owner confirmed 2026-09-15). Tracked, not scanned/CI'd.

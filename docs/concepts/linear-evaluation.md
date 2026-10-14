@@ -237,13 +237,16 @@ domains. That is fan-out at Initiative→Project, so the level now earns its pla
 | **Music Studio** | Stud.IO |
 | **Helper Tools** | start.me Curator, OJay Floyd |
 | **Learning** | freejack |
-| **My Work** | Service Transformation, Algopedia, emangini-tailwind-nextjs-contentlayer |
+| **My Work** | Service Transformation, Algopedia, emangini-tailwind-nextjs-contentlayer, grkit |
 | **Health and Fitness** | MyBodyGraph |
 
 "Weyland is both an initiative and a project" resolved as: the **initiative is Lab & Systems** (the lab plus the
 physical machines it runs on), the **project stays Weyland Lab**. OJay Floyd (financial-services app grounded in
 accounting + economics; roadmap = an accounting text) was created with this pass — repo `edtbl76/OJayFloyd`
-(public), project, Helper Tools, and onboarded in `repos.yaml` across every enforced lane.
+(public), project, Helper Tools, and onboarded in `repos.yaml` across every enforced lane. **grkit** (2026-10-14,
+the public MIT guardrails kit, B206) went to **My Work**, not Lab & Systems: it packages patterns from the owner's
+production systems, so its own issues stay outside the weyland B-number checks. weyland's adoption of it (EMA-293)
+stays in Weyland Lab. Its CI lane is `false` by design: CI runs on GitHub Actions, not Woodpecker.
 
 **Why it is more than labelling: initiative membership IS the weyland scope.** `check-linear-sync.sh` checks E
 (orphan) and F (unnumbered) apply only to issues whose work `docs/backlog.md` governs. That used to be a

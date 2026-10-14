@@ -111,7 +111,7 @@ teardown() {
   PR_STALENESS_LIB=1 source "$LOGIC"
   # The repos.yaml SoT set where lanes.pr is true (9 active; midi_real_book is stale/pr:false, excluded).
   for r in Algopedia ServiceTransformation emangini-tailwind-nextjs-contentlayer \
-           startme-curator stud.io weyland-lab freejack MyBodyGraph OJayFloyd; do
+           startme-curator stud.io weyland-lab freejack MyBodyGraph OJayFloyd grkit; do
     [[ "$REPOS" == *"edtbl76/$r"* ]] || {
       echo "missing repo: edtbl76/$r  (REPOS=$REPOS)"
       return 1
