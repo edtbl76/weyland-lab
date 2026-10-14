@@ -185,6 +185,11 @@ supersedes the cancelled B12 (a static registry without the lifecycle).
 | Ray edge worker | `ray-worker.service` → mother `:6379` | **Permanent native systemd Ray worker** — joins the always-on Ray head for heavy training / HP-sweep compute. Not-always-up (laptop): drops from the cluster on sleep, systemd auto-rejoins on wake. `services/ray-head/ray-worker.service`. |
 | genre-trainer | (native docker engine, `registry.weyland.lab`) | Remote model-training container — reads lakeFS silver, trains, logs to MLflow (artifact direct to MinIO). Runs on rogueone's **native** engine (`DOCKER_HOST=unix:///var/run/docker.sock`; Docker Desktop retired B127 → full 128 GB, no VM RAM cap). `services/genre-trainer/`. |
 
+### Libraries (no workload of their own)
+| Component | Where | Purpose |
+|---|---|---|
+| grkit | [github.com/edtbl76/grkit](https://github.com/edtbl76/grkit) (public, MIT; registry group `library`) | **B206** — the guardrails kit packaged from these patterns: the guard verdict contract + `GuardClient` (content guards fail open, authority guards fail closed) and the build-time check pattern (exit 0 clean / 1 findings / 2 could not check). Weyland is its reference implementation; weyland-guard + weyland-tool-server adopt it in B206 slice 2, which retires the duplicated `verdict.py` and `check-verdict-sync.sh`. CI on GitHub Actions; tracked in `repos.yaml` and the Linear project grkit. |
+
 ---
 
 ## 7. Data stores

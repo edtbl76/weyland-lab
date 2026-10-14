@@ -17,7 +17,7 @@
 #   key                 stable id — the Port component identifier + (where applicable) the k8s workload
 #   name                display name (DataHub Application + docs)
 #   group               core-producer | ai-serving | data-platform | bi | operational | observability |
-#                       serving | gateway | ui | platform
+#                       serving | gateway | ui | platform | code-review | library
 #   datahub_application  true → gets a DataHub Application entity + owns assets; false → Port component only
 #   owns                URN-substring patterns, producer-based, FIRST-MATCH in list order (specific→broad,
 #                       weyland-dagster last). [] = modeled now, owns nothing yet ("plausibly will").
@@ -127,6 +127,9 @@ applications:
   - {key: greptile, deployed: false, name: Greptile, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: greptile, description: "Codebase-aware LLM PR review; PR-native (reviews via PR comment, not a check). App installed on weyland-lab + stud.io + emangini-tailwind — B106/B118."}
   - {key: pr-agent, deployed: false, name: PR-Agent, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review"], port_component: pr-agent, description: "Self-hosted LLM PR review via the LiteLLM gateway; CLI on rogueone (both repos) — B106/B118."}
   - {key: proxyai, deployed: false, name: ProxyAI, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review", "code-assistant"], port_component: proxyai, description: "In-IDE LLM assistant via the LiteLLM gateway; replaces paid Qodo Gen (B106)."}
+
+  # ============ LIBRARIES (code the lab's services import; no workload of its own, so deployed: false) ============
+  - {key: grkit, deployed: false, name: grkit, group: library, datahub_application: false, owns: [], capabilities: ["guardrails"], port_component: grkit, description: "Guardrails kit (github.com/edtbl76/grkit, MIT): the guard verdict contract + GuardClient (fail open on content, closed on authority) and the build-time check pattern. Weyland is its reference implementation; weyland-guard + weyland-tool-server adopt it in B206 slice 2."}
 
 excluded:
 

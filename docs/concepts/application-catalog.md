@@ -60,7 +60,8 @@ a *newly-onboarded thing* had cleared them all. `scripts/check-onboarding-comple
 fail-closed 0/1/2) is that gate, on a **declare-and-account** model:
 
 Each deployed service **declares** which conditional gates apply, via registry fields:
-- **`deployed: true|false`** — a cluster-hosted workload (59 true) or not (7 — the code-review SaaS/IDE tools).
+- **`deployed: true|false`** — a cluster-hosted workload (61 true) or not (8 — the 7 code-review SaaS/IDE tools and the
+  `grkit` library, group `library`: code the services import, with no workload of its own).
 - **`metrics: true|false`** — exposes `/metrics` → the ServiceMonitor+dashboard gate applies.
 - **`ingress: true|false`** — has a user-facing host → the Kuma + endpoint gates apply.
 - **`likec4: <id>`** (optional) — the model element id for a subsumed/renamed element (e.g. `dbt` → `dagster`);

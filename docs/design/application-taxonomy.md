@@ -119,6 +119,11 @@ a URN rule.
 store-scaler (KEDA) · kokoro (TTS) · apisix · mcp-gateway · mcp-compositor · nemo-guardrails · guardrails-structure ·
 ray-head (Ray coordinator) · scan-suite (→ Port, not DataHub) · gizmosql/duckdb (query engine).
 
+**Libraries** (group `library`, `deployed: false`, 2026-10-14): **grkit**, the public guardrails kit
+([github.com/edtbl76/grkit](https://github.com/edtbl76/grkit), B206). It's code the services import, not a workload, so it has
+no LikeC4 placement and no ServiceMonitor/Kuma gates. Weyland is its reference implementation, and weyland-guard and
+weyland-tool-server adopt it in B206 slice 2.
+
 These still get (or already have) a Port `component` with `is_data_application: false` — so Port stays the complete
 inventory, and DataHub holds the data-app subset.
 

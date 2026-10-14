@@ -2,6 +2,11 @@
 
 **Status:** ✅ **LIVE (2026-08-03)** — all four paths deployed and verified. Every path is OSS / self-hosted → **$0**.
 
+**Packaged as grkit (B206).** The contracts on this page (the verdict shape, shadow/flag/block modes, fail open on
+content, fail closed on authority) and the build-time check pattern are packaged for reuse as
+**[grkit](https://github.com/edtbl76/grkit)** (public, MIT), a registered Weyland component (`applications.yaml`, group
+`library`). Weyland is its reference implementation; weyland-guard and weyland-tool-server adopt it in B206 slice 2.
+
 No single guardrail catches everything. A prompt-injection scanner says nothing about whether an answer is *on-topic*;
 a topical rail says nothing about whether a JSON blob *matches its schema*; none of them classify *content safety* the
 way a purpose-trained model does. So the lab runs **four complementary, industry-standard tools**, each doing one job,
