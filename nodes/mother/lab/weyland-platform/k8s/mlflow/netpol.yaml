@@ -1,0 +1,50 @@
+# B211 (2026-10-14) — MLflow's front door (no auth: delete experiments, runs, models; PUT artifacts). Callers on 5000:
+# dagster-user-code, the operator, agent, Realm and tool-server (prompts, traces), ray-head, DataHub actions, JupyterHub
+# notebooks, Traefik (UI), and rogueone (192.168.1.230: the Ray worker + scripts via the mlflow-lan NodePort, which keeps the
+# client IP: externalTrafficPolicy Local). The NodePort now admits only rogueone, not the whole LAN.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: mlflow-front-door-only, namespace: weyland}
+spec:
+  podSelector:
+    matchLabels: {app: mlflow}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: dagster-user-code}
+    - podSelector:
+        matchLabels: {app: weyland-operator}
+    - podSelector:
+        matchLabels: {app: weyland-agent}
+    - podSelector:
+        matchLabels: {app: realm-of-agents}
+    - podSelector:
+        matchLabels: {app: weyland-tool-server}
+    - podSelector:
+        matchLabels: {app: ray-head}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: data-mesh}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: acryl-datahub-actions}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: jupyterhub}
+      podSelector:
+        matchLabels: {component: singleuser-server}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: kube-system}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: traefik}
+    - ipBlock: {cidr: 192.168.1.230/32}
+    ports:
+    - {protocol: TCP, port: 5000}
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: prometheus}
+    ports:
+    - {protocol: TCP, port: 15020}
+    - {protocol: TCP, port: 15090}

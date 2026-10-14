@@ -141,3 +141,20 @@ mkpath() {
   ! calls_to kubectl | grep -qE 'gp-demo-one( |$)' || { calls_to kubectl; teardown_stubs; return 1; }
   teardown_stubs
 }
+
+# B211 (2026-10-14): the registry's pull host takes GET/HEAD only. A real run pushes through the authenticated push host
+# and the smoke Job pulls by the pull name; it refuses to start without the push credentials.
+@test "a real run pushes via the push host, runs the Job on the pull name, and refuses without credentials" {
+  setup_stubs
+  mkpath demo/one
+  stub buildctl 0 ""
+  stub kubectl 1 ""          # stop right after the build: apply fails → exit 2, which is fine for this assertion
+  GOLDEN_PATH_PUSH_REGISTRY=registry-push.weyland.lab REGISTRY_PUSH_AUTH="ci:pw" DOCKER_CONFIG="$GP/docker" run bash "$EX"
+  called_with buildctl "name=registry-push.weyland.lab/golden-demo-one:latest,push=true"
+  [ -f "$GP/docker/config.json" ]
+  [[ "$output" != *"ci:pw"* ]]
+  GOLDEN_PATH_PUSH_REGISTRY=registry-push.weyland.lab REGISTRY_PUSH_AUTH="" run bash "$EX"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"REGISTRY_PUSH_AUTH is unset"* ]]
+  teardown_stubs
+}

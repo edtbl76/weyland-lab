@@ -39,6 +39,7 @@ SECRETS=(
   weyland/linear-backup-secret        # B194 — READ-ONLY Linear API key (LINEAR_API_KEY_RO) for the nightly Linear backup asset
   weyland/typesafe-api                # B174 — TypeSafe (Jev) API key for the operator's decision-model shadow (prepaid credit)
   weyland/bifrost-setup-token         # B202 — Bifrost v2.2.6+ setup token (X-Bifrost-Setup-Token; dashboard auth off)
+  weyland/registry-push-auth          # B211 — htpasswd for registry-push.weyland.lab (Traefik basic auth on image pushes)
   weyland/glitchtip-secret            # ⚠ bricking: Django SECRET_KEY — also escrow off-cluster
   weyland/iceberg-s3-secret
   weyland/keycloak-secret

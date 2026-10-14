@@ -23,6 +23,8 @@ GP_DIR="${GOLDEN_PATH_DIR:-$REPO_ROOT/golden-paths}"   # overridable so the deci
 # Woodpecker CI SA is granted Job management and no istio sidecar is injected — not in `weyland`.
 NS="${GOLDEN_PATH_NS:-golden-paths}"
 REGISTRY="${GOLDEN_PATH_REGISTRY:-registry.weyland.lab}"
+# B211: pushes go to the authenticated push host; the Jobs pull by $REGISTRY. Unset = push to $REGISTRY (a local run).
+PUSH_REGISTRY="${GOLDEN_PATH_PUSH_REGISTRY:-$REGISTRY}"
 # buildkitd is the Woodpecker CI builder and lives in the `woodpecker` namespace (the estate's only
 # buildkitd) — NOT `weyland`. This exerciser builds via buildctl against it, so it runs IN-CLUSTER
 # (the `golden-path-smoke` CI step, or any in-cluster pod with buildctl that can resolve
@@ -60,10 +62,16 @@ else
 fi
 [ "${#paths[@]}" -gt 0 ] || { echo "no golden paths found under $GP_DIR" >&2; exit 2; }
 
+if [ "$DRY" -eq 0 ] && [ "$PUSH_REGISTRY" != "$REGISTRY" ]; then
+  . "$(dirname "$0")/ci/registry-auth.sh"
+  registry_push_auth "$PUSH_REGISTRY" || exit 2
+fi
+
 fail=0
 for p in "${paths[@]}"; do
   name="golden-$(printf '%s' "$p" | tr '/' '-')"      # golden-paths/python/fastapi -> golden-python-fastapi
   image="$REGISTRY/$name:latest"
+  push_image="$PUSH_REGISTRY/$name:latest"
   job="gp-$(printf '%s' "$p" | tr '/' '-')-${RUN_ID}"      # run-scoped: an overlapping pipeline has its own
   [ "${#job}" -le 63 ] || { echo "Job name $job is longer than 63 characters" >&2; exit 2; }
   # Each golden path declares its ephemeral smoke command in a `.smoke` file (e.g. `python smoke.py`,
@@ -95,7 +103,7 @@ for p in "${paths[@]}"; do
   cp -R "$GP_DIR/$p/." "$ctx/"
   buildctl --addr "$BUILDKIT" build --no-cache \
     --frontend dockerfile.v0 --local context="$ctx" --local dockerfile="$ctx" \
-    --output "type=image,name=$image,push=true,registry.insecure=true" \
+    --output "type=image,name=$push_image,push=true,registry.insecure=true" \
     || { rm -rf "$ctx"; echo "BUILD FAILED: $image" >&2; exit 2; }
   rm -rf "$ctx"
 

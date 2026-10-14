@@ -32,3 +32,14 @@ spec:
             matchLabels: { app.kubernetes.io/name: traefik }
       ports:
         - { protocol: TCP, port: 3000 }
+    # The sidecar's merged metrics (the envoy-stats-monitor PodMonitor scrapes :15020; 15090 is Envoy's own). Without
+    # this, Prometheus loses the mesh metrics (istio_requests_total) for this pod the next time it restarts (B211:
+    # found 2026-10-14, the Realm's went dark under B209's first policy).
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: prometheus }
+      ports:
+        - { protocol: TCP, port: 15020 }
+        - { protocol: TCP, port: 15090 }

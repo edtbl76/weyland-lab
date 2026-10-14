@@ -957,6 +957,11 @@ steps:
     image: moby/buildkit:latest
     environment:
       BUILDKIT_ADDR: tcp://buildkitd:1234       # step runs in ns woodpecker, so the bare service name resolves
+      # B211: push through the authenticated push host (registry.weyland.lab takes GET/HEAD only); Jobs pull by the
+      # usual name. A missing secret fails this step at start rather than mid-push.
+      GOLDEN_PATH_PUSH_REGISTRY: registry-push.weyland.lab
+      REGISTRY_PUSH_AUTH:
+        from_secret: registry_push_auth
     backend_options:
       kubernetes:
         serviceAccountName: golden-path-runner  # dedicated SA (ns woodpecker) with the golden-paths Job RBAC
@@ -1077,6 +1082,11 @@ steps:
       COSIGN_KEY:                             # A1 — v3.18 secret injection is `from_secret`, NOT the deprecated `secrets:` list
         from_secret: cosign_key
       COSIGN_PASSWORD: ""                      # empty (key generated with no passphrase); a plain env, since Woodpecker rejects an empty SECRET
+      # B211: images, build cache and signatures push through the authenticated push host; registry.weyland.lab is the
+      # pull name (GET/HEAD only). build-images.sh writes these into a private docker config and refuses to start without.
+      REGISTRY_PUSH_HOST: registry-push.weyland.lab
+      REGISTRY_PUSH_AUTH:
+        from_secret: registry_push_auth
     volumes:
       - ci-cache-trivy:/cache/trivy
     # B88 gap #3 — the per-image supply-chain scans (syft SBOM + trivy image vuln) analyse the full

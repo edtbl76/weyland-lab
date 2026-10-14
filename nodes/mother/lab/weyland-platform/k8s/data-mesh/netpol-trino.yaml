@@ -1,0 +1,43 @@
+# B211 (2026-10-14) — Trino's front door. It has no authenticator, so X-Trino-User is self-asserted and Ranger can be
+# bypassed by claiming a privileged user; limiting WHO can connect is the control until a password authenticator lands.
+# Callers on 8080: the no-auth proxy, dagster-user-code (dbt, marts), DataHub actions, dbt-docs, Superset, Traefik (UI),
+# Prometheus (/metrics).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: trino-front-door-only, namespace: data-mesh}
+spec:
+  podSelector:
+    matchLabels: {app: trino}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels: {app: trino-noauth-proxy}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: dagster-user-code}
+    - podSelector:
+        matchLabels: {app.kubernetes.io/name: acryl-datahub-actions}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: dbt-docs}
+    - podSelector:
+        matchLabels: {app: superset}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: kube-system}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: traefik}
+    - &id001
+      namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: prometheus}
+    ports:
+    - {protocol: TCP, port: 8080}
+  - from:
+    - *id001
+    ports:
+    - {protocol: TCP, port: 15020}
+    - {protocol: TCP, port: 15090}

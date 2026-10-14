@@ -10,8 +10,8 @@
 #   every `deployed: true` entry in applications.yaml declares a boolean `writes`. A `writes: true` service passes when
 #   ONE of these holds:
 #     policy        a NetworkPolicy (podSelector) or Istio AuthorizationPolicy (selector) in k8s/ selects its pods by
-#                   `app: <pod_app or key>`. Traefik forward-auth on the ingress does NOT count: a pod can call the
-#                   ClusterIP directly.
+#                   `app` or `app.kubernetes.io/name` = <pod_app or key>. Traefik forward-auth on the ingress does
+#                   NOT count: a pod can call the ClusterIP directly.
 #     front_door    a stated, non-empty reason the app itself authenticates writes (a login, an admin token, S3
 #                   signatures, Ranger on the SQL user).
 #     accepted_gap  a known open write surface, tracked: it must cite a backlog item (B<n>). Listed every run, so the
@@ -71,8 +71,9 @@ for f in glob.glob(f"{k8s_dir}/**/*.yaml", recursive=True):
             labels = (spec.get("selector") or {}).get("matchLabels") or {}
         else:
             continue
-        if labels.get("app"):
-            covered.setdefault(labels["app"], []).append(f"{kind}/{(d.get('metadata') or {}).get('name', '?')}")
+        # `app` (the lab's own manifests) or `app.kubernetes.io/name` (Helm charts, e.g. OpenSearch).
+        for name in {labels.get("app"), labels.get("app.kubernetes.io/name")} - {None}:
+            covered.setdefault(name, []).append(f"{kind}/{(d.get('metadata') or {}).get('name', '?')}")
 if not covered:
     print(f"CANNOT RUN — no NetworkPolicy or AuthorizationPolicy selecting an `app` label found under {k8s_dir}; "
           "an empty scan is not a clean estate", file=sys.stderr)

@@ -66,3 +66,22 @@ spec:
     - name: peer
       port: 2380
       targetPort: 2380
+---
+# B211 (2026-10-14) — APISIX's config store. Plain etcd with no auth: any pod could rewrite every route. Only the gateway
+# and the dashboard talk to it on 2379 (routes-init.sh uses the admin API on localhost:9180, not etcd); 2380 (peer) is
+# unused on a single member, so nothing is admitted there.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: weyland-apisix-etcd-apisix-only, namespace: weyland}
+spec:
+  podSelector:
+    matchLabels: {app: weyland-apisix-etcd}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels: {app: weyland-apisix}
+    - podSelector:
+        matchLabels: {app: weyland-apisix-dashboard}
+    ports:
+    - {protocol: TCP, port: 2379}

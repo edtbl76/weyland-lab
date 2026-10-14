@@ -54,7 +54,7 @@ this page) links to the live tool.
 
 | Tool | Link | What it's for |
 |---|---|---|
-| **Feast (REST)** | <https://feast.weyland.lab> | Feature store — online features by entity key (`/docs` Swagger) |
+| **Feast (REST)** | <https://feast.weyland.lab> | Feature store — online features by entity key (`/docs` Swagger); Keycloak login since B211 |
 | **Feast UI** | <https://feast-ui.weyland.lab> | Feature registry browser |
 | **LanceDB Viewer** | <https://lancedb.weyland.lab> | Embedded vector store browser |
 

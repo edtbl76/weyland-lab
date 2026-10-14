@@ -1,0 +1,33 @@
+# B211 (2026-10-14) — the operator's HTTP front door. POST /operator/ask could run on paid models for any caller (it never
+# fires acts; those need Telegram + the confirm step). Callers (code + 14 days of istio_requests_total): dagster-user-code
+# (the ship-images transaction, allow_paid false), Prometheus (/metrics) and the api-drift job (reads the spec). Telegram
+# is outbound polling, not affected. Open WebUI's "weyland-operator" model goes to nemo-guardrails, not here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: weyland-operator-front-door-only, namespace: weyland}
+spec:
+  podSelector:
+    matchLabels: {app: weyland-operator}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: dagster-user-code}
+    - &id001
+      namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: prometheus}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+      podSelector:
+        matchLabels: {app: api-drift}
+    ports:
+    - {protocol: TCP, port: 8080}
+  - from:
+    - *id001
+    ports:
+    - {protocol: TCP, port: 15020}
+    - {protocol: TCP, port: 15090}

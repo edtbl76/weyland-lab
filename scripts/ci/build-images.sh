@@ -10,10 +10,20 @@ set -eu
 PLATFORM="nodes/mother/lab/weyland-platform"
 PLAN="${PLAN:-.ci-build-plan}"
 BUMPS="${BUMPS:-.ci-image-bumps}"
-REG="registry.weyland.lab"
+REG="registry.weyland.lab"              # the PULL name: what manifests reference, and where the build cache is read
+# B211 (2026-10-14): pushes go to the authenticated push host (registry.weyland.lab is GET/HEAD only). Set in the
+# pipeline; unset (a local run) pushes to $REG as before.
+REG_PUSH="${REGISTRY_PUSH_HOST:-$REG}"
 : > "$BUMPS"
 
 [ -s "$PLAN" ] || { echo "[build] empty plan — nothing to build."; exit 0; }
+
+# Push credentials → a private docker config (read by buildctl and cosign). Refuse to start without them.
+if [ "$REG_PUSH" != "$REG" ]; then
+  . "$(dirname "$0")/registry-auth.sh"
+  registry_push_auth "$REG_PUSH" || { echo "[build] refusing to build"; exit 1; }
+  echo "[build] pushing to ${REG_PUSH} (credentials in a private docker config)"
+fi
 
 # Thin client: build against the persistent buildkitd Deployment (k8s/woodpecker/buildkitd.yaml), NOT a daemon in
 # this step pod — daemonless BuildKit can't do its snapshot mounts inside an ephemeral Woodpecker step pod on this
@@ -38,12 +48,12 @@ while IFS="$(printf '\t')" read -r image context newtag manifests; do
     --local "context=${ctxpath}" \
     --local "dockerfile=${ctxpath}" \
     --opt "filename=${dfname}" \
-    --output "type=image,name=${REG}/${image}:${newtag},push=true,registry.insecure=true" \
-    --export-cache "type=registry,ref=${REG}/${image}:buildcache,mode=max,registry.insecure=true" \
+    --output "type=image,name=${REG_PUSH}/${image}:${newtag},push=true,registry.insecure=true" \
+    --export-cache "type=registry,ref=${REG_PUSH}/${image}:buildcache,mode=max,registry.insecure=true" \
     --import-cache "type=registry,ref=${REG}/${image}:buildcache,registry.insecure=true"
 
   printf '%s\t%s\t%s\n' "$image" "$newtag" "$manifests" >> "$BUMPS"
-  echo "[build] pushed ${REG}/${image}:${newtag}"
+  echo "[build] pushed ${REG}/${image}:${newtag} (via ${REG_PUSH})"
 
   # ── B88 Phase 3 — supply chain, per pushed image ──────────────────────────────────────────────
   # SBOM + signature + SLSA provenance + licence scan. This runs AFTER a successful push (there is
@@ -63,7 +73,8 @@ while IFS="$(printf '\t')" read -r image context newtag manifests; do
       oldtag="$(grep -oE "registry\.weyland\.lab/${image}:[A-Za-z0-9._-]+" "${PLATFORM}/${first_manifest}" | head -n1 | sed 's#.*:##')"
       case "$oldtag" in git-*) baseref="${REG}/${image}:${oldtag}" ;; esac
     fi
-    if ! bash scripts/supply-chain.sh all "${REG}/${image}:${newtag}" "$baseref"; then
+    # Sign/attest through the push host (the .sig/.att land in the same repository, so verifying via $REG works).
+    if ! bash scripts/supply-chain.sh all "${REG_PUSH}/${image}:${newtag}" "$baseref"; then
       echo "  !! supply-chain step FAILED for ${REG}/${image}:${newtag} — image shipped UNSIGNED /"
       echo "  !! without an SBOM. The build is not failed for this, but the gap is real: re-run"
       echo "  !! scripts/supply-chain.sh all <image> once the cause is fixed."

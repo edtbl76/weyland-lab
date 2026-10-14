@@ -136,6 +136,7 @@ spec:
         - https://realm.weyland.lab
         - https://redpanda.weyland.lab
         - https://registry.weyland.lab/v2/
+        - https://registry-push.weyland.lab/v2/   # B211 push host: 401 without credentials = up
         - https://registry-ui.weyland.lab
         - https://sonarqube.weyland.lab
         - https://superset.weyland.lab

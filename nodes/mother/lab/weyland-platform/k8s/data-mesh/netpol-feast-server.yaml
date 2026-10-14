@@ -1,0 +1,30 @@
+# B211 (2026-10-14) — feast-server's front door (/push, /write-to-online-store, /materialize). Callers: Traefik
+# (feast.weyland.lab, now behind forward-auth too) and dagster-user-code (the ship-images transaction). Dagster
+# materialises through the Feast SDK straight to Postgres/Valkey, not through this server.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: feast-server-front-door-only, namespace: data-mesh}
+spec:
+  podSelector:
+    matchLabels: {app: feast-server}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: kube-system}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: traefik}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: dagster-user-code}
+    ports:
+    - {protocol: TCP, port: 6566}
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: prometheus}
+    ports:
+    - {protocol: TCP, port: 15020}
+    - {protocol: TCP, port: 15090}

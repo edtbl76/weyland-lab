@@ -85,5 +85,8 @@ a trace pins the prompt version that produced each answer. Registered prompts (`
   clients **do** need MinIO creds + `AWS_CA_BUNDLE` (mkcert root) for the direct upload to `s3.weyland.lab`.
 - **LAN NodePort (`mlflow-lan`, :30500).** Added for the external Ray training worker (svc DNS is cluster-only,
   the ingress is browser-SSO). Unauthenticated MLflow API on the LAN — `externalTrafficPolicy: Local` preserves
-  the source IP so a host firewall can pin it to the worker: `sudo iptables -I INPUT 1 -p tcp --dport 30500 ! -s
-  192.168.1.230 -j DROP` (on mother; not yet reboot-persistent). See [remote-training.md](remote-training.md).
+  the source IP, so **a NetworkPolicy admits only rogueone (`192.168.1.230/32`) on it since B211 (2026-10-14)**
+  (`k8s/mlflow/netpol.yaml`, git-durable; the in-cluster callers are listed there). It replaces the hand-run
+  `iptables -I INPUT … ! -s 192.168.1.230 -j DROP` pin, which was not reboot-persistent and likely never applied: a
+  NodePort is DNATed to the local pod before INPUT. Another LAN machine now gets a timeout on :30500. See
+  [remote-training.md](remote-training.md).

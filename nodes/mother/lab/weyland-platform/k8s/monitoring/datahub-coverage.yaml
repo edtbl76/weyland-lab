@@ -256,6 +256,7 @@ spec:
       template:
         metadata:
           labels:
+            app: datahub-coverage   # B211: named by the trino-noauth proxy's NetworkPolicy
             # Unmeshed on purpose — both targets (trino-noauth, datahub-gms) are unmeshed. See the header.
             sidecar.istio.io/inject: "false"
         spec:

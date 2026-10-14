@@ -73,3 +73,48 @@ spec:
   selector: { app: trino-noauth-proxy }
   ports:
     - { name: http, port: 8080, targetPort: 8080 }
+---
+# B211 (2026-10-14) — the no-auth proxy's front door (it forwards to Trino with the Authorization header stripped, so it
+# has the same self-asserted-user exposure). Callers: Cube, Lightdash, Superset, dagster-user-code (Soda, GE), trino-mcp,
+# the datahub-coverage CronJob (labelled app: datahub-coverage for this), JupyterHub notebooks.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: trino-noauth-proxy-front-door-only, namespace: data-mesh}
+spec:
+  podSelector:
+    matchLabels: {app: trino-noauth-proxy}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels: {app: cube}
+    - podSelector:
+        matchLabels: {app.kubernetes.io/name: lightdash}
+    - podSelector:
+        matchLabels: {app: superset}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: dagster-user-code}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: trino-mcp}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: datahub-coverage}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: jupyterhub}
+      podSelector:
+        matchLabels: {component: singleuser-server}
+    ports:
+    - {protocol: TCP, port: 8080}
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: prometheus}
+    ports:
+    - {protocol: TCP, port: 15020}
+    - {protocol: TCP, port: 15090}

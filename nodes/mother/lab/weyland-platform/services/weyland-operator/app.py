@@ -81,9 +81,9 @@ def _actor(x_forwarded_consumer: str | None = Header(default=None)) -> str | Non
 
 class AskRequest(BaseModel):
     message: str
-    # False = spend nothing: the unpaid local brain only (agent.run allow_fallback=False, the incident sweep's path).
-    # For automatic callers such as the ship-images TXN check. A person chatting keeps the default.
-    allow_paid: bool = True
+    # False (the default since B211, 2026-10-14) = spend nothing: the unpaid local brain only (agent.run
+    # allow_fallback=False, the incident sweep's path). A caller that should be able to fail over to Haiku sends true.
+    allow_paid: bool = False
 
 
 async def _run_agent(req: AskRequest, request_id: str, actor: str | None) -> tuple[str, dict | None]:

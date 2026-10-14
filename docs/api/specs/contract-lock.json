@@ -1407,7 +1407,7 @@
           "AskRequest": {
             "properties": {
               "allow_paid": {
-                "default": true,
+                "default": false,
                 "title": "Allow Paid",
                 "type": "boolean"
               },

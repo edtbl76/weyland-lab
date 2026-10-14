@@ -27,12 +27,14 @@
 # auth, so no imagePullSecret is needed).
 set -euo pipefail
 REG="${REG:-registry.weyland.lab}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"   # absolute: the build() pushes run after the cd below
 # Match scripts/ci/build-images.sh: git-<short-sha>. Falls back to v1 only outside a git checkout.
 TAG="${TAG:-git-$(git rev-parse --short=8 HEAD 2>/dev/null || echo v1)}"
 . "$(dirname "$0")/lib/common.sh"
 cd "$PLATFORM_DIR"   # build contexts below are relative to the platform dir
 
-build() { echo "==== $1:$TAG ===="; docker build -t "$REG/$1:$TAG" $2; docker push "$REG/$1:$TAG"; }
+# B211: push through push-image.sh, which pushes to the authenticated push host and verifies via the pull name.
+build() { echo "==== $1:$TAG ===="; docker build -t "$REG/$1:$TAG" $2; bash "$SCRIPT_DIR/push-image.sh" "$REG/$1:$TAG"; }
 
 build weyland-tool-server       "services/weyland-tool-server"
 build weyland-rag-index         "services/rag-index"
@@ -48,6 +50,6 @@ build nemo-guardrails           "services/nemo-guardrails"        # B115 Dialog 
 
 # ranger is VERSION-PINNED (mr3project base tag), not TAG-following — build it explicitly (B92: was a local
 # ctr-import, moved to the registry so it survives a prune/reschedule like the rest).
-echo "==== ranger:2.6.0-py3 (version-pinned) ===="; docker build -t "$REG/ranger:2.6.0-py3" services/ranger; docker push "$REG/ranger:2.6.0-py3"
+echo "==== ranger:2.6.0-py3 (version-pinned) ===="; docker build -t "$REG/ranger:2.6.0-py3" services/ranger; bash "$SCRIPT_DIR/push-image.sh" "$REG/ranger:2.6.0-py3"
 
 echo "---- done: 8 images at :$TAG + ranger:2.6.0-py3 pushed to $REG. Now push the repointed k8s manifests so Argo redeploys. ----"

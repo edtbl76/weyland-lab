@@ -75,7 +75,11 @@ kind: Ingress
 metadata:
   name: feast-server
   namespace: data-mesh
-  # NO forward-auth — REST API reached by code, not a browser (api.md data-backend convention). LAN-only open.
+  # Keycloak forward-auth since B211 (2026-10-14). It was open ("reached by code, not a browser"), but no LAN code client
+  # exists (14 days: only the blackbox probe, which accepts the redirect), and /push, /write-to-online-store and
+  # /materialize were writable from the whole LAN. In-cluster callers use the Service (netpol-feast-server.yaml).
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
 spec:
   tls:
     - hosts: [feast.weyland.lab]

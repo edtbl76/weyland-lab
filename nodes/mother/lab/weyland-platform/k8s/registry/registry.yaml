@@ -1,9 +1,12 @@
 # MinIO-backed OCI registry (distribution/registry) — the platform's private Docker registry. Image blobs live
 # in MinIO (bucket `registry`), so this pod is STATELESS (no PVC). Fronted by Traefik at registry.weyland.lab
-# (wildcard TLS so Docker gets HTTPS). NO AUTH — a LAN-only registry on a trusted LAN; open push/pull is the
-# frictionless choice. (Traefik basic-auth was tried and dropped: its 401 lacked the Docker-Distribution-Api-
-# Version header, so IntelliJ rejected the registry as "Unsupported" — the docker CLI tolerated it, GUI clients
-# don't.) Reuses the weyland-ns MinIO creds (aidlc-kb-minio-secret), same as MLflow.
+# (wildcard TLS so Docker gets HTTPS). Reuses the weyland-ns MinIO creds (aidlc-kb-minio-secret), same as MLflow.
+#
+# B211 (2026-10-14): TWO hosts. It used to take unauthenticated pushes, so any pod or LAN machine could replace an image
+# every workload pulls. registry.weyland.lab is the PULL name (every reader: node containerd, registry-ui, blackbox,
+# syft/trivy; GET/HEAD only once phase 3 lands). registry-push.weyland.lab is the PUSH name, behind Traefik basic auth
+# (secret registry-push-auth, htpasswd). The docker CLI, buildkit and cosign handle the basic-auth challenge; the
+# IntelliJ "Unsupported" problem that dropped basic auth before only hits GUI clients, which only ever pull.
 #
 # ONE out-of-band prerequisite (NOT committed), on mother — the bucket:
 #   mc mb <minio-alias>/registry            (or via the MinIO console)
@@ -42,9 +45,9 @@ spec:
           env:
             - name: REGISTRY_HTTP_ADDR
               value: ":5000"
-            # Behind the Traefik proxy — advertise the external URL so blob-upload location headers are correct.
-            - name: REGISTRY_HTTP_HOST
-              value: https://registry.weyland.lab
+            # REGISTRY_HTTP_HOST is deliberately UNSET (B211, 2026-10-14). It pinned blob-upload Location headers to
+            # https://registry.weyland.lab, which is the pull-only name now; pushes arrive on registry-push.weyland.lab.
+            # Unset, the registry builds them from the request's Host + X-Forwarded-Proto (Traefik sets both).
             # Internal HMAC salt for upload state (single replica → any fixed value; NOT a credential).
             - name: REGISTRY_HTTP_SECRET
               value: weyland-registry-http-secret
@@ -121,6 +124,43 @@ spec:
       secretName: weyland-wildcard-tls
   rules:
     - host: registry.weyland.lab
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: registry
+                port:
+                  number: 5000
+---
+# The PUSH host (B211). Same backend as registry.weyland.lab, so anything pushed here is pullable at the old name.
+# The middleware's secret is created out-of-band, from scripts/.env (runbooks/write-surfaces.md § Registry):
+#   users = <REGISTRY_PUSH_USER>:<apr1 hash of REGISTRY_PUSH_PASSWORD>
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: registry-push-auth
+  namespace: weyland
+spec:
+  basicAuth:
+    secret: registry-push-auth
+    realm: registry-push
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry-push
+  namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-registry-push-auth@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - registry-push.weyland.lab
+      secretName: weyland-wildcard-tls
+  rules:
+    - host: registry-push.weyland.lab
       http:
         paths:
           - path: /

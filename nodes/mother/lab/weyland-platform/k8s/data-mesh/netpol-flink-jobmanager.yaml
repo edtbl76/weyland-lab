@@ -1,0 +1,34 @@
+# B211 (2026-10-14) — the Flink JobManager's front door. REST :8081 takes jar uploads and runs them (code execution with
+# the warehouse S3 credentials). Jobs are submitted by the Flink Kubernetes operator (session jobs: REST upload + run), so
+# web.submit.enable stays on; only the operator and Traefik (the forward-auth'd UI) reach :8081. TaskManagers reach the
+# RPC/blob ports; Prometheus scrapes :9249. TaskManagers are not selected (their data ports are dynamic).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: weyland-flink-jobmanager-front-door-only, namespace: data-mesh}
+spec:
+  podSelector:
+    matchLabels: {app: weyland-flink, component: jobmanager}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels: {app.kubernetes.io/name: flink-kubernetes-operator}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: kube-system}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: traefik}
+    ports:
+    - {protocol: TCP, port: 8081}
+  - from:
+    - podSelector:
+        matchLabels: {app: weyland-flink}
+    ports:
+    - {protocol: TCP, port: 6123}
+    - {protocol: TCP, port: 6124}
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: prometheus}
+    ports:
+    - {protocol: TCP, port: 9249}

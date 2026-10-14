@@ -8,30 +8,27 @@ year — time-varying). See [../runbooks/datasets-hydration.md](../runbooks/data
 [../diagrams/flow-feast.md](../diagrams/flow-feast.md).
 
 **Access:**
-- **REST** — `https://feast.weyland.lab` (LAN, no auth — it's an API) or in-cluster `feast-server.data-mesh.svc:6566`.
-- **OpenAPI / Swagger** — `https://feast.weyland.lab/docs` (interactive) · `/openapi.json` (spec). `feast serve`
+- **REST** — in-cluster `feast-server.data-mesh.svc:6566`, from `dagster-user-code` (the caller its NetworkPolicy admits,
+  B211, 2026-10-14). `https://feast.weyland.lab` now asks for a Keycloak login: it was open to the whole LAN, writes
+  (`/push`, `/write-to-online-store`, `/materialize`) included.
+- **OpenAPI / Swagger** — `https://feast.weyland.lab/docs` in a signed-in browser · `/openapi.json` (spec). `feast serve`
   is FastAPI, so these are auto-generated.
 - **SDK** — `FeatureStore(repo_path="/app/feast_repo")` in the dagster-user-code pod (has feast + the repo).
 
 ## Online — REST (`POST /get-online-features`)
-Serve latest features by entity key (the low-latency capability):
+Serve latest features by entity key (the low-latency capability). Each recipe runs inside `dagster-user-code`; change
+`BODY`:
 ```
-curl -sk https://feast.weyland.lab/get-online-features -H 'Content-Type: application/json' -d '{
-  "features": ["state_health_risk:diabetes_pct","state_health_risk:asthma_pct","state_health_risk:copd_pct"],
-  "entities": {"state": ["CA","NY","TX"]}
-}'
+BODY='{"features": ["state_health_risk:diabetes_pct","state_health_risk:asthma_pct","state_health_risk:copd_pct"], "entities": {"state": ["CA","NY","TX"]}}'
+kubectl -n weyland exec deploy/dagster-user-code -c dagster-user-code -- python3 -c "import sys,urllib.request;r=urllib.request.Request('http://feast-server.data-mesh.svc.cluster.local:6566/get-online-features',data=sys.argv[1].encode(),headers={'Content-Type':'application/json'});print(urllib.request.urlopen(r,timeout=30).read().decode())" "$BODY"
 ```
 By a **feature service** (a named bundle a consumer requests) instead of listing features:
 ```
-curl -sk https://feast.weyland.lab/get-online-features -H 'Content-Type: application/json' -d '{
-  "feature_service": "health_v1", "entities": {"state": ["CA","FL"]}
-}'
+BODY='{"feature_service": "health_v1", "entities": {"state": ["CA","FL"]}}'
 ```
 Track audio features (the recommender-shaped view):
 ```
-curl -sk https://feast.weyland.lab/get-online-features -H 'Content-Type: application/json' -d '{
-  "feature_service": "recommender_v1", "entities": {"track_id": ["<a track_id>"]}
-}'
+BODY='{"feature_service": "recommender_v1", "entities": {"track_id": ["<a track_id>"]}}'
 ```
 
 ## Online — SDK

@@ -32,11 +32,15 @@ def client(monkeypatch):
     return TestClient(app_mod.app), calls
 
 
-def test_a_person_keeps_the_paid_fallback_by_default(client):
+def test_ask_is_free_by_default_and_paid_only_on_request(client):
+    # B211 (2026-10-14): free by default, like the Realm (B209), so a caller who never asked cannot spend on the Haiku
+    # fallback. Its callers (14 days) were the ship-images transaction (sends false), Prometheus and api-drift.
     c, calls = client
     r = c.post("/operator/ask", json={"message": "how many namespaces?"})
     assert r.status_code == 200 and r.json()["reply"] == "There are 42 namespaces."
-    assert calls == [True]
+    r = c.post("/operator/ask", json={"message": "how many namespaces?", "allow_paid": True})
+    assert r.status_code == 200
+    assert calls == [False, True]
 
 
 def test_allow_paid_false_runs_on_the_unpaid_path(client):

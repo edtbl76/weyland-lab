@@ -30,7 +30,17 @@ spec = pol["spec"]
 assert spec["podSelector"]["matchLabels"] == {"app": target}, spec["podSelector"]
 assert deps.get(target, {}).get("app") == target, f"no {ns} Deployment {target} with pod label app={target}"
 assert spec["policyTypes"] == ["Ingress"], f"policyTypes {spec['policyTypes']}"
-(rule,) = spec["ingress"]
+rule, *extra = spec["ingress"]
+# A MESHED target's sidecar is scraped by Prometheus on :15020 (envoy-stats-monitor). A policy that forgets it silences
+# the pod's mesh metrics at its next restart (B211, 2026-10-14: the Realm's went dark under B209). Unmeshed: no such rule.
+meshed = str(deps[target].get("sidecar.istio.io/inject", "")).lower() == "true"
+want = [{"from": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "monitoring"}},
+                   "podSelector": {"matchLabels": {"app.kubernetes.io/name": "prometheus"}}}],
+         "ports": [{"protocol": "TCP", "port": 15020}, {"protocol": "TCP", "port": 15090}]}]
+if meshed:
+    assert extra == want, f"{target} is meshed: its policy must admit Prometheus on 15020/15090 as a second rule, got {extra}"
+else:
+    assert extra == [], f"{target} is not meshed, unexpected extra rules {extra}"
 assert rule["ports"] == [{"protocol": "TCP", "port": int(port)}], rule["ports"]
 got = []
 for f in rule["from"]:
@@ -106,4 +116,88 @@ print('ok')"
 @test "the A2A Inspector admits only Traefik (its forward-auth'd UI), on 8080" {
   run check weyland a2a-inspector-front-door-only a2a-inspector 8080 "ns=kube-system,app.kubernetes.io/name=traefik"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "buildkitd admits only the CI steps that build (build, golden-path-smoke), on 1234 — and both steps exist" {
+  run python3 -c "
+import yaml
+docs=[d for d in yaml.safe_load_all(open('$P/woodpecker/buildkitd.yaml')) if d]
+dep=[d for d in docs if d['kind']=='Deployment'][0]
+pol=[d for d in docs if d['kind']=='NetworkPolicy'][0]
+assert dep['spec']['template']['metadata']['labels'].get('app')=='buildkitd'
+s=pol['spec']; assert s['podSelector']['matchLabels']=={'app':'buildkitd'} and s['policyTypes']==['Ingress']
+(rule,)=s['ingress']; assert rule['ports']==[{'protocol':'TCP','port':1234}], rule['ports']
+(src,)=rule['from']; assert set(src)=={'podSelector'}, src   # same namespace only, no namespaceSelector
+(expr,)=src['podSelector']['matchExpressions']
+assert expr=={'key':'woodpecker-ci.org/step','operator':'In','values':['build','golden-path-smoke']}, expr
+steps={s['name'] for s in yaml.safe_load(open('$BATS_TEST_DIRNAME/../../.woodpecker.yml'))['steps']}
+missing={'build','golden-path-smoke'}-steps
+assert not missing, f'pipeline has no step named {missing}: the policy would lock CI out of buildkitd'
+print('ok')"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "the checker refuses a MESHED target's policy that forgets the sidecar metrics rule" {
+  T="$(mktemp -d)"; cp -r "$P" "$T/k8s"
+  python3 -c "
+import yaml
+f='$T/k8s/realm-of-agents/netpol.yaml'; d=yaml.safe_load(open(f)); d['spec']['ingress']=d['spec']['ingress'][:1]
+yaml.safe_dump(d, open(f,'w'))"
+  P="$T/k8s" run check weyland realm-of-agents-front-door-only realm-of-agents 8080 \
+    app=weyland-operator app=dagster-user-code app=a2a-inspector \
+    "ns=kube-system,app.kubernetes.io/name=traefik" "ns=monitoring,app.kubernetes.io/name=prometheus" \
+    "ns=monitoring,app=api-drift"
+  rm -rf "$T"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"must admit Prometheus on 15020/15090"* ]]
+}
+
+# Every NetworkPolicy in the repo, not just the ones named above: a policy that selects a MESHED workload must admit
+# Prometheus on the sidecar's 15020/15090, or the pod's mesh metrics go dark at its next restart (B211, 2026-10-14). A
+# workload is meshed when its pod template says sidecar.istio.io/inject "true", or it is in data-mesh (namespace-wide
+# injection) and doesn't opt out. Policies on Helm-installed workloads the repo can't see are listed, not guessed.
+@test "every NetworkPolicy on a meshed workload admits Prometheus on the sidecar ports" {
+  run python3 - "$P" <<'PY'
+import sys, glob, yaml
+p = sys.argv[1]
+docs = [d for f in glob.glob(f"{p}/**/*.yaml", recursive=True) for d in yaml.safe_load_all(open(f)) if isinstance(d, dict)]
+def tmpl(d):
+    s = d.get("spec") or {}
+    if d.get("kind") in ("Deployment", "StatefulSet"):
+        return (s.get("template") or {}).get("metadata") or {}
+    if d.get("kind") == "FlinkDeployment":
+        return ((s.get("podTemplate") or {}).get("metadata")) or {}
+    return None
+work = []
+for d in docs:
+    m = tmpl(d)
+    if m is not None:
+        labels = dict(m.get("labels") or {})
+        inj = str(labels.get("sidecar.istio.io/inject") or (m.get("annotations") or {}).get("sidecar.istio.io/inject") or "")
+        if d.get("kind") == "FlinkDeployment":
+            labels.setdefault("app", d["metadata"]["name"])
+        work.append((d["metadata"].get("namespace"), labels, inj))
+SIDECAR = {"from": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "monitoring"}},
+                     "podSelector": {"matchLabels": {"app.kubernetes.io/name": "prometheus"}}}],
+           "ports": [{"protocol": "TCP", "port": 15020}, {"protocol": "TCP", "port": 15090}]}
+bad, unknown, checked = [], [], 0
+for d in docs:
+    if d.get("kind") != "NetworkPolicy" or d["metadata"].get("namespace") == "jupyterhub":
+        continue
+    ns, sel = d["metadata"].get("namespace"), (d["spec"]["podSelector"].get("matchLabels") or {})
+    hits = [w for w in work if w[0] == ns and all(w[1].get(k) == v for k, v in sel.items())]
+    if not hits:
+        unknown.append(d["metadata"]["name"]); continue
+    _, _, inj = hits[0]
+    meshed = inj.lower() == "true" or (ns == "data-mesh" and inj.lower() != "false")
+    has = SIDECAR in (d["spec"].get("ingress") or [])
+    checked += 1
+    if meshed and not has: bad.append(f"{d['metadata']['name']}: meshed target, no Prometheus sidecar rule")
+    if not meshed and has: bad.append(f"{d['metadata']['name']}: unmeshed target, unexpected sidecar rule")
+print(f"checked {checked}; not in the repo (Helm): {sorted(unknown)}")
+assert not bad, bad
+assert checked >= 10, f"only {checked} policies matched a workload: the scan is not seeing the manifests"
+PY
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  echo "$output"
 }

@@ -76,3 +76,27 @@ spec:
   selector: { app: buildkitd }
   ports:
     - { name: grpc, port: 1234, targetPort: 1234, protocol: TCP }
+---
+# B211 (2026-10-14) — buildkitd's front door. It's privileged, with no TLS or auth on :1234, and any pod could ask it to
+# build and push an image. Only the two CI steps that build talk to it (scripts/ci/build-images.sh via BUILDKIT_HOST, and
+# scripts/run-golden-path-jobs.sh), so only pods carrying those Woodpecker step labels are admitted. The step label is the
+# step's name in .woodpecker.yml (no PR-triggered pipelines run, so only someone who can push to main can set it);
+# scripts/tests/write-surface-netpol.bats ties both names to the pipeline file so a rename can't silently lock CI out.
+# The readinessProbe is an exec inside the pod, so the policy never sees it. mTLS (buildkitd --tlscacert…) would add
+# identity on top; deferred, it needs a hand-made CA (no cert-manager here).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: buildkitd-ci-build-steps-only
+  namespace: woodpecker
+spec:
+  podSelector:
+    matchLabels: { app: buildkitd }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: woodpecker-ci.org/step, operator: In, values: [build, golden-path-smoke] }
+      ports:
+        - { protocol: TCP, port: 1234 }

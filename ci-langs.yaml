@@ -46,6 +46,7 @@ fixture_trigger_paths:
   # golden-path-smoke, the only step that runs it. Kept honest by ci-select-fixtures.bats: every script a lean-gated
   # step runs (and every file it sources) must be listed here.
   - scripts/run-golden-path-jobs.sh   # golden-path-smoke's runner (build, run-scoped Jobs, teardown)
+  - scripts/ci/registry-auth.sh       # sourced by the smoke runner: the B211 push-host credentials
   - scripts/lib/common.sh             # sourced by the lane + smoke runners
   - nodes/mother/lab/weyland-platform/k8s/golden-paths/   # the smoke Jobs' namespace + RBAC
   - .woodpecker.yml        # the lane definitions + gates themselves

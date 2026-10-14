@@ -1,0 +1,25 @@
+# B211 (2026-10-14) — promptfoo's front door: only Traefik (its forward-auth'd UI). No in-cluster caller in 14 days; evals
+# run inside the pod (kubectl exec is not affected by a NetworkPolicy).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: promptfoo-front-door-only, namespace: weyland}
+spec:
+  podSelector:
+    matchLabels: {app: promptfoo}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: kube-system}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: traefik}
+    ports:
+    - {protocol: TCP, port: 3000}
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: prometheus}
+    ports:
+    - {protocol: TCP, port: 15020}
+    - {protocol: TCP, port: 15090}

@@ -51,6 +51,21 @@ reg() { printf 'applications:\n' > "$REGISTRY_FILE"; for line in "$@"; do printf
   [[ "$output" == *"4 deployed"* ]]
 }
 
+@test "a policy selecting by app.kubernetes.io/name (Helm charts) covers the service too" {
+  cat > "$T/k8s/a/helm-netpol.yaml" <<'EOF2'
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: chart-front-door-only, namespace: opensearch }
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/name: chart-ui } }
+  policyTypes: [Ingress]
+  ingress: [{ from: [{ podSelector: { matchLabels: { app: caller } } }] }]
+EOF2
+  reg "{key: chart, deployed: true, writes: true, pod_app: chart-ui}"
+  run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
 @test "OPEN: a writes:true service with no policy, front door or accepted gap fails, named" {
   reg "{key: svc-open, deployed: true, writes: true}"
   run bash "$GUARD"

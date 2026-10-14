@@ -1,0 +1,40 @@
+# B211 (2026-10-14) — Nessie's front door (commits, branch deletes, Iceberg DROP TABLE; no authn). Callers on 19120
+# (14 days of istio_requests_total + manifests): Trino, dagster-user-code (pyiceberg), DataHub actions (reads), the
+# unmeshed Flink pods (CDC/RTA SQL), JupyterHub notebooks, and Traefik (the forward-auth'd UI).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: nessie-front-door-only, namespace: data-mesh}
+spec:
+  podSelector:
+    matchLabels: {app: nessie}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels: {app: trino}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: dagster-user-code}
+    - podSelector:
+        matchLabels: {app.kubernetes.io/name: acryl-datahub-actions}
+    - podSelector:
+        matchLabels: {app: weyland-flink}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: jupyterhub}
+      podSelector:
+        matchLabels: {component: singleuser-server}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: kube-system}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: traefik}
+    ports:
+    - {protocol: TCP, port: 19120}
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: prometheus}
+    ports:
+    - {protocol: TCP, port: 15020}
+    - {protocol: TCP, port: 15090}
