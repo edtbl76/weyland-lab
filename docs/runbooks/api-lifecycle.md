@@ -12,7 +12,7 @@ demo: [demos/api-lifecycle.md](../demos/api-lifecycle.md); flow: [flow-api-lifec
 | Breaking-change engine | `scripts/lib/api_spec_diff.py` |
 | Live drift check | `scripts/lib/api_drift.py`, run nightly by the `api-drift` CronJob (03:20 NY, ns `monitoring`) |
 
-All commands run on **rogueone** from the repo root unless marked `[mother]`.
+Commands run on **rogueone** from the repo root; `kubectl` works from either rogueone or mother.
 
 ## Check the catalog and the lock
 
@@ -43,11 +43,10 @@ Check `git diff -- docs/api/specs/` shows only the change you meant.
 
 **From the live service** (what the drift job compares against), from any meshed pod in `weyland`:
 
-[mother]
 ```
 kubectl -n weyland exec deploy/weyland-agent -c weyland-agent -- python -c "import urllib.request; print(urllib.request.urlopen('<spec_source from apis.yaml>').read().decode())" > /tmp/<api>.json
 ```
-Copy it to rogueone, re-serialise with `sort_keys=True` over the snapshot, and re-lock.
+Re-serialise it with `sort_keys=True` over the snapshot, and re-lock.
 
 ## The nightly drift check, and what each result means
 
@@ -67,7 +66,6 @@ field for two weeks that its snapshot lacked.
 
 Run the check now instead of waiting for 03:20:
 
-[mother]
 ```
 kubectl -n monitoring create job api-drift-manual-$(date +%s) --from=cronjob/api-drift
 ```
