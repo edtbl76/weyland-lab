@@ -189,6 +189,7 @@ def test_shadow_is_off_by_default_and_then_never_called(sweep, shadow, monkeypat
     assert shadow == [] and len(sweep["sent"]) == 2
 
 
+# The secrets below are SYNTHETIC fixtures (the shapes the redaction must catch), marked `gitleaks:allow` on their line.
 # --- B209 (2026-10-14): the sweep's digest is LLM text written from untrusted pod logs, sent to Telegram. Every OUTPUT
 # validator in weyland-guard is SHADOW (record-only) and none detects secrets, so the operator redacts deterministically
 # before sending, and a redaction failure drops the message instead of sending raw text (fail closed). -----------------
@@ -198,7 +199,7 @@ def test_shadow_is_off_by_default_and_then_never_called(sweep, shadow, monkeypat
     "AKIA" + "ABCDEFGHIJKLMNOP",                              # AWS access key id
     "sk-ant-api03-" + "x" * 40,                               # Anthropic key
     "sk-" + "y" * 48,                                         # OpenAI-style key
-    "xoxb-123456789012-123456789012-" + "z" * 24,             # Slack bot token
+    "xoxb-123456789012-123456789012-" + "z" * 24,             # Slack bot token  # gitleaks:allow (synthetic fixture)
     "123456789:" + "Q" * 35,                                  # Telegram bot token
     "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJlLXZhbHVl",   # a JWT
 ])
@@ -209,7 +210,7 @@ def test_redact_removes_known_token_shapes(secret):
 
 
 def test_redact_keeps_the_key_name_but_drops_its_value():
-    out = incidents._redact("env: PASSWORD=hunter2hunter2 api_key: abc123def456 token=t0k3n-value")
+    out = incidents._redact("env: PASSWORD=hunter2hunter2 api_key: abc123def456 token=t0k3n-value")  # gitleaks:allow (synthetic fixture)
     assert "hunter2hunter2" not in out and "abc123def456" not in out and "t0k3n-value" not in out
     assert "PASSWORD=" in out and "api_key:" in out and "token=" in out
 
@@ -220,7 +221,7 @@ def test_redact_drops_the_password_in_a_connection_url():
 
 
 def test_redact_removes_a_private_key_block():
-    block = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----"
+    block = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----"  # gitleaks:allow (synthetic fixture)
     out = incidents._redact(f"found:\n{block}\ndone")
     assert "b3BlbnNzaC1rZXktdjEAAAAA" not in out and "[REDACTED]" in out and out.endswith("done")
 

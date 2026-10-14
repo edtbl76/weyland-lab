@@ -68,6 +68,49 @@ unavailable (connection): action refused`) and `tool_server_guard_failures_total
 `GuardCallsFailing`. Covered by `services/weyland-tool-server/tests/test_main.py` (the act fails closed, the failure is
 counted); taking the shared guard down to show it would leave every caller unguarded for the duration.
 
+## Write surfaces (B209), run 2026-10-14
+
+The act guard covers three endpoints. B209 put front doors on the other surfaces that took writes from any pod.
+Sequence: [../diagrams/flow-write-surfaces.md](../diagrams/flow-write-surfaces.md).
+
+**5. Refused from a pod no policy admits** (`weyland-guard`):
+```
+kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import httpx; print(httpx.post('http://dagster-webserver.weyland.svc.cluster.local:3000/graphql', json={'query':'{version}'}, timeout=6).status_code)"
+```
+Observed: `503`, `server: envoy`, in 0.1 s: "upstream connect error … remote connection failure". The same from that pod
+to `realm-of-agents:8080/agents` (0.1 s), `store-scaler.data-mesh/healthz` (2.2 s, unmeshed target) and
+`a2a-inspector:8080` (2.2 s).
+
+**6. Admitted for the real callers:** from `dagster-user-code`, Dagster `{version}` → `200` and Realm `/agents` → `200`;
+from the operator, Realm `/agents` → `200`; from `port-agent`, store-scaler `/healthz` → `200`. Prometheus still
+scrapes the Realm (`up=1`). Signed in, https://dagster.weyland.lab and https://realm.weyland.lab both load (owner,
+2026-10-14).
+
+**7. The Realm asks for a login, and is free by default:**
+```
+curl -sk -o /dev/null -w '%{http_code}\n' https://realm.weyland.lab/agents
+```
+Observed: `307` (to Keycloak). A default `/route` from `dagster-user-code` ran on `wl-judge`, the free local lane
+(Realm log: `Gná · dispatch — thinking (wl-judge)`), answering in 2.1 s.
+
+**8. The Realm holds no write tool:** its loader reports `loaded 146 VK tools from Bifrost` on the `agents-read` key,
+none write-shaped (no Playwright, Linear, GitHub or memory writes).
+
+**9. The guard:**
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-write-surfaces.sh
+```
+Observed: `OK — 61 deployed service(s): 40 take writes, each with a policy, a front door or a tracked gap (11 gap(s));
+21 read-only.` The 11 gaps are B211's, printed every run. Negative case: `scripts/tests/write-surfaces.bats` shows an
+undeclared `writes`, an open surface and a gap with no backlog item each failing with exit 1, named.
+
+**Not shown live: the Telegram sender check and the sweep's redaction.** A stranger's "yes" needs a second Telegram
+account in an allowed group, and a redaction needs a secret in a firing alert's logs. Both are pinned by tests:
+`services/weyland-operator/tests/test_ingress.py` (8 cases: a stranger in an allowed group, a missing sender, an anonymous
+admin, a spoofed chat id) and `tests/test_incidents.py` (token shapes, URL passwords, `key=value` secrets, a private-key
+block, and a redaction failure that drops the message). The owner's own chat keeps working: their entry is a private
+chat, whose id is their user id.
+
 ## UI walkthrough
 
 1. **Grafana → Dashboards → App Services** (`https://grafana.weyland.lab/d/app-services`), last row **weyland-tool-server —
@@ -80,5 +123,5 @@ counted); taking the shared guard down to show it would leave every caller ungua
 
 ## Cleanup / teardown
 
-Steps 1 and 2 create nothing. Step 3 writes two `guardrail_verdicts` rows per run (above) and launches nothing; they are
+Steps 1, 2 and 5 to 9 create nothing (step 7's `/route` writes only its MLflow and Langfuse traces). Step 3 writes two `guardrail_verdicts` rows per run (above) and launches nothing; they are
 the audit trail, kept on purpose, not test data to remove. Step 4 is read-only.
