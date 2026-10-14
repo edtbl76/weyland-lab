@@ -230,7 +230,10 @@ pod env (`bifrost-provider-keys`).
 **VK -> client scoping (durable; through the API since B203, 2026-10-09):** a VK only serves the tools of the MCP clients
 *granted* to it. Codified in **`scripts/register_bifrost_vk_mcp.py`** (`SCOPING`: coding-agents -> fleet / Context7 / HF /
 Linear / Perplexity / Playwright / GitHub / Agent_Memory; operator -> Excalidraw / Malwarebytes / Agent_Memory read-only;
-chat-eval -> none; any other key, e.g. `realm-llm`, is never touched). It uses v2's `PUT /api/governance/virtual-keys/{id}`
+chat-eval -> none; **agents-read** (B209) -> fleet / Context7 / Perplexity / GitHub **read tools** / Agent_Memory
+read-only / Hugging Face read: the key for UNATTENDED agents (the Realm), with no Playwright, Linear or any write; any
+other key, e.g. `realm-llm`, is never touched). The interactive harnesses keep `coding-agents`, where a person approves
+each call. It uses v2's `PUT /api/governance/virtual-keys/{id}`
 with `mcp_configs: [{mcp_client_name, tools_to_execute}]`: the client is resolved by NAME, the PUT carries the key's WHOLE
 set (Bifrost replaces it), and the key reloads in memory, so **no restart** — proven 2026-10-09 (`/mcp` 0 → 4 → 2 tools on a
 throwaway key as grants changed). Idempotent (compares first, writes only a difference, reads back); exits 1 on a missing

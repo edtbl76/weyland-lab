@@ -1,0 +1,21 @@
+# The A2A Inspector's front door (B209, 2026-10-14). Its backend relays chats to the Realm's /a2a (paid Haiku) and fetches
+# any agent URL it's given. Its UI is behind Keycloak forward-auth on the ingress, but any pod could call the Service
+# directly, and the Realm's NetworkPolicy admits the inspector, so it was a way around that policy. Only Traefik (the
+# forward-auth'd UI) may reach it now. Kubelet's probes come from the node and are allowed by the controller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: a2a-inspector-front-door-only
+  namespace: weyland
+spec:
+  podSelector:
+    matchLabels: { app: a2a-inspector }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: traefik }
+      ports:
+        - { protocol: TCP, port: 8080 }

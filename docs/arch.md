@@ -1560,6 +1560,16 @@ flowchart LR
 | Guard failures were silent | `tool_server_guard_failures_total{hook,cause}` + `GuardCallsFailing` (act critical on the first failure; input/output warning after 10m) | a log line only (it already printed one) | fail-open is safe only when loud, and a mesh denial (plain-text `RBAC: access denied`) would otherwise refuse every act with no signal |
 | The guard's own fixes would never have shipped | `weyland-guard` joined `scripts/ci/images.tsv` with a ship transaction (`txn_guard`) | keep hand-building `vN` tags | a hand-tagged image lets a pushed fix sit unbuilt while the ship loop prints green; the first CI build shipped as `git-f5d43213` |
 
+**B209, the rest of the write surfaces (2026-10-14).** The act guard covered three endpoints; the Dagster API (launch
+any job), store-scaler (scale the data stores) and the Realm (paid Haiku, a write-capable Bifrost key, open to the LAN)
+took writes from any pod. Their callers are unmeshed (Traefik, port-agent), so the front doors are **NetworkPolicies**
+that admit only the real callers, not Istio identity rules. The Realm also moved behind Keycloak forward-auth, to free
+by default and to a read-only Bifrost key (`agents-read`). Operator acts now need an allowed *sender* (`from.id`), and
+the incident sweep redacts secrets before it posts. To stop the class reopening, every deployed service declares
+`writes:` in `applications.yaml`, and `check-write-surfaces.sh` fails on a write surface with no front door. Its first
+run found 11 more, tracked as **B211** (buildkitd + the no-auth registry first). Design:
+[design/write-surfaces.md](design/write-surfaces.md); runbook: [runbooks/write-surfaces.md](runbooks/write-surfaces.md).
+
 **B208, the same lesson in API governance.** The nightly `api-drift` job reported "match" on any non-breaking
 difference, so the tool-server served a field for two weeks that its committed contract lacked. It now names additive
 drift and alerts (`ApiContractStale`, warning), and fails when it can't deliver the alert. Concept:

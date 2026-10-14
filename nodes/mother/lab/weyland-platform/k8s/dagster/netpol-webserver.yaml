@@ -1,0 +1,34 @@
+# The Dagster API's front door (B209, 2026-10-14). GraphQL on :3000 can launch ANY job, and until now any pod could
+# reach it: the browser UI is behind Keycloak forward-auth, the API was not. Only three callers need it (14 days of
+# istio_requests_total, plus the code paths):
+#   - dagster-user-code: the ship loop's FR-DRAIN and TXN gates, and every runbook `launchRun`, run via kubectl exec;
+#   - weyland-tool-server: _launch_dagster_job (/pipeline/trigger, /evals/run, /evals/score, act-guarded, B207);
+#   - Traefik (kube-system): the dagster.weyland.lab browser UI, which also calls /graphql.
+# A NetworkPolicy, not an Istio AuthorizationPolicy: Traefik is unmeshed, so it has no principal, and a principal-based
+# ALLOW would 403 the whole UI. Enforced by k3s's built-in network-policy controller (the compositors rely on it too).
+# Kubelet's probes come from the node and are allowed by the controller.
+#
+# Negative check (expect a refusal; from a meshed pod it's an instant 503 "remote connection failure"):
+#   kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import httpx; print(httpx.post('http://dagster-webserver.weyland.svc.cluster.local:3000/graphql', json={'query':'{version}'}, timeout=5).status_code)"
+# Positive: the same query from deploy/dagster-user-code returns 200, and https://dagster.weyland.lab loads.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dagster-webserver-front-door-only
+  namespace: weyland
+spec:
+  podSelector:
+    matchLabels: { app: dagster-webserver }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: dagster-user-code }
+        - podSelector:
+            matchLabels: { app: weyland-tool-server }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: traefik }
+      ports:
+        - { protocol: TCP, port: 3000 }

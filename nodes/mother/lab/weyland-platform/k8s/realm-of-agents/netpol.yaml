@@ -1,0 +1,41 @@
+# The Realm's in-cluster front door (B209, 2026-10-14). Before this, any pod could call /route (paid Haiku by default
+# then) and the A2A paths (always paid). The callers that need it:
+#   - weyland-operator: delegate_to_realm (paid brain only; sends allow_paid true);
+#   - dagster-user-code: the ship loop's Realm transaction (allow_paid false) and the prompt registrations (GET /prompts);
+#   - a2a-inspector: its backend validates the cards and streams messages over the in-cluster Service;
+#   - Traefik (kube-system): realm.weyland.lab, now behind Keycloak forward-auth;
+#   - monitoring: Prometheus scrapes /metrics (ServiceMonitor), and the api-drift job reads the card and spec.
+# Kubelet's probes come from the node and are allowed by the controller.
+# Negative check (expect an instant 503 "remote connection failure" from a meshed pod):
+#   kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import httpx; print(httpx.get('http://realm-of-agents.weyland.svc.cluster.local:8080/agents', timeout=5).status_code)"
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: realm-of-agents-front-door-only
+  namespace: weyland
+spec:
+  podSelector:
+    matchLabels: { app: realm-of-agents }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: weyland-operator }
+        - podSelector:
+            matchLabels: { app: dagster-user-code }
+        - podSelector:
+            matchLabels: { app: a2a-inspector }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: traefik }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: prometheus }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app: api-drift }
+      ports:
+        - { protocol: TCP, port: 8080 }

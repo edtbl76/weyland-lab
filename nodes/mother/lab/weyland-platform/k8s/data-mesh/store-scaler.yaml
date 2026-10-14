@@ -78,3 +78,25 @@ spec:
   ports:
     - port: 80
       targetPort: 8080
+---
+# B209 (2026-10-14) — /scale's front door. It scales cockroachdb / mongodb / mysql / gizmosql to 0 or 1 with no
+# authentication, and any pod could call it. Its only caller is the port-agent (the Port "Scale data-mesh store"
+# action); zero /scale calls in the 30 days to 2026-10-14. Unmeshed on both ends, so a NetworkPolicy (not an Istio
+# AuthorizationPolicy, which an unmeshed pod never consults). Kubelet's /healthz probes come from the node: allowed.
+# Negative check (expect a refusal / timeout):
+#   kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import httpx; print(httpx.get('http://store-scaler.data-mesh.svc.cluster.local/healthz', timeout=5).status_code)"
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: store-scaler-port-agent-only
+  namespace: data-mesh
+spec:
+  podSelector:
+    matchLabels: { app: store-scaler }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: port-agent }
+      ports:
+        - { protocol: TCP, port: 8080 }

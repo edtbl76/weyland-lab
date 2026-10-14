@@ -38,6 +38,7 @@ spec:
       template:
         metadata:
           labels:
+            app: api-drift   # B209: named by the Realm's NetworkPolicy (it reads the Realm's card and spec)
             # Unmeshed on purpose — the targets are unmeshed FastAPI pods + the realm card. See the header.
             sidecar.istio.io/inject: "false"
         spec:

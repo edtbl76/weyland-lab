@@ -72,9 +72,11 @@ spec:
               valueFrom: { secretKeyRef: { name: litellm-secrets, key: LANGFUSE_SECRET_KEY } }
             - name: OTEL_SERVICE_NAME
               value: realm-of-agents
-            # Tools — the coding-agents virtual key over the Bifrost MCP surface. optional:true → until the secret is
-            # created the pod runs tool-less (agents still reason + answer). Create out-of-band (NOT committed):
-            #   kubectl -n weyland create secret generic realm-of-agents-secret --from-literal=BIFROST_VK=<coding-agents VK>
+            # Tools — the agents-read virtual key over the Bifrost MCP surface (B209, 2026-10-14; it was coding-agents,
+            # which carries GitHub/Linear/memory writes and Playwright). Realm agents run unattended, so their key holds
+            # no write; scoping in scripts/register_bifrost_vk_mcp.py. optional:true → until the secret is created the
+            # pod runs tool-less (agents still reason + answer). Create out-of-band (NOT committed):
+            #   kubectl -n weyland create secret generic realm-of-agents-secret --from-literal=BIFROST_VK=<agents-read VK>
             - name: BIFROST_VK
               valueFrom: { secretKeyRef: { name: realm-of-agents-secret, key: BIFROST_VK, optional: true } }
             # Bifrost endpoints — default the LAN ingress (CoreDNS forwards *.weyland.lab). To skip TLS to the self-signed

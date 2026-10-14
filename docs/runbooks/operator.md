@@ -23,7 +23,10 @@ propose (LLM) → store pending_action → "⚠️ Confirm …? yes/no" → user
 ```
 - The act endpoints are **never bound to the LLM** — only `propose_act` is (it just records intent). `agent.run`
   returns `(reply, proposal)`; the proposal is read off the **tool-call trace**, not the model's prose.
-- **Five independent rails:** (1) Telegram **allowlist** (`TELEGRAM_ALLOWED_USERS`) · (2) **confirm-step**
+- **Five independent rails:** (1) Telegram **allowlist**: the **sender's user id** (`message.from.id`) must be in
+  `TELEGRAM_ALLOWED_USERS` on every message, including the "yes" (B209; it used to match the chat id, so any member of
+  an allowed group could confirm). Groups need `TELEGRAM_ALLOWED_CHATS` too; channel posts and anonymous admins are
+  refused · (2) **confirm-step**
   (app-fires-on-yes) · (3) `act.py` **fail-closed** `JOB_ALLOWLIST` (unknown tool/job refused before any HTTP) ·
   (4) the tool-server's own **`Hook.ACT`** guard on the launch · (5) the **MCP gateway** injects a Keycloak-verified
   actor + the guard's enforcing **`policy.gate`** (identity-required allowlist + per-actor rate-cap). Any one holding
@@ -117,7 +120,12 @@ A background loop (`incidents.py`, `INCIDENT_SWEEP_INTERVAL=180s`) reads `ALERTS
 (`PROMETHEUS_URL` = `prometheus-operated.monitoring.svc:9090` — one query unifies every firing rule incl. the blackbox
 synthetic downs), dedups against Postgres (`operator_incidents`, one notify per firing episode), and for each **new**
 incident runs the agent to **enrich** it (correlate recent logs + pod status via the fleet) → posts a proactive Telegram
-digest. **Enrich-only** — any act the agent proposes is dropped. **Hard rule:** it never sits in the paging path — direct
+digest. **Enrich-only** — any act the agent proposes is dropped. **The digest is redacted before it's sent (B209):**
+it is LLM text written from untrusted pod logs, and weyland-guard's output validators only record (SHADOW) and detect no
+secrets. So `incidents._redact` strips token shapes (GitHub, AWS, Anthropic/OpenAI, Slack, Telegram, JWTs, private-key
+blocks), URL passwords and `password=`/`token=`/`api_key:` values. If redaction itself fails the digest is **dropped**
+(`operator_incident_sweeps_total{outcome="digest_dropped"}`), never sent raw. The redacted text also goes through
+`/guard/output` (actor `operator:incident-sweep`) for the PII and safety record. **Hard rule:** it never sits in the paging path — direct
 Kuma/Alertmanager→Telegram stays the pager, so if this loop dies paging is unaffected. Noise filter: skips
 `severity=none` + `INCIDENT_SKIP_ALERTS` (Watchdog, InfoInhibitor, LiteLLMEgressEnabled). Gated on
 `INCIDENT_SWEEP_ENABLED=true` + Telegram configured + a target chat. Metrics `operator_incident_sweeps_total{outcome}` /

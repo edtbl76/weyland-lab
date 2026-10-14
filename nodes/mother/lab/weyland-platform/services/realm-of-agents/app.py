@@ -50,9 +50,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Weyland — Realm of Agents", version=VERSION, lifespan=lifespan)
 app.include_router(a2a.router)   # A2A JSON-RPC binding: POST /a2a (Gná) and /a2a/{key} (specific agent)
-# Browser-based A2A clients (e.g. a2a-ui) fetch the card + POST message/send cross-origin from their own page, so they
-# need CORS. LAN-only lab → allow any origin; this surface is read/dispatch only (acts still go via the operator).
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# CORS: only the Realm's own host (B209, 2026-10-14). It was "*", so any page on the LAN could drive the Realm (and
+# spend Haiku) from a visitor's browser. The host now sits behind Keycloak forward-auth; in-cluster callers don't use CORS.
+app.add_middleware(CORSMiddleware, allow_origins=["https://realm.weyland.lab"], allow_methods=["*"], allow_headers=["*"])
 
 # The Realm Console — the show-off UI, served by the pod itself at the root. It drives /route/stream (same-origin, so no
 # CORS in play) and animates the live trace. Loaded once at import; fail-safe if the asset isn't bundled.
@@ -72,9 +72,9 @@ def console():
 class TaskRequest(BaseModel):
     message: str
     history: list | None = None
-    # False = spend nothing: /route runs on the free local lane with LiteLLM fallbacks off (budget.free_only). For
-    # automatic callers such as the ship-images transaction; a person keeps the default hosted brain.
-    allow_paid: bool = True
+    # False (the default since B209, 2026-10-14) = spend nothing: /route runs on the free local lane with LiteLLM
+    # fallbacks off (budget.free_only). A caller that should spend says so: the operator's delegate_to_realm sends true.
+    allow_paid: bool = False
 
 
 # --- Discovery (A2A Agent Cards) ---------------------------------------------------------------------------------

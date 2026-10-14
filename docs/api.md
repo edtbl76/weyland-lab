@@ -182,11 +182,12 @@ See [runbooks/operator.md](runbooks/operator.md).
 
 ## Realm of Agents (`realm-of-agents` — B17 A2A)
 
-Public front door **`realm.weyland.lab`** (wildcard TLS, **NO forward-auth** — a programmatic A2A API, like the
-registry) · `realm-of-agents.weyland.svc:8080` in-cluster. It is a **conformant A2A server**: a JSON-RPC `message/send`
+Front door **`realm.weyland.lab`** (wildcard TLS, **Keycloak forward-auth since B209, 2026-10-14**; it was open to the
+LAN) · `realm-of-agents.weyland.svc:8080` in-cluster, admitted by a NetworkPolicy to the operator, `dagster-user-code`,
+the a2a-inspector, Traefik, Prometheus and the api-drift job (`k8s/realm-of-agents/netpol.yaml`). CORS admits only
+`https://realm.weyland.lab`. It is a **conformant A2A server**: a JSON-RPC `message/send`
 binding (`/a2a`), spec-valid Agent Cards (`protocolVersion` + `preferredTransport` + `provider{organization,url}`),
-**request-derived `https` card URLs** (uvicorn `--proxy-headers`, so cards advertise whatever host reached them), and
-**CORS** for browser A2A clients. One multiplexed pod hosting 24 corpus-backed specialists in 5 Norse-named groups.
+**request-derived `https` card URLs** (uvicorn `--proxy-headers`, so cards advertise whatever host reached them). One multiplexed pod hosting 24 corpus-backed specialists in 5 Norse-named groups.
 **Gná** routes a task to the best agent;
 realm **leads** act on their own tools or delegate to their members and reconcile. Every agent runs on **Claude Haiku**
 (`REALM_MODEL=wl-agentic` override via LiteLLM); tools via the **Bifrost VK**; every run is an **MLflow trace**
@@ -198,7 +199,7 @@ realm **leads** act on their own tools or delegate to their members and reconcil
 | `/agents` | GET | every agent's card + a realm index |
 | `/agents/{key}/card` (or `/agents/{key}/.well-known/agent-card.json`) | GET | one agent's A2A card |
 | `/agents/{key}/message` | POST | `{message, history?}` → run a specific agent (a lead delegates; a plain agent answers) |
-| `/route` | POST | `{message, history?, allow_paid?}` → Gná classifies and runs the best-fit agent; returns `{routed_to, god, role, realm, answer}`. `allow_paid: false` (API 1.1, 2026-10-12) = **free-only**: the whole dispatch runs on the free local `wl-judge` lane (`REALM_FREE_MODEL`) with LiteLLM fallbacks disabled, never Haiku. Used by the ship-images Realm transaction. `502` = dispatch failed (also when the free brain is down) |
+| `/route` | POST | `{message, history?, allow_paid?}` → Gná classifies and runs the best-fit agent; returns `{routed_to, god, role, realm, answer}`. `allow_paid` **defaults to false since B209** (2026-10-14; it was true): **free-only** unless the caller sends `true` (the operator's `delegate_to_realm` does). Free-only = the whole dispatch runs on the free local `wl-judge` lane (`REALM_FREE_MODEL`) with LiteLLM fallbacks disabled, never Haiku. Used by the ship-images Realm transaction. `502` = dispatch failed (also when the free brain is down) |
 | `/a2a` | POST | **A2A JSON-RPC** `message/send` → Gná dispatches; returns an A2A `Message`. This is the root card's `url` (what standard A2A clients POST to). |
 | `/a2a/{key}` | POST | **A2A JSON-RPC** `message/send` to one specific agent (a per-agent card's `url`) |
 | `/route/stream` | POST | `{message, history?}` → **SSE** live execution stream (route · delegate hops · tool + LLM events · answer tokens) — powers the Console |
@@ -299,6 +300,8 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. **Mos
 | **Woodpecker CI** (CI/CD — GitHub OAuth login; **mixed fleet**: `kubernetes` backend for weyland jobs + `local`-backend agents on rogueone for STUD.io CI, B57b; manual/cron triggers) — **Keycloak forward-auth** on the UI + **two LAN NodePorts** (`192.168.1.243:30980` HTTP = `woodpecker-cli`/REST, bypasses forward-auth which 302s Bearer calls to login; `192.168.1.243:30900` gRPC `woodpecker-grpc-lan` = off-cluster local agents register). CLI: `woodpecker-cli pipeline create edtbl76/stud.io --branch main`. | `https://woodpecker.weyland.lab` · `http://192.168.1.243:30980` (CLI/REST) · `192.168.1.243:30900` (agent gRPC) |
 | **Argo CD** (GitOps CD — local admin; app-of-apps, **83 apps** as of 2026-09-28) — **Keycloak forward-auth** on the UI + a **LAN NodePort** (`mother:30880` HTTP = the `argocd` CLI, bypasses forward-auth, which answers a CLI's `POST /session.SessionService/Create` with **400** because it cannot browser-SSO; `k8s/argocd/argocd-lan.yaml`, hand-applied — Argo does not manage itself). Login: `argocd login mother:30880 --insecure --grpc-web`. Consumed by `scripts/ship-images.sh` for targeted `argocd app sync`, never `--all` (B134). | `https://argocd.weyland.lab` · `http://mother:30880` (CLI) |
 | **Bifrost** (B17+B19 Ph3b agent-edge MCP front door — admin UI **forward-auth**; the `/mcp` agent endpoint is un-gated) | `https://bifrost.weyland.lab` (UI) · `https://bifrost.weyland.lab/mcp` (agents) |
+| **Realm of Agents** (B17 A2A — the Realm Console + A2A API; 24 agents) — **Keycloak forward-auth since B209** (2026-10-14; it was open to the LAN). In-cluster callers are limited by `k8s/realm-of-agents/netpol.yaml` | `https://realm.weyland.lab` (Console + `/a2a`, `/route`, cards) |
+| **A2A Inspector** (debug/validation UI for the Realm's A2A surface) — **Keycloak forward-auth**; since B209 its Service admits only Traefik (`k8s/a2a-inspector/netpol.yaml`) | `https://inspector.weyland.lab` |
 | **Platform Docs** (MkDocs Material — runbooks/architecture/concepts; browsable+searchable, Mermaid; B59, replaced Backstage TechDocs) | `https://docs.weyland.lab` |
 | Dagster | `https://dagster.weyland.lab` |
 | n8n | `https://n8n.weyland.lab` |

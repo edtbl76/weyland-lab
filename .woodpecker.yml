@@ -88,6 +88,10 @@ steps:
       # File analysis, plus the ci lane: an ANONYMOUS Woodpecker activation lookup (no secret, in-cluster svc).
       # Pending lanes are reported, not enforced, so the guard grows incrementally.
       - bash scripts/check-repo-coverage.sh
+      # B209 — every deployed service that can change state declares `writes` in applications.yaml and has a front door:
+      # a NetworkPolicy / AuthorizationPolicy selecting its pods, a stated `front_door`, or a tracked `accepted_gap: B<n>`.
+      # The Dagster API, store-scaler and the Realm took writes from any pod until 2026-10-14. Pure file analysis.
+      - bash scripts/check-write-surfaces.sh
       - bash scripts/check-quality-tools.sh
       # Every OpenTofu dir under nodes/ must pass `tofu fmt -check` — 7 files had drifted unnoticed (2026-09-24),
       # burying real diffs in re-alignment noise. Parse errors are exit 2, not a formatting finding.

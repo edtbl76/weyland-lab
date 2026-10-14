@@ -82,9 +82,10 @@ def test_route_dispatch_failure_is_502(client, monkeypatch):
     assert client.post("/route", json={"message": "x"}).status_code == 502
 
 
-def test_route_is_paid_by_default_and_free_only_on_request(client, monkeypatch):
-    # 2026-10-12: an automatic caller (the ship-images Realm transaction) sends allow_paid false and the whole
-    # dispatch runs in budget.free_only(); a person's request keeps the hosted brain.
+def test_route_is_free_by_default_and_paid_only_on_request(client, monkeypatch):
+    # B209 (2026-10-14): free by default, so a caller who never asked cannot spend Haiku. A caller that should spend
+    # says so: the operator's delegate_to_realm (paid brain only) sends allow_paid true; the ship-images transaction
+    # sends false. Until B209 the default was paid, and the Realm was open to the LAN.
     import budget
     seen = []
 
@@ -94,7 +95,8 @@ def test_route_is_paid_by_default_and_free_only_on_request(client, monkeypatch):
     monkeypatch.setattr(realm_app.gna, "dispatch", fake_dispatch)
     assert client.post("/route", json={"message": "x"}).status_code == 200
     assert client.post("/route", json={"message": "x", "allow_paid": False}).status_code == 200
-    assert seen == [False, True]
+    assert client.post("/route", json={"message": "x", "allow_paid": True}).status_code == 200
+    assert seen == [True, True, False]
     assert not budget.is_free_only()   # the mode never outlives its request
 
 
@@ -123,3 +125,11 @@ def test_send_message_runs_agent_and_unknown_404(client, monkeypatch):
     b = client.post("/agents/odin/message", json={"message": "hi"}).json()
     assert b["agent"] == "odin" and b["answer"] == "done" and b["realm"] == realm_app.BY_KEY["odin"].realm
     assert client.post("/agents/nope/message", json={"message": "hi"}).status_code == 404
+
+
+def test_cross_origin_requests_are_admitted_only_from_the_realm_host(client):
+    # B209: CORS was "*", so any page on the LAN could drive the Realm from a visitor's browser.
+    ok = client.options("/route", headers={"Origin": "https://realm.weyland.lab", "Access-Control-Request-Method": "POST"})
+    assert ok.headers.get("access-control-allow-origin") == "https://realm.weyland.lab"
+    bad = client.options("/route", headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "POST"})
+    assert bad.headers.get("access-control-allow-origin") is None

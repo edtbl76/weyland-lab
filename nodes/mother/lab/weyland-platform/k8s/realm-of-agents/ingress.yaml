@@ -1,19 +1,20 @@
-# realm.weyland.lab — the Realm of Agents' public A2A front door (B17).
+# realm.weyland.lab — the Realm of Agents' front door (B17), behind Keycloak forward-auth since B209 (2026-10-14).
 #
-# NO Keycloak forward-auth: this is a *programmatic* A2A endpoint (JSON-RPC message/send + /.well-known discovery +
-# the per-agent cards), and interactive SSO redirects would break A2A clients (the a2a-inspector, external agents).
-# Same posture as registry.weyland.lab — a LAN-only API on a trusted LAN, wildcard TLS so clients get HTTPS.
+# Before B209 this host had NO auth, for programmatic A2A clients (SSO redirects break them). It was open to the whole
+# LAN, CORS was "*", /route spent paid Haiku by default, and the pod holds the coding-agents' Bifrost key. Nothing outside
+# the cluster actually used it: the a2a-inspector and the operator call the in-cluster Service (unaffected by this),
+# and blackbox accepts 302. So the whole host is now gated like the other human UIs; external A2A discovery needs a
+# Keycloak session. In-cluster callers are limited by k8s/realm-of-agents/netpol.yaml.
 #
-# Because the Agent Card `url` is request-derived (see cards.py), fetching a card THROUGH this host makes every agent
-# advertise https://realm.weyland.lab/a2a automatically — no code change when clients arrive via the ingress vs the
-# in-cluster Service. (The in-cluster a2a-inspector keeps using the plain http Service URL; it does not trust the
-# self-signed lab CA, so pointing it at https would fail cert validation — the ingress is for the browser + external
-# clients that DO trust the mkcert wildcard.)
+# The Agent Card `url` is request-derived (cards.py), so a card fetched through this host still advertises
+# https://realm.weyland.lab/a2a.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: realm-of-agents
   namespace: weyland
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: weyland-traefik-forward-auth@kubernetescrd
 spec:
   tls:
     - hosts:

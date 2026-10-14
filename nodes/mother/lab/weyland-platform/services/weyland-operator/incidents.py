@@ -13,6 +13,8 @@ Hard B45 constraints:
 """
 import asyncio
 import os
+import re
+import uuid
 
 import httpx
 from prometheus_client import Counter
@@ -21,6 +23,7 @@ import agent
 import decide
 import session
 import telegram
+from guard import guard
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://prometheus-operated.monitoring.svc.cluster.local:9090")
 SWEEP_INTERVAL = int(os.getenv("INCIDENT_SWEEP_INTERVAL", "180"))    # seconds between sweeps
@@ -44,6 +47,41 @@ _NOTIFIED = Counter("operator_incidents_notified_total", "Incidents enriched + n
 # $0 budget is always worth enriching. Env-overridable via INCIDENT_SKIP_ALERTS (comma list).
 _SKIP_ALERTNAMES = {s.strip() for s in os.getenv(
     "INCIDENT_SKIP_ALERTS", "Watchdog,InfoInhibitor,LiteLLMEgressEnabled").split(",") if s.strip()}
+
+
+# B209 (2026-10-14): the digest is LLM text written from UNTRUSTED pod logs and goes to Telegram. weyland-guard's OUTPUT
+# validators are SHADOW (record-only) and none of them detects secrets, so redaction happens here, deterministically,
+# and fails closed: if it cannot run, the message is dropped, never sent raw. Order matters: whole blocks and URL
+# credentials first, then `key=value` pairs (the key is kept so the reader knows what was there), then bare tokens.
+_REDACTED = "[REDACTED]"
+_SECRET_PATTERNS = [
+    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S), _REDACTED),
+    (re.compile(r"(\b[a-z][a-z0-9+.-]*://[^\s:/@]+:)[^\s@/]+(@)", re.I), r"\1" + _REDACTED + r"\2"),
+    (re.compile(r"(\b(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key)\b\s*[:=]\s*)[^\s,;]+", re.I),
+     r"\1" + _REDACTED),
+    (re.compile(r"\bgithub_pat_\w{50,}"), _REDACTED),
+    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}"), _REDACTED),
+    (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), _REDACTED),
+    (re.compile(r"\bsk-(?:ant-)?[A-Za-z0-9_-]{20,}"), _REDACTED),
+    (re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}"), _REDACTED),
+    (re.compile(r"\b\d{8,10}:[A-Za-z0-9_-]{35}\b"), _REDACTED),
+    (re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"), _REDACTED),
+]
+
+
+def _redact(text: str) -> str:
+    for pattern, replacement in _SECRET_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
+def _safe_digest(text: str) -> str | None:
+    """The redacted digest, or None when redaction failed: the caller then drops the message (fail closed)."""
+    try:
+        return _redact(text)
+    except Exception as exc:
+        print(f"[incidents] redaction failed ({type(exc).__name__}); digest dropped", flush=True)
+        return None
 
 
 def _is_incident(labels: dict) -> bool:
@@ -101,7 +139,16 @@ async def _enrich_and_notify(client: httpx.AsyncClient, labels: dict) -> None:
         raise
     except Exception as exc:
         reply = f"(enrichment failed: {exc})"
-    await telegram.send_message(client, int(_CHAT_ID), f"🚨 {labels.get('alertname', '?')} — {_who(labels)}\n\n{reply}")
+    digest = _safe_digest(f"🚨 {labels.get('alertname', '?')} — {_who(labels)}\n\n{reply}")
+    if digest is None:
+        _SWEEPS.labels("digest_dropped").inc()
+        return
+    # Recorded by the guard (PII, safety) like the chat path; it blocks only if an OUTPUT validator is promoted to block.
+    if await asyncio.to_thread(guard, "output", str(uuid.uuid4()), {"answer": digest, "sources": []},
+                               "operator:incident-sweep"):
+        _SWEEPS.labels("digest_blocked").inc()
+        return
+    await telegram.send_message(client, int(_CHAT_ID), digest)
     _NOTIFIED.inc()
     if enriched and decide.enabled():
         await decide.shadow(client, agent.sweep_rules(), prompt, agent.sweep_tools(),

@@ -14,6 +14,9 @@ spec:
     metadata:
       labels:
         app: dagster-webserver
+        # B209: meshed. This label had been set live by a `kubectl patch` (2026-06-18) and never committed, so a
+        # recreated Deployment would have lost its sidecar silently. Now it's in git.
+        sidecar.istio.io/inject: "true"
     spec:
       containers:
         - name: dagster-webserver

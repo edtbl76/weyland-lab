@@ -23,7 +23,8 @@ def delegate_to_realm(task: str) -> str:
     read tools — e.g. 'audit the Grafana dashboards', 'review this SQL', 'apply a SWOT to X', 'trace the lineage of Y'.
     Returns which agent handled it and its answer."""
     try:
-        r = httpx.post(f"{REALM_URL}/route", json={"message": task}, timeout=REALM_TIMEOUT)
+        # B209: the Realm defaults to the free lane; this tool exists only on the paid brain, so it asks for paid.
+        r = httpx.post(f"{REALM_URL}/route", json={"message": task, "allow_paid": True}, timeout=REALM_TIMEOUT)
         r.raise_for_status()
         d = r.json()
         return f"[handled by {d.get('god', '?')} · {d.get('role', '?')} · {d.get('realm', '?')}]\n{d.get('answer', '')}"

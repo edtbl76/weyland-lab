@@ -9,7 +9,8 @@ by NAME and reloads the key in memory, so the change applies live (proven 2026-1
     kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < scripts/register_bifrost_vk_mcp.py
 
 `SCOPING` below is the source of truth (scope by USE, not per agent): coding agents get the dev/coding tool surface,
-the operator gets drawing/security plus read-only shared memory, chat-eval stays toolless. Keys not named here (e.g.
+the operator gets drawing/security plus read-only shared memory, chat-eval stays toolless, and agents-read (B209,
+unattended agents) gets reads only. Keys not named here (e.g.
 `realm-llm`) are never touched. Per key it compares the live grants with the desired set and PUTs only on a difference;
 a PUT carries the key's WHOLE set (Bifrost replaces it; existing rows keep their ids), then the key is read back.
 Fails (exit 1) on a missing key, a desired client that is not registered (run register_bifrost_mcp_clients.py first —
@@ -22,12 +23,24 @@ BASE_ENV = "BIFROST_URL"   # required, passed by the runbook command; no default
 # B182 (2026-10-03): Agent_Memory — coding agents read AND write the shared memory; the operator only recalls.
 MEMORY_READ = ["search_notes", "read_note", "view_note", "read_content", "build_context", "recent_activity",
                "list_directory", "search", "fetch"]
+# B209 (2026-10-14): GitHub's read-only tools, for the unattended key. Listed explicitly; '*' would include every write.
+GITHUB_READ = ["get_commit", "get_file_contents", "get_label", "get_latest_release", "get_me", "get_release_by_tag",
+               "get_tag", "get_team_members", "get_teams", "issue_read", "list_branches", "list_commits",
+               "list_issue_fields", "list_issue_types", "list_issues", "list_pull_requests", "list_releases",
+               "list_repository_collaborators", "list_tags", "pull_request_read", "search_code", "search_commits",
+               "search_issues", "search_pull_requests", "search_repositories", "search_users"]
+HUGGING_FACE_READ = ["hub_repo_search", "hub_repo_details", "hf_whoami"]
 # VK name -> the MCP clients (by name) it may use. An entry is a client name (all its tools) or (name, [tools]).
 SCOPING = {
     "coding-agents": ["weyland_fleet", "Context7", "Hugging_Face", "Linear", "Perplexity", "Playwright", "GitHub_Remote",
                       "Agent_Memory"],
     "operator":      ["Excalidraw", "Malwarebytes", ("Agent_Memory", MEMORY_READ)],
     "chat-eval":     [],   # explicitly toolless
+    # B209: UNATTENDED agents (realm-of-agents): no human approves their tool calls, so the key holds no write. No
+    # Playwright (it runs inside the Bifrost pod and can POST anywhere in-cluster), no Linear, read-only GitHub, memory
+    # and Hugging Face. The interactive harnesses keep `coding-agents`, where a person approves each call.
+    "agents-read":   ["weyland_fleet", "Context7", "Perplexity", ("GitHub_Remote", GITHUB_READ),
+                      ("Agent_Memory", MEMORY_READ), ("Hugging_Face", HUGGING_FACE_READ)],
 }
 ALL_TOOLS = ["*"]
 

@@ -29,6 +29,7 @@ def _settled():
         _vk("v2", "operator", [_cfg("Excalidraw"), _cfg("Malwarebytes"), _cfg("Agent_Memory", r.MEMORY_READ)]),
         _vk("v3", "chat-eval", []),
         _vk("v4", "realm-llm", []),
+        _vk("v5", "agents-read", [_cfg(n, t) for n, t in r.desired("agents-read").items()]),
     ]
 
 
@@ -181,3 +182,30 @@ def test_main_without_the_url_fails_before_any_call(monkeypatch):
     monkeypatch.delenv("BIFROST_URL", raising=False)
     with pytest.raises(SystemExit, match="BIFROST_URL is not set"):
         r.main()
+
+
+# --- B209 (2026-10-14): `agents-read`, the key for UNATTENDED agents (Realm). No human approves their tool calls, so the
+# key itself must hold no write: no Playwright (runs inside the Bifrost pod and can POST anywhere in-cluster), no Linear,
+# no GitHub writes, no memory writes. A wildcard is allowed only on clients that are read-only by construction. --------
+READ_ONLY_CLIENTS = {"weyland_fleet", "Context7", "Perplexity"}   # fleet: k8s view, restricted SQL, Grafana viewer
+WRITE_WORDS = ("push", "create", "update", "delete", "merge", "write", "fork", "add_", "request_copilot", "upload",
+               "run_code", "evaluate", "edit", "move", "generate", "dynamic_space")
+
+
+def test_agents_read_holds_no_write_tool():
+    grants = r.desired("agents-read")
+    assert "Playwright" not in grants and "Linear" not in grants
+    for client, tools in grants.items():
+        if tools == ["*"]:
+            assert client in READ_ONLY_CLIENTS, f"{client} granted '*' on the read-only key"
+            continue
+        writes = [t for t in tools if any(w in t for w in WRITE_WORDS)]
+        assert not writes, f"{client} grants write-shaped tools on the read-only key: {writes}"
+
+
+def test_agents_read_keeps_what_realms_roster_uses():
+    # roster.py tool_prefixes: context7, datahub, k8s, grafana, trino, postgres, neo4j, context, perplexity — all served by
+    # weyland_fleet, Context7 and Perplexity. Dropping one would leave a Realm agent tool-less.
+    grants = r.desired("agents-read")
+    assert {"weyland_fleet", "Context7", "Perplexity"} <= set(grants)
+    assert grants["Agent_Memory"] == sorted(r.MEMORY_READ)

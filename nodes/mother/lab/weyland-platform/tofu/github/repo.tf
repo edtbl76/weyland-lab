@@ -26,7 +26,7 @@ resource "github_repository" "weyland_lab" {
   allow_auto_merge            = false
   allow_update_branch         = false
   allow_forking               = true
-  delete_branch_on_merge      = false
+  delete_branch_on_merge      = true # matches live; owner kept it on (2026-10-14)
   web_commit_signoff_required = false
 
   merge_commit_title          = "MERGE_MESSAGE"

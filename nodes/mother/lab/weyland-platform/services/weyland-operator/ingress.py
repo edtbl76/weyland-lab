@@ -1,8 +1,8 @@
 """Telegram long-poll ingress for the operator (B66 Part 2).
 
-One asyncio task: getUpdates (offset-tracked) → per message → allowlist → guard-in → session-aware agent → guard-out
+One asyncio task: getUpdates (offset-tracked) → per message → allowlist (the sender, B209) → guard-in → session-aware agent → guard-out
 → reply → persist. Blocking work (the LangGraph agent + psycopg2 session I/O) runs in asyncio.to_thread so the event
-loop (and /health) stays responsive. Non-allowlisted chats are ignored silently. The offset advances BEFORE handling
+loop (and /health) stays responsive. Messages from people not on the allowlist are ignored silently. The offset advances BEFORE handling
 so a poison message can't wedge the loop."""
 import asyncio
 import os
@@ -17,14 +17,28 @@ import session
 import telegram
 from guard import guard
 
-_ALLOWED = {s.strip() for s in os.getenv("TELEGRAM_ALLOWED_USERS", "").split(",") if s.strip()}
+# B209 (2026-10-14): the allowlist names PEOPLE (Telegram user ids), checked on every message against `from.id`. It used
+# to match the chat id, so in an allowlisted group any member's "yes" fired a pending act. A private chat's id equals its
+# user's id, so a pre-B209 private-chat entry still admits that person. Group chats are admitted only when listed in
+# TELEGRAM_ALLOWED_CHATS, and the sender must still be an allowed user.
+_USERS = {s.strip() for s in os.getenv("TELEGRAM_ALLOWED_USERS", "").split(",") if s.strip()}
+_CHATS = {s.strip() for s in os.getenv("TELEGRAM_ALLOWED_CHATS", "").split(",") if s.strip()}
 _MSGS = Counter("operator_telegram_messages_total", "Telegram messages by outcome", ["outcome"])
 _AFFIRM = {"yes", "y", "yep", "yeah", "yup", "confirm", "ok", "okay", "sure", "go", "do it", "proceed"}
 _NEGATE = {"no", "n", "nope", "cancel", "stop", "abort", "nvm", "nevermind", "never mind"}
 
 
-def _allowed(chat_id: int) -> bool:
-    return str(chat_id) in _ALLOWED
+def _sender(msg: dict) -> int | None:
+    """The allowed person who sent `msg`, or None. Refuses a message with no sender (a channel post) and one sent as an
+    anonymous group admin (`sender_chat` set): no person, no authority. In a group, the chat must also be listed."""
+    sender = msg.get("from") or {}
+    uid = sender.get("id")
+    if uid is None or msg.get("sender_chat") or str(uid) not in _USERS:
+        return None
+    chat = msg.get("chat") or {}
+    if chat.get("type") == "private":
+        return uid if chat.get("id") == uid else None
+    return uid if str(chat.get("id")) in _CHATS else None
 
 
 async def _handle(client: httpx.AsyncClient, msg: dict) -> None:
@@ -32,10 +46,11 @@ async def _handle(client: httpx.AsyncClient, msg: dict) -> None:
     text = msg.get("text", "")
     if not text:
         return
-    if not _allowed(chat_id):
+    uid = _sender(msg)
+    if uid is None:
         _MSGS.labels("ignored").inc()
         return
-    actor = f"operator:telegram:{chat_id}"
+    actor = f"operator:telegram:{uid}"
     history, pending = await asyncio.to_thread(session.load, chat_id)
     low = text.strip().lower()
 

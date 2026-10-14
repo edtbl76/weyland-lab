@@ -187,3 +187,55 @@ def test_shadow_is_off_by_default_and_then_never_called(sweep, shadow, monkeypat
     monkeypatch.setattr(incidents.decide, "SHADOW", False)
     asyncio.run(incidents.sweep_once(None))
     assert shadow == [] and len(sweep["sent"]) == 2
+
+
+# --- B209 (2026-10-14): the sweep's digest is LLM text written from untrusted pod logs, sent to Telegram. Every OUTPUT
+# validator in weyland-guard is SHADOW (record-only) and none detects secrets, so the operator redacts deterministically
+# before sending, and a redaction failure drops the message instead of sending raw text (fail closed). -----------------
+@pytest.mark.parametrize("secret", [
+    "ghp_" + "A" * 36,                                        # GitHub classic token
+    "github_pat_" + "B" * 22 + "_" + "C" * 59,                # GitHub fine-grained token
+    "AKIA" + "ABCDEFGHIJKLMNOP",                              # AWS access key id
+    "sk-ant-api03-" + "x" * 40,                               # Anthropic key
+    "sk-" + "y" * 48,                                         # OpenAI-style key
+    "xoxb-123456789012-123456789012-" + "z" * 24,             # Slack bot token
+    "123456789:" + "Q" * 35,                                  # Telegram bot token
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJlLXZhbHVl",   # a JWT
+])
+def test_redact_removes_known_token_shapes(secret):
+    out = incidents._redact(f"the pod logged {secret} before it crashed")
+    assert secret not in out and "[REDACTED]" in out
+    assert out.startswith("the pod logged ") and out.endswith(" before it crashed")
+
+
+def test_redact_keeps_the_key_name_but_drops_its_value():
+    out = incidents._redact("env: PASSWORD=hunter2hunter2 api_key: abc123def456 token=t0k3n-value")
+    assert "hunter2hunter2" not in out and "abc123def456" not in out and "t0k3n-value" not in out
+    assert "PASSWORD=" in out and "api_key:" in out and "token=" in out
+
+
+def test_redact_drops_the_password_in_a_connection_url():
+    out = incidents._redact("dsn postgresql://weyland:s3cretpw@weyland-postgres:5432/weyland failed")
+    assert "s3cretpw" not in out and "postgresql://weyland:[REDACTED]@weyland-postgres:5432/weyland" in out
+
+
+def test_redact_removes_a_private_key_block():
+    block = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----"
+    out = incidents._redact(f"found:\n{block}\ndone")
+    assert "b3BlbnNzaC1rZXktdjEAAAAA" not in out and "[REDACTED]" in out and out.endswith("done")
+
+
+def test_redact_leaves_ordinary_incident_text_alone():
+    text = "PodCrashLooping on api-1: OOMKilled 3 times in 10m; memory limit 512Mi, last restart 14:02."
+    assert incidents._redact(text) == text
+
+
+def test_safe_digest_drops_the_message_when_redaction_fails(monkeypatch):
+    def _boom(_text):
+        raise RuntimeError("regex engine failure")
+    monkeypatch.setattr(incidents, "_redact", _boom)
+    assert incidents._safe_digest("anything") is None      # None = do not send; never the raw text
+
+
+def test_safe_digest_returns_the_redacted_text():
+    assert incidents._safe_digest("key ghp_" + "A" * 36) == "key [REDACTED]"

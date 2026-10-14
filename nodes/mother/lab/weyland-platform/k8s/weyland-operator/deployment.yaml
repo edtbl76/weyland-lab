@@ -131,12 +131,17 @@ spec:
               valueFrom: { secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_USER } }
             - name: WEYLAND_DB_PASSWORD
               valueFrom: { secretKeyRef: { name: weyland-postgres-secret, key: POSTGRES_PASSWORD } }
-            # Telegram ingress — token + allowlist from weyland-operator-secret (your @BotFather token + chat_id).
+            # Telegram ingress — token + allowlist from weyland-operator-secret (your @BotFather token + allowed users).
             # Absent token → ingress stays off and only the HTTP surface runs (graceful).
+            # B209: TELEGRAM_ALLOWED_USERS holds PEOPLE (user ids), checked against each message's sender; a private
+            # chat's id equals its user's id. TELEGRAM_ALLOWED_CHATS (optional, absent today) admits group chats, and
+            # the sender must still be an allowed user.
             - name: TELEGRAM_BOT_TOKEN
               valueFrom: { secretKeyRef: { name: weyland-operator-secret, key: TELEGRAM_BOT_TOKEN, optional: true } }
             - name: TELEGRAM_ALLOWED_USERS
               valueFrom: { secretKeyRef: { name: weyland-operator-secret, key: TELEGRAM_ALLOWED_USERS, optional: true } }
+            - name: TELEGRAM_ALLOWED_CHATS
+              valueFrom: { secretKeyRef: { name: weyland-operator-secret, key: TELEGRAM_ALLOWED_CHATS, optional: true } }
             # B45 — enrich-only incident sweep: the agent READS Prometheus `ALERTS{alertstate="firing"}` off the
             # critical path (which unifies blackbox synthetic downs + guardrail/service alerts), correlates logs/pods,
             # and posts a proactive Telegram digest to the first TELEGRAM_ALLOWED_USERS chat. Set "false" to disable.

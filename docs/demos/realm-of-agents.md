@@ -11,6 +11,10 @@ Concept + decoder ring: [concepts/realm-of-agents.md](../concepts/realm-of-agent
 **Brain:** every agent runs on **Claude Haiku** (a Realm-wide `REALM_MODEL` override via LiteLLM's `wl-agentic` lane) —
 fast, reliable, and off the lab's local GPU. Tools load from the Bifrost VK; every hop is an MLflow trace.
 
+**Free by default (B209, 2026-10-14):** `POST /route` is free-only unless the caller sends `"allow_paid": true` (the
+operator's `delegate_to_realm` does); `realm.weyland.lab` asks for a Keycloak login, and in-cluster callers are limited
+by a NetworkPolicy. The CLI steps below run inside the Realm pod on `localhost`, which the policy doesn't affect.
+
 **Free-only requests (2026-10-12):** `POST /route` with `"allow_paid": false` runs the whole dispatch on the free local
 `wl-judge` lane (qwen2.5:7b on rogueone) with LiteLLM fallbacks off, so an automatic caller spends nothing. The
 ship-images Realm transaction uses it: a code-review question with a planted bug (`return a - b`) routed to huginn and
@@ -103,10 +107,12 @@ sequenceDiagram
   R-->>B: final · done
 ```
 
-**Stream it from the CLI** (the exact events the Console consumes):
+**Stream it from the CLI** (the exact events the Console consumes). The host asks for a Keycloak login since B209, so
+stream from inside the pod:
 ```
-curl -N -sk -X POST https://realm.weyland.lab/route/stream -H "content-type: application/json" -d '{"message":"design & test a semver parser"}'
+kubectl -n weyland exec deploy/realm-of-agents -c realm-of-agents -- python3 -c "import http.client,json;c=http.client.HTTPConnection('localhost',8080,timeout=300);c.request('POST','/route/stream',json.dumps({'message':'design & test a semver parser'}),{'content-type':'application/json'});r=c.getresponse();[print(l.decode().rstrip()) for l in r if l.strip()]"
 ```
+Unauthenticated, through the host: `curl -sk -o /dev/null -w '%{http_code}\n' https://realm.weyland.lab/agents` → `302` (to Keycloak).
 
 ## The picture
 
