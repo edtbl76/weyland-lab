@@ -89,7 +89,7 @@ spec:
     spec:
       containers:
         - name: feast-ui
-          image: registry.weyland.lab/feast-server:git-b1a20d8b
+          image: registry.weyland.lab/feast-server:git-1effc3a6
           imagePullPolicy: IfNotPresent
           command: ["sh", "/scripts/launch.sh"]
           ports:
