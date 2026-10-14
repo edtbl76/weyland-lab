@@ -4,7 +4,8 @@
 # each panel overlays all four by `{{job}}`. The job set is hardcoded (NOT a $job template variable) on
 # purpose: check-dashboard-coverage.sh greps panel queries for `job=`/`job=~`, and a `$job` variable
 # renders as `job=~"$job"` which matches no real job — the alternation below is what makes these four
-# count as covered. Deeper request-level boards land if/when these services add HTTP instrumentation.
+# count as covered. Deeper request-level boards land if/when these services add HTTP instrumentation. B207 (2026-10-14)
+# adds a last row for weyland-tool-server: tool_server_guard_failures_total, read by the GuardCallsFailing alert.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -82,6 +83,12 @@ data:
         {"type": "stat", "title": "Jev spend (30d)", "datasource": {"type": "prometheus", "uid": "prometheus"},
          "gridPos": {"h": 8, "w": 6, "x": 18, "y": 34},
          "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 4}},
-         "targets": [{"expr": "sum(increase(operator_decide_input_tokens_total{job=\"weyland-operator\",backend=\"jev\"}[30d])) * 0.042 / 1e6", "refId": "A"}]}
+         "targets": [{"expr": "sum(increase(operator_decide_input_tokens_total{job=\"weyland-operator\",backend=\"jev\"}[30d])) * 0.042 / 1e6", "refId": "A"}]},
+        {"type": "row", "title": "weyland-tool-server — guard calls that got no answer (B207: input/output went out unguarded, act was refused)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 42}},
+        {"type": "timeseries", "title": "Guard failures by hook · cause (1h) — alert: GuardCallsFailing", "datasource": {"type": "prometheus", "uid": "prometheus"},
+         "gridPos": {"h": 8, "w": 24, "x": 0, "y": 43},
+         "fieldConfig": {"defaults": {"unit": "short"}},
+         "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["last", "max"]}},
+         "targets": [{"expr": "sum by (hook, cause) (increase(tool_server_guard_failures_total{job=\"weyland-tool-server\"}[1h]))", "legendFormat": "{{hook}} · {{cause}}", "refId": "A"}]}
       ]
     }

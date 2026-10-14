@@ -164,3 +164,50 @@ spec:
       port: 8080
       targetPort: 8080
       nodePort: 30080
+---
+# B207 DoD (2026-10-14) — the tool-server is scraped again. B70 Part 2 retired its ServiceMonitor when the verdict metrics
+# moved to weyland-guard; it now exports tool_server_guard_failures_total{hook,cause}: guard calls that got no usable
+# answer. Content hooks fail open and act fails closed, and both are only safe when someone hears about it.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: weyland-tool-server
+  namespace: weyland
+spec:
+  selector:
+    matchLabels:
+      app: weyland-tool-server
+  endpoints:
+    - port: http
+      path: /metrics
+---
+# GuardCallsFailing — routes to the Weyland Alerts Telegram chat (release: monitoring, kube-prometheus-stack ruleSelector).
+# act is critical and fires on the first failure: real acts are rare (none in the 21 days before B207), so one refused act
+# means the authority path is broken (guard down, or the mesh refusing the tool-server's identity: authz-guard-act.yaml).
+# input/output is a warning held 10m: answers went out unguarded, the product kept working.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: weyland-tool-server
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: weyland-tool-server-guard
+      rules:
+        - alert: GuardCallsFailing
+          expr: sum by (cause) (increase(tool_server_guard_failures_total{job="weyland-tool-server",hook="act"}[10m])) > 0
+          labels:
+            severity: critical
+          annotations:
+            summary: "The tool-server could not get an act verdict ({{ $labels.cause }}): acts are being refused"
+            description: "weyland-tool-server's guard calls on the ACT hook got no usable answer, so it refused the act (fail closed, B207). cause=bad_response with weyland-guard healthy usually means the mesh denied the tool-server's identity (k8s/istio/authz-guard-act.yaml, ServiceAccount weyland-tool-server). Check: kubectl -n weyland logs deploy/weyland-tool-server | grep '\\[guard\\]'"
+        - alert: GuardCallsFailing
+          expr: sum by (hook, cause) (increase(tool_server_guard_failures_total{job="weyland-tool-server",hook=~"input|output"}[10m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "The tool-server is answering unguarded: {{ $labels.hook }} guard calls failing ({{ $labels.cause }})"
+            description: "weyland-tool-server's {{ $labels.hook }} guard calls got no usable answer for 10m, so answers went out unguarded (content fails open). Check weyland-guard: kubectl -n weyland rollout status deploy/weyland-guard"

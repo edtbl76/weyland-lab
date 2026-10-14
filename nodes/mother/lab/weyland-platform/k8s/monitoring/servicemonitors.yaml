@@ -54,8 +54,8 @@ spec:
     - port: metrics         # CoreDNS :9153 prometheus plugin
       path: /metrics
 ---
-# B70 Part 2 — the weyland-tool-server ServiceMonitor was retired: its only series were the B14 guardrail verdicts,
-# which now come from weyland-guard's ServiceMonitor. (Tool-server pod cpu/mem still come from cAdvisor.)
+# B70 Part 2 retired the weyland-tool-server ServiceMonitor here (its only series were the B14 guardrail verdicts,
+# now from weyland-guard). B207 (2026-10-14) restored one, beside the deployment in k8s/weyland-tool-server.yaml.
 # MinIO (ns minio). Metrics served on the API port; requires MINIO_PROMETHEUS_AUTH_TYPE=public
 # on the deployment (set there) so this scrape needs no bearer token. Cross-namespace discovery
 # works because the stack sets serviceMonitorSelectorNilUsesHelmValues: false (all namespaces).

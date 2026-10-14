@@ -1525,6 +1525,50 @@ issue ids and numbers leave rogueone, never prompt text.
 Flow: [flow-issue-time-attribution.md](diagrams/flow-issue-time-attribution.md). Runbook:
 [issue-time.md](runbooks/issue-time.md). Demo: [issue-time.md](demos/issue-time.md).
 
+### 10g. Authority fails closed — enforcing the act guard (B207 · B208, 2026-10-13/14)
+
+**The defect: a decision nobody enforced.** `policy.gate` (weyland-guard, ACT hook) ran in `block` mode from
+2026-07-29 and was documented as enforcing. The tool-server's three act endpoints called `_guard(Hook.ACT, …)` and
+**discarded the return value**, so for 2.5 months every refusal was written to `guardrail_verdicts` while the job
+launched anyway. Every check that looked at it read the guard's answer, never the endpoint's behaviour. Who could act
+was still limited (the MCP gateway and an Istio DENY admitted only the gateway's identity); which tools, and how often,
+was not. Zero real acts had been made in 21 days, so enforcing broke no caller.
+
+**Four layers, each closing a different hole:**
+
+```mermaid
+flowchart LR
+    C["caller"] --> M1{"Istio: act paths<br/>gateway identity only?"}
+    M1 -- no --> R1["403 RBAC"]
+    M1 -- yes --> A1{"tool-server: path has<br/>%2F / %5C ?"}
+    A1 -- yes --> R2["400 (encoded separator)"]
+    A1 -- no --> G["_guard_act → POST /guard/act"]
+    G --> M2{"Istio: /guard/act<br/>tool-server identity only?"}
+    M2 -- no --> R3["403 RBAC (counted: bad_response)"]
+    M2 -- yes --> P{"policy.gate"}
+    P -- block --> R4["403 blocked by policy.gate — nothing launches"]
+    P -- allow --> L["launch the Dagster job"]
+    G -. guard unreachable / garbage .-> R5["403 guard-unavailable (fail closed, counted)"]
+```
+
+| Hole found | Fix | Alternatives weighed | Why this one |
+|---|---|---|---|
+| The verdict was ignored | `_guard_act` raises 403 before launch | enforce only at the gateway | the gateway can't see the guard's verdict; the endpoint that launches is the only place that can refuse |
+| A guard outage allowed acts (every hook failed open) | ACT fails **closed**; input/output still open; a missing or crashing ACT validator counts as block inside the guard | fail closed on every hook | content guards failing closed would take answers offline with every guard blip; authority must not |
+| `/pipeline%2Ftrigger` passed the exact-path DENY (Istio matches raw, uvicorn decodes) | both apps refuse `%2F`/`%5C` with 400 before routing | mesh-wide `pathNormalization` | the right long-term fix, but it changes path handling for all 83 apps, so it's parked in B209 rather than slipped into a security fix |
+| `/guard/act` takes the actor from the body, so any pod could impersonate an actor or burn its rate cap | Istio `guard-act-toolserver-only` + a dedicated `weyland-tool-server` ServiceAccount | an HMAC between tool-server and guard | the mesh already carries a SPIFFE identity; an identity rule was meaningless only because the tool-server shared `default` with ~95 pods |
+| Guard failures were silent | `tool_server_guard_failures_total{hook,cause}` + `GuardCallsFailing` (act critical on the first failure; input/output warning after 10m) | a log line only (it already printed one) | fail-open is safe only when loud, and a mesh denial (plain-text `RBAC: access denied`) would otherwise refuse every act with no signal |
+| The guard's own fixes would never have shipped | `weyland-guard` joined `scripts/ci/images.tsv` with a ship transaction (`txn_guard`) | keep hand-building `vN` tags | a hand-tagged image lets a pushed fix sit unbuilt while the ship loop prints green; the first CI build shipped as `git-f5d43213` |
+
+**B208, the same lesson in API governance.** The nightly `api-drift` job reported "match" on any non-breaking
+difference, so the tool-server served a field for two weeks that its committed contract lacked. It now names additive
+drift and alerts (`ApiContractStale`, warning), and fails when it can't deliver the alert. Concept:
+[concepts/api-lifecycle.md](concepts/api-lifecycle.md) and [flow-api-lifecycle](diagrams/flow-api-lifecycle.md).
+
+**Proven live 2026-10-14** ([demos/act-guard.md](demos/act-guard.md)): LAN act → `403 RBAC`; `/guard/act` from
+weyland-agent → `403 RBAC`; a non-allowlisted actor → `403 blocked by policy.gate` with nothing launched; `%2F` → `400`;
+all six API contracts identical. The lesson, kept in grkit: **test the enforcement point, not the decision.**
+
 ## 11. Operational lessons (why the CTs are tuned the way they are)
 
 Both stem from the **same root: an LXC exposes the *host's* resources, not the container's cgroup**,

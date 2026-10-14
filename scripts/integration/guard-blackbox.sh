@@ -13,9 +13,9 @@
 #
 # REACHABILITY (verified against the manifests, not assumed). The guard is meshed but the mesh default
 # is PERMISSIVE — only `app: weyland-postgres` is STRICT — so a non-meshed in-cluster caller reaches
-# weyland-guard.weyland.svc.cluster.local:8080 in plaintext. The only AuthorizationPolicy in the
-# namespace targets the tool-server's act paths, not the guard, so /guard/*, /health and /ready are
-# open to any in-cluster pod. This runs from a Woodpecker step (a k8s-backend pod, in-cluster).
+# weyland-guard.weyland.svc.cluster.local:8080 in plaintext. /guard/input, /guard/output, /health and /ready are
+# open to any in-cluster pod; /guard/act admits only the tool-server's identity (k8s/istio/authz-guard-act.yaml,
+# B207), which step 5 asserts. This runs from a Woodpecker step (a k8s-backend pod, in-cluster).
 #
 # THREE OUTCOMES, NEVER CONFLATED (mirrors the test lanes and ship-images smoke_ok):
 #   0  every assertion passed

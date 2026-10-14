@@ -76,3 +76,26 @@ sum by (brain, reason) (increase(operator_brain_selected_total[24h]))
 ```
 sum by (outcome) (increase(operator_incident_sweeps_total[24h]))
 ```
+
+## Guards: calls that got no answer, and act verdicts (B207)
+
+When the tool-server can't get a usable answer from weyland-guard, content hooks (`input`, `output`) let the request
+through unguarded and the `act` hook refuses the action. Each case is counted. Runbook:
+[../runbooks/guardrails.md](../runbooks/guardrails.md); demo: [../demos/act-guard.md](../demos/act-guard.md).
+
+**Guard failures by hook and cause, last 24 hours:**
+```
+sum by (hook, cause) (increase(tool_server_guard_failures_total{job="weyland-tool-server"}[24h]))
+```
+- `cause`: `connection` (guard unreachable), `timeout`, or `bad_response` (not JSON, or no allow/block decision). A
+  `bad_response` on `act` while the guard is healthy usually means the mesh refused the tool-server's identity
+  (`RBAC: access denied`, `k8s/istio/authz-guard-act.yaml`).
+- **No data** means no guard call has failed since the pod started. That's the healthy state, not a missing metric.
+- Alert: `GuardCallsFailing` (act: critical, on the first failure; input/output: warning, after 10 minutes).
+
+**What `policy.gate` decided about acts, last 24 hours:**
+```
+sum by (decision) (increase(guardrail_verdicts_total{validator="policy.gate"}[24h]))
+```
+`block` counts refusals (an actor not on the allowlist, no actor, or over the rate cap). Since B207 a `block` here means
+a `403` and nothing launched; before it, the job launched anyway.

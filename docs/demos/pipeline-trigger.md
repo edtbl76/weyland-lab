@@ -19,18 +19,9 @@ are the same `launchRun`, fired by the Dagster daemon instead of an API caller.
   (NodePort; `/docs`, `/openapi.json`).
 - Login: `emangini` / `weyland_dev_password`.
 
-Real schedules (from `weyland_pipeline/schedules` + `definitions.py`):
-
-| Schedule | Job | Cron (America/New_York) | Default |
-|---|---|---|---|
-| `weyland_ingestion_schedule` | `weyland_ingestion_job` | `17 2 * * *` | RUNNING |
-| `weyland_catalog_schedule` | `weyland_catalog_job` | `50 */6 * * *` | RUNNING |
-| `datahub_catalog_emit_schedule` | `datahub_catalog_emit_job` | `40 */6 * * *` | RUNNING |
-| `weyland_ai_session_schedule` | `weyland_ai_session_job` | `0 */4 * * *` | RUNNING |
-| `weyland_timeseries_schedule` | `weyland_timeseries_job` | `25 */4 * * *` | RUNNING |
-| `weyland_dbt_schedule` | `weyland_dbt_job` | `0 6 * * 0` | RUNNING |
-| `weyland_datasets_music_land_schedule` | `weyland_datasets_music_land_job` | `0 3 * * *` | STOPPED |
-| `weyland_datasets_health_land_schedule` | `weyland_datasets_health_land_job` | `0 4 * * *` | STOPPED |
+Schedules: the live set, times and RUNNING/STOPPED state are in **[../schedules.md](../schedules.md)** (the single
+source of truth for every timer; `definitions.py` holds the code). This page used to copy that table and drifted
+(it still showed the 6-hourly catalog emit, daily since 2026-08-07), so it points there instead.
 
 Real sensors (`weyland_pipeline/sensors`, `lancedb_sync`):
 
@@ -48,35 +39,40 @@ Real sensors (`weyland_pipeline/sensors`, `lancedb_sync`):
 3. **Sensor path:** open `datasets_music_raw_sensor`. It is STOPPED by default — toggle it on, then
    use **Test Sensor** to evaluate the cursor against MinIO. Dropping a new CSV under
    `datasets/music/raw/` produces a `RunRequest` for `weyland_datasets_music_transform_job`.
-4. **API path:** open the launched run in **Runs** to watch it, or launch one from the tool-server
-   (below) and follow the returned `run_id` in the Dagster UI.
+4. **API path:** open the launched run in **Runs** to watch it, or launch one with `launchRun` (below) or through
+   the operator, and follow the returned run id in the Dagster UI.
 
 ## CLI walkthrough
 
-Fire a job on demand through the tool-server (the `job_name` enum is
-`weyland_ingestion_job` | `weyland_eval_job` | `weyland_eval_score_job`, default the first):
+**On demand through the tool-server is an ACT, and acts are guarded** (B14 `act` hook, enforced since B207,
+2026-10-14). Only the MCP gateway's identity may reach `/pipeline/trigger` (Istio), and the actor it forwards must be on
+`policy.gate`'s allowlist (`weyland-operator`). So the operator path is the supported way to trigger through the API: ask
+the operator in Telegram ("run the ingestion job") and confirm. A direct call from the LAN is refused by the mesh, which is
+the expected result and the negative case:
 
-[mother] `curl -s -X POST http://mother:30080/pipeline/trigger -H 'Content-Type: application/json' -d '{"job_name":"weyland_ingestion_job"}'`
+`curl -s -o /dev/null -w '%{http_code}\n' -X POST http://mother:30080/pipeline/trigger -H 'Content-Type: application/json' -d '{"job_name":"weyland_ingestion_job"}'`
+→ `403` (body `RBAC: access denied`).
 
-Default job (omit the body's job_name):
+The guard's own refusal (an actor not on the allowlist) is the drill in [act-guard.md](act-guard.md).
 
-[mother] `curl -s -X POST http://mother:30080/pipeline/trigger -H 'Content-Type: application/json' -d '{}'`
+Launch any job directly through the Dagster API, recorded in **Runs** (the documented form; `dagster job execute` in a pod
+runs ephemerally and is never recorded):
 
-Launch a job the API enum doesn't cover (e.g. the catalog refresh) from the user-code pod:
-
-[mother] `kubectl -n weyland exec deploy/dagster-user-code -- dagster job execute -j weyland_catalog_job -m weyland_pipeline.definitions`
+```
+kubectl exec -n weyland deploy/dagster-user-code -c dagster-user-code -- python3 -c "import json,urllib.request;q='mutation(\$p:ExecutionParams!){launchRun(executionParams:\$p){__typename ... on LaunchRunSuccess{run{runId}} ... on PythonError{message}}}';v={'p':{'selector':{'repositoryLocationName':'weyland_pipeline','repositoryName':'__repository__','jobName':'weyland_catalog_job'},'runConfigData':{}}};r=urllib.request.Request('http://dagster-webserver.weyland.svc.cluster.local:3000/graphql',data=json.dumps({'query':q,'variables':v}).encode(),headers={'Content-Type':'application/json'});print(json.load(urllib.request.urlopen(r))['data']['launchRun'])"
+```
 
 Confirm the schedule/sensor daemon state:
 
-[mother] `kubectl -n weyland exec deploy/dagster-user-code -- dagster schedule list -m weyland_pipeline.definitions`
-
-[mother] `kubectl -n weyland exec deploy/dagster-user-code -- dagster sensor list -m weyland_pipeline.definitions`
+`kubectl -n weyland exec deploy/dagster-user-code -- dagster schedule list -m weyland_pipeline.definitions`
 
 ## Expected result
 
-- `/pipeline/trigger` returns `{"status":"ok","run_id":"<uuid>","job_name":"weyland_ingestion_job"}`.
+- The direct LAN call returns `403` (`RBAC: access denied`). Through the operator, `/pipeline/trigger` returns
+  `{"status":"ok","run_id":"<uuid>","job_name":"weyland_ingestion_job"}`.
+- `launchRun` prints `{'__typename': 'LaunchRunSuccess', 'run': {'runId': '<uuid>'}}`.
 - That `run_id` appears in **Runs** at `dagster.weyland.lab` and proceeds independently.
-- `schedule list` / `sensor list` show the RUNNING/STOPPED states from the tables above.
+- `schedule list` / `sensor list` show the RUNNING/STOPPED states listed in schedules.md.
 
 ## Cleanup / teardown
 

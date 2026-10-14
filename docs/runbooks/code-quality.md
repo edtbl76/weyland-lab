@@ -16,7 +16,9 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
 - Weekly CronJobs (clone → scan → Port): `k8s/code-quality/scan-suite.yaml` (`code-scan-suite`, Sun 13:00 UTC) +
   `k8s/sonarqube/sonar-scan.yaml` (`sonar-scan`, Sun 12:00 UTC). **On-demand — the per-batch DoD Pillar 7 gate:**
   `./scripts/run-scan-suite.sh` (clears any prior adhoc job → launches from `cronjob/code-scan-suite` → waits →
-  prints the findings to triage; runs from anywhere with kubectl). Raw form:
+  prints the findings to triage; runs from anywhere with kubectl). **Exit 0 only when the job completed;** a job that
+  outlives the wait (default 900s; a full run takes over 30 minutes) exits **2**, `NOT a clean scan`, with the partial
+  logs. Pass a longer wait: `./scripts/run-scan-suite.sh 3600`. (It exited 0 on a timeout until 2026-10-14.) Raw form:
   `kubectl -n weyland create job <name>-smoke --from=cronjob/<code-scan-suite|sonar-scan>`.
 - **SonarQube pre-check before handoff** (2026-10-13) — the CI `sonar-gate` step blocks the build and the nightly ship,
   so scan changed files first, on rogueone:

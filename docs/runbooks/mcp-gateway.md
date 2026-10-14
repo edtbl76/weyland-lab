@@ -122,6 +122,23 @@ Closed by an Istio **`AuthorizationPolicy`** (`k8s/istio/authz-toolserver-act.ya
 plaintext caller with no principal** — is denied at L7 before the app runs; read paths stay open. Requires the gateway
 **meshed with its own SA** (both ends meshed → auto-mTLS carries the SPIFFE identity).
 
+**Exact-path rules and encoded slashes (B207, 2026-10-14).** The DENY matches the raw path, and Istio does not decode
+`%2F`, but uvicorn does: `GET /pipeline%2Ftrigger` from a non-gateway pod reached FastAPI (a `405`, not `403 RBAC`).
+Both the tool-server and weyland-guard now refuse any path containing `%2F`/`%5C` with `400` before routing. Mesh-wide
+`pathNormalization` would fix this class for every service, but it touches all 83 apps, so it's parked in B209.
+
+**The guard's own act route is tool-server-only (B207).** `/guard/act` takes the actor from the request body, so any pod
+reaching it could impersonate an actor or burn its rate cap. `k8s/istio/authz-guard-act.yaml` denies `/guard/act` to every
+principal except `cluster.local/ns/weyland/sa/weyland-tool-server`. The tool-server now runs as its own ServiceAccount;
+until 2026-10-13 it ran as `default`, shared with about 95 pods, which made any identity rule meaningless. A refused call
+gets Istio's plain-text `RBAC: access denied`, which the tool-server counts as `bad_response` and answers by refusing the
+act. The **`GuardCallsFailing`** alert (critical on the act hook) is what tells you the identity broke.
+
+**Decided is not enforced (B207).** From 2026-07-29 to 2026-10-13 the act endpoints called the guard and ignored its
+answer: `policy.gate` recorded `block` while the job launched. The enforcement point is now `_guard_act` in the
+tool-server (403 before launch; guard unreachable → refused). Test it with the drill in
+[demos/act-guard.md](../demos/act-guard.md), not by reading `guardrail_verdicts`, which only shows the decision.
+
 **Ordering:** mesh the gateway FIRST (auto-sync `mcp-gateway`), confirm it's up, THEN push the policy change —
 `istio-config` now auto-syncs, so the ordering is enforced by **commit order**, not a manual sync. If the policy lands
 while the gateway is un-meshed (no principal) the gateway's own acts get denied too.

@@ -40,10 +40,14 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 
 `mother`, NodePort **30080** → `http://mother:30080` (FastAPI: `/docs`, `/openapi.json`).
 
+**Encoded path separators are refused** (B207, 2026-10-14): a path carrying `%2F` or `%5C` gets `400 encoded path
+separators are not accepted` before routing. Istio matches the raw path while uvicorn decodes it, so `/pipeline%2Ftrigger`
+slipped past the exact-path act DENY rule. weyland-guard refuses them the same way.
+
 | Route | Method | Purpose |
 |---|---|---|
 | `/health` `/ready` `/status` | GET | liveness / readiness / consolidated status (incl. `llm`) |
-| `/metrics` | GET | Prometheus exposition (default process/GC collectors; **B70 Part 2** — guardrail verdicts moved to `weyland-guard`) |
+| `/metrics` | GET | Prometheus exposition (default process/GC collectors; **B70 Part 2** — guardrail verdicts moved to `weyland-guard`). **B207:** `tool_server_guard_failures_total{hook,cause}`, guard calls that got no usable answer (scraped again; alert `GuardCallsFailing`) |
 | `/context/search?backend=<pgvector\|qdrant\|weaviate\|neo4j>` | POST | vector retrieval (B14 `input` hook → `weyland-guard`, fail-open) |
 | `/context/ask` | POST | **RAG** — retrieve → local LLM answer (per-request `model`); B14 `input` + `output` hooks → `weyland-guard` (fail-open). **B100:** emits MLflow Traces (`tool-server-rag`) + the system prompt is fetched live from the MLflow Prompt Registry (`rag_system`, fail-safe) |
 | `/models` | GET | list selectable Ollama models |
@@ -141,7 +145,7 @@ layer; the tool-server (and the coming `weyland-agent`) POST here instead of run
 |---|---|---|
 | `/guard/input` | POST | `{request_id, query, actor?}` → `prompt_guard.injection` + `llama_guard.safety`. Returns `{decision: allow\|block, verdict?}` |
 | `/guard/output` | POST | `{request_id, answer, sources:[{content}], actor?}` → `pii.presidio` + `grounding.nli` + `llama_guard.safety` (safety = toxicity, B117) |
-| `/guard/act` | POST | `{request_id, tool, params?, actor?}` → `policy.audit` (audit) + `policy.gate` (**enforcing `block` live 2026-07-29**: identity / allowlist / rate-limit — no-actor / unknown / direct acts denied; see [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md)) |
+| `/guard/act` | POST | `{request_id, tool, params?, actor?}` → `policy.audit` (audit) + `policy.gate` (**enforcing `block` live 2026-07-29**: identity / allowlist / rate-limit — no-actor / unknown / direct acts denied; see [runbooks/mcp-gateway.md](runbooks/mcp-gateway.md)). **Callable only by the tool-server** (B207, 2026-10-14): Istio `guard-act-toolserver-only` denies every other identity (`403 RBAC: access denied`), since the actor comes from the body. A missing or crashing ACT validator counts as **block** (authority fails closed) |
 | `/health` `/ready` | GET | liveness / readiness (503 until the 3 models load) |
 | `/metrics` | GET | `guardrail_verdicts_total` + `guardrail_validator_latency_ms` |
 
@@ -355,6 +359,7 @@ not meant for direct browsing. ServiceMonitors: `k8s/monitoring/servicemonitors.
 | Weaviate | `weaviate.weyland.svc:2112` | `/metrics` | NodePort auto-assigned (no fixed port) |
 | APISIX | `weyland-apisix.weyland.svc:9091` | `/apisix/prometheus/metrics` | NodePort auto-assigned (no fixed port) |
 | weyland-guard (B14 guardrails) | `weyland-guard.weyland.svc:8080` | `/metrics` | in-cluster only (ClusterIP) |
+| weyland-tool-server (B207 guard-failure counter) | `weyland-tool-server.weyland.svc:8080` | `/metrics` | `mother:30080/metrics` (NodePort) |
 | Flink (B83 JM+TM) | `weyland-flink-metrics.data-mesh.svc:9249` (headless → each JM/TM pod) | `/metrics` | via ServiceMonitor `weyland-flink` (`k8s/data-mesh/flink-metrics.yaml`); `flink_jobmanager_*` / `flink_taskmanager_*` |
 | LiteLLM gateway | `litellm.weyland.svc:4000` | `/metrics` | `http://mother:30400/metrics` (NodePort) |
 | MinIO | `minio.minio.svc:9000` | `/minio/v2/metrics/cluster` | in-cluster only (`MINIO_PROMETHEUS_AUTH_TYPE=public`, no token) |
@@ -367,7 +372,8 @@ cAdvisor) are scraped by the chart's own ServiceMonitors — not listed here.
 
 > **`weyland-guard` `/metrics` (B14):** emits `guardrail_verdicts_total` + `guardrail_validator_latency_ms`.
 > Its ServiceMonitor (`weyland-guard`) is in `k8s/weyland-guard/servicemonitor.yaml`. (B70 Part 2 retired the old
-> `weyland-tool-server` guardrail ServiceMonitor — the verdicts moved here.) The `guardrail_verdicts` Postgres table
+> `weyland-tool-server` guardrail ServiceMonitor — the verdicts moved here. B207 restored a tool-server ServiceMonitor for
+> `tool_server_guard_failures_total`, in `k8s/weyland-tool-server.yaml`.) The `guardrail_verdicts` Postgres table
 > is the durable record (and the basis for the future B1 data product); `/metrics` is the live counter view.
 
 > **Prometheus UI is not ingressed** — view targets/PromQL via

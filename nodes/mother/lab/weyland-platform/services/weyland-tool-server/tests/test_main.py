@@ -11,6 +11,7 @@ import json
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from prometheus_client import REGISTRY
 
 import main
 from guardrails.verdict import Decision, Hook
@@ -128,6 +129,46 @@ def test_guard_input_still_fails_open_on_transport_error(monkeypatch):
         raise httpx.ConnectError("guard down")
     monkeypatch.setattr(main.httpx, "post", _boom)
     assert main._guard(Hook.INPUT, "req-8", {"query": "q"}) is None
+
+
+# B207 DoD (2026-10-14): every guard failure is COUNTED by hook and cause. Failing open on content and closed on authority
+# is only safe when it is loud: a guard that silently stopped answering means unguarded answers (input/output) or every
+# act refused (act), and a mesh denial (403 "RBAC: access denied", not JSON) reads as bad_response. The GuardCallsFailing
+# alert reads this counter.
+def _failures(hook, cause):
+    return REGISTRY.get_sample_value("tool_server_guard_failures_total", {"hook": hook, "cause": cause}) or 0.0
+
+
+@pytest.mark.parametrize("hook, exc, cause", [
+    (Hook.INPUT, httpx.ConnectError("guard down"), "connection"),
+    (Hook.OUTPUT, httpx.ReadTimeout("slow"), "timeout"),
+    (Hook.ACT, httpx.ConnectError("guard down"), "connection"),
+])
+def test_every_guard_failure_is_counted_by_hook_and_cause(monkeypatch, hook, exc, cause):
+    def _boom(*a, **k):
+        raise exc
+    monkeypatch.setattr(main.httpx, "post", _boom)
+    before = _failures(hook.value, cause)
+    main._guard(hook, "req-9", {"query": "q"})
+    assert _failures(hook.value, cause) == before + 1
+
+
+def test_a_mesh_denial_is_counted_as_a_bad_response(monkeypatch):
+    class _RbacDenied:   # Istio's 403 body is plain text, so .json() raises
+        def json(self):
+            raise ValueError("RBAC: access denied")
+    monkeypatch.setattr(main.httpx, "post", lambda *a, **k: _RbacDenied())
+    before = _failures("act", "bad_response")
+    assert main._guard(Hook.ACT, "req-10", {"tool": "evals/run"}).decision == Decision.BLOCK
+    assert _failures("act", "bad_response") == before + 1
+
+
+def test_an_answered_guard_counts_no_failure(monkeypatch):
+    monkeypatch.setattr(main.httpx, "post", lambda *a, **k: _Resp({"decision": "allow"}))
+    before = _failures("input", "connection") + _failures("input", "timeout") + _failures("input", "bad_response")
+    main._guard(Hook.INPUT, "req-11", {"query": "q"})
+    after = _failures("input", "connection") + _failures("input", "timeout") + _failures("input", "bad_response")
+    assert after == before
 
 
 # ── backend health checks (fail-open error dicts + ok shaping) ───────────────────────────────────────

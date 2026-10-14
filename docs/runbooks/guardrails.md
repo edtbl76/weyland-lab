@@ -35,7 +35,10 @@ self-documenting OpenAPI, independent evolution.
   treated as `allow` on the INPUT and OUTPUT hooks, so it degrades to "not guarded", never "no answer" (verified: with
   `weyland-guard` scaled to 0, `/context/ask` still answers). On the ACT hook the tool-server refuses the act instead
   (403 `blocked by guard-unavailable: …`, B207), and inside the guard a missing or crashing ACT validator counts as
-  BLOCK — authority must not fail open.
+  BLOCK — authority must not fail open. **Both directions are loud:** every failed guard call increments
+  `tool_server_guard_failures_total{hook,cause}` (the tool-server is scraped for it), shown on the App Services
+  dashboard's last row. **`GuardCallsFailing`** fires critical on the first act failure and warning after 10 minutes of
+  input/output failures. Queries: [query/prometheus.md](../query/prometheus.md) § Guards.
 
 ## Validators & modes
 INPUT `prompt_guard.injection` + `llama_guard.safety` · OUTPUT `pii.presidio` + `grounding.nli` + `llama_guard.safety` (safety = toxicity) · ACT `policy.audit` + `policy.gate`.

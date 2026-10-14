@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
 from fastmcp.server.providers.openapi import RouteMap, MCPType
 from neo4j import GraphDatabase
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
 from pydantic import BaseModel
 from qdrant_client import QdrantClient
 from weaviate.classes.query import MetadataQuery
@@ -143,6 +143,14 @@ GUARD_BASE_URL = os.getenv("GUARD_BASE_URL", "http://weyland-guard.weyland.svc.c
 GUARD_TIMEOUT = float(os.getenv("GUARD_TIMEOUT", "10"))
 _GUARD_PATHS = {Hook.INPUT: "/guard/input", Hook.OUTPUT: "/guard/output", Hook.ACT: "/guard/act"}
 
+# B207 DoD (2026-10-14): failing open on content and closed on authority is only safe when it is LOUD. Every guard call
+# that got no usable answer is counted here; the GuardCallsFailing alert reads it (k8s/weyland-tool-server.yaml).
+# input/output failures mean answers went out unguarded; act failures mean acts were refused, including a mesh denial
+# ("RBAC: access denied" is not JSON, so it counts as bad_response).
+GUARD_FAILURES = Counter("tool_server_guard_failures_total",
+                         "Guard calls that got no usable answer, by hook and cause (content fails open, act fails closed)",
+                         ["hook", "cause"])
+
 
 def _actor(x_forwarded_consumer: str | None = Header(default=None)) -> str | None:
     """Caller identity for the audit, taken ONLY from the gateway's trusted header
@@ -155,6 +163,7 @@ def _guard_failed(hook: Hook, cause: str) -> Verdict | None:
     """What a guard failure means. INPUT/OUTPUT (content) FAIL OPEN: None = allow, so a guard outage never takes an
     answer offline. ACT (authority) FAILS CLOSED (B207, 2026-10-13): a guard that is down must not mean "anyone may
     act", so the act is refused with a verdict naming the cause."""
+    GUARD_FAILURES.labels(hook.value, cause).inc()
     print(f"[guard] {hook.value} guard failed ({cause}) — {'refusing the act' if hook == Hook.ACT else 'allowing'}",
           flush=True)
     if hook == Hook.ACT:
