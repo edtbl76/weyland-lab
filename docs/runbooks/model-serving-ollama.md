@@ -17,6 +17,16 @@ reference — they still apply to the CPU-offloaded portion of any model that ov
 
 - **Address:** `192.168.1.230` → API at **`http://192.168.1.230:11434`** (OpenAI-compatible `/v1`),
   DNS **`ollama.weyland.lab`**. LAN-bound via `OLLAMA_HOST=0.0.0.0:11434`.
+- **Firewall (B211, 2026-10-14):** Ollama has no auth, and `/api/pull`, `/api/delete` and `/api/create` change what it
+  serves. rogueone's ufw admits `:11434` only from **mother** (`192.168.1.243`: every pod's traffic arrives SNATed to
+  it) and **docker0** (`172.17.0.0/16`: the OpenHands containers); loopback stays open for local clients. The rest of the
+  LAN is denied. Applied with, and shown by:
+  ```
+  sudo ufw allow from 192.168.1.243 to any port 11434 proto tcp && sudo ufw allow from 172.17.0.0/16 to any port 11434 proto tcp && sudo ufw deny 11434/tcp
+  sudo ufw status numbered | grep 11434     # the two ALLOWs must be listed ABOVE the DENY
+  ```
+  A port rule can't tell `/api/pull` from `/api/chat`, so pods on mother can still pull or delete models; closing
+  that needs a path-filtering proxy in front of an Ollama bound to 127.0.0.1 (not done).
 - **Hardware:** RTX 5000 Ada (16 GB VRAM) + 128 GB RAM. Models that fit in VRAM run fully on GPU;
   larger models (e.g. 30B@Q4 ≈ 20 GB) offload the overflow layers to CPU/RAM.
 - **Serves:** the eval-judge panel, weyland-tool-server RAG (`/context/ask`), Open WebUI, and Hermes.
