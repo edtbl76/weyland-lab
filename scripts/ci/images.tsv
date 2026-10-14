@@ -29,3 +29,4 @@ weyland-operator	services/weyland-operator	k8s/weyland-operator/deployment.yaml
 weyland-mcp-compositor	services/weyland-mcp-compositor	k8s/mcp-servers/compositor.yaml k8s/mcp-servers/compositor-memory.yaml
 weyland-mcp-gateway	services/weyland-mcp-gateway	k8s/mcp-gateway/mcp-gateway.yaml
 realm-of-agents	services/realm-of-agents	k8s/realm-of-agents/deployment.yaml
+weyland-guard	services/weyland-guard	k8s/weyland-guard/deployment.yaml

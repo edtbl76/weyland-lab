@@ -541,6 +541,31 @@ except Exception as e:
 ' 2>/dev/null
 }
 
+# Guard (2026-10-14, B207 — joined images.tsv): the black-box contract (scripts/integration/guard-blackbox.sh), asked
+# post-deploy. `/health` must list a NON-EMPTY validator set: an empty one is a guard that answers allow to everything
+# while `/ready` is green. `/guard/input` must return a real decision (allow|block), proving the pipeline runs. Shape
+# observed live: /health {"status": "ok", "validators": [...]}; /guard/input {"decision": "allow", ...}. The act route
+# is not probed: this pod is not the tool-server, so the mesh refuses it (authz-guard-act.yaml).
+txn_guard() {
+  local pod="${1:?usage: txn_guard <pod>}"
+  kubectl -n weyland exec "$pod" -- python3 -c '
+import json, urllib.request
+base = "http://weyland-guard.weyland.svc.cluster.local:8080"
+try:
+    h = json.load(urllib.request.urlopen(base + "/health", timeout=25))
+    if not h.get("validators"):
+        print("TXN_FAIL /health lists no validators (the guard would allow everything)"); raise SystemExit
+    r = urllib.request.Request(base + "/guard/input", headers={"Content-Type": "application/json"},
+        data=json.dumps({"request_id": "ship-txn", "query": "What is the capital of France?"}).encode())
+    d = json.load(urllib.request.urlopen(r, timeout=25)).get("decision")
+    print("TXN_OK" if d in ("allow", "block") else "TXN_FAIL /guard/input returned no decision: " + repr(d))
+except SystemExit:
+    pass
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
 # Operator (2026-10-10): ask a REAL read-only question through POST /operator/ask and require a grounded answer — a
 # reply with a number in it. `/ready` only says the fleet loaded; this proves the brain answers using a tool. FREE-ONLY:
 # `"allow_paid": false` runs the unpaid local brain (the incident sweep's path), so a down local brain is a 503 and a
@@ -720,6 +745,7 @@ txn_ok() {
       weyland-dagster-user-code|weyland-dagster-base) verdict="$(txn_dagster "$pod")" ;;
       feast-server)              verdict="$(txn_feast "$pod")" ;;
       weyland-tool-server)       verdict="$(txn_tool_server "$pod")" ;;
+      weyland-guard)             verdict="$(txn_guard "$pod")" ;;
       weyland-operator)          verdict="$(txn_operator "$pod")" ;;
       realm-of-agents)           verdict="$(txn_realm "$pod")" ;;
       # NAMED, never silently passed — same discipline as smoke_ok. A CI image that runs as a Job has

@@ -9,7 +9,8 @@
 # HEADER CORRECTED 2026-08-21. It previously said "all 8 images" (it builds 11) and described the retired
 # `:vN` hand-bump convention as if it were current. It also does NOT build `ranger` — the codekb claimed it
 # did; there is no `build ranger` line here. Nothing in this repo builds ranger, or the nine other `:vN`
-# images (weyland-guard, ray-head, …); those are built by hand and undocumented. (realm-of-agents moved into CI 2026-10-08, B202.)
+# images (ray-head, …); those are built by hand and undocumented. (realm-of-agents moved into CI 2026-10-08, B202;
+# weyland-guard 2026-10-14, B207 — see docs/runbooks/guardrails.md § Build & deploy for its escape-hatch build.)
 # B135 phase 2 brings them into CI (weyland-operator moved into scripts/ci/images.tsv 2026-10-02).
 #
 # TAG DEFAULTS TO THE CI CONVENTION (`git-<short-sha>`) so an emergency build lands on the tag the manifests

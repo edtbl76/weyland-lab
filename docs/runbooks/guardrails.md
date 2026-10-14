@@ -196,7 +196,12 @@ sentence-transformers dropped, byte-equivalent so verdicts are unchanged), plus 
 
 ## Build & deploy (registry flow)
 Image is registry-based (NOT `:local`). Consumers deploy off Argo.
-- Build + push (on **rogueone**): `docker build -t registry.weyland.lab/weyland-guard:v1 <services/weyland-guard> && docker push registry.weyland.lab/weyland-guard:v1`
+- **CI builds it (since 2026-10-14, B207).** `weyland-guard` is a row in `scripts/ci/images.tsv`: a push that touches
+  `services/weyland-guard/` builds `git-<sha>`, and `scripts/ship-images.sh` merges the tag bump and verifies the
+  rollout, including a real transaction (`/health` lists validators; `/guard/input` returns a decision). Until then it
+  was hand-tagged (`v1`…`v13`), so a pushed guard change could sit unbuilt with nothing red: B207's fail-closed fixes
+  nearly did. Ship it like any image: [ship-images.md](ship-images.md).
+- **Escape hatch only** (CI unavailable), on **rogueone**: `docker build -t registry.weyland.lab/weyland-guard:git-<sha> nodes/mother/lab/weyland-platform/services/weyland-guard && docker push registry.weyland.lab/weyland-guard:git-<sha>`, then bump the tag in `k8s/weyland-guard/deployment.yaml`.
 - **Gotcha (hit twice):** large-layer pushes to the MinIO-backed registry can stall and **not finalize the manifest** —
   the pod then `ImagePullBackOff`s with `not found`. Confirm the tag landed before rolling:
   `curl -sk https://registry.weyland.lab/v2/weyland-guard/tags/list`. If missing, re-push and watch for the terminal

@@ -1125,6 +1125,45 @@ txn_stub_pod() {
   [[ "$output" == *"local brain unavailable"* ]]
 }
 
+# 2026-10-14 (B207): weyland-guard joined images.tsv. Until then it was hand-tagged, so a pushed guard change could sit
+# unbuilt with nothing red — B207's fail-closed fixes nearly did. Its transaction is the black-box contract
+# (scripts/integration/guard-blackbox.sh, observed live): /health must list a NON-EMPTY validator set (an empty set
+# answers allow to everything, the Ready-but-enforcing-nothing trap) and /guard/input must return a real decision.
+@test "TXN checks the guard, passing on a loaded validator set and a real decision" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-guard:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"no transaction"* ]]   # the guard is CHECKED, not silently unchecked
+  [[ "$output" == *"1 service(s) answered"* ]]
+}
+
+@test "TXN asks the guard for its validator set and a real input verdict" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-guard:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  # The probe is a multi-line `python3 -c` argument, so read the whole call log (calls_to sees line 1 only).
+  grep -q 'weyland-guard.weyland.svc.cluster.local:8080' "$STUB_LOG"
+  grep -q '"/health"' "$STUB_LOG"
+  grep -q '/guard/input' "$STUB_LOG"
+  grep -q '"validators"' "$STUB_LOG"
+}
+
+@test "TXN FAILS when the guard loaded NO validators — it would allow everything, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-guard:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_FAIL /health lists no validators (the guard would allow everything)'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-guard"* ]]
+  [[ "$output" == *"no validators"* ]]
+}
+
 @test "FLAG: a DISABLED weyland-ship-enabled HOLDS the ship (the only held verdict)" {
   SHIP_IMAGES_LIB=1 source "$SHIP"
   txn_stub_pod
