@@ -1487,7 +1487,7 @@ and posts one alert per broken source to Alertmanager → Telegram: `DataHubInge
 | Unscheduled sources | alert unless an accepted on-demand URN | skip them | a UI-created source nobody scheduled is exactly a silent gap |
 | Could not read | exit 2 → `ScheduledJobFailed` | log and pass | the class this exists to close is absence read as health |
 
-### 10f. Time per Linear issue — measuring agent time, not screen time (B185 lane 1, 2026-10-12/13)
+### 10f. Time per Linear issue — agent time first, owner time beside it (B185, 2026-10-12/15)
 
 **The problem.** How long did an issue take? The usual answer, time tracking on the person's machine (ActivityWatch,
 Rize, Clockify), measures the wrong thing here: the owner rarely touches an issue by hand. The agents do the work, so
@@ -1521,6 +1521,27 @@ usage is now counted once per message. Subagent logs (`<session>/subagents/`) we
 **Limits.** Attribution sticks until a prompt names the next issue (B119's 21.4 h covers a five-day walk-through).
 Claude Code prunes transcripts after about 30 days, so a first agent activity is the first one still on record. Only
 issue ids and numbers leave rogueone, never prompt text.
+
+**Lane 2: the owner's own time (2026-10-15).** Beside the agent hours, two sources add the owner's hours per issue,
+and the report keeps them as separate columns rather than one blended number. **ActivityWatch** (aw-server-rust 0.14.1
+plus window, AFK and Chrome-tab watchers, user units, bound to 127.0.0.1) records what is in front of the owner;
+`owner_time.py` counts it through AW's own query language, so idle time and the window/tab overlap are AW's call.
+**Clockify** (free plan, owner's decision, 2026-10-15) is the manual option: its extension puts a timer on every Linear
+issue and names the entry `[EMA-###] <title>`.
+
+| Decision | Chosen | Rejected | Why |
+|---|---|---|---|
+| Attributing a Linear tab | the EMA id in its URL | every id in the title | the title carries `EMA-243` *and* `B185`, so it would count each minute twice (observed) |
+| Browser vs window time | browser events only while Chrome is the active window, everything ∩ not-AFK (AW query) | summing both buckets | the window watcher records the same tab title the web watcher does |
+| A source not collected | `None` (unknown), shown as `-` | 0 | "Clockify not set up" and "no time on it" must never look the same |
+| Clockify's key | read from ONLY its line of `scripts/.env` | `EnvironmentFile=` the whole file | the producer unit would otherwise hold every secret in it |
+| Owner-hour precision | 2 decimals (36 s) | 1 decimal like agent hours | owner time is minutes of review; 0.1 h rounded a real day-one entry to 0 |
+| Manual timer | Clockify (in scope, owner 2026-10-15) | Harvest, Toggl (no Linear button), Traqq (1 project) | its open-source extension has a real Linear integration that names entries by issue id |
+
+The trial keeps its kill criteria (EMA-243): more than 1% CPU of one core or 150 MB resident memory across the three
+`aw-*` units, sampled every run into `resources.jsonl`. Day one ran 0.78–0.83% of a core (mostly the AFK watcher) and
+71–74 MB, close to the CPU line, so the week decides. The AW database is in the restic set and its restore was drilled
+(2026-10-15, [dr.md](dr.md)).
 
 Flow: [flow-issue-time-attribution.md](diagrams/flow-issue-time-attribution.md). Runbook:
 [issue-time.md](runbooks/issue-time.md). Demo: [issue-time.md](demos/issue-time.md).

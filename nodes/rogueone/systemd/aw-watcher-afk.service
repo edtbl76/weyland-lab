@@ -1,0 +1,19 @@
+# B185 lane 2 — ActivityWatch afk watcher: records keyboard/mouse idle state into aw-server, so time away from the desk is excluded.
+# Bound to the GNOME session: GNOME exports DISPLAY/XAUTHORITY into the user manager, and the watcher stops with the
+# session. Install and kill criteria: aw-server.service.
+[Unit]
+Description=ActivityWatch afk watcher (B185 owner time)
+Requires=aw-server.service
+After=aw-server.service graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/home/edwardmangini/.local/opt/activitywatch-v0.14.1/activitywatch/aw-watcher-afk/aw-watcher-afk --host 127.0.0.1 --port 5600
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical-session.target

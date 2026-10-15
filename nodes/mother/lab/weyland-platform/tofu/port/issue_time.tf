@@ -1,4 +1,5 @@
-# B185 lane 1 — time per Linear issue: agent session time + lead and cycle time.
+# B185 — time per Linear issue: agent session time + lead and cycle time (lane 1), and the owner's own time from
+# ActivityWatch and Clockify (lane 2, owner_time.py).
 #
 # The blueprint is tofu (this file); ENTITIES are written by
 # nodes/mother/lab/weyland-platform/scripts/issue_time_report.py --port (run by scripts/issue-time.sh --port after the
@@ -10,7 +11,7 @@
 resource "port_blueprint" "issue_time" {
   calculation_properties      = null
   create_catalog_page         = true
-  description                 = "Agent session time per Linear issue, with lead and cycle time (B185)."
+  description                 = "Agent and owner time per Linear issue, with lead and cycle time (B185)."
   force_delete_entities       = false
   icon                        = "Clock"
   identifier                  = "issue_time"
@@ -96,6 +97,28 @@ resource "port_blueprint" "issue_time" {
         minimum     = null
         required    = false
         title       = "Cycle time (days)"
+      }
+      owner_aw_hours = {
+        default     = null
+        description = "B185 lane 2: the owner's own active time on it, from ActivityWatch (Linear tab or a window naming it; AFK excluded). Empty = not collected"
+        enum        = null
+        enum_colors = null
+        icon        = null
+        maximum     = null
+        minimum     = null
+        required    = false
+        title       = "Owner hours (ActivityWatch)"
+      }
+      owner_clockify_hours = {
+        default     = null
+        description = "B185 lane 2: the owner's Clockify timer time on it (the extension's [EMA-###] entries). Empty = Clockify not configured"
+        enum        = null
+        enum_colors = null
+        icon        = null
+        maximum     = null
+        minimum     = null
+        required    = false
+        title       = "Owner hours (Clockify)"
       }
     }
     object_props = null

@@ -9,6 +9,7 @@ setup() {
   export ISSUE_TIME_CACHE="$BATS_TEST_TMPDIR/cache"
   export ISSUE_TIME_SESSIONS="$BATS_TEST_TMPDIR/sessions"
   export ISSUE_TIME_PORT_ENV="$BATS_TEST_TMPDIR/port.env"
+  export ISSUE_TIME_OWNER="$BATS_TEST_TMPDIR/owner_time.json"
   export MC_LOG="$BATS_TEST_TMPDIR/mc.log" PY_LOG="$BATS_TEST_TMPDIR/py.log"
   cat > "$STUB/mc" <<'SH'
 #!/usr/bin/env bash
@@ -80,4 +81,19 @@ SH
   run bash "$SCRIPT" --bogus
   [ "$status" -eq 2 ]
   [[ "$output" == *"usage"* ]]
+}
+
+# B185 lane 2 (2026-10-15): the owner's own time (owner_time.py) joins the report when it was collected.
+@test "passes the owner-time file to the report when it exists" {
+  printf '{"issues": {}, "sources": {}}' > "$ISSUE_TIME_OWNER"
+  run bash "$SCRIPT" --json
+  [ "$status" -eq 0 ]
+  grep -q -- "--owner $ISSUE_TIME_OWNER" "$PY_LOG"
+}
+
+@test "without an owner-time file the report runs without it, and says owner time was not collected" {
+  run bash "$SCRIPT" --json
+  [ "$status" -eq 0 ]
+  ! grep -q -- "--owner" "$PY_LOG"
+  [[ "$output" == *"owner time not collected"* ]]
 }

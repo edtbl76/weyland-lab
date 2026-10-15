@@ -1,0 +1,24 @@
+# B185 lane 2 — ActivityWatch server (aw-server-rust 0.14.1): the local store the window and AFK watchers write to, and
+# that scripts owner_time.py reads to count the owner's own time per Linear issue. LOCALHOST ONLY (127.0.0.1:5600):
+# raw window titles never leave rogueone; only per-issue minutes do (runbook issue-time.md § Owner time).
+# USER unit (the data lives in ~/.local/share/activitywatch). Restic backs up the home; the trial data is disposable.
+#   Install:  release zip activitywatch-v0.14.1-linux-x86_64.zip (sha256 211514a8912c0a399a8c7048101b699e0a2fedb5e81b5ed224304d5c8e091f2a,
+#             = GitHub's asset digest) unpacked to ~/.local/opt/activitywatch-v0.14.1, then
+#             cp nodes/rogueone/systemd/aw-*.service ~/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now aw-server aw-watcher-window aw-watcher-afk
+#   Trial kill criteria (EMA-243): > 1% average CPU or > 150 MB resident memory across the three units, over a week.
+[Unit]
+Description=ActivityWatch server (B185 owner time; localhost only)
+After=network.target
+
+[Service]
+# Type=notify: the release's own unit file declares it (aw-server-rust signals readiness).
+Type=notify
+ExecStart=/home/edwardmangini/.local/opt/activitywatch-v0.14.1/activitywatch/aw-server-rust/aw-server-rust --host 127.0.0.1 --port 5600
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

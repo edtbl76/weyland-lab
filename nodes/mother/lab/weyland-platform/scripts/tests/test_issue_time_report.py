@@ -327,3 +327,78 @@ def test_the_states_file_must_name_a_started_state(tmp_path):
     p.write_text(json.dumps([{"id": "x", "type": "completed"}]))
     with pytest.raises(r.InputError, match="started"):
         r.load_states(str(p))
+
+
+# --- B185 lane 2 (2026-10-15): the owner's own time (owner_time.py → owner_time.json) joins the agent time ----------
+# owner_time.json shape (OBSERVED from the first live run): {"issues": {"EMA-243": {"aw_minutes": 0.65,
+# "clockify_minutes": 0.42}}, "sources": {"activitywatch": {"status": "ok"}, "clockify": {"status": "ok"}}, ...}.
+
+def _owner(tmp_path, issues, clockify="ok"):
+    p = tmp_path / "owner_time.json"
+    p.write_text(json.dumps({"issues": issues, "sources": {"activitywatch": {"status": "ok"},
+                                                            "clockify": {"status": clockify}}}))
+    return str(p)
+
+
+def test_owner_time_joins_agent_time_per_issue_and_maps_b_numbers(tmp_path):
+    snap = _write_snapshot(tmp_path, [_issue("EMA-237", "B179 — Software-factory experiments")])
+    sess = _write_sessions(tmp_path, [{"B179": _bucket(60, "2026-10-05T10:00:00Z")}])
+    owner = r.load_owner(_owner(tmp_path, {"EMA-237": {"aw_minutes": 30.0, "clockify_minutes": 12.0},
+                                           "B179": {"aw_minutes": 6.0, "clockify_minutes": 0.0}}))
+    (row,) = r.build(r.load_sessions(sess), r.load_issues(snap), owner=owner)
+    assert row["issue"] == "EMA-237"
+    assert row["owner_aw_hours"] == 0.6 and row["owner_clockify_hours"] == 0.2
+
+
+def test_an_issue_with_only_owner_time_gets_a_row(tmp_path):
+    snap = _write_snapshot(tmp_path, [_issue("EMA-237", "B179 — x"), _issue("EMA-243", "B185 — Time per issue")])
+    sess = _write_sessions(tmp_path, [{"B179": _bucket(60, "2026-10-05T10:00:00Z")}])
+    owner = r.load_owner(_owner(tmp_path, {"EMA-243": {"aw_minutes": 90.0, "clockify_minutes": 0.0}}))
+    rows = {x["issue"]: x for x in r.build(r.load_sessions(sess), r.load_issues(snap), owner=owner)}
+    assert rows["EMA-243"]["agent_hours"] == 0.0 and rows["EMA-243"]["owner_aw_hours"] == 1.5
+    assert rows["EMA-243"]["backlog"] == "B185" and rows["EMA-243"]["sessions"] == 0
+
+
+def test_without_owner_data_the_owner_columns_are_unknown_not_zero(tmp_path):
+    snap = _write_snapshot(tmp_path, [_issue("EMA-237", "B179 — x")])
+    sess = _write_sessions(tmp_path, [{"B179": _bucket(60, "2026-10-05T10:00:00Z")}])
+    (row,) = r.build(r.load_sessions(sess), r.load_issues(snap))
+    assert row["owner_aw_hours"] is None and row["owner_clockify_hours"] is None
+
+
+def test_clockify_not_configured_stays_unknown_while_activitywatch_counts(tmp_path):
+    snap = _write_snapshot(tmp_path, [_issue("EMA-237", "B179 — x")])
+    sess = _write_sessions(tmp_path, [{"B179": _bucket(60, "2026-10-05T10:00:00Z")}])
+    owner = r.load_owner(_owner(tmp_path, {"EMA-237": {"aw_minutes": 30.0, "clockify_minutes": None}},
+                                clockify="not-configured"))
+    (row,) = r.build(r.load_sessions(sess), r.load_issues(snap), owner=owner)
+    assert row["owner_aw_hours"] == 0.5 and row["owner_clockify_hours"] is None
+
+
+def test_an_unreadable_owner_file_exits_2(tmp_path, capsys):
+    snap = _write_snapshot(tmp_path, [_issue("EMA-237", "B179 — x")])
+    sess = _write_sessions(tmp_path, [{"B179": _bucket(60, "2026-10-05T10:00:00Z")}])
+    bad = tmp_path / "owner_time.json"
+    bad.write_text("{not json")
+    with pytest.raises(SystemExit) as e:
+        r.main(["--sessions", sess, "--states", _states(tmp_path), "--issues", snap, "--owner", str(bad)])
+    assert e.value.code == 2
+    assert "cannot read owner time" in capsys.readouterr().err     # the reason, not argparse's usage error
+
+
+def test_the_owner_columns_reach_port_and_the_table(tmp_path, capsys):
+    assert "owner_aw_hours" in r.PROPS and "owner_clockify_hours" in r.PROPS
+    snap = _write_snapshot(tmp_path, [_issue("EMA-237", "B179 — x")])
+    sess = _write_sessions(tmp_path, [{"B179": _bucket(60, "2026-10-05T10:00:00Z")}])
+    own = _owner(tmp_path, {"EMA-237": {"aw_minutes": 30.0, "clockify_minutes": 12.0}})
+    assert r.main(["--sessions", sess, "--states", _states(tmp_path), "--issues", snap, "--owner", own]) == 0
+    out = capsys.readouterr().out
+    assert "own_aw_h" in out and "0.5" in out and "0.2" in out
+
+
+def test_owner_hours_keep_minutes_that_one_decimal_would_round_away(tmp_path):
+    snap = _write_snapshot(tmp_path, [_issue("EMA-243", "B185 — x")])
+    sess = _write_sessions(tmp_path, [{"B185": _bucket(60, "2026-10-05T10:00:00Z")}])
+    owner = r.load_owner(_owner(tmp_path, {"EMA-243": {"aw_minutes": 3.0, "clockify_minutes": 0.42}}))
+    (row,) = r.build(r.load_sessions(sess), r.load_issues(snap), owner=owner)
+    assert row["owner_aw_hours"] == 0.05 and row["owner_clockify_hours"] == 0.01

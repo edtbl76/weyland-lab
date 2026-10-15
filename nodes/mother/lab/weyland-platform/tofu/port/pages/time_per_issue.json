@@ -12,7 +12,7 @@
       "id": "dashboard-widget-root",
       "type": "dashboard-widget",
       "layout": [
-        {"height": 400, "columns": [{"id": "it-hours", "size": 4}, {"id": "it-issues", "size": 4}, {"id": "it-cycle", "size": 4}]},
+        {"height": 400, "columns": [{"id": "it-hours", "size": 3}, {"id": "it-owner", "size": 3}, {"id": "it-issues", "size": 3}, {"id": "it-cycle", "size": 3}]},
         {"height": 600, "columns": [{"id": "it-table", "size": 12}]}
       ],
       "widgets": [
@@ -20,6 +20,11 @@
           "id": "it-hours", "type": "entities-number-chart", "title": "Agent hours (all issues)", "icon": "Clock",
           "unit": "none", "blueprint": "issue_time", "chartType": "aggregateByProperty", "calculationBy": "property",
           "func": "sum", "property": "agent_hours", "dataset": {"combinator": "and", "rules": []}
+        },
+        {
+          "id": "it-owner", "type": "entities-number-chart", "title": "Owner hours, ActivityWatch (all issues)", "icon": "Clock",
+          "unit": "none", "blueprint": "issue_time", "chartType": "aggregateByProperty", "calculationBy": "property",
+          "func": "sum", "property": "owner_aw_hours", "dataset": {"combinator": "and", "rules": []}
         },
         {
           "id": "it-issues", "type": "entities-number-chart", "title": "Issues with agent time", "icon": "Linear",

@@ -29,6 +29,7 @@ model {
   port = ext "Port.io" "IDP / catalog + self-service actions (SaaS)"
   typesafe = ext "TypeSafe AI (Jev)" "Hosted decision model (POST /v1/systemone) — the operator's B174 decision-model shadow, paid from the owner's TypeSafe credit"
   linear = ext "Linear" "Roadmap / task status (ingested by Port); hosted MCP server (mcp.linear.app) read/written by the harnesses"
+  clockify = ext "Clockify" "Free-plan time tracker (B185 lane 2): its Chrome extension puts a timer on every Linear issue, naming the entry [EMA-###]; owner_time.py reads finished entries over its REST API (30 req/h on Free)"
   grkit = ext "grkit" "B206 — the guardrails kit (github.com/edtbl76/grkit, public, MIT): the guard verdict wire contract (grkit.verdict: Decision, Hook, Mode, Verdict), a fail-open guard client and the fail-closed build-time check pattern, packaged from weyland. Installed at image build, pinned to one commit (scripts/tests/grkit-pin.bats); not a running service"
 
   // ---- rogueone: external laptop, always on (the operator's interface — owner, 2026-10-03) ----
@@ -52,7 +53,8 @@ model {
     studioAgents = component "STUD.io CI agents" "4 Woodpecker local-backend agents (B57b) — run STUD.io's CI on the host shell + native docker; register to weyland's Woodpecker over the :30900 gRPC NodePort"
     machineInvDrift = component "machine-inv-drift" "B170 + B180 nightly host job (user timer, 03:45 NY). Collects every host's packages into machine-inventory.yaml (one inventory PR on drift), syncs + read-back-verifies the Port catalog (deleting entities the inventory dropped), and runs the placement host check over SSH: every systemd unit and host config file in placement.yaml installed and identical to its repo copy, no unlisted or failed unit, no stale timer. One Kuma push heartbeat, down on any finding"
     resticBackup = component "restic backup" "B130 nightly user timer (02:30 NY) — encrypted incremental backup of rogueone's local-only state to MinIO rogueone-backup; Port backup entity + Kuma push heartbeat"
-    aiSessionProducer = component "ai-session producer" "B62 + B185 user timer (every 4 h at :07) — ai_session_feeder.py summarises the Claude Code session logs (metrics + per-issue attribution, never prompt text) and mirrors them to MinIO ai-sessions; then scripts/issue-time.sh --port joins the B194 Linear snapshot and writes Port issue_time entities (read back) + the Time per Issue dashboard (defined in git)"
+    aiSessionProducer = component "ai-session producer" "B62 + B185 user timer (every 4 h at :07) — ai_session_feeder.py summarises the Claude Code session logs (metrics + per-issue attribution, never prompt text) and mirrors them to MinIO ai-sessions; then owner_time.py adds the owner's own time per issue (ActivityWatch + Clockify, B185 lane 2), and scripts/issue-time.sh --port joins the B194 Linear snapshot and writes Port issue_time entities (read back) + the Time per Issue dashboard (defined in git)"
+    activityWatch = component "ActivityWatch" "B185 lane 2 (2026-10-15) — aw-server-rust 0.14.1 + window/AFK watchers as user units, plus the Chrome web watcher; LOCALHOST ONLY (127.0.0.1:5600). Records the owner's active window and tab; owner_time.py counts time per Linear issue (a Linear tab by its URL's EMA id, other windows by a single id in the title; AFK excluded). Raw titles never leave rogueone; only per-issue minutes do. Trial kill criteria: > 1% CPU or > 150 MB RSS over a week"
   }
 
   weyland = system "weyland" "Home AI lab on a Minisforum MS-A2 (Proxmox, .232). LAN-only." {
@@ -301,6 +303,8 @@ model {
   weyland.mother.ai.toolServer -> weyland.mother.ai.weylandGuard "guards — /guard/{input,output,act} hooks (shadow, fail-open)"
   weyland.mother.ai.weylandGuard -> grkit "imports the verdict wire contract (grkit.verdict, B206)"
   weyland.mother.ai.toolServer -> grkit "imports the verdict wire contract (grkit.verdict, B206)"
+  rogueone.aiSessionProducer -> rogueone.activityWatch "owner_time.py queries the owner's window/tab time per issue (localhost, AW query API)"
+  rogueone.aiSessionProducer -> clockify "owner_time.py reads finished timer entries (REST, X-Api-Key)"
   weyland.mother.ai.weylandGuard -> weyland.mother.ai.llamaGuard "Classify — POST content-safety classification (llama_guard.safety, temp 0)"
   weyland.mother.ai.dagster -> weyland.mother.ai.guardrailsStructure "Structure — eval judge JSON -> validate JudgeScores + re-ask (fail-open)"
   weyland.mother.ai.guardrailsStructure -> rogueone.ollama "re-ask the judge model to repair (litellm)"

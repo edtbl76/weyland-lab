@@ -55,7 +55,7 @@ PAGE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
                          "time_per_issue.json")
 PAGE_CREATE_ONLY = ("type", "sidebar")
 PROPS = ("backlog", "agent_hours", "sessions", "output_tokens", "api_equiv_usd", "lead_days", "cycle_days",
-         "first_agent_at", "unmapped")
+         "first_agent_at", "unmapped", "owner_aw_hours", "owner_clockify_hours")
 
 
 def _ts(s):
@@ -98,6 +98,24 @@ def load_issues(path):
     if not isinstance(issues, list) or not issues:
         raise InputError(f"Linear snapshot {path} holds no issues")
     return issues
+
+
+OWNER_SOURCES = {"aw": "activitywatch", "clockify": "clockify"}
+
+
+def load_owner(path):
+    """B185 lane 2: (owner_time.py's per-issue minutes, {source: collected}). A source counts only when its status is
+    "ok"; otherwise its column stays None (unknown), never 0. InputError when the file cannot be read or is malformed."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError) as e:
+        raise InputError(f"cannot read owner time {path}: {e}") from e
+    if not isinstance(data, dict) or not isinstance(data.get("issues"), dict) \
+            or not isinstance(data.get("sources"), dict):
+        raise InputError(f"cannot read owner time {path}: no `issues` / `sources` map")
+    collected = {k: (data["sources"].get(name) or {}).get("status") == "ok" for k, name in OWNER_SOURCES.items()}
+    return data["issues"], collected
 
 
 def load_states(path):
@@ -167,23 +185,44 @@ def _finish(row, started_ids=frozenset()):
     row["lead_days"] = _days(_ts(lin.get("createdAt")), completed)
     row["cycle_days"] = _days(min(starts), completed) if starts else None
     row["agent_hours"] = round(row.pop("minutes") / 60, 1)
+    for src in ("aw", "clockify"):
+        m = row.pop(f"_owner_{src}")
+        # 2 decimals (36 s steps): owner time is minutes of reviewing and steering, which 0.1 h would round away
+        row[f"owner_{src}_hours"] = None if m is None else round(m / 60, 2)
     row["api_equiv_usd"] = round(row["api_equiv_usd"], 2)
     return row
 
 
-def build(per_issue, issues, started_ids=frozenset()):
-    by_ident = {i["identifier"]: i for i in issues}
-    by_b = _backlog_map(issues)
+def _row_for(rows, key, lookup, collected):
+    """The row an issue id or B number belongs to, created on first sight (keyed by its Linear identifier when mapped)."""
+    by_ident, by_b = lookup
+    issue = by_ident.get(key) or by_b.get(key)
+    rid = issue["identifier"] if issue else key
+    row = rows.setdefault(rid, {"issue": rid, "backlog": None, "unmapped": issue is None,
+                                "minutes": 0.0, "output_tokens": 0, "api_equiv_usd": 0.0, "sessions": 0,
+                                "first_agent_at": None, "_linear": issue,
+                                "_owner_aw": 0.0 if collected["aw"] else None,
+                                "_owner_clockify": 0.0 if collected["clockify"] else None})
+    if key.startswith("B"):
+        row["backlog"] = key
+    return row
+
+
+def _add_owner(row, src, collected):
+    for name in OWNER_SOURCES:
+        if collected[name]:
+            row[f"_owner_{name}"] += src.get(f"{name}_minutes") or 0.0
+
+
+def build(per_issue, issues, started_ids=frozenset(), owner=None):
+    """`owner` (load_owner's pair) adds the owner's own hours per issue; a source not collected → its column is None."""
+    owner_issues, collected = owner if owner else ({}, {"aw": False, "clockify": False})
+    lookup = ({i["identifier"]: i for i in issues}, _backlog_map(issues))
     rows = {}
     for key, buckets in per_issue.items():
-        issue = by_ident.get(key) or by_b.get(key)
-        rid = issue["identifier"] if issue else key
-        row = rows.setdefault(rid, {"issue": rid, "backlog": None, "unmapped": issue is None,
-                                    "minutes": 0.0, "output_tokens": 0, "api_equiv_usd": 0.0, "sessions": 0,
-                                    "first_agent_at": None, "_linear": issue})
-        if key.startswith("B"):
-            row["backlog"] = key
-        _accumulate(row, buckets)
+        _accumulate(_row_for(rows, key, lookup, collected), buckets)
+    for key, src in owner_issues.items():
+        _add_owner(_row_for(rows, key, lookup, collected), src, collected)
     return sorted((_finish(r, started_ids) for r in rows.values()), key=lambda x: (-x["agent_hours"], x["issue"]))
 
 
@@ -193,11 +232,12 @@ def _fmt(v):
 
 def _table(rows):
     lines = [f"{'issue':10s} {'backlog':8s} {'agent_h':>8s} {'sessions':>8s} "
-             f"{'lead_d':>7s} {'cycle_d':>7s} {'out_tok':>11s}"]
+             f"{'lead_d':>7s} {'cycle_d':>7s} {'out_tok':>11s} {'own_aw_h':>8s} {'own_clk_h':>9s}"]
     for x in rows:
         flag = "  (unmapped)" if x["unmapped"] else ""
         lines.append(f"{x['issue']:10s} {_fmt(x['backlog']):8s} {x['agent_hours']:>8.1f} {x['sessions']:>8d} "
-                     f"{_fmt(x['lead_days']):>7s} {_fmt(x['cycle_days']):>7s} {x['output_tokens']:>11,}{flag}")
+                     f"{_fmt(x['lead_days']):>7s} {_fmt(x['cycle_days']):>7s} {x['output_tokens']:>11,} "
+                     f"{_fmt(x['owner_aw_hours']):>8s} {_fmt(x['owner_clockify_hours']):>9s}{flag}")
     return "\n".join(lines)
 
 
@@ -301,12 +341,15 @@ def main(argv=None):
     ap.add_argument("--sessions", required=True, help="directory of ai_session_feeder JSONs")
     ap.add_argument("--issues", required=True, help="B194 snapshot issues.json.gz (or plain issues.json)")
     ap.add_argument("--states", required=True, help="the same snapshot's workflowStates.json.gz (the Linear start)")
+    ap.add_argument("--owner", help="owner_time.py's owner_time.json (B185 lane 2); absent = owner time not collected")
     out = ap.add_mutually_exclusive_group()
     out.add_argument("--json", action="store_true", help="print rows as JSON instead of a table")
     out.add_argument("--port", action="store_true", help="push to Port (issue_time entities + the dashboard)")
     args = ap.parse_args(argv)
     try:
-        rows = build(load_sessions(args.sessions), load_issues(args.issues), started_state_ids(load_states(args.states)))
+        owner = load_owner(args.owner) if args.owner else None
+        rows = build(load_sessions(args.sessions), load_issues(args.issues), started_state_ids(load_states(args.states)),
+                     owner=owner)
         if args.port:
             cid, secret = os.environ.get("PORT_CLIENT_ID"), os.environ.get("PORT_CLIENT_SECRET")
             if not cid or not secret:
