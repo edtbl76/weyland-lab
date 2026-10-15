@@ -4,7 +4,8 @@
 # contract, not just shared code — both services must embed the SAME model with the SAME pooling
 # (bge CLS + L2 normalize) or the agent's retrieval lands in a different vector space than the index the
 # tool-server built, and results silently degrade. Nothing keeps the two copies in sync — the same
-# duplication class DoD Pillar 8 flags for guardrails/verdict.py (see check-verdict-sync.sh).
+# duplication class DoD Pillar 8 flagged for guardrails/verdict.py (retired 2026-10-15: both services now
+# import grkit.verdict, B206).
 #
 # The class is EMBEDDED in a larger file and the two docstrings legitimately differ (each names its own
 # sibling), so a byte diff would false-alarm. This compares the METHOD BODIES only: it parses each file,

@@ -1,6 +1,6 @@
 import asyncio
 import time
-from .verdict import Verdict, Decision, Hook, Mode
+from grkit.verdict import Verdict, Decision, Hook, Mode
 
 
 class GuardrailPipeline:

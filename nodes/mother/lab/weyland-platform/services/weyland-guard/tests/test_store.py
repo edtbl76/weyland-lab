@@ -1,5 +1,5 @@
 from guardrails.store import record_verdict
-from guardrails.verdict import Verdict, Decision, Hook, Mode
+from grkit.verdict import Verdict, Decision, Hook, Mode
 
 
 def test_record_verdict_inserts(fake_conn):

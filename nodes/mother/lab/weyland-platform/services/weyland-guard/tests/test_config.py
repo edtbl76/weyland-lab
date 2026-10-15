@@ -1,5 +1,5 @@
 from guardrails.config import hook_chain
-from guardrails.verdict import Hook, Mode
+from grkit.verdict import Hook, Mode
 
 
 def test_default_chain_is_shadow():

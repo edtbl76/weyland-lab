@@ -19,6 +19,8 @@ WORKDIR /app
 # sentence-transformers + llama-index-embeddings-huggingface are GONE — replaced by onnxruntime + tokenizers
 # (~70 MB). Embeddings are byte-equivalent to the old HuggingFaceEmbedding (verified cosine 1.0 vs
 # sentence-transformers), so the hydrated Qdrant/Weaviate/Neo4j vectors need NO re-embedding.
+# grkit (B206 slice 2): the shared guard wire contract (grkit.verdict), stdlib only. Pinned to ONE commit (v0.2.0)
+# by GitHub archive URL, so no git binary is needed; scripts/tests/grkit-pin.bats holds every pin in the repo equal.
 RUN pip install --no-cache-dir \
     'fastapi==0.139.2' \
     'starlette==1.3.1' \
@@ -39,6 +41,7 @@ RUN pip install --no-cache-dir \
     'opentelemetry-exporter-otlp-proto-http==1.44.0' \
     'opentelemetry-instrumentation-fastapi==0.65b0' \
     'opentelemetry-instrumentation-httpx==0.65b0' \
+    'grkit @ https://github.com/edtbl76/grkit/archive/0d0797785c3e802d801cc1185dad7a41f473d72e.tar.gz#subdirectory=python' \
     sentry-sdk
 
 # The exported ONNX model + tokenizer.json (from the builder stage). main.py's OnnxBge loads them from
@@ -49,7 +52,6 @@ ENV HOME=/app \
 
 COPY main.py /app/main.py
 COPY prompts.py /app/prompts.py
-COPY guardrails /app/guardrails
 
 # B47: run as non-root; chown so appuser owns the workdir + can read the baked ONNX model. Port 8080 unprivileged.
 RUN useradd -u 10001 -m appuser && chown -R appuser /app

@@ -24,6 +24,8 @@ WORKDIR /app
 # U13: the two baked DeBERTa classifiers run on raw ONNX Runtime now — onnxruntime + tokenizers replace
 # sentence-transformers + transformers + torch (~1.2 GB). presidio-analyzer + spacy STAY (pii.presidio is spaCy,
 # not torch); Presidio does not hard-require transformers, so it installs torch-free.
+# grkit (B206 slice 2): the shared guard wire contract (grkit.verdict), stdlib only. Pinned to ONE commit (v0.2.0)
+# by GitHub archive URL, so no git binary is needed; scripts/tests/grkit-pin.bats holds every pin in the repo equal.
 RUN pip install --no-cache-dir \
     fastapi \
     uvicorn \
@@ -33,6 +35,7 @@ RUN pip install --no-cache-dir \
     onnxruntime \
     tokenizers \
     presidio-analyzer \
+    'grkit @ https://github.com/edtbl76/grkit/archive/0d0797785c3e802d801cc1185dad7a41f473d72e.tar.gz#subdirectory=python' \
     spacy
 
 # HOME=/app keeps spaCy/Presidio caches + any onnxruntime/tokenizers cache under the workdir the non-root user owns.

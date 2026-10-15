@@ -121,10 +121,6 @@ steps:
       # fundamentals (id/name/version/status/domain/dataProduct/description/servers/schema/team +
       # per-property name+logicalType). Structural only — no cluster — so it runs here, not as a CronJob.
       - bash scripts/check-odcs-contracts.sh
-      # B152 — architecture guard: the guardrails/verdict.py wire contract is byte-duplicated across
-      # weyland-guard and weyland-tool-server; nothing kept them in sync (DoD Pillar 8 finding). Fails
-      # closed if they drift (exit 1) or a copy is missing (exit 2). Pure file compare, no cluster.
-      - bash scripts/check-verdict-sync.sh
       # U13 — architecture guard: the OnnxBge query-embedder class is duplicated across weyland-tool-server
       # (main.py) and weyland-agent (retrievers.py); both must embed the SAME model with the SAME pooling or
       # the agent retrieves against a vector space the index was not built in. Compares the method bodies

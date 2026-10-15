@@ -1,5 +1,5 @@
 from guardrails.validators.policy import AuditValidator
-from guardrails.verdict import Decision, Hook
+from grkit.verdict import Decision, Hook
 
 
 def test_audit_always_passes_and_captures_action():
@@ -18,7 +18,7 @@ def test_audit_handles_no_params():
 # A regression is not a coverage number, it is the guard admitting something it should refuse. The
 # gate was at 41% coverage (all 5 decision branches + the rate limiter untested); these cover them.
 from guardrails.validators.policy import PolicyGateValidator, _load_policy
-from guardrails.verdict import Decision
+from grkit.verdict import Decision
 
 _POLICY = {"weyland-operator": {"tools": ["*"], "rate_per_min": 30},
            "reports-agent": {"tools": ["evals/run"], "rate_per_min": 2}}

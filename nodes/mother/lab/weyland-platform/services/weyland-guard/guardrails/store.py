@@ -1,4 +1,4 @@
-from .verdict import Verdict, Hook, Mode
+from grkit.verdict import Verdict, Hook, Mode
 
 
 def record_verdict(conn, request_id: str, hook: Hook, mode: Mode, verdict: Verdict, actor: str | None = None) -> None:

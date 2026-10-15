@@ -4,7 +4,7 @@ import threading
 import time
 from collections import defaultdict, deque
 
-from ..verdict import Verdict, Decision, Hook
+from grkit.verdict import Verdict, Decision, Hook
 
 
 class AuditValidator:

@@ -40,7 +40,7 @@ Legend: ✅ applicable · ◑ partial/thin · ✗ not applicable.
 Real, currently-unenforced boundaries, each a live drift risk:
 - **dagster-free leaf rule** — `datasets_lib/*_parse.py` + `_collect.py` must use absolute imports only (so `conftest.load_isolated` can test them without the dagster runtime). Enforced today *only* because a test happens to load them — the exact class that let the autodiscovery outage through.
 - **datasets_lib layering** — leaf (`*_parse`, `_collect`) → factory (`landers`, `broker`, `loaders`) → assets; a leaf must not import a factory or dagster.
-- **verdict.py duplication** — `guardrails/verdict.py` is byte-duplicated across `weyland-guard` and `weyland-tool-server`; nothing keeps them in sync.
+- **verdict.py duplication** — `guardrails/verdict.py` is byte-duplicated across `weyland-guard` and `weyland-tool-server`; nothing keeps them in sync. *(Resolved 2026-10-15, B206 slice 2: both import `grkit.verdict`; `grkit-pin.bats` holds the one pin.)*
 - **no-dagster-in-slim-lane** — the fast test lane must not import dagster.
 
 Tooling ($0): **import-linter** or **pytest-archon** (Python), **ArchUnit** (Java). Each rule ships with a passing fixture AND a deliberately-failing fixture, and is proven to FAIL on the real violation (the Q2 coverage metric).
@@ -74,7 +74,7 @@ No performance/scale NFR exists; mother is capacity-bound ($0 LAN, no swap). Loa
 
 1. **Architecture — DONE (Python), EXTENDED 2026-09-17 (see the addendum below).** `.importlinter` (2 forbidden contracts: leaves-are-dagster-free + leaf<factory), run by static AST in the slim lane; `tests/test_architecture.py` (real holds + a planted violation breaks by reason); `scripts/check-verdict-sync.sh` + `verdict-sync.bats` (the duplicated-verdict wire contract), wired into `repo-guards`. **NOTE:** the original pass shipped only the Python `import-linter` half; the Java ArchUnit this doc named as "applicable — BUILD now" (matrix row 1) was completed in the 2026-09-17 addendum, along with two extensions.
 2. **Property-based — DONE.** `tests/test_property_based.py` (hypothesis) on the pure leaves — `domain_job_plan`'s single-sourced split invariant + `_collect`'s disjointness/flatten. Rides the python lane.
-3. **Contract — COVERED (no new lane).** The top RPC seam (guard↔tool-server verdict wire) is `test_verdict_contract.py`, reinforced by `check-verdict-sync.sh`; data by ODCS (B157), API by B155, live by the integration tier. A second offline seam is disproportionate (see §2 above).
+3. **Contract — COVERED (no new lane).** The top RPC seam (guard↔tool-server verdict wire) is `test_verdict_contract.py` (since B206, 2026-10-15, it pins `grkit.verdict`'s values, field order and wire round-trip; the retired `check-verdict-sync.sh` compared the two copies, and `grkit-pin.bats` now holds the single pin); data by ODCS (B157), API by B155, live by the integration tier. A second offline seam is disproportionate (see §2 above).
 4. **AOP — COVERED (no new lane).** `test_pipeline.py` / `test_policy.py` / `test_metrics.py` already assert the guard's hook/mode gating, enforcing act gate, and metrics aspect; infra aspects (Istio mTLS, forward-auth) are N/A at unit level.
 5. **Fuzz — DONE.** `tests/test_fuzz.py` (hypothesis) fuzzes `edgar_text_parse` (the untrusted-HTML parser) — never crashes, contract holds, chunker terminates.
 6. **Mutation — DONE (on-demand).** `scripts/run-mutation.sh` (opt-in, not a blocking lane); `_collect` proven 5/5 mutants killed.
@@ -116,6 +116,9 @@ across 5).
    can never propagate through the byte-shared `verdict.py` to every consumer. `app.py`/`main.py` remain the only
    HTTP-wiring layer. A planted fastapi-importing fixture proves each contract trips. This complements (does not
    duplicate) B152's `check-verdict-sync.sh`, which guards the verdict byte-identity rather than its imports.
+   **Changed 2026-10-15 (B206 slice 2):** the verdict moved into `grkit` (stdlib only), so tool-server's
+   `guardrails/` package and its contract are gone (it held only `verdict.py`); weyland-guard's contract still
+   covers its policy + validators.
 
 These ride the existing lanes (no new `.woodpecker.yml` steps): the Python contracts run as `tests/test_architecture.py`
 in `test-python`; the Java rules as JUnit tests in `test-java`.

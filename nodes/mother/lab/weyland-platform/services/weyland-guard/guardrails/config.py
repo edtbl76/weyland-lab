@@ -1,5 +1,5 @@
 import os
-from .verdict import Hook, Mode
+from grkit.verdict import Hook, Mode
 
 # (validator_name, mode) per hook. Everything ships SHADOW. Override a mode via env
 # GUARDRAIL_MODE__<validator>=block|flag|off  (dots in the name -> double underscore),

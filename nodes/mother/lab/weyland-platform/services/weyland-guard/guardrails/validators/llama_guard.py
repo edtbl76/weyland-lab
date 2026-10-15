@@ -16,7 +16,7 @@ import os
 
 import httpx
 
-from ..verdict import Verdict, Decision, Hook
+from grkit.verdict import Verdict, Decision, Hook
 
 # In-cluster llama-guard svc (unmeshed ClusterIP). A meshed caller (this pod) reaching a sidecar-less workload
 # auto-negotiates to plaintext, so the svc URL resolves without TLS. Env-overridable for tier-2 / local runs.

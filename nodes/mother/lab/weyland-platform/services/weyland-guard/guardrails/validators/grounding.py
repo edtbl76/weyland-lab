@@ -3,7 +3,7 @@ import os
 import re
 import threading
 
-from ..verdict import Verdict, Decision, Hook
+from grkit.verdict import Verdict, Decision, Hook
 
 _DEFAULT_MODEL = "cross-encoder/nli-deberta-v3-small"
 _MODEL_DIR = os.environ.get("GROUNDING_ONNX_DIR", "/app/nli_onnx")   # ONNX export baked at build (U13; see Dockerfile)

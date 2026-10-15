@@ -21,7 +21,7 @@ from importlib import reload
 
 import pytest
 
-from guardrails.verdict import Decision, Hook
+from grkit.verdict import Decision, Hook
 
 
 # ---------------------------------------------------------------- PromptGuard (injection)

@@ -22,7 +22,7 @@ when you'd want it. The operational runbook (deploy, triggers, gotchas, secrets)
 | Step | Image | What it does |
 |---|---|---|
 | `yaml-syntax` | pipelinecomponents/yamllint | yamllint the k8s manifests |
-| `repo-guards` | node:24-alpine | mermaid parse · doc-counts · app-registry · quality-tools · SA-automount · cron-freshness · pip-audit · ODCS · verdict-sync (5+ guards; fail-closed) |
+| `repo-guards` | node:24-alpine | mermaid parse · doc-counts · app-registry · quality-tools · SA-automount · cron-freshness · pip-audit · ODCS · write-surfaces (5+ guards; fail-closed) |
 | `port-iac-coverage` | alpine | Port blueprints/entities ↔ OpenTofu coverage |
 | `linear-sync` | alpine | **DoD Pillar 5** — full backlog ↔ Linear reconciliation (status · project · priority · missing · orphan) |
 | `issue-readiness` | alpine | **B190** — checks open High Weyland Lab issues against the `AGENTS.md` implementation-ready standard (required sections per kind, a real acceptance criterion, priority) and keeps one comment per issue naming what is missing; replaced SpecBot. Rules only, under a second. LEAN (manual) runs only, advisory (`failure: ignore`); secret `linear_comment_key` (write). [issue-readiness.md](issue-readiness.md) |

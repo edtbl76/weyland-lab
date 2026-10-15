@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from guardrails.config import hook_chain, set_override, clear_overrides, current_overrides, all_validators
 from guardrails.pipeline import GuardrailPipeline
-from guardrails.verdict import Decision, Hook, Mode
+from grkit.verdict import Decision, Hook, Mode
 from guardrails import metrics as guard_metrics
 from guardrails import store as guard_store
 

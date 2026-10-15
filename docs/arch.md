@@ -188,7 +188,7 @@ supersedes the cancelled B12 (a static registry without the lifecycle).
 ### Libraries (no workload of their own)
 | Component | Where | Purpose |
 |---|---|---|
-| grkit | [github.com/edtbl76/grkit](https://github.com/edtbl76/grkit) (public, MIT; registry group `library`) | **B206** — the guardrails kit packaged from these patterns: the guard verdict contract + `GuardClient` (content guards fail open, authority guards fail closed) and the build-time check pattern (exit 0 clean / 1 findings / 2 could not check). Weyland is its reference implementation; weyland-guard + weyland-tool-server adopt it in B206 slice 2, which retires the duplicated `verdict.py` and `check-verdict-sync.sh`. CI on GitHub Actions; tracked in `repos.yaml` and the Linear project grkit. |
+| grkit | [github.com/edtbl76/grkit](https://github.com/edtbl76/grkit) (public, MIT; registry group `library`) | **B206** — the guardrails kit packaged from these patterns: the guard verdict contract + `GuardClient` (content guards fail open, authority guards fail closed) and the build-time check pattern (exit 0 clean / 1 findings / 2 could not check). Weyland is its reference implementation. **Consumed since 2026-10-15 (B206 slice 2):** weyland-guard and weyland-tool-server import `grkit.verdict` (pinned to one commit by archive URL in both images and test lanes; `scripts/tests/grkit-pin.bats` holds the pins equal), which retired the duplicated `verdict.py` and `check-verdict-sync.sh`. CI on GitHub Actions; tracked in `repos.yaml` and the Linear project grkit. |
 
 ---
 

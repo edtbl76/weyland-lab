@@ -1,5 +1,5 @@
 from typing import Protocol
-from .verdict import Verdict, Hook
+from grkit.verdict import Verdict, Hook
 
 
 class Validator(Protocol):

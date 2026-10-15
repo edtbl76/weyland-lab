@@ -135,7 +135,7 @@ applications:
   - {key: proxyai, deployed: false, name: ProxyAI, group: code-review, datahub_application: false, owns: [], capabilities: ["code-review", "code-assistant"], port_component: proxyai, description: "In-IDE LLM assistant via the LiteLLM gateway; replaces paid Qodo Gen (B106)."}
 
   # ============ LIBRARIES (code the lab's services import; no workload of its own, so deployed: false) ============
-  - {key: grkit, deployed: false, name: grkit, group: library, datahub_application: false, owns: [], capabilities: ["guardrails"], port_component: grkit, description: "Guardrails kit (github.com/edtbl76/grkit, MIT): the guard verdict contract + GuardClient (fail open on content, closed on authority) and the build-time check pattern. Weyland is its reference implementation; weyland-guard + weyland-tool-server adopt it in B206 slice 2."}
+  - {key: grkit, deployed: false, name: grkit, group: library, datahub_application: false, owns: [], capabilities: ["guardrails"], port_component: grkit, description: "Guardrails kit (github.com/edtbl76/grkit, MIT): the guard verdict contract + GuardClient (fail open on content, closed on authority) and the build-time check pattern. Weyland is its reference implementation; weyland-guard + weyland-tool-server import grkit.verdict (B206 slice 2)."}
 
 excluded:
 

@@ -1,4 +1,4 @@
-from guardrails.verdict import Decision, Hook
+from grkit.verdict import Decision, Hook
 
 
 class _FakeCE:

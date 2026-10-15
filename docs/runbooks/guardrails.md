@@ -197,6 +197,13 @@ Prompt Guard 2** (`project-free-llama/Llama-Prompt-Guard-2-22M`, injection — e
 sentence-transformers dropped, byte-equivalent so verdicts are unchanged), plus **Presidio** + spaCy `en_core_web_sm`
 (PII). `llama_guard.safety` is NOT baked (it POSTs to the external `llama-guard` svc).
 
+## The wire contract comes from grkit (B206)
+`Decision`, `Hook`, `Mode` and `Verdict` are `grkit.verdict` (github.com/edtbl76/grkit, stdlib only), imported by
+this service and by weyland-tool-server. Both Dockerfiles and both `requirements-test.txt` pin it to ONE commit by
+GitHub archive URL (no git binary in the image). **To bump grkit:** change that URL in all four files together
+(`scripts/tests/grkit-pin.bats` fails if they differ), run both services' tests (`tests/test_verdict_contract.py`
+pins the values, field order and wire round-trip), then build and ship both images.
+
 ## Build & deploy (registry flow)
 Image is registry-based (NOT `:local`). Consumers deploy off Argo.
 - **CI builds it (since 2026-10-14, B207).** `weyland-guard` is a row in `scripts/ci/images.tsv`: a push that touches

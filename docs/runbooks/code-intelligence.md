@@ -33,10 +33,11 @@ services/weyland-guard` → indexed 25 files, exit 0).
 eyes-on UAT:
 1. Restart Claude Code in the repo (it reads `.mcp.json`).
 2. Ask it a structural question grep answers badly — the canonical one:
-   *"Use serena to find all references to the `Decision` symbol in `guardrails/verdict.py`."*
-   Expect it to resolve refs in **both** `services/weyland-tool-server/guardrails/verdict.py` **and**
-   `services/weyland-guard/guardrails/verdict.py` — the duplicated wire-contract the DoD Pillar-8 note
-   flagged as "kept in sync by nothing". That's the win over grep: symbol-accurate, cross-file, cheap.
+   *"Use serena to find all references to the `Decision` symbol from `grkit.verdict`."*
+   Expect it to resolve refs across **both** `services/weyland-guard/` and `services/weyland-tool-server/`, the two
+   consumers of the guard wire contract (once a byte-duplicated `guardrails/verdict.py` the DoD Pillar-8 note
+   flagged as "kept in sync by nothing"; one package since B206). That's the win over grep: symbol-accurate,
+   cross-file, cheap.
 
 `.serena/` (per-project config + LSP symbol cache) is gitignored (regenerable; serena also self-ignores
 its cache). No lab service is deployed — Serena runs on the operator's machine alongside the agent.

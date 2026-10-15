@@ -12,7 +12,7 @@ import os
 from presidio_analyzer import AnalyzerEngine
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 
-from ..verdict import Verdict, Decision, Hook
+from grkit.verdict import Verdict, Decision, Hook
 
 _PII_ENTITIES = ["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "US_SSN", "CREDIT_CARD", "IBAN_CODE", "US_BANK_NUMBER"]
 _THRESHOLD = float(os.environ.get("PII_SCORE_THRESHOLD", "0.5"))

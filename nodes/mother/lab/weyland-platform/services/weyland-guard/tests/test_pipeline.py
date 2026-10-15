@@ -1,6 +1,6 @@
 import asyncio
 from guardrails.pipeline import GuardrailPipeline
-from guardrails.verdict import Verdict, Decision, Hook, Mode
+from grkit.verdict import Verdict, Decision, Hook, Mode
 
 
 class _StubValidator:

@@ -1,5 +1,5 @@
 from prometheus_client import Counter, Histogram
-from .verdict import Verdict, Hook, Mode
+from grkit.verdict import Verdict, Hook, Mode
 
 _VERDICTS = Counter(
     "guardrail_verdicts_total", "Guardrail verdicts",

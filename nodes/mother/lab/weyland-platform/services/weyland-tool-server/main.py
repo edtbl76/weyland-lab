@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from qdrant_client import QdrantClient
 from weaviate.classes.query import MetadataQuery
 
-from guardrails.verdict import Decision, Hook, Verdict
+from grkit.verdict import Decision, Hook, Verdict
 from prompts import load_prompt, loaded_version
 
 # B51 — error tracking → GlitchTip (Sentry SDK). DSN from env; empty DSN = disabled (no-op), so the image

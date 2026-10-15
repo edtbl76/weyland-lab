@@ -32,10 +32,9 @@ flowchart LR
     FIX[planted-violation fixture] --> IL
     KEPT --> T[test_architecture.py — real holds]
     BROKEN --> T2[test_architecture.py — violation breaks by reason]
-    V[guardrails/verdict.py x2] --> VG[check-verdict-sync.sh in repo-guards]
-    VG -->|identical| OK[exit 0]
-    VG -->|drift| D1[exit 1]
-    VG -->|missing copy| D2[exit 2 fail-closed]
+    V[weyland-guard + weyland-tool-server import grkit.verdict] --> VG[grkit-pin.bats in shell-tests]
+    VG -->|one commit-pinned URL everywhere| OK[pass]
+    VG -->|two pins differ, or no pin found| D1[fail, named]
 ```
 
 - **Decision flow:** most categories resolved to BUILT (architecture, property-based, fuzz), COVERED (contract, AOP), on-demand (mutation), or documented N/A (load, fixture languages) — every one answered, none deferred.

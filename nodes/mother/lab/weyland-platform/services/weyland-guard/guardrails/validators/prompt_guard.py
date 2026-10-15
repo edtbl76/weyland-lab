@@ -11,7 +11,7 @@ Ships SHADOW — verdicts recorded, nothing blocked, until the false-positive ra
 """
 import os
 
-from ..verdict import Verdict, Decision, Hook
+from grkit.verdict import Verdict, Decision, Hook
 
 _MODEL = os.environ.get("PROMPT_GUARD_MODEL", "project-free-llama/Llama-Prompt-Guard-2-22M")   # baked (see Dockerfile)
 _MODEL_DIR = os.environ.get("PROMPT_GUARD_ONNX_DIR", "/app/prompt_guard_onnx")   # ONNX export baked at build (U13)

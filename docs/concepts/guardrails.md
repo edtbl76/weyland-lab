@@ -5,7 +5,8 @@
 **Packaged as grkit (B206).** The contracts on this page (the verdict shape, shadow/flag/block modes, fail open on
 content, fail closed on authority) and the build-time check pattern are packaged for reuse as
 **[grkit](https://github.com/edtbl76/grkit)** (public, MIT), a registered Weyland component (`applications.yaml`, group
-`library`). Weyland is its reference implementation; weyland-guard and weyland-tool-server adopt it in B206 slice 2.
+`library`). Weyland is its reference implementation, and since B206 slice 2 (2026-10-15) weyland-guard and weyland-tool-server
+import its `grkit.verdict` instead of each carrying a copy.
 
 No single guardrail catches everything. A prompt-injection scanner says nothing about whether an answer is *on-topic*;
 a topical rail says nothing about whether a JSON blob *matches its schema*; none of them classify *content safety* the

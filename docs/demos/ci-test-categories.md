@@ -57,15 +57,10 @@ scripts/run-mutation.sh
 # 5/5  🎉 5  🙁 0   — every injected bug is caught; a 🙁 survivor would name a coverage gap
 ```
 
-**5. verdict.py wire-contract guard (repo-guards, fail-closed):**
-
-```
-bash scripts/check-verdict-sync.sh
-# OK — guardrails/verdict.py is byte-identical across weyland-guard and weyland-tool-server (30 lines).  → exit 0
-```
-
-Negative cases (`scripts/tests/verdict-sync.bats`, RUN): drift between the two copies → **exit 1** ("DRIFT" + diff);
-a missing copy → **exit 2** ("CANNOT RUN") — never a false pass.
+**5. verdict.py wire-contract guard** — *retired 2026-10-15 (B206 slice 2).* The two byte-identical copies are gone:
+both services import `grkit.verdict` from one commit-pinned package, so `check-verdict-sync.sh` had nothing left to
+compare. What can still drift is the PIN, so `scripts/tests/grkit-pin.bats` requires every grkit reference (both
+Dockerfiles, both test requirement files) to be one identical commit-pinned URL, and proves a drifted pin is caught.
 
 **6. Contract + AOP — covered by existing tests (evaluated, no new lane):**
 
@@ -77,7 +72,7 @@ pytest weyland-guard/tests/test_pipeline.py tests/test_policy.py tests/test_metr
 **Whole suite, green together (CI images):** python lane **120 passed**; `bats scripts/tests/` **406 passed**;
 `shellcheck --severity=warning scripts/*.sh` **0**; `.woodpecker.yml` parses. The arch/property/fuzz tests ride
 the existing python lane (import-linter + hypothesis are in `requirements-test.txt`); `check-verdict-sync.sh`
-runs in the `repo-guards` step.
+ran in the `repo-guards` step until B206 retired it (2026-10-15).
 
 ## Extension — Java ArchUnit + upper-layering + framework-free contracts (RUN 2026-09-18, CI images)
 

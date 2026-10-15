@@ -1,5 +1,5 @@
 from guardrails.metrics import observe
-from guardrails.verdict import Verdict, Decision, Hook, Mode
+from grkit.verdict import Verdict, Decision, Hook, Mode
 from prometheus_client import REGISTRY
 
 

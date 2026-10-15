@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from prometheus_client import REGISTRY
 
 import main
-from guardrails.verdict import Decision, Hook
+from grkit.verdict import Decision, Hook
 
 
 @pytest.fixture
@@ -248,7 +248,7 @@ def test_context_search_rejects_unknown_backend(client):
 
 
 def test_context_search_403_when_input_guard_blocks(client, monkeypatch):
-    from guardrails.verdict import Verdict
+    from grkit.verdict import Verdict
     monkeypatch.setattr(main, "_guard",
                         lambda *a, **k: Verdict("pii", Decision.BLOCK, 0.9, "pii detected", 0))
     r = client.post("/context/search", params={"backend": "pgvector"}, json={"query": "ssn?"})
