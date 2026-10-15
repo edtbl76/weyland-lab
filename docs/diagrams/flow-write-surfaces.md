@@ -1,4 +1,4 @@
-# Flow — write surfaces and their front doors (B209)
+# Flow — write surfaces and their front doors (B209, B211)
 
 Who may change state, and what refuses everyone else. Design: [design/write-surfaces.md](../design/write-surfaces.md);
 runbook: [runbooks/write-surfaces.md](../runbooks/write-surfaces.md); demo: [demos/act-guard.md](../demos/act-guard.md)
@@ -27,6 +27,30 @@ sequenceDiagram
     R-->>TR: Console / A2A, free lane unless allow_paid true
 ```
 
+## The registry: one store, two names (B211)
+
+```mermaid
+sequenceDiagram
+    participant N as a node / scanner / pod
+    participant CI as CI build step
+    participant TR as Traefik
+    participant NP as NetworkPolicy
+    participant RG as registry :5000
+    N->>TR: GET/HEAD registry.weyland.lab/v2/…
+    TR->>NP: router registry-pull-* (GET/HEAD only)
+    NP->>RG: admitted (kube-system traefik)
+    RG-->>N: the image
+    N->>TR: POST/PUT registry.weyland.lab/v2/…/blobs/uploads/
+    TR-->>N: 404 (no router matches a write)
+    CI->>TR: push registry-push.weyland.lab (HTTPS, basic auth)
+    TR->>TR: middleware registry-push-auth (401 without credentials)
+    TR->>NP: authenticated push
+    NP->>RG: admitted (kube-system traefik)
+    RG-->>CI: 201 Created
+    N->>NP: direct to registry:5000
+    NP-->>N: refused (only Traefik and registry-ui)
+```
+
 ## Keeping it closed
 
 ```mermaid
@@ -36,7 +60,7 @@ flowchart LR
     G -->|"writes: false"| OK1["read-only"]
     G -->|"a policy selects app=pod_app or key"| OK2["policy"]
     G -->|"front_door: how the app authenticates"| OK3["front door"]
-    G -->|"accepted_gap: B211 …"| GAP["tracked gap, printed every run"]
+    G -->|"accepted_gap: a B-number …"| GAP["tracked gap, printed every run"]
     G -->|"none of these / writes undeclared"| FAIL["exit 1: named"]
     G -->|"registry unreadable, no policies parsed"| CANT["exit 2: could not check"]
 ```

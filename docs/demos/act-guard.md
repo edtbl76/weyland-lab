@@ -111,6 +111,50 @@ admin, a spoofed chat id) and `tests/test_incidents.py` (token shapes, URL passw
 block, and a redaction failure that drops the message). The owner's own chat keeps working: their entry is a private
 chat, whose id is their user id.
 
+## The rest of the write surfaces (B211), run 2026-10-14
+
+B209's guard found 11 more services that took writes from any pod, and the stores behind them had none either. Each now
+has a front door. Runbook: [../runbooks/write-surfaces.md](../runbooks/write-surfaces.md).
+
+**10. Refused from a pod no policy admits** (`weyland-guard`). For meshed targets the refusal is an instant envoy `503`;
+for raw-TCP stores the connection resets. Observed: Trino, the Trino no-auth proxy, Nessie, MLflow, Feast, OpenSearch,
+the operator, promptfoo, the Flink REST API, APISIX's etcd and buildkitd all refused. The stores, probed at the protocol
+level (a Kafka `ApiVersions`, a Redis `PING`, an HTTP `GET`), so a sidecar accepting the TCP handshake doesn't read as
+open:
+```
+kubectl -n weyland exec -i deploy/weyland-guard -c weyland-guard -- python - redpanda.data-mesh.svc.cluster.local:9092 valkey.data-mesh.svc.cluster.local:6379 opensearch-cluster-master.data-mesh.svc.cluster.local:9200 glitchtip-valkey.weyland.svc.cluster.local:6379 registry.weyland.svc.cluster.local:5000 < /home/edwardmangini/IdeaProjects/weyland/scripts/probe-store.py
+```
+Observed: Redpanda, Valkey and GlitchTip's Valkey reset; DataHub's OpenSearch and the registry `503`.
+
+**11. Admitted for the real callers**, each on a fresh connection (a policy doesn't cut a connection that was already
+open, so a long-lived client proves nothing):
+- `dagster-user-code` reaches all of the above, plus Redpanda (`ApiVersions` answered) and Valkey (`+PONG`); a Trino
+  `SHOW SCHEMAS FROM iceberg` returned 9 schemas. Flink's JobManager reaches Nessie, Cube reaches the no-auth proxy,
+  `rag-index-opensearch` reaches OpenSearch, and APISIX reaches etcd. rogueone and `ray-head` reach MLflow's NodePort.
+- Redpanda: Kafka Connect, Flink's TaskManager, `rag-index-opensearch` and `rag-index-neo4j`. Connect's `musicbrainz-cdc`
+  stayed `RUNNING`, and both Flink session jobs (`cdc-demo-live`, `health-state-risk`) stayed `RUNNING`/`STABLE`. CI's
+  `test-integration-datahub` step (`rpk topic list`) was refused on CI #363, the one caller the mesh metrics couldn't
+  show, and is now admitted by step name.
+- Valkey: `feast-server`, Superset and Langfuse (`+PONG`). Superset is refused by Redpanda, which it never uses.
+- GlitchTip's Valkey: `glitchtip-web` and `glitchtip-worker` (`+PONG`); both are refused by the shared Valkey.
+- DataHub GMS → its OpenSearch: `_cluster/health` `200`. registry-ui → the registry: the catalog lists.
+- Prometheus still scrapes the meshed ones (Valkey and GMS envoys `up=1`).
+
+**12. The registry: pulls open, pushes authenticated.**
+```
+curl -sk -o /dev/null -w 'pull GET %{http_code}\n' https://registry.weyland.lab/v2/ && curl -sk -o /dev/null -w 'pull POST %{http_code}\n' -X POST https://registry.weyland.lab/v2/x/blobs/uploads/ && curl -sk -o /dev/null -w 'push host %{http_code}\n' https://registry-push.weyland.lab/v2/
+```
+Observed: `pull GET 200`, `pull POST 404` (Traefik has no route for a write on the pull name, over HTTP or HTTPS), `push
+host 401`; the push host over plain HTTP `404`. With credentials the push host answers `200`, and CI #361 pushed its
+images, build cache and cosign signatures through it.
+
+**13. The operator's `/operator/ask` is free by default.** A question with no `allow_paid` answered in 2.7 s ("19
+Kubernetes namespaces"), and `operator_brain_selected_total{brain="local"}` counted it, with no paid brain selected.
+
+**14. The guard:** `check-write-surfaces.sh` → `OK — 61 deployed service(s): 40 take writes, each with a policy, a front
+door or a tracked gap (0 gap(s)); 21 read-only.` Ollama, on rogueone, counts as a front door: ufw admits only mother and
+the local Docker bridge on 11434.
+
 ## UI walkthrough
 
 1. **Grafana → Dashboards → App Services** (`https://grafana.weyland.lab/d/app-services`), last row **weyland-tool-server —

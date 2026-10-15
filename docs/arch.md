@@ -1570,6 +1570,24 @@ the incident sweep redacts secrets before it posts. To stop the class reopening,
 run found 11 more, tracked as **B211** (buildkitd + the no-auth registry first). Design:
 [design/write-surfaces.md](design/write-surfaces.md); runbook: [runbooks/write-surfaces.md](runbooks/write-surfaces.md).
 
+**B211, the 11 (2026-10-14).** Each got a front door the same way: list the real callers (code, manifests, 14 days of
+`istio_requests_total`), then a NetworkPolicy admitting only them. Covered: buildkitd (the two CI build steps), Flink's
+JobManager, MLflow (its NodePort admits only rogueone), Trino and the no-auth proxy, Nessie, APISIX's etcd, OpenSearch,
+Feast (plus forward-auth on its open ingress), the operator (and `/operator/ask` free by default) and promptfoo. Ollama
+runs on rogueone, so its door is the host firewall (ufw admits only mother and the local Docker bridge). The stores
+behind them got the same treatment: Redpanda, both Valkeys, DataHub's OpenSearch. **The registry** took
+unauthenticated pushes, so any pod could replace an image every workload pulls. It splits into a pull name,
+`registry.weyland.lab` (Traefik routes only GET/HEAD), and an authenticated push name, `registry-push.weyland.lab`
+(basic auth, HTTPS), with a policy admitting only Traefik and registry-ui to the pod. CI writes the push credentials
+into a private docker config (`scripts/ci/registry-auth.sh`).
+
+| Gap found doing it | Fix | Rejected | Why |
+|---|---|---|---|
+| B209's policies cut Prometheus off the meshed pods' sidecars (the Realm's envoy went `up=0`) | every policy on a meshed pod admits Prometheus on 15020/15090, enforced repo-wide by a bats test | per-policy review | the miss happened twice in one pass; only a test that reads every policy keeps it closed |
+| One registry name took reads and writes | separate push host with basic auth; pull host GET/HEAD-only | registry `htpasswd` on every client | the nodes, the scanners and 37 manifest files pull by name; moving only the few writers was the smallest change |
+| A TCP connect reads "open" from a meshed pod even when refused (envoy accepts it) | `scripts/probe-store.py` sends each store's first protocol message | a plain connect check | it reported every refused store as open (observed 2026-10-14) |
+| CI steps are callers the mesh metrics never show (unmeshed, alive only during a pipeline); CI #363's `test-integration-datahub` was refused by Redpanda | the step admitted by `woodpecker-ci.org/step`; a bats test reads every step and the scripts it runs and fails a store dial its policy doesn't admit | rely on the 14-day traffic list | the list was built from mesh metrics, which is exactly where CI is invisible |
+
 **B208, the same lesson in API governance.** The nightly `api-drift` job reported "match" on any non-breaking
 difference, so the tool-server served a field for two weeks that its committed contract lacked. It now names additive
 drift and alerts (`ApiContractStale`, warning), and fails when it can't deliver the alert. Concept:

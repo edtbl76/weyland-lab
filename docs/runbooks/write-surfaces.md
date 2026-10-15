@@ -11,7 +11,7 @@ send a message) must say what refuses everyone else. Design and the audit behind
 |---|---|
 | The declaration | `applications.yaml`: each deployed entry has `writes: true\|false`; a write surface adds `front_door:` or `accepted_gap:` when no policy covers it, and `pod_app:` when its pod's `app` label differs from the key |
 | The guard | `scripts/check-write-surfaces.sh` (repo-guards; exit 0 / 1 / 2) |
-| Front doors (NetworkPolicies) | B209: `k8s/dagster/netpol-webserver.yaml`, `k8s/data-mesh/store-scaler.yaml`, `k8s/realm-of-agents/netpol.yaml`, `k8s/a2a-inspector/netpol.yaml`, `k8s/mcp-servers/netpol-compositors.yaml`. B211: `k8s/woodpecker/buildkitd.yaml`, `k8s/weyland-operator/netpol.yaml`, `k8s/promptfoo/netpol.yaml`, `k8s/apisix-etcd.yaml`, `k8s/opensearch/netpol.yaml`, `k8s/data-mesh/netpol-{feast-server,nessie,trino,flink-jobmanager}.yaml`, `k8s/lightdash/trino-noauth-proxy.yaml`, `k8s/mlflow/netpol.yaml`. Stores outside the registry (the guard can't see them, so these are pinned by the bats checks only): `k8s/data-mesh/netpol-{redpanda,valkey,datahub-opensearch}.yaml`, `k8s/glitchtip/netpol-valkey.yaml`, and the registry pod (`k8s/registry/registry.yaml`). **Every policy on a meshed pod also admits Prometheus on 15020/15090** (the sidecar's metrics) |
+| Front doors (NetworkPolicies) | B209: `k8s/dagster/netpol-webserver.yaml`, `k8s/data-mesh/store-scaler.yaml`, `k8s/realm-of-agents/netpol.yaml`, `k8s/a2a-inspector/netpol.yaml`, `k8s/mcp-servers/netpol-compositors.yaml`. B211: `k8s/woodpecker/buildkitd.yaml`, `k8s/weyland-operator/netpol.yaml`, `k8s/promptfoo/netpol.yaml`, `k8s/apisix-etcd.yaml`, `k8s/opensearch/netpol.yaml`, `k8s/data-mesh/netpol-{feast-server,nessie,trino,flink-jobmanager}.yaml`, `k8s/lightdash/trino-noauth-proxy.yaml`, `k8s/mlflow/netpol.yaml`. Stores outside the registry (the guard can't see them, so `write-surface-netpol.bats` pins each one's exact callers per port): `k8s/data-mesh/netpol-{redpanda,valkey,datahub-opensearch}.yaml`, `k8s/glitchtip/netpol-valkey.yaml`, and the registry pod (`k8s/registry/registry.yaml`). **Every policy on a meshed pod also admits Prometheus on 15020/15090** (the sidecar's metrics) |
 | Front doors (auth) | the registry's push host (`registry-push.weyland.lab`, Traefik basic auth), forward-auth on `realm.weyland.lab` and `feast.weyland.lab` |
 | Front doors (Istio) | `k8s/istio/authz-toolserver-act.yaml`, `k8s/istio/authz-guard-act.yaml` |
 | Label cross-checks | `scripts/tests/write-surface-netpol.bats`, `scripts/tests/compositor-netpol.bats` |
@@ -33,6 +33,9 @@ couldn't check (the registry is unreadable, or no policy was parsed at all).
    - **A NetworkPolicy admitting only its callers.** Use this when any caller is unmeshed (Traefik, port-agent, the
      compositors), since an Istio rule can't name an unmeshed caller. Find the callers first: the code, the manifests,
      and `istio_requests_total{destination_app="<app>"}` over 14 days. An unlisted caller breaks silently.
+     **Mesh metrics never show a CI step** (an unmeshed Woodpecker pod that exists only during a pipeline): grep
+     `.woodpecker.yml` and the scripts its steps run for the host, and admit a step by `woodpecker-ci.org/step`. The
+     bats test "every CI step that dials a policied store" fails on one you miss (CI #363's `test-integration-datahub`).
    - **An Istio AuthorizationPolicy** when every caller is meshed and you want identity rather than labels. Write it as
      an ALLOW list: an exact-path DENY can be slipped past with `%2F` (B207).
    - **`front_door: "<how>"`** when the app authenticates writes itself (a login, an admin token). Forward-auth on the
@@ -40,7 +43,14 @@ couldn't check (the registry is unreadable, or no policy was parsed at all).
 3. Add the policy's expected callers to `write-surface-netpol.bats`, so a label typo fails CI.
 4. Run the check above, plus a live negative check: call it from a pod that isn't admitted. From a meshed pod a
    NetworkPolicy refusal is an **instant `503` from envoy, "remote connection failure"**, not a timeout. From an
-   unmeshed pod it's a connect timeout.
+   unmeshed pod it's a connect timeout. Test with a **fresh** connection: a new policy doesn't cut one already open.
+   For a store that isn't HTTP, a TCP connect proves nothing from a meshed pod (envoy accepts it), so send the
+   protocol's first message with `scripts/probe-store.py` (a Valkey `PING`, a Kafka `ApiVersions`, else an HTTP `GET`):
+   ```
+   kubectl -n weyland exec -i deploy/weyland-guard -c weyland-guard -- python - redpanda.data-mesh.svc.cluster.local:9092 valkey.data-mesh.svc.cluster.local:6379 < /home/edwardmangini/IdeaProjects/weyland/scripts/probe-store.py
+   ```
+   Refused reads `REFUSED ConnectionResetError` or `DATA b'HTTP/1.1 503 …`; admitted reads `DATA b'+PONG…` or the
+   Kafka response bytes.
 
 ## Live checks (run 2026-10-14 unless noted)
 

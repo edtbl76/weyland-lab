@@ -2,7 +2,8 @@
 # rag.chunks (the write path into all five vector stores), the CDC topics and DataHub's event bus. Callers (code,
 # manifests, 14 days of istio_tcp_connections_opened_total for the meshed ones): Debezium (kafka-connect), Flink, DataHub
 # (gms, actions, frontend usage events, and the chart's system-update hook Jobs, by job-name), the five rag-index
-# consumers, dagster-user-code (rag_stream_produce, streaming producers), redpanda-console, JupyterHub notebooks.
+# consumers, dagster-user-code (rag_stream_produce, streaming producers), redpanda-console, JupyterHub notebooks, and
+# CI's test-integration-datahub step.
 # 9644 (admin) only from the console; Redpanda itself is admitted on every port (single node, self-connections).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -58,6 +59,16 @@ spec:
     - {protocol: TCP, port: 9092}
     - {protocol: TCP, port: 8081}
     - {protocol: TCP, port: 8082}
+  # CI's test-integration-datahub step (rpk topic/group list: DataHub's topics and consumer groups are live). An
+  # unmeshed Woodpecker step pod, so it never shows in mesh metrics; CI #363 found it refused.
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: woodpecker}
+      podSelector:
+        matchExpressions:
+        - {key: woodpecker-ci.org/step, operator: In, values: [test-integration-datahub]}
+    ports:
+    - {protocol: TCP, port: 9092}
   - from:
     - podSelector:
         matchLabels: {app: redpanda-console}

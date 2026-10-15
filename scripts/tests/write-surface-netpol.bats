@@ -227,3 +227,118 @@ print('ok')"
   run check weyland registry-traefik-and-ui-only registry 5000 app=registry-ui "ns=kube-system,app.kubernetes.io/name=traefik"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
+
+# B211 stores (2026-10-14). These policies select Helm or multi-label workloads and admit callers across namespaces, by
+# job-name and by CI step, so `check` above (one rule, `app=` sources) can't read them. `sources` renders every allowed
+# source per port, and each test pins the exact set: adding a caller is a deliberate change here, like the rest.
+#   source forms: `app=x` (same namespace, by label), `ns=n,k=v` (another namespace), `<key> In a|b` (matchExpressions)
+sources() {
+  python3 - "$P/$1" "$2" "$3" <<'PY'
+import sys, yaml
+f, name, port = sys.argv[1], sys.argv[2], int(sys.argv[3])
+(pol,) = [d for d in yaml.safe_load_all(open(f)) if d and d.get("kind") == "NetworkPolicy" and d["metadata"]["name"] == name]
+out = set()
+for rule in pol["spec"]["ingress"]:
+    if {"protocol": "TCP", "port": port} not in rule["ports"]:
+        continue
+    for src in rule["from"]:
+        nsel = ((src.get("namespaceSelector") or {}).get("matchLabels") or {}).get("kubernetes.io/metadata.name")
+        ps = src.get("podSelector") or {}
+        parts = [f"ns={nsel}"] if nsel else []
+        parts += [f"{k}={v}" for k, v in sorted((ps.get("matchLabels") or {}).items())]
+        parts += [f"{e['key']} {e['operator']} {'|'.join(e['values'])}" for e in ps.get("matchExpressions") or []]
+        out.add(",".join(parts))
+print("\n".join(sorted(out)))
+PY
+}
+
+pinned() {   # pinned <file> <policy> <port> <expected sources...>
+  local f="$1" n="$2" port="$3"; shift 3
+  run sources "$f" "$n" "$port"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  local want; want="$(printf '%s\n' "$@" | sort)"
+  [ "$output" = "$want" ] || { printf 'got:\n%s\nwant:\n%s\n' "$output" "$want"; return 1; }
+}
+
+@test "Redpanda's Kafka port admits only its listed producers and consumers (and CI's DataHub step)" {
+  pinned data-mesh/netpol-redpanda.yaml redpanda-front-door-only 9092 \
+    app=kafka-connect app=weyland-flink app=redpanda app=redpanda-console \
+    app=rag-index-opensearch app=rag-index-qdrant app=rag-index-weaviate \
+    app.kubernetes.io/name=datahub-gms app.kubernetes.io/name=acryl-datahub-actions app.kubernetes.io/name=datahub-frontend \
+    "job-name In datahub-system-update|datahub-system-update-nonblk" \
+    ns=weyland,app=dagster-user-code ns=weyland,app=rag-index-neo4j ns=weyland,app=rag-index-pgvector \
+    ns=jupyterhub,component=singleuser-server \
+    "ns=woodpecker,woodpecker-ci.org/step In test-integration-datahub"
+}
+
+@test "Redpanda's admin API admits only the console and Redpanda itself" {
+  pinned data-mesh/netpol-redpanda.yaml redpanda-front-door-only 9644 app=redpanda app=redpanda-console
+}
+
+@test "the shared Valkey admits only its seven clients (and Prometheus on the sidecar)" {
+  pinned data-mesh/netpol-valkey.yaml valkey-front-door-only 6379 \
+    app=feast-server app=superset app=superset-worker \
+    ns=weyland,app=dagster-user-code ns=weyland,app=langfuse-web ns=weyland,app=langfuse-worker ns=weyland,app=sourcebot
+  pinned data-mesh/netpol-valkey.yaml valkey-front-door-only 15020 ns=monitoring,app.kubernetes.io/name=prometheus
+}
+
+@test "GlitchTip's Valkey admits only GlitchTip" {
+  pinned glitchtip/netpol-valkey.yaml glitchtip-valkey-glitchtip-only 6379 app=glitchtip-web app=glitchtip-worker
+}
+
+@test "DataHub's OpenSearch admits only GMS and the chart's setup jobs" {
+  pinned data-mesh/netpol-datahub-opensearch.yaml datahub-opensearch-datahub-only 9200 \
+    app.kubernetes.io/name=datahub-gms "job-name In datahub-system-update|datahub-system-update-nonblk"
+}
+
+@test "the pinning helper is not a rubber stamp: a missing caller fails" {
+  run pinned glitchtip/netpol-valkey.yaml glitchtip-valkey-glitchtip-only 6379 app=glitchtip-web
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"want:"* ]]
+}
+
+# CI #363 (2026-10-14) found it: test-integration-datahub runs rpk from an unmeshed Woodpecker step pod, so it never
+# appeared in the mesh metrics the caller lists were built from, and the new Redpanda policy refused it. This reads every
+# pipeline step's commands and the repo scripts they run; a step that dials a policied store must be admitted by that
+# store's policy, by step name. It must find at least one such step, or the scan isn't reading the pipeline.
+@test "every CI step that dials a policied store is admitted by that store's policy" {
+  run python3 - "$P" "$BATS_TEST_DIRNAME/../.." <<'PY'
+import sys, re, yaml, os
+p, root = sys.argv[1], sys.argv[2]
+STORES = {   # host pattern -> (policy file, policy name)
+    r"redpanda\.data-mesh": ("data-mesh/netpol-redpanda.yaml", "redpanda-front-door-only"),
+    r"(?<!glitchtip-)valkey\.data-mesh": ("data-mesh/netpol-valkey.yaml", "valkey-front-door-only"),
+    r"glitchtip-valkey\.weyland": ("glitchtip/netpol-valkey.yaml", "glitchtip-valkey-glitchtip-only"),
+    r"opensearch-cluster-master\.data-mesh": ("data-mesh/netpol-datahub-opensearch.yaml", "datahub-opensearch-datahub-only"),
+    r"registry\.weyland\.svc": ("registry/registry.yaml", "registry-traefik-and-ui-only"),
+}
+def admitted_steps(f, name):
+    (pol,) = [d for d in yaml.safe_load_all(open(f"{p}/{f}")) if d and d.get("kind") == "NetworkPolicy" and d["metadata"]["name"] == name]
+    steps = set()
+    for rule in pol["spec"]["ingress"]:
+        for src in rule["from"]:
+            if ((src.get("namespaceSelector") or {}).get("matchLabels") or {}).get("kubernetes.io/metadata.name") != "woodpecker":
+                continue
+            for e in (src.get("podSelector") or {}).get("matchExpressions") or []:
+                if e["key"] == "woodpecker-ci.org/step" and e["operator"] == "In":
+                    steps |= set(e["values"])
+    return steps
+pipe = yaml.safe_load(open(f"{root}/.woodpecker.yml"))
+bad, dialing = [], []
+for step in pipe["steps"]:
+    text = "\n".join(str(c) for c in step.get("commands") or [])
+    for script in set(re.findall(r"scripts/[\w./-]+\.(?:sh|py)", text)):
+        if os.path.isfile(f"{root}/{script}"):
+            text += "\n" + open(f"{root}/{script}").read()
+    for pat, (f, name) in STORES.items():
+        if re.search(pat, text):
+            dialing.append(f"{step['name']}->{name}")
+            if step["name"] not in admitted_steps(f, name):
+                bad.append(f"CI step {step['name']} dials {pat} but {name} doesn't admit woodpecker-ci.org/step={step['name']}")
+print("dialing:", sorted(dialing))
+assert dialing, "no CI step dials a policied store: the scan isn't reading .woodpecker.yml or its scripts"
+assert not bad, bad
+PY
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  echo "$output"
+}
