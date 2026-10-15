@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-guard
-          image: registry.weyland.lab/weyland-guard:git-f5d43213   # B207 (v13): ACT fails closed on a validator error/absence; encoded path separators refused (400). U13: grounding.nli cross-encoder + prompt_guard classifier on raw ONNX Runtime (onnx_runtime.py) — torch/transformers/sentence-transformers dropped, byte-equivalent (logit diff 0.0). Presidio (spaCy) + remote llama_guard.safety untouched. CI-built since 2026-10-14 (B207 joined it to scripts/ci/images.tsv): the bump PR rewrites this tag to git-<sha>; v13 was the last hand-built tag.
+          image: registry.weyland.lab/weyland-guard:git-a68d3d90   # B207 (v13): ACT fails closed on a validator error/absence; encoded path separators refused (400). U13: grounding.nli cross-encoder + prompt_guard classifier on raw ONNX Runtime (onnx_runtime.py) — torch/transformers/sentence-transformers dropped, byte-equivalent (logit diff 0.0). Presidio (spaCy) + remote llama_guard.safety untouched. CI-built since 2026-10-14 (B207 joined it to scripts/ci/images.tsv): the bump PR rewrites this tag to git-<sha>; v13 was the last hand-built tag.
           imagePullPolicy: IfNotPresent
           resources:
             # Loads 4 models: injection DeBERTa + toxicity + NLI cross-encoder + (B34) the PII NER model. 3Gi covers
