@@ -21,3 +21,8 @@ urllib3==2.8.0                   # 2.7.0: PYSEC-2026-4175/4176/4177
 sqlparse==0.6.0                  # 0.5.5: PYSEC-2026-3696..3699, 3923
 gitpython==3.1.60
 cryptography==50.0.0
+# CVE floor pins, 2026-10-15 (B206 DoD scan, scripts/scan-diff.py): advisories published that day
+langgraph-sdk==0.4.4             # 0.4.2: PYSEC-2026-4240
+mako==1.4.2                      # 1.4.1: PYSEC-2026-4243
+multidict==6.9.1                 # 6.7.1: PYSEC-2026-4244
+werkzeug==3.1.9                  # 3.1.8: PYSEC-2026-4312
