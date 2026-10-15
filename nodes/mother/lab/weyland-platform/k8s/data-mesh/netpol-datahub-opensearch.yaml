@@ -1,0 +1,23 @@
+# B211 (2026-10-14) — DataHub's own OpenSearch (the `prerequisites` Helm release, ns data-mesh). Its security plugin is
+# disabled, so any pod could delete or rewrite DataHub's search and graph indices. Its writers: datahub-gms (search,
+# graph) and the chart's upgrade hook Jobs datahub-system-update / -nonblk (index setup on every sync; selected by
+# job-name, the only label they carry). The lab's other OpenSearch (ns opensearch, rag-index-opensearch) is a different
+# cluster with its own policy (k8s/opensearch/netpol.yaml). 9300 (transport) gets nothing: single node.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: datahub-opensearch-datahub-only
+  namespace: data-mesh
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: opensearch, app.kubernetes.io/instance: prerequisites }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: datahub-gms }
+        - podSelector:
+            matchExpressions:
+              - { key: job-name, operator: In, values: [datahub-system-update, datahub-system-update-nonblk] }
+      ports:
+        - { protocol: TCP, port: 9200 }

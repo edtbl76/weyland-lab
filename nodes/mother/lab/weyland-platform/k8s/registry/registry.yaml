@@ -4,7 +4,7 @@
 #
 # B211 (2026-10-14): TWO hosts. It used to take unauthenticated pushes, so any pod or LAN machine could replace an image
 # every workload pulls. registry.weyland.lab is the PULL name (every reader: node containerd, registry-ui, blackbox,
-# syft/trivy; GET/HEAD only once phase 3 lands). registry-push.weyland.lab is the PUSH name, behind Traefik basic auth
+# syft/trivy; GET/HEAD only since phase 2). registry-push.weyland.lab is the PUSH name, behind Traefik basic auth
 # (secret registry-push-auth, htpasswd). The docker CLI, buildkit and cosign handle the basic-auth challenge; the
 # IntelliJ "Unsupported" problem that dropped basic auth before only hits GUI clients, which only ever pull.
 #
@@ -112,27 +112,38 @@ spec:
       port: 5000
       targetPort: 5000
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+# The PULL host, read-only (B211 phase 2, 2026-10-14): Traefik routes only GET and HEAD for registry.weyland.lab, so a
+# push here gets Traefik's 404 (no matching router). Every reader keeps working unchanged: node containerd, blackbox,
+# ship-images, syft/trivy. Two routers, plain HTTP and HTTPS, exactly like the Ingress they replace: the nodes' pull
+# scheme lives in mother's /etc/rancher/k3s/registries.yaml (not in git), so both stay served. Pushes:
+# registry-push.weyland.lab (below), CI since #361 and the rogueone scripts.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
 metadata:
-  name: registry
+  name: registry-pull-https
   namespace: weyland
 spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`registry.weyland.lab`) && (Method(`GET`) || Method(`HEAD`))
+      kind: Rule
+      services:
+        - { name: registry, port: 5000 }
   tls:
-    - hosts:
-        - registry.weyland.lab
-      secretName: weyland-wildcard-tls
-  rules:
-    - host: registry.weyland.lab
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: registry
-                port:
-                  number: 5000
+    secretName: weyland-wildcard-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: registry-pull-http
+  namespace: weyland
+spec:
+  entryPoints: [web]
+  routes:
+    - match: Host(`registry.weyland.lab`) && (Method(`GET`) || Method(`HEAD`))
+      kind: Rule
+      services:
+        - { name: registry, port: 5000 }
 ---
 # The PUSH host (B211). Same backend as registry.weyland.lab, so anything pushed here is pullable at the old name.
 # The middleware's secret is created out-of-band, from scripts/.env (runbooks/write-surfaces.md § Registry):
@@ -154,6 +165,7 @@ metadata:
   namespace: weyland
   annotations:
     traefik.ingress.kubernetes.io/router.middlewares: weyland-registry-push-auth@kubernetescrd
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure   # credentials never cross the LAN in plain HTTP
 spec:
   tls:
     - hosts:
@@ -170,3 +182,26 @@ spec:
                 name: registry
                 port:
                   number: 5000
+---
+# Nothing may reach the registry pod except Traefik (both hosts above) and registry-ui (it browses and deletes through the
+# ClusterIP, behind its own Keycloak forward-auth). Without this, any pod could push straight to :5000 and skip the push
+# host's authentication. The readinessProbe comes from the node: allowed by the controller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registry-traefik-and-ui-only
+  namespace: weyland
+spec:
+  podSelector:
+    matchLabels: { app: registry }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: traefik }
+        - podSelector:
+            matchLabels: { app: registry-ui }
+      ports:
+        - { protocol: TCP, port: 5000 }

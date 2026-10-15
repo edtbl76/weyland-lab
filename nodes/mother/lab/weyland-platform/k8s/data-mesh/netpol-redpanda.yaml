@@ -1,0 +1,72 @@
+# B211 (2026-10-14) — Redpanda's front door. No auth: any pod could produce into or delete every topic, including
+# rag.chunks (the write path into all five vector stores), the CDC topics and DataHub's event bus. Callers (code,
+# manifests, 14 days of istio_tcp_connections_opened_total for the meshed ones): Debezium (kafka-connect), Flink, DataHub
+# (gms, actions, frontend usage events, and the chart's system-update hook Jobs, by job-name), the five rag-index
+# consumers, dagster-user-code (rag_stream_produce, streaming producers), redpanda-console, JupyterHub notebooks.
+# 9644 (admin) only from the console; Redpanda itself is admitted on every port (single node, self-connections).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: redpanda-front-door-only, namespace: data-mesh}
+spec:
+  podSelector:
+    matchLabels: {app: redpanda}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels: {app: kafka-connect}
+    - podSelector:
+        matchLabels: {app: weyland-flink}
+    - podSelector:
+        matchLabels: {app.kubernetes.io/name: datahub-gms}
+    - podSelector:
+        matchLabels: {app.kubernetes.io/name: acryl-datahub-actions}
+    - podSelector:
+        matchLabels: {app.kubernetes.io/name: datahub-frontend}
+    - podSelector:
+        matchExpressions:
+        - key: job-name
+          operator: In
+          values: [datahub-system-update, datahub-system-update-nonblk]
+    - podSelector:
+        matchLabels: {app: rag-index-opensearch}
+    - podSelector:
+        matchLabels: {app: rag-index-qdrant}
+    - podSelector:
+        matchLabels: {app: rag-index-weaviate}
+    - podSelector:
+        matchLabels: {app: redpanda-console}
+    - podSelector:
+        matchLabels: {app: redpanda}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: dagster-user-code}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: rag-index-neo4j}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: rag-index-pgvector}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: jupyterhub}
+      podSelector:
+        matchLabels: {component: singleuser-server}
+    ports:
+    - {protocol: TCP, port: 9092}
+    - {protocol: TCP, port: 8081}
+    - {protocol: TCP, port: 8082}
+  - from:
+    - podSelector:
+        matchLabels: {app: redpanda-console}
+    - podSelector:
+        matchLabels: {app: redpanda}
+    ports:
+    - {protocol: TCP, port: 9644}
+  - from:
+    - podSelector:
+        matchLabels: {app: redpanda}
+    ports:
+    - {protocol: TCP, port: 33145}

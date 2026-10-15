@@ -201,3 +201,29 @@ PY
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
   echo "$output"
 }
+
+# B211 phase 2 (2026-10-14): the registry's pull host is read-only and the pod is reachable only through Traefik (both
+# hosts) and registry-ui, so a push has to go through registry-push.weyland.lab's basic auth.
+@test "registry: the pull host routes only GET/HEAD (HTTP and HTTPS); the push host needs auth over HTTPS; the pod admits Traefik and registry-ui" {
+  run python3 -c "
+import yaml
+docs=[d for d in yaml.safe_load_all(open('$P/registry/registry.yaml')) if d]
+k=lambda kind,name:[d for d in docs if d['kind']==kind and d['metadata']['name']==name]
+assert not [d for d in docs if d['kind']=='Ingress' and d['metadata']['name']=='registry'], 'the open pull Ingress is back'
+eps=set()
+for n in ('registry-pull-https','registry-pull-http'):
+    (r,)=k('IngressRoute',n); eps|=set(r['spec']['entryPoints'])
+    (route,)=r['spec']['routes']
+    assert route['match']=='Host(\`registry.weyland.lab\`) && (Method(\`GET\`) || Method(\`HEAD\`))', route['match']
+assert eps=={'web','websecure'}, eps
+(push,)=k('Ingress','registry-push'); a=push['metadata']['annotations']
+assert a['traefik.ingress.kubernetes.io/router.middlewares']=='weyland-registry-push-auth@kubernetescrd'
+assert a['traefik.ingress.kubernetes.io/router.entrypoints']=='websecure'
+(mw,)=k('Middleware','registry-push-auth'); assert mw['spec']['basicAuth']['secret']=='registry-push-auth'
+env={e['name'] for e in k('Deployment','registry')[0]['spec']['template']['spec']['containers'][0]['env']}
+assert 'REGISTRY_HTTP_HOST' not in env, 'REGISTRY_HTTP_HOST pins upload URLs to the read-only host'
+print('ok')"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  run check weyland registry-traefik-and-ui-only registry 5000 app=registry-ui "ns=kube-system,app.kubernetes.io/name=traefik"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}

@@ -11,7 +11,7 @@ send a message) must say what refuses everyone else. Design and the audit behind
 |---|---|
 | The declaration | `applications.yaml`: each deployed entry has `writes: true\|false`; a write surface adds `front_door:` or `accepted_gap:` when no policy covers it, and `pod_app:` when its pod's `app` label differs from the key |
 | The guard | `scripts/check-write-surfaces.sh` (repo-guards; exit 0 / 1 / 2) |
-| Front doors (NetworkPolicies) | B209: `k8s/dagster/netpol-webserver.yaml`, `k8s/data-mesh/store-scaler.yaml`, `k8s/realm-of-agents/netpol.yaml`, `k8s/a2a-inspector/netpol.yaml`, `k8s/mcp-servers/netpol-compositors.yaml`. B211: `k8s/woodpecker/buildkitd.yaml`, `k8s/weyland-operator/netpol.yaml`, `k8s/promptfoo/netpol.yaml`, `k8s/apisix-etcd.yaml`, `k8s/opensearch/netpol.yaml`, `k8s/data-mesh/netpol-{feast-server,nessie,trino,flink-jobmanager}.yaml`, `k8s/lightdash/trino-noauth-proxy.yaml`, `k8s/mlflow/netpol.yaml`. **Every policy on a meshed pod also admits Prometheus on 15020/15090** (the sidecar's metrics) |
+| Front doors (NetworkPolicies) | B209: `k8s/dagster/netpol-webserver.yaml`, `k8s/data-mesh/store-scaler.yaml`, `k8s/realm-of-agents/netpol.yaml`, `k8s/a2a-inspector/netpol.yaml`, `k8s/mcp-servers/netpol-compositors.yaml`. B211: `k8s/woodpecker/buildkitd.yaml`, `k8s/weyland-operator/netpol.yaml`, `k8s/promptfoo/netpol.yaml`, `k8s/apisix-etcd.yaml`, `k8s/opensearch/netpol.yaml`, `k8s/data-mesh/netpol-{feast-server,nessie,trino,flink-jobmanager}.yaml`, `k8s/lightdash/trino-noauth-proxy.yaml`, `k8s/mlflow/netpol.yaml`. Stores outside the registry (the guard can't see them, so these are pinned by the bats checks only): `k8s/data-mesh/netpol-{redpanda,valkey,datahub-opensearch}.yaml`, `k8s/glitchtip/netpol-valkey.yaml`, and the registry pod (`k8s/registry/registry.yaml`). **Every policy on a meshed pod also admits Prometheus on 15020/15090** (the sidecar's metrics) |
 | Front doors (auth) | the registry's push host (`registry-push.weyland.lab`, Traefik basic auth), forward-auth on `realm.weyland.lab` and `feast.weyland.lab` |
 | Front doors (Istio) | `k8s/istio/authz-toolserver-act.yaml`, `k8s/istio/authz-guard-act.yaml` |
 | Label cross-checks | `scripts/tests/write-surface-netpol.bats`, `scripts/tests/compositor-netpol.bats` |
@@ -90,9 +90,17 @@ secret fails every step).
    echo '192.168.1.243 registry-push.weyland.lab' | sudo tee -a /etc/hosts && set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && printf '%s' "$REGISTRY_PUSH_PASSWORD" | docker login registry-push.weyland.lab -u "$REGISTRY_PUSH_USER" --password-stdin
    ```
 
-**Phases.** Phase 1 (this change) adds the push host and moves CI and the scripts onto it; the pull host still takes
-pushes. Phase 2, after a CI build has pushed through the push host: `registry.weyland.lab` becomes a GET/HEAD-only
-Traefik route, and a NetworkPolicy admits only Traefik and registry-ui to the registry pod.
+**Phases.** Phase 1 added the push host and moved CI and the scripts onto it; CI #361 (2026-10-14) proved it (the images,
+build cache and cosign signatures pushed through `registry-push.weyland.lab`; the golden-path smoke Jobs pulled by the
+usual name). Phase 2: `registry.weyland.lab` is two GET/HEAD-only Traefik IngressRoutes (HTTP and HTTPS, since the
+nodes' pull scheme lives in mother's `registries.yaml`, not in git); the push host is HTTPS-only; and a NetworkPolicy
+admits only Traefik and registry-ui to the registry pod.
+
+Check it (expect: a GET on the pull host `200`; a POST on the pull host `404`, Traefik has no router for it; the push
+host `401` without credentials):
+```
+curl -sk -o /dev/null -w 'pull GET %{http_code}\n' https://registry.weyland.lab/v2/ && curl -sk -o /dev/null -w 'pull POST %{http_code}\n' -X POST https://registry.weyland.lab/v2/x/blobs/uploads/ && curl -sk -o /dev/null -w 'push host %{http_code}\n' https://registry-push.weyland.lab/v2/
+```
 
 ## Rollback
 

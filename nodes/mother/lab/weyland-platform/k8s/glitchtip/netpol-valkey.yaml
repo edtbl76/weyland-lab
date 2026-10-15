@@ -1,0 +1,18 @@
+# B211 (2026-10-14) — GlitchTip's Valkey (its Celery broker; no auth): only glitchtip-web and glitchtip-worker.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: glitchtip-valkey-glitchtip-only
+  namespace: weyland
+spec:
+  podSelector:
+    matchLabels: { app: glitchtip-valkey }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: glitchtip-web }
+        - podSelector:
+            matchLabels: { app: glitchtip-worker }
+      ports:
+        - { protocol: TCP, port: 6379 }

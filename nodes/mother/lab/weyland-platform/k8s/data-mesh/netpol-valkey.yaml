@@ -1,0 +1,44 @@
+# B211 (2026-10-14) — the shared Valkey's front door (no auth). Callers (14 days of istio traffic): dagster-user-code,
+# feast-server (the online store), langfuse-web/-worker, sourcebot, superset and superset-worker (scaled to 0 today,
+# admitted for when it scales up). Meshed, so Prometheus is admitted on the sidecar's metrics ports too.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: valkey-front-door-only, namespace: data-mesh}
+spec:
+  podSelector:
+    matchLabels: {app: valkey}
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: dagster-user-code}
+    - podSelector:
+        matchLabels: {app: feast-server}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: langfuse-web}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: langfuse-worker}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: sourcebot}
+    - podSelector:
+        matchLabels: {app: superset}
+    - podSelector:
+        matchLabels: {app: superset-worker}
+    ports:
+    - {protocol: TCP, port: 6379}
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: prometheus}
+    ports:
+    - {protocol: TCP, port: 15020}
+    - {protocol: TCP, port: 15090}
