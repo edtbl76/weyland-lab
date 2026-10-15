@@ -37,8 +37,9 @@ couldn't check (the registry is unreadable, or no policy was parsed at all).
      `.woodpecker.yml` and the scripts its steps run for the host, and admit a step by `woodpecker-ci.org/step`. The
      bats test "every CI step that dials a policied store" fails on one you miss (CI #363's `test-integration-datahub`).
      A short-lived pod that dials **in its first second** can be refused even when admitted (CI #364/#365, with the
-     policy live and correct; the working theory is that k3s admits a new pod's IP a few seconds late), so its first
-     call retries, bounded, as `scripts/integration/datahub-redpanda-blackbox.sh` does.
+     policy live and correct: k3s admits a new pod's IP a few seconds after it starts; CI #366 was refused on the first
+     call and admitted on the retry 5 s later), so its first call retries, bounded, as
+     `scripts/integration/datahub-redpanda-blackbox.sh` does.
    - **An Istio AuthorizationPolicy** when every caller is meshed and you want identity rather than labels. Write it as
      an ALLOW list: an exact-path DENY can be slipped past with `%2F` (B207).
    - **`front_door: "<how>"`** when the app authenticates writes itself (a login, an admin token). Forward-auth on the
