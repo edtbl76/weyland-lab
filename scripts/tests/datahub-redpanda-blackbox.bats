@@ -19,13 +19,21 @@ setup() {
   cat >"$STUB_DIR/rpk" <<'RPK'
 #!/usr/bin/env bash
 case "$1 $2" in
-  "topic list") [ -f "$RPK_TOPICS" ] && cat "$RPK_TOPICS"; exit "${RPK_TOPIC_RC:-0}" ;;
+  "topic list")
+    n=$(( $(cat "$RPK_CALLS" 2>/dev/null || echo 0) + 1 )); echo "$n" >"$RPK_CALLS"
+    # RPK_REFUSE_FIRST=N: the first N calls are refused, the way a pod not yet admitted by its NetworkPolicy is
+    if [ "$n" -le "${RPK_REFUSE_FIRST:-0}" ]; then
+      echo "unable to request metadata: unable to dial: dial tcp 10.42.0.35:9092: connect: connection refused"; exit 1
+    fi
+    [ -f "$RPK_TOPICS" ] && cat "$RPK_TOPICS"; exit "${RPK_TOPIC_RC:-0}" ;;
   "group list") [ -f "$RPK_GROUPS" ] && cat "$RPK_GROUPS"; exit "${RPK_GROUP_RC:-0}" ;;
   *) echo "unexpected rpk invocation: $*" >&2; exit 3 ;;
 esac
 RPK
   chmod +x "$STUB_DIR/rpk"
   export RPK_TOPICS="$STUB_DIR/topics" RPK_GROUPS="$STUB_DIR/groups"
+  # No real waiting between retries in tests; the retry count is what's asserted.
+  export RPK_CALLS="$STUB_DIR/topic-calls" RPK_RETRY_DELAY=0
 }
 teardown() { teardown_stubs; return 0; }
 
@@ -115,4 +123,22 @@ MetadataChangeProposal_v1        1           1'
   REDPANDA_BROKERS="other.redpanda:9092" run bash "$DR"
   [ "$status" -eq 0 ]
   [[ "$output" == *"other.redpanda:9092"* ]]
+}
+
+# B211 (2026-10-14): CI #364/#365 were refused on the first broker call with Redpanda's NetworkPolicy live and correct
+# (theory: a new pod's IP is admitted a few seconds after it starts). The first call retries, bounded, and still fails
+# closed.
+@test "a broker refused at first but answering on a retry is healthy (exit 0), and says it retried" {
+  healthy
+  RPK_REFUSE_FIRST=2 run bash "$DR"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"answered on attempt 3 of 6"* ]]
+}
+
+@test "a broker that never answers is still a broken lane (exit 2) after every attempt, and no more" {
+  healthy
+  RPK_REFUSE_FIRST=99 RPK_ATTEMPTS=4 run bash "$DR"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"unreachable at"*"after 4 attempts"* ]]
+  [ "$(cat "$RPK_CALLS")" -eq 4 ]
 }

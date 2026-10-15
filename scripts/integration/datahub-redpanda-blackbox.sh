@@ -38,12 +38,23 @@ fails=0
 fail() { printf 'FAIL: %s\n' "$*" >&2; fails=1; }
 
 # ── topics ─────────────────────────────────────────────────────────────────────────────────────────
-topics="$(rpk topic list -X brokers="$BROKERS" 2>&1)"; rc=$?
 # A real listing carries the PARTITIONS header. rpk exiting non-zero, printing nothing, or printing an
 # error (no header) all mean "could not reach the broker" — fail CLOSED to 2, never read as topics missing.
+# RETRIED (B211, 2026-10-14): Redpanda's NetworkPolicy admits this CI step by its pod label, and CI #364/#365 were
+# refused in this very first call ("connection refused") with the policy live and correct. Working theory: k3s's
+# policy controller admits a new pod's IP a few seconds after it starts, and this step dials before then (the
+# `build` step, admitted the same way, runs `apk add` first). A bounded retry still fails closed: a broker that never
+# answers is exit 2 after RPK_ATTEMPTS tries.
+RPK_ATTEMPTS="${RPK_ATTEMPTS:-6}"; RPK_RETRY_DELAY="${RPK_RETRY_DELAY:-5}"
+for attempt in $(seq 1 "$RPK_ATTEMPTS"); do
+  topics="$(rpk topic list -X brokers="$BROKERS" 2>&1)"; rc=$?
+  { [ "$rc" -eq 0 ] && printf '%s\n' "$topics" | grep -qi 'PARTITIONS'; } && break
+  [ "$attempt" -lt "$RPK_ATTEMPTS" ] && sleep "$RPK_RETRY_DELAY"
+done
 { [ "$rc" -eq 0 ] && printf '%s\n' "$topics" | grep -qi 'PARTITIONS'; } \
-  || die2 "redpanda unreachable at $BROKERS, or 'rpk topic list' returned no listing:
+  || die2 "redpanda unreachable at $BROKERS after $RPK_ATTEMPTS attempts, or 'rpk topic list' returned no listing:
 $topics"
+[ "$attempt" -gt 1 ] && printf 'note: redpanda answered on attempt %s of %s\n' "$attempt" "$RPK_ATTEMPTS"
 
 for t in DataHubUpgradeHistory_v1 MetadataChangeLog_Versioned_v1 MetadataChangeProposal_v1; do
   printf '%s\n' "$topics" | grep -qw "$t" \
