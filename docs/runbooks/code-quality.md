@@ -20,6 +20,20 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   outlives the wait (default 900s; a full run takes over 30 minutes) exits **2**, `NOT a clean scan`, with the partial
   logs. Pass a longer wait: `./scripts/run-scan-suite.sh 3600`. (It exited 0 on a timeout until 2026-10-14.) Raw form:
   `kubectl -n weyland create job <name>-smoke --from=cronjob/<code-scan-suite|sonar-scan>`.
+  **What it prints** (2026-10-15): per repo, every tool with a critical or high finding plus the run's archive prefix,
+  read from the WHOLE job log, which it saves to a file and names. (It printed the last 200 lines until 2026-10-15; a
+  full run is ~25,000 lines, so weyland-lab's section never showed.) A completed job whose log is empty or has no
+  tool results is exit 2.
+- **Triage what is NEW** — a repo's standing totals (hundreds of OSV and kubescape highs on weyland-lab) bury a new
+  finding, so diff this run's archive against the previous run for the same repo (the prefixes `run-scan-suite.sh`
+  printed; the previous one is the same-size run in `https://s3.weyland.lab/scan-reports/`):
+  ```
+  python3 /home/edwardmangini/IdeaProjects/weyland/scripts/scan-diff.py <previous-run> <this-run>
+  ```
+  It compares critical/high findings per tool (trivy, OSV, bandit, semgrep, hadolint, gitleaks, kubescape), keyed on
+  file + package/rule/CVE, never on a line number. **Exit 0** nothing new · **1** new findings, listed (fix, or accept
+  a phantom with a documented reason) · **2** a report missing or unreadable in either run (not "nothing new").
+  B211's DoD run (2026-10-15, `2026-10-14T19-18-00Z` → `2026-10-15T04-17-42Z`): 0 new in every tool.
 - **SonarQube pre-check before handoff** (2026-10-13) — the CI `sonar-gate` step blocks the build and the nightly ship,
   so scan changed files first, on rogueone:
   ```

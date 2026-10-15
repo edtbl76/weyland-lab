@@ -186,7 +186,9 @@ defs = Definitions(schedules=[daily_schedule, weekly_schedule, off_schedule, mys
 @test "the real pipeline and watchdog agree" {
   unset DAGSTER_PIPELINE_DIR DAGSTER_WATCHDOG_MANIFEST
   run bash "$GUARD"
-  [ "$status" -eq 0 ]
+  # Print the guard's own verdict on failure: CI #367 (2026-10-15) failed here once, passed on #368 with the same
+  # commit, and left nothing to diagnose because the output was swallowed.
+  [ "$status" -eq 0 ] || { echo "guard exit $status:"; echo "$output"; return 1; }
 }
 
 @test "reverting the 2026-09-27 catalog fix (30h -> 8h) fails naming weyland_catalog_job" {

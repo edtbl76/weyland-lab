@@ -108,10 +108,10 @@ lib_source() {
 
 @test "does NOT flag a PEM private key" {
   lib_source
-  # gitleaks:allow — synthetic fixture, not a key. The PEM SHAPE is precisely what this test
+  # Synthetic fixture, not a key. The PEM SHAPE is precisely what this test
   # asserts is treated as config rather than a placeholder, so it cannot be disguised without
   # destroying the test. 20 bytes of base64 that decode to nothing.
-  run is_placeholder "$(printf -- '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEA\n-----END OPENSSH PRIVATE KEY-----')"
+  run is_placeholder "$(printf -- '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEA\n-----END OPENSSH PRIVATE KEY-----')"   # gitleaks:allow (synthetic fixture; the marker must sit on the matching line)
   [ "$status" -ne 0 ]
 }
 
