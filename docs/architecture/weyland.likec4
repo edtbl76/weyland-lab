@@ -29,6 +29,7 @@ model {
   port = ext "Port.io" "IDP / catalog + self-service actions (SaaS)"
   typesafe = ext "TypeSafe AI (Jev)" "Hosted decision model (POST /v1/systemone) — the operator's B174 decision-model shadow, paid from the owner's TypeSafe credit"
   linear = ext "Linear" "Roadmap / task status (ingested by Port); hosted MCP server (mcp.linear.app) read/written by the harnesses"
+  grkit = ext "grkit" "B206 — the guardrails kit (github.com/edtbl76/grkit, public, MIT): the guard verdict wire contract (grkit.verdict: Decision, Hook, Mode, Verdict), a fail-open guard client and the fail-closed build-time check pattern, packaged from weyland. Installed at image build, pinned to one commit (scripts/tests/grkit-pin.bats); not a running service"
 
   // ---- rogueone: external laptop, always on (the operator's interface — owner, 2026-10-03) ----
   rogueone = node "rogueone" "RTX 5000 Ada laptop (.230) — GPU inference + training edge. Always on (the operator's interface)." {
@@ -298,6 +299,8 @@ model {
   weyland.mother.ai.toolServer -> rogueone.ollama "RAG generate + eval judge /v1"
   weyland.mother.ai.toolServer -> weyland.mother.ai.litellm "hosted-model gen"
   weyland.mother.ai.toolServer -> weyland.mother.ai.weylandGuard "guards — /guard/{input,output,act} hooks (shadow, fail-open)"
+  weyland.mother.ai.weylandGuard -> grkit "imports the verdict wire contract (grkit.verdict, B206)"
+  weyland.mother.ai.toolServer -> grkit "imports the verdict wire contract (grkit.verdict, B206)"
   weyland.mother.ai.weylandGuard -> weyland.mother.ai.llamaGuard "Classify — POST content-safety classification (llama_guard.safety, temp 0)"
   weyland.mother.ai.dagster -> weyland.mother.ai.guardrailsStructure "Structure — eval judge JSON -> validate JudgeScores + re-ask (fail-open)"
   weyland.mother.ai.guardrailsStructure -> rogueone.ollama "re-ask the judge model to repair (litellm)"

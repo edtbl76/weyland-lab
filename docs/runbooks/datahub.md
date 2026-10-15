@@ -68,7 +68,11 @@ values, out of git).
 - **A native source:** DataHub UI → Ingestion → Sources → the source → **Run**. If DataHub was rebuilt and the
   source is gone, recreate it by pasting the matching `*.recipe.yaml` (Ingestion → Sources → Create → paste) and
   re-creating its DataHub Secret(s).
-- **The custom emit:** launch **`datahub_catalog_emit_job`** in the Dagster UI (or wait for the 6-hourly schedule).
+- **The custom emit:** launch **`datahub_catalog_emit_job`** in the Dagster UI (or wait for the 6-hourly schedule). From a shell (the same GraphQL `launchRun` the other runbooks use; it also upserts every `applications.yaml`
+  entry as a Port `component`, so run it after a registry edit rather than waiting for the night):
+  ```
+  kubectl exec -n weyland deploy/dagster-user-code -- python3 -c "import json,urllib.request;q='mutation(\$p:ExecutionParams!){launchRun(executionParams:\$p){__typename ... on LaunchRunSuccess{run{runId status}} ... on PythonError{message}}}';v={'p':{'selector':{'repositoryLocationName':'weyland_pipeline','repositoryName':'__repository__','jobName':'datahub_catalog_emit_job'},'runConfigData':{}}};r=urllib.request.Request('http://dagster-webserver.weyland.svc.cluster.local:3000/graphql',data=json.dumps({'query':q,'variables':v}).encode(),headers={'Content-Type':'application/json'});print(json.load(urllib.request.urlopen(r))['data']['launchRun'])"
+  ```
 
 ## Gotchas
 

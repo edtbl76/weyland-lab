@@ -1588,6 +1588,32 @@ into a private docker config (`scripts/ci/registry-auth.sh`).
 | A TCP connect reads "open" from a meshed pod even when refused (envoy accepts it) | `scripts/probe-store.py` sends each store's first protocol message | a plain connect check | it reported every refused store as open (observed 2026-10-14) |
 | CI steps are callers the mesh metrics never show (unmeshed, alive only during a pipeline); CI #363's `test-integration-datahub` was refused by Redpanda | the step admitted by `woodpecker-ci.org/step`; a bats test reads every step and the scripts it runs and fails a store dial its policy doesn't admit | rely on the 14-day traffic list | the list was built from mesh metrics, which is exactly where CI is invisible |
 
+**B206, the guard's wire contract becomes a package (2026-10-15).** weyland-guard decides and weyland-tool-server
+calls it, and the words they share are a contract: `Hook` values are the URL paths, `Decision` values are parsed from
+the response, and the tool-server builds `Verdict` positionally. Since B70 that contract lived in two byte-identical
+copies of `guardrails/verdict.py`, held together by `check-verdict-sync.sh` and a test that compared the files. grkit
+(B206 slice 1, github.com/edtbl76/grkit, stdlib only) packaged it, and slice 2 made both services import
+`grkit.verdict`. The duplication is gone; what can drift now is the version each service installs, so the pin is the
+new contract.
+
+| Option | Verdict | Why |
+|---|---|---|
+| **GitHub archive URL pinned to a commit** (`…/archive/<sha>.tar.gz#subdirectory=python`) | **adopted** | immutable bytes per commit, no `git` binary in the slim images (plain `python:3.12-slim` installs it), one line in each Dockerfile and test-requirements file |
+| `git+https://…@<tag>` | rejected | needs `git` in every image, and a tag can be moved |
+| PyPI release | rejected for now | a publishing pipeline for a two-consumer, $0 lab library; EMA-293 keeps it out of scope |
+| Vendor a copy into each service | rejected | that is the duplication being retired |
+| Keep `guardrails/verdict.py` as a one-line shim over grkit | rejected | 21 import sites move once; a shim would keep a local name that invites a fork |
+
+**What guards it now.** `scripts/tests/grkit-pin.bats` requires one identical commit-pinned URL in both Dockerfiles and
+both `requirements-test.txt`, and proves a drifted pin is caught. `weyland-guard/tests/test_verdict_contract.py` pins
+grkit's Hook, Decision and Mode values, Verdict's positional field order and the response round-trip, so a grkit release
+that changed any of them fails at the pin bump. Retired with the copies: `check-verdict-sync.sh` and its bats, and
+tool-server's `guardrails/` package with its import-linter contract (it held only `verdict.py`). Shipped as
+`git-a68d3d90`; live, both services report grkit 0.2.0 from commit `0d07977` and the act guard still refuses with `403`.
+Bump procedure: [runbooks/guardrails.md](runbooks/guardrails.md) § The wire contract comes from grkit. Demo:
+[demos/grkit-adoption.md](demos/grkit-adoption.md). Slice 3 (a product repo adopts the build-time template) moved to
+stud.io's backlog as EMA-300.
+
 **B208, the same lesson in API governance.** The nightly `api-drift` job reported "match" on any non-breaking
 difference, so the tool-server served a field for two weeks that its committed contract lacked. It now names additive
 drift and alerts (`ApiContractStale`, warning), and fails when it can't deliver the alert. Concept:
