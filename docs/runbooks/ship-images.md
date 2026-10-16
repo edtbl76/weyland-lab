@@ -64,9 +64,10 @@ argocd login mother:30880 --username admin --password "$(kubectl -n argocd get s
 > `{"level":"fatal","msg":"EOF"}` in any non-interactive context. `--plaintext` states the intent and skips
 > the prompt.
 
-**The session token expires, and the failure is quiet.** When it does, `ship-images.sh` prints
-`⚠ sync of <app> did not return cleanly` for every app and falls through to the live check — correct behaviour,
-but with no forced reconcile `FR1.5` then races Argo's ~3-minute poll and can fail on a rollout that was merely
+**The session token expires.** Since 2026-10-16 the `FR-ARGO` gate stops the ship up front with this login command.
+Before that the failure was quiet: `ship-images.sh` printed
+`⚠ sync of <app> did not return cleanly` for every app and fell through to the live check — correct behaviour,
+but with no forced reconcile `FR1.5` then raced Argo's ~3-minute poll and could fail on a rollout that was merely
 slow. Seen 2026-08-24. Verify the session rather than the login message:
 
 ```
@@ -175,6 +176,7 @@ what the health check above uses; the loop no longer depends on your having done
 | `FR1.2` | local `HEAD` == `origin/main` | git |
 | — | *idempotence:* tag already live **and** no bump PR open → stop, "already deployed" | cluster + GitHub |
 | `DETECT` | change detection **succeeded**, so an empty plan means "nothing changed" and not "the detector broke" | `scripts/ci/detect-changes.sh` |
+| `FR-ARGO` | the `argocd` CLI session is **live**: `argocd app list --grpc-web -o name` exits 0 **and** lists at least one `<project>/<app>`. Checked before the trigger, so an expired session stops the run in seconds with the login command, not after a 2-hour build ending in an unsynced merge. A quiet day (nothing to ship) skips it. Added 2026-10-16: on the `git-ce787810` ship all 8 syncs failed into warnings, as they had in most ships that day | argocd CLI |
 | `FR1.3` | the pipeline reached `success` | Woodpecker API |
 | `FR1.4` | the cluster is not already running this tag for the bumped image | live pods |
 | `FR2.1` | the PR originates from the **base repo, not a fork** | GitHub API |

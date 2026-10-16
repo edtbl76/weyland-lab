@@ -246,6 +246,24 @@ abort() {
   exit 1
 }
 
+# FR-ARGO (2026-10-16) — the argocd CLI session must be live BEFORE anything is triggered. It expires quietly, and the
+# post-merge `argocd app sync` loop below only warns, so an expired session meant every sync failed (8 of 8 on the
+# git-ce787810 ship) and the rollout raced Argo's ~3-minute poll. Asked the way docs/runbooks/ship-images.md verifies
+# the session: a live one lists applications as `<project>/<app>` lines. A non-zero exit, OR an exit 0 that lists
+# nothing, is not a live session. SHIP_ARGOCD_CHECK is the test seam (a command line, split on purpose).
+SHIP_ARGOCD_CHECK="${SHIP_ARGOCD_CHECK:-argocd app list --grpc-web -o name}"
+ARGO_CHECK_OUT=""
+argocd_session_ok() {
+  local out rc
+  # shellcheck disable=SC2086
+  out="$($SHIP_ARGOCD_CHECK 2>&1)" && rc=0 || rc=$?
+  if [ "$rc" -eq 0 ] && grep -qE '^[a-z0-9-]+/[a-z0-9.-]+$' <<<"$out"; then
+    return 0
+  fi
+  ARGO_CHECK_OUT="exit ${rc}: $(printf '%s' "${out:-<no output>}" | tail -n 2 | tr '\n' ' ')"
+  return 1
+}
+
 # --- Authoritative lookups ------------------------------------------------------------
 # NFR1: every one of these asks a system that KNOWS, never infers.
 
@@ -1283,6 +1301,16 @@ main() {
     return 0
   fi
   rm -f "$plan"
+
+  # FR-ARGO — checked here, after the quiet-day exits (they sync nothing) and before the trigger (a 2-hour build that
+  # ends in an unsynced merge is the expensive way to find an expired session).
+  printf '→ FR-ARGO: the argocd CLI session is live (the post-merge syncs depend on it)\n'
+  if ! argocd_session_ok; then
+    FAILED_GATE="FR-ARGO"
+    FAILED_REASON="a live argocd CLI session — \`${SHIP_ARGOCD_CHECK}\` answered ${ARGO_CHECK_OUT}. Log in again (docs/runbooks/ship-images.md): argocd login mother:30880 --username admin --password \"\$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)\" --plaintext --grpc-web"
+    abort
+  fi
+  printf '  ✓ FR-ARGO\n'
 
   printf '→ triggering pipeline on %s (%s)\n' "$REPO" "$BASE"
   #

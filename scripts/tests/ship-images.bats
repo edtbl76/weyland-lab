@@ -18,6 +18,12 @@ setup() {
     > "$STUB_DIR/detect-work"
   chmod +x "$STUB_DIR/detect-work"
   export SHIP_DETECT="$STUB_DIR/detect-work"
+
+  # FR-ARGO default: a live argocd session (the real CLI prints one `argocd/<app>` per line). The FR-ARGO tests
+  # below override it; without a default every end-to-end test would ask the REAL argocd CLI.
+  printf '#!/usr/bin/env bash\nprintf "argocd/dagster\\nargocd/weyland-guard\\n"\n' > "$STUB_DIR/argo-ok"
+  chmod +x "$STUB_DIR/argo-ok"
+  export SHIP_ARGOCD_CHECK="$STUB_DIR/argo-ok"
 }
 
 teardown() {
@@ -1638,4 +1644,64 @@ _wire_branches() {
   grep -q 'tools/list' "$STUB_LOG"
   grep -q '"name": "status"' "$STUB_LOG"
   grep -q '/context/search' "$STUB_LOG"
+}
+
+# --- FR-ARGO (2026-10-16): an expired argocd session stops the ship BEFORE anything is triggered -------------------
+# The CLI session expires quietly. Every post-merge `argocd app sync` then failed into a warning (8 of 8 on the
+# git-ce787810 ship, and most ships that day) and the rollout raced Argo's ~3-minute poll. The check runs before the
+# pipeline trigger, so an expired session costs seconds, not a 2-hour build followed by an unsynced merge.
+
+argo_stub() { # argo_stub <exit> <stdout> — what `argocd app list --grpc-web -o name` answers
+  printf '%s\n' "$2" > "$STUB_DIR/argo-check.out"
+  printf '#!/usr/bin/env bash\ncat "%s"\nexit %s\n' "$STUB_DIR/argo-check.out" "$1" > "$STUB_DIR/argo-check"
+  chmod +x "$STUB_DIR/argo-check"
+  export SHIP_ARGOCD_CHECK="$STUB_DIR/argo-check"
+}
+
+@test "FR-ARGO argocd_session_ok: true when the CLI lists applications" {
+  argo_stub 0 'argocd/dagster'
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run argocd_session_ok
+  [ "$status" -eq 0 ]
+}
+
+@test "FR-ARGO argocd_session_ok: false on an expired session" {
+  argo_stub 1 '{"level":"fatal","msg":"rpc error: code = Unauthenticated desc = invalid session: token has invalid claims: token is expired"}'
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run argocd_session_ok
+  [ "$status" -eq 1 ]   # 1, not 127: the predicate ran and said no
+}
+
+@test "FR-ARGO argocd_session_ok: an exit-0 EMPTY list is not a live session" {
+  argo_stub 0 ''
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run argocd_session_ok
+  [ "$status" -eq 1 ]   # 1, not 127: the predicate ran and said no
+}
+
+@test "FR-ARGO an expired session stops the ship before any pipeline is triggered, naming the login" {
+  stub_git_pushed
+  stub_dispatch woodpecker-cli
+  stub_dispatch gh
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  argo_stub 1 '{"level":"fatal","msg":"invalid session: token has invalid claims: token is expired"}'
+  run bash "$SHIP"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"stopped at FR-ARGO"* ]] || { echo "$output"; return 1; }
+  [[ "$output" == *"token is expired"* && "$output" == *"argocd login mother:30880"* ]] || { echo "$output"; return 1; }
+  not_called_with woodpecker-cli 'pipeline create'
+  not_called_with gh 'pr merge'
+}
+
+@test "FR-ARGO a quiet day (nothing to ship) does not need an argocd session" {
+  stub_git_pushed
+  stub_dispatch gh
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  printf '#!/usr/bin/env bash\n: > "$PLAN"\n' > "$STUB_DIR/detect-none"; chmod +x "$STUB_DIR/detect-none"
+  argo_stub 1 'token is expired'
+  SHIP_DETECT="$STUB_DIR/detect-none" run bash "$SHIP"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"nothing to ship"* && "$output" != *"FR-ARGO"* ]] || { echo "$output"; return 1; }
 }
