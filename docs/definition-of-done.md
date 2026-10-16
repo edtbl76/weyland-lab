@@ -222,6 +222,8 @@ manifest** runs the relevant scan and **triages the result before "done":**
   **`python3 scripts/sonar_api.py precheck <file>...`** (throwaway project, server default profiles = the ones
   `weyland-lab` uses, always cleaned up): it must print `precheck: clean`. Exit 1 names each finding; fix it or, for a
   hotspot that is genuinely fine, `sonar_api.py review-safe` after the push. Exit 2 means it could not scan — not clean.
+  A finding the real project already has is listed as `already open` and not counted, **unless it sits on a line the
+  change edits**: CI counts that line as new code, so the precheck does too (2026-10-16, after CI #387 and #388).
 - **Triage every NEW critical / high.** Most highs are phantom (see [[code-quality-scan-triage]]) — **fix** the real
   ones; **explicitly accept** the false/systemic ones with a *documented reason* in the right place: `.trivyignore`
   (Trivy / KSV — rule-id + why), `osv-scanner.toml` (dependency CVEs), or a **bare `# nosemgrep: <rule-id>`** (Semgrep —

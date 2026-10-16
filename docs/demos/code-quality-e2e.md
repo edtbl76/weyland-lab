@@ -69,11 +69,13 @@ sequenceDiagram
 The canonical trigger is the weekly Sunday CronJob. To kick each on-demand instead of waiting, create a Job
 `--from` the CronJob on **mother**.
 
-[mother] Kick the scan-suite (22 tools, code-maat among them) and read its log:
+[rogueone] Kick the scan-suite (22 tools, code-maat among them) and read its findings, with the canonical command
+(`kubectl wait --for=condition=complete` never returns for a FAILED Job, and since 2026-10-16 a scan defect fails it):
 ```
-kubectl -n weyland create job scan-suite-smoke --from=cronjob/code-scan-suite && kubectl -n weyland wait --for=condition=complete job/scan-suite-smoke --timeout=360s && kubectl -n weyland logs job/scan-suite-smoke
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/run-scan-suite.sh
 ```
-Expect each tool printing `= <tool>: …C / …H / …M / …L` then `POST 202`, and a final `= code-maat: posted 20 hotspots to Port`.
+Expect `✓ scan complete`, per repo every tool with a critical or high finding plus its archive path, and the full log's
+path. Each tool prints `= <tool>: …C / …H / …M / …L` then `POST 202`, and `= code-maat: posted 20 hotspots to Port`.
 
 [mother] Kick the sonar path (clone → Maven-compile → sonar-scanner):
 ```

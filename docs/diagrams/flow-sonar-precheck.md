@@ -28,6 +28,10 @@ sequenceDiagram
     P->>S: GET issues/search + hotspots/search on the scratch project
     P->>S: GET hotspots reviewed SAFE on weyland-lab for the same files
     Note over P: a scratch hotspot matching file + rule + message of a reviewed one is listed, not counted
+    P->>S: GET issues + TO_REVIEW hotspots already open on weyland-lab for the same files
+    Note over P: matching file + rule + message → "already open", listed, not counted (old code)
+    P->>P: git diff -U0 origin/main → the lines this change edits (2026-10-16)
+    Note over P: an "already open" finding ON an edited line counts as NEW (CI's gate counts that line as new code) — git cannot answer → exit 2
     Note over P: verdict = findings, never the scratch gate (no new-code period, it passes with issues open)
     P->>S: delete the project, revoke the token (always, also on failure)
     Note over P: a token that could not be revoked → exit 2

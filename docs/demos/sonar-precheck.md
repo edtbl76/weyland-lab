@@ -60,8 +60,31 @@ Also exit 2, each covered by a test: the scanner fails (on the default Docker ne
 `mother.weyland.lab`), the analysis fails or times out, Sonar analysed 0 files (the first live run read the project
 before Sonar had processed the upload), or the cleanup could not revoke the token.
 
+**5. An already-open finding on an edited line** (added 2026-10-16, RUN 2026-10-16; exit 1). CI #387 and #388 failed
+on an S1192 the precheck had listed as "already open": the edit touched a line carrying one copy of a duplicated
+literal, and CI's gate counts an edited line as new code. Run in a scratch clone so the repo is untouched. Edit the
+`scan.py` line that carries an already-open S1192 (`"application/json"` ×4):
+[rogueone]
+```
+T=$(mktemp -d) && git clone --quiet /home/edwardmangini/IdeaProjects/weyland $T/w && cd $T/w && F=nodes/mother/lab/weyland-platform/services/scan-suite/scan.py && L=$(grep -n 'headers={"Content-Type": "application/json"})' $F | head -1 | cut -d: -f1) && sed -i "${L}s/\$/  # demo edit/" $F && set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && python3 scripts/sonar_api.py precheck $F; echo "exit=$?"
+```
+```
+  CRITICAL python:S1192 nodes/mother/lab/weyland-platform/services/scan-suite/scan.py:82 — Define a constant instead of duplicating this literal "application/json" 4 times. (already open, but on a line this change edits — CI counts it as new code)
+precheck: FINDINGS (1 files scanned, 1 issues, 0 hotspots, 13 already open)
+exit=1
+```
+Revert the edit (`git checkout -- $F`) and the same command prints `precheck: clean (1 files scanned, 0 issues, 0
+hotspots, 14 already open)`, exit 0.
+
+**6. It cannot tell which lines changed** (exit 2): the same file copied outside any git repository.
+```
+sonar_api: precheck cannot tell which lines this change edits (git diff origin/main: error: Could not access 'origin/main'), so an "already open" finding on an edited line, which CI counts as new code, cannot be ruled out
+exit=2
+```
+
 ## Cleanup
-After every run, success or failure, the throwaway project `weyland-lab-precheck-<pid>` is deleted and its token
+Case 5's scratch clone lives in its `mktemp -d` directory, outside the repo: `rm -rf "$T"` when done (nothing is
+pushed from it; its `origin` is the local checkout). After every run, success or failure, the throwaway project `weyland-lab-precheck-<pid>` is deleted and its token
 revoked. Checked after the runs above:
 ```
 python3 /home/edwardmangini/IdeaProjects/weyland/scripts/sonar_api.py projects/search q=precheck   → paging.total 0
