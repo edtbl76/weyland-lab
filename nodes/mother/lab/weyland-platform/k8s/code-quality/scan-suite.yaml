@@ -19,13 +19,22 @@ data:
     set -u
     : "${GITHUB_TOKEN:?GITHUB_TOKEN not set — needs the pr-lifecycle-github token with Contents: read}"
     : "${SCAN_REPOS:?SCAN_REPOS not set}"
+    # scan.py exits 3 on a SCAN DEFECT (a tool crashed, an image could not be scanned) after posting everything else
+    # (2026-10-16). A defect anywhere makes the whole run exit 3, which the podFailurePolicy below turns into a failed
+    # Job with no retry; any other failure stays 1 and keeps the one retry for a transient clone or network error.
     rc=0
+    defect=""
     for repo in $SCAN_REPOS; do
       echo "======================= scan-suite: edtbl76/${repo} ======================="
       find /src -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true   # fresh /src per repo
       if git clone --quiet "https://oauth2:${GITHUB_TOKEN}@github.com/edtbl76/${repo}.git" /src; then
-        if ! SCAN_TARGET="${repo}" python3 /usr/local/bin/scan.py; then
-          echo "!! scan.py returned nonzero for ${repo}" >&2
+        SCAN_TARGET="${repo}" python3 /usr/local/bin/scan.py
+        r=$?
+        if [ "$r" -eq 3 ]; then
+          echo "!! SCAN DEFECT in ${repo} — see its '!! SCAN DEFECT' lines" >&2
+          defect="${defect} ${repo}"
+        elif [ "$r" -ne 0 ]; then
+          echo "!! scan.py returned ${r} for ${repo}" >&2
           rc=1
         fi
       else
@@ -33,6 +42,10 @@ data:
         rc=1
       fi
     done
+    if [ -n "$defect" ]; then
+      echo "=== scan-suite: all repos processed — SCAN DEFECT in:${defect} (exit 3) ==="
+      exit 3
+    fi
     echo "=== scan-suite: all repos processed (rc=${rc}) ==="
     exit "${rc}"
 ---
@@ -51,6 +64,15 @@ spec:
     spec:
       ttlSecondsAfterFinished: 259200   # 72h: a failed Job alerts (and keeps its logs) for 3 days, then clears — never forever (2026-09-25)
       backoffLimit: 1
+      # Exit 3 = a SCAN DEFECT (scan-all.sh above): rerunning a 55-minute scan would not fix a crashed tool, so fail
+      # the Job at once — KubeJobFailed carries it to Telegram. Any other failure keeps the one retry (2026-10-16).
+      podFailurePolicy:
+        rules:
+          - action: FailJob
+            onExitCodes:
+              containerName: scan-suite
+              operator: In
+              values: [3]
       template:
         spec:
           restartPolicy: Never

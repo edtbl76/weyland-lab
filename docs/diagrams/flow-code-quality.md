@@ -50,6 +50,7 @@ sequenceDiagram
     Suite->>Arch: trivy-images.json {images, broken, missing} with the run's other reports
     Op->>Arch: scan-diff.py previous-run this-run — keyed image NAME + package + id, MEDIUM counted
     Arch-->>Op: new / gone per tool, a baseline line when the old run predates the scan, exit 2 if any image BROKEN
+    Note over Suite,Cron: after every tool ran and posted — a crashed tool or a BROKEN image → scan.py exits 3, scan-all.sh finishes the other repos and exits 3, podFailurePolicy fails the Job with no retry, KubeJobFailed → Telegram
     Suite->>Ingest: POST code-maat top-20 {kind:"hotspot", file, revisions, ...}
     Ingest-->>Suite: 202 (queue-accepted)
     Ingest->>BP: map .body.kind=="hotspot" → code_hotspot

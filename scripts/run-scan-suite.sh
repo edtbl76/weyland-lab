@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ad-hoc run of the code-scan-suite — the per-batch DoD Pillar 7 gate (security + code-quality, 19 tools; B120).
+# Ad-hoc run of the code-scan-suite — the per-batch DoD Pillar 7 gate (security + code-quality; roster in quality-tools.yaml; B120).
 # Clears any prior adhoc job, launches a fresh one from the CronJob, waits, and prints the findings so they can be
 # triaged before "done" (fix real / document-accept phantom per docs/runbooks/code-quality.md). Runs from anywhere
 # with kubectl pointed at the cluster (e.g. rogueone). Tool registry: quality-tools.yaml. The weekly CronJob is the
@@ -11,10 +11,15 @@ NS=weyland
 CRONJOB=code-scan-suite
 JOB=scan-suite-adhoc
 TIMEOUT="${1:-5400s}"
-# A bare integer (e.g. `900`) is a natural way to pass the wait, but `kubectl wait --timeout` REQUIRES a unit
-# ("missing unit in duration") and fails the wait — the job runs on, but the script reports it never completed.
-# Normalize a unitless number to seconds so the arg can't silently break the wait.
+# A bare integer (e.g. `900`) means seconds; `90m` / `2h` are accepted too. Anything else is a usage error (exit 2),
+# never a wait that silently ends at once.
 [[ "$TIMEOUT" =~ ^[0-9]+$ ]] && TIMEOUT="${TIMEOUT}s"
+case "$TIMEOUT" in
+  *s) WAIT_S="${TIMEOUT%s}" ;; *m) WAIT_S=$(( ${TIMEOUT%m} * 60 )) ;; *h) WAIT_S=$(( ${TIMEOUT%h} * 3600 )) ;;
+  *) echo "✗ wait '${TIMEOUT}' is not <N>, <N>s, <N>m or <N>h (exit 2)" >&2; exit 2 ;;
+esac
+[[ "$WAIT_S" =~ ^[0-9]+$ ]] || { echo "✗ wait '${TIMEOUT}' is not a number of seconds (exit 2)" >&2; exit 2; }
+POLL="${SCAN_POLL_INTERVAL:-30}"
 
 echo "→ clearing any prior ${JOB} (if present)…"
 kubectl -n "$NS" delete job "$JOB" --ignore-not-found
@@ -22,14 +27,30 @@ kubectl -n "$NS" delete job "$JOB" --ignore-not-found
 echo "→ launching ${JOB} from cronjob/${CRONJOB}…"
 kubectl -n "$NS" create job "$JOB" --from="cronjob/${CRONJOB}"
 
-echo "→ waiting up to ${TIMEOUT} for completion…"
-complete=1
-if kubectl -n "$NS" wait --for=condition=complete "job/${JOB}" --timeout="$TIMEOUT"; then
-  echo "✓ scan complete — every repo's critical/high totals below; triage what is NEW against the previous archive (docs/runbooks/code-quality.md):"
-else
-  complete=0
-  echo "⚠ ${JOB} did not report complete within ${TIMEOUT} (failed or still running) — recent logs:" >&2
-fi
+# Poll for EITHER terminal condition (2026-10-16). `kubectl wait --for=condition=complete` never returns for a FAILED
+# Job, and scan.py now fails the Job on a scan defect (exit 3, podFailurePolicy), so waiting on Complete alone sat out
+# the whole timeout before saying anything.
+echo "→ waiting up to ${WAIT_S}s for completion…"
+state="" SECONDS=0
+while :; do
+  conds="$(kubectl -n "$NS" get job "$JOB" -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}{" "}{end}' 2>/dev/null || true)"
+  case " ${conds} " in
+    *" Complete "*) state=complete; break ;;
+    *" Failed "*) state=failed; break ;;
+  esac
+  [ "$SECONDS" -ge "$WAIT_S" ] && { state=timeout; break; }
+  sleep "$POLL"
+done
+complete=0
+case "$state" in
+  complete)
+    complete=1
+    echo "✓ scan complete — every repo's critical/high totals below; triage what is NEW against the previous archive (docs/runbooks/code-quality.md):" ;;
+  failed)
+    echo "⚠ ${JOB} FAILED — a scan defect (a tool crashed or an image could not be scanned) or a repo failure:" >&2 ;;
+  *)
+    echo "⚠ ${JOB} did not report complete within ${WAIT_S}s (still running) — recent logs:" >&2 ;;
+esac
 # The WHOLE log, summarized (2026-10-15). This used to print `--tail=200` under "triage NEW critical/high below", but
 # a full run is ~25,000 lines across ~10 repos, so the tail showed only the last two (small, clean) repos: the
 # weyland-lab section, with its critical/high totals, never reached the screen. Now the full log goes to a file and the
@@ -60,7 +81,12 @@ fi
 # Fail closed (2026-10-14): a scan that did not finish is NOT a clean scan, so it must never exit 0. It used to: the
 # B207 DoD run timed out mid-trivy, printed the warning above, and returned success. Exit 2 = the gate could not do
 # its job (the partial logs above are still worth reading). Re-run with a longer wait, or read the job when it ends:
-#   kubectl -n weyland wait --for=condition=complete job/scan-suite-adhoc --timeout=1800s && kubectl -n weyland logs job/scan-suite-adhoc --tail=-1
+#   kubectl -n weyland get job scan-suite-adhoc -o jsonpath='{.status.conditions[*].type}' ; kubectl -n weyland logs job/scan-suite-adhoc --tail=-1
+if [ "$state" = failed ]; then
+  grep -E '^\s*!! (SCAN DEFECT|CLONE FAILED|scan\.py returned)' "$LOG_FILE" | sed 's/^ */  /' | sort -u >&2 || true
+  echo "✗ NOT a clean scan: ${JOB} FAILED — the reasons above; the counts it posted are incomplete (exit 2)" >&2
+  exit 2
+fi
 if [ "$complete" -eq 0 ]; then
   echo "✗ NOT a clean scan: ${JOB} did not complete, so these findings are partial (exit 2)" >&2
   exit 2

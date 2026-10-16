@@ -103,7 +103,10 @@ because their lockfiles exist. Their remediation is B214. The 2 hadolint finding
 real Dockerfile names only (`tests/test_hadolint_targets.py`).
 
 A run whose image scan failed has `broken` images, and `scan-diff.py` then exits 2 instead of comparing.
-`tests/test_scan_diff.py` covers that case.
+`tests/test_scan_diff.py` covers that case. The run itself fails too: `scan.py` exits 3 with an `!! SCAN DEFECT` line
+naming the image, the Job fails without a retry, and `run-scan-suite.sh` exits 2 at once
+(`tests/test_suite_verdict.py`, `scripts/tests/scan-all-runner.bats`, `scripts/tests/run-scan-suite.bats`). That
+case cannot be forced live without breaking a deployed image; the tests carry it.
 
 ## UI walkthrough + UAT
 

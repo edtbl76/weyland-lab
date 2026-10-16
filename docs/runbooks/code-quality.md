@@ -20,7 +20,12 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   outlives the wait exits **2**, `NOT a clean scan`, with the partial logs. The default wait is **5400s** (2026-10-16):
   a full run took 43 minutes, and **55 with the B213 image scans** (weyland-lab alone ~31), so the old 900s default
   always timed out and even `3600` was too short. Pass a wait only to shorten it. (It exited 0 on a timeout until
-  2026-10-14.) Raw form:
+  2026-10-14.) **A scan defect fails the Job (2026-10-16):** every tool still runs and posts, but `scan.py` then exits
+  **3** if a tool crashed or `trivy-images` could not scan an image, printing an `!! SCAN DEFECT: …` line for each.
+  `scan-all.sh` finishes every repo and exits 3, and the CronJob's `podFailurePolicy` fails the Job on 3 with no retry,
+  so `KubeJobFailed` reaches Telegram. Before, those runs exited 0 and Port simply showed smaller numbers. This
+  script polls for Complete **or** Failed and, on Failed, prints the defect lines and exits **2** at once instead of
+  sitting out its wait. Raw form:
   `kubectl -n weyland create job <name>-smoke --from=cronjob/<code-scan-suite|sonar-scan>`.
   **What it prints** (2026-10-15): per repo, every tool with a critical or high finding plus the run's archive prefix,
   read from the WHOLE job log, which it saves to a file and names. (It printed the last 200 lines until 2026-10-15; a
@@ -72,7 +77,12 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   has no new-code period, so that gate passed with a CRITICAL issue open); and findings `weyland-lab` already has for
   the same file (same rule and message; lines move) are listed but not counted: open issues and TO_REVIEW hotspots as
   `already open`, hotspots reviewed SAFE as `already reviewed`. Without that, a 3-line change to a big file reported
-  all 30 of the file's old findings (B207, 2026-10-13), and the rule could never be met. It also scans only what the
+  all 30 of the file's old findings (B207, 2026-10-13), and the rule could never be met. **Except on a line the change
+  edits (2026-10-16):** CI's gate counts an edited line as new code, so an already-open finding there fails it. CI #387
+  and #388 both failed on an S1192 (a literal duplicated 4×) that the precheck had listed as already open, each time
+  because the edit touched a line carrying one copy. The precheck now reads `git diff -U0 origin/main`
+  (`SONAR_PRECHECK_BASE` to change it) and counts those as findings, marked `on a line this change edits`; if git cannot
+  answer it exits 2, never clean. It also scans only what the
   CI gate scans: files matching `sonar.exclusions` in `sonar-project.properties` (`**/*.yaml`, Dockerfiles, Terraform…)
   are dropped and named (`N excluded by sonar-project.properties`); a k8s manifest change otherwise reported findings
   the real project never sees.

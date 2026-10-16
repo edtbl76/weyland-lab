@@ -12,12 +12,13 @@ guards scan.py + the docs against it). weyland houses the build suite going forw
 — Python + Go + shell + docker + IaC + live HTTP-headers; a tool no-ops cleanly on a repo lacking its language (0 Go
 here → the Go tools post 0, correct for a multi-repo suite).
 """
-import json, os, re, subprocess, datetime, urllib.request, glob
+import json, os, re, subprocess, sys, datetime, urllib.request, glob
 
 SRC = os.environ.get("SCAN_SRC", "/src")
 OUT = os.environ.get("SCAN_OUT", "/out")
 # A vendored third-party tree no `find`-driven check should walk.
 OPENCLAW_EXCLUDE = "*/openclaw/*"
+NODE_MODULES_EXCLUDE = "*/node_modules/*"
 # B138 — the scanned repo's name (the Port label + report title). Every tool already scans /src generically, so
 # multi-repo scanning is just cloning each repo into /src and running this once per repo with SCAN_TARGET set.
 # Defaults to weyland-lab so the single-repo path is unchanged.
@@ -46,6 +47,14 @@ def load(path):
     except Exception as e:
         print(f"  ! parse {path}: {e}", flush=True)
         return None
+
+
+# What the run could NOT do (2026-10-16). Every tool is best-effort, so a crash or an image trivy could not scan used to
+# leave a smaller number in Port and an exit 0 — absence read as a lower count. These feed suite_verdict(), which exits
+# 3 (a SCAN DEFECT) after everything else has run and posted.
+CRASHED = []
+IMAGES_BROKEN = []
+SCAN_DEFECT_EXIT = 3
 
 
 # Every post() result lands here so archive() can render the HTML summary without re-parsing /out. Order is run
@@ -416,11 +425,29 @@ def trivy_images():
             images[ref] = d
     with open(f"{OUT}/trivy-images.json", "w") as f:
         json.dump({"images": images, "broken": broken, "missing": missing}, f)
+    IMAGES_BROKEN.extend(broken)
     c = _image_counts(images)
     if broken or missing:
         print(f"  !! trivy-images: {len(broken)} image(s) could not be scanned {broken}, "
               f"{len(missing)} with no pinned tag {missing}", flush=True)
     post("trivy-images", c)
+
+
+def run_tools(fns):
+    """Run each tool best-effort; a crash is logged, recorded for the verdict, and never stops the rest."""
+    for fn in fns:
+        try:
+            fn()
+        except Exception as e:
+            CRASHED.append(fn.__name__)
+            print(f"  !! {fn.__name__} crashed: {e}", flush=True)
+
+
+def suite_verdict():
+    """(exit code, reasons): 0 when every tool ran and every deployed image was scanned, else SCAN_DEFECT_EXIT."""
+    reasons = [f"{name} crashed, so its counts are missing" for name in CRASHED]
+    reasons += [f"trivy-images could not scan {ref}" for ref in IMAGES_BROKEN]
+    return (SCAN_DEFECT_EXIT if reasons else 0), reasons
 
 
 def codemaat():
@@ -474,7 +501,7 @@ def ruff():
 def pip_audit():
     # Python dependency CVEs (PyPI advisory DB) — a 2nd engine next to osv. pip-audit gives no severity → all high.
     reqs = subprocess.run(["find", SRC, "-name", "requirements*.txt",
-                           "-not", "-path", "*/node_modules/*", "-not", "-path", OPENCLAW_EXCLUDE],
+                           "-not", "-path", NODE_MODULES_EXCLUDE, "-not", "-path", OPENCLAW_EXCLUDE],
                           capture_output=True, text=True).stdout.split()
     # ACCEPTED FINDINGS (B142, 2026-08-24). Same discipline as .trivyignore and osv-scanner.toml:
     # every entry is a DOCUMENTED, dated exception with its reasoning, never blanket suppression.
@@ -541,7 +568,7 @@ def mypy():
     fatals, 158 type errors. Read stdout+stderr for the same reason, and surface every dir that breaks
     rather than letting an unchecked directory pass as zero."""
     c = z()
-    files = subprocess.run(["find", SRC, "-name", "*.py", "-not", "-path", "*/node_modules/*",
+    files = subprocess.run(["find", SRC, "-name", "*.py", "-not", "-path", NODE_MODULES_EXCLUDE,
                             "-not", "-path", "*/.venv/*", "-not", "-path", "*/site-packages/*"],
                            capture_output=True, text=True).stdout.split()
     if not files:
@@ -573,7 +600,7 @@ def shfmt():
     finds bugs; shfmt finds inconsistency. Counted as `low`: formatting is real signal but must not
     compete with security findings for attention."""
     c = z()
-    files = subprocess.run(["find", SRC, "-name", "*.sh", "-not", "-path", "*/node_modules/*",
+    files = subprocess.run(["find", SRC, "-name", "*.sh", "-not", "-path", NODE_MODULES_EXCLUDE,
                             "-not", "-path", "*/.venv/*"],
                            capture_output=True, text=True).stdout.split()
     if not files:
@@ -627,7 +654,7 @@ def headers():
 
 def _go_modules():
     return [os.path.dirname(p) for p in subprocess.run(
-        ["find", SRC, "-name", "go.mod", "-not", "-path", "*/node_modules/*", "-not", "-path", OPENCLAW_EXCLUDE],
+        ["find", SRC, "-name", "go.mod", "-not", "-path", NODE_MODULES_EXCLUDE, "-not", "-path", OPENCLAW_EXCLUDE],
         capture_output=True, text=True).stdout.split()]
 
 
@@ -856,16 +883,13 @@ if __name__ == "__main__":
     # Hoisted from codemaat(): the clone runs as root, the scan as uid 10001 → git "dubious ownership". This must
     # be set BEFORE any git-using check (secret_files runs 2nd, codemaat last) or those checks silently no-op.
     sh(["git", "config", "--global", "--add", "safe.directory", SRC])
-    for fn in (gitleaks, secret_files, detect_secrets, checkov, kubescape, hadolint, bandit, ruff,
+    run_tools((gitleaks, secret_files, detect_secrets, checkov, kubescape, hadolint, bandit, ruff,
                mypy, shfmt, osv, pip_audit, shellcheck, semgrep, trivy, trivy_images, go_vet, gosec, govulncheck,
-               staticcheck, headers, codemaat):
-        try:
-            fn()
-        except Exception as e:
-            print(f"  !! {fn.__name__} crashed: {e}", flush=True)
+               staticcheck, headers, codemaat))
     # Archive LAST, after every tool has written its JSON — this is the step that makes the reports outlive the pod.
-    try:
-        archive()
-    except Exception as e:
-        print(f"  !! archive crashed: {e}", flush=True)
+    run_tools((archive,))
     print(f"\n=== suite complete; raw reports in {OUT} ===", flush=True)
+    code, reasons = suite_verdict()
+    for r in reasons:
+        print(f"  !! SCAN DEFECT: {r}", flush=True)
+    sys.exit(code)

@@ -178,13 +178,31 @@ def _scan_and_report(src: str, key: str, token: str) -> int:
         return 2
     new_iss, open_iss = _split_open(get(ISSUES, {"componentKeys": key, "resolved": "false", "ps": 500})
                                     .get("issues", []))
+    new_hs, known, open_hs = _split_reviewed(get(HOTSPOTS, {"projectKey": key, "ps": 500}).get("hotspots", []))
+    try:
+        open_iss, edited_iss = _on_edited_lines(open_iss)
+        open_hs, edited_hs = _on_edited_lines(open_hs)
+    except CannotRead as exc:
+        print(f"sonar_api: precheck cannot tell which lines this change edits ({exc}), so an \"already open\" finding "
+              "on an edited line, which CI counts as new code, cannot be ruled out", file=sys.stderr)
+        return 2
+    return _report(scanned, new_iss + edited_iss, open_iss, new_hs + edited_hs, known, open_hs,
+                   edited=edited_iss + edited_hs)
+
+
+EDITED_NOTE = " (already open, but on a line this change edits — CI counts it as new code)"
+
+
+def _report(scanned, new_iss, open_iss, new_hs, known, open_hs, edited) -> int:
+    """Print every finding and the verdict line; 0 clean, 1 findings."""
     for i in new_iss:
-        print(f"  {i['severity']} {i['rule']} {_path(i)}:{i.get('line', '?')} — {i['message'][:120]}")
+        note = EDITED_NOTE if i in edited else ""
+        print(f"  {i['severity']} {i['rule']} {_path(i)}:{i.get('line', '?')} — {i['message'][:120]}{note}")
     for i in open_iss:
         print(f"  already open on {PROJECT}: {_path(i)}:{i.get('line', '?')} — {i['rule']} {i['message'][:100]}")
-    new_hs, known, open_hs = _split_reviewed(get(HOTSPOTS, {"projectKey": key, "ps": 500}).get("hotspots", []))
     for h in new_hs:
-        print(f"  {h['vulnerabilityProbability']} {_path(h)}:{h.get('line', '?')} — {h['message'][:120]}")
+        note = EDITED_NOTE if h in edited else ""
+        print(f"  {h['vulnerabilityProbability']} {_path(h)}:{h.get('line', '?')} — {h['message'][:120]}{note}")
     for h in known:
         print(f"  already reviewed SAFE on {PROJECT}: {_path(h)}:{h.get('line', '?')} — {h['message'][:120]}")
     for h in open_hs:
@@ -211,6 +229,40 @@ def _split_open(issues: list) -> tuple:
     seen = {(_path(i), i.get("rule"), i.get("message")) for i in live}
     new = [i for i in issues if (_path(i), i.get("rule"), i.get("message")) not in seen]
     return new, [i for i in issues if i not in new]
+
+
+def _on_edited_lines(findings: list) -> tuple:
+    """(still already open, on a line this change edits). "Already open" is matched on file + rule + message, which is
+    right for old code but wrong for a line the change touched: CI's gate counts that line as NEW code, so the finding
+    fails it. Found 2026-10-16 when CI #387 and #388 both failed on an S1192 the precheck had listed as already open —
+    each time the edit had touched a line carrying a duplicated literal."""
+    if not findings:
+        return [], []
+    changed = _changed_lines(sorted({_path(f) for f in findings}))
+    edited = [f for f in findings if f.get("line") in changed.get(_path(f), set())]
+    return [f for f in findings if f not in edited], edited
+
+
+def _changed_lines(paths: list) -> dict:
+    """{repo-relative path: line numbers changed or added} in the working tree against SONAR_PRECHECK_BASE (default
+    origin/main), read from `git diff -U0`'s new-side hunks. Raises CannotRead when git cannot answer."""
+    base = os.environ.get("SONAR_PRECHECK_BASE", "origin/main")
+    try:
+        r = subprocess.run(["git", "diff", "-U0", "--no-color", base, "--", *paths], capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        raise CannotRead("git is not installed") from exc
+    if r.returncode != 0:
+        raise CannotRead(f"git diff {base}: {(r.stderr or r.stdout).strip()[:200]}")
+    out, current = {}, None
+    for line in r.stdout.splitlines():
+        if line.startswith("+++ "):
+            current = None if line == "+++ /dev/null" else line[4:].removeprefix("b/")
+        elif line.startswith("@@") and current:
+            new_side = line.split("+", 1)[1].split(" ", 1)[0]
+            start, _, count = new_side.partition(",")
+            n = int(count) if count else 1
+            out.setdefault(current, set()).update(range(int(start), int(start) + n))
+    return out
 
 
 def _split_reviewed(hotspots: list) -> tuple:

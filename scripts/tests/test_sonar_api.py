@@ -138,6 +138,16 @@ def test_review_safe_refuses_without_a_reason(monkeypatch, capsys):
 # "value": "374"}]}}. A scratch project's first analysis has no new-code period, so its gate PASSED with a CRITICAL
 # issue open — the verdict is the findings, never the scratch gate.
 
+REAL_CHANGED_LINES = sa._changed_lines   # the autouse fixture below replaces it; the git test needs the real one
+
+
+@pytest.fixture(autouse=True)
+def _no_changed_lines(monkeypatch):
+    """Default: the change touched none of the lines Sonar reports, so "already open" stays already open. The tests
+    for the changed-line rule below replace this."""
+    monkeypatch.setattr(sa, "_changed_lines", lambda paths: {})
+
+
 class Scanner:
     """Stands in for the docker sonar-scanner run; records what it was asked to scan."""
 
@@ -448,3 +458,79 @@ def test_ant_patterns_match_like_sonar():
     assert m("deep/k.yaml", ["**/*.yaml"]) and m("k.yaml", ["**/*.yaml"])
     assert m("site-techdocs/x/y.html", ["site-techdocs/**"]) and not m("docs/site-techdocs.md", ["site-techdocs/**"])
     assert not m("app.py", ["**/*.yaml", "**/Dockerfile"]) and m("svc/Dockerfile.dev", ["**/Dockerfile.*"])
+
+
+# 2026-10-16 (CI #387, #388): an issue already open on weyland-lab, on a line the change EDITED, is new code to the CI
+# gate. The precheck listed `"*/openclaw/*"` (S1192) as "already open" and printed clean; CI failed on it twice, because
+# editing the line that carries a duplicated literal makes that line new code.
+def _already_open_routes(monkeypatch, line=80):
+    scratch = {"total": 1, "issues": [{"severity": "CRITICAL", "rule": "python:S1192", "line": line,
+                                       "message": "Define a constant", "component": "weyland-lab-precheck-1:b.py"}]}
+    already = {"total": 1, "issues": [{"severity": "CRITICAL", "rule": "python:S1192", "line": 77,
+                                       "message": "Define a constant", "component": "weyland-lab:b.py"}]}
+    _serve(monkeypatch, _precheck_routes())
+    real = sa.get
+
+    def fake_get(path, q):
+        if path == "issues/search":
+            return already if q.get("componentKeys", "").startswith(sa.PROJECT + ":") else scratch
+        if path == "hotspots/search":
+            return {"paging": {"total": 0}, "hotspots": []}
+        return real(path, q)
+    monkeypatch.setattr(sa, "get", fake_get)
+    monkeypatch.setattr(sa, "_run_scanner", Scanner())
+
+
+def test_an_already_open_issue_on_a_changed_line_counts_as_new(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    _already_open_routes(monkeypatch, line=80)
+    monkeypatch.setattr(sa, "_changed_lines", lambda paths: {"b.py": {79, 80, 81}})
+    assert sa.main(["precheck", *files]) == 1
+    out = capsys.readouterr().out
+    assert "CRITICAL python:S1192 b.py:80" in out and "on a line this change edits" in out
+    assert "precheck: FINDINGS (2 files scanned, 1 issues, 0 hotspots)" in out
+
+
+def test_an_already_open_issue_on_an_untouched_line_stays_already_open(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    _already_open_routes(monkeypatch, line=80)
+    monkeypatch.setattr(sa, "_changed_lines", lambda paths: {"b.py": {3, 4}})
+    assert sa.main(["precheck", *files]) == 0
+    assert "precheck: clean (2 files scanned, 0 issues, 0 hotspots, 1 already open)" in capsys.readouterr().out
+
+
+def test_unreadable_changed_lines_is_exit_2_not_clean(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    _already_open_routes(monkeypatch, line=80)
+
+    def boom(paths):
+        raise sa.CannotRead("git diff origin/main: not a git repository")
+    monkeypatch.setattr(sa, "_changed_lines", boom)
+    assert sa.main(["precheck", *files]) == 2
+    assert "cannot tell which lines this change edits" in capsys.readouterr().err
+
+
+def test_changed_lines_without_git_is_cannot_read(monkeypatch):
+    def no_git(*a, **k):
+        raise FileNotFoundError("git")
+    monkeypatch.setattr(sa.subprocess, "run", no_git)
+    with pytest.raises(sa.CannotRead, match="git is not installed"):
+        REAL_CHANGED_LINES(["f.py"])
+
+
+def test_changed_lines_reads_the_new_side_of_a_real_git_diff(tmp_path, monkeypatch):
+    import shutil
+    import subprocess
+    if not shutil.which("git"):
+        pytest.skip("git is not in this image (CI's python:3.12-slim); runs wherever git exists")
+    monkeypatch.chdir(tmp_path)
+    run = lambda *a: subprocess.run(["git", *a], check=True, capture_output=True)
+    run("init", "-q"); run("config", "user.email", "t@t"); run("config", "user.name", "t")
+    (tmp_path / "f.py").write_text("a\nb\nc\nd\n")
+    run("add", "f.py"); run("commit", "-qm", "base")
+    run("update-ref", "refs/remotes/origin/main", "HEAD")
+    (tmp_path / "f.py").write_text("a\nB\nc\nd\ne\n")             # line 2 changed, line 5 added
+    assert REAL_CHANGED_LINES(["f.py"]) == {"f.py": {2, 5}}
