@@ -34,6 +34,26 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   file + package/rule/CVE, never on a line number. **Exit 0** nothing new · **1** new findings, listed (fix, or accept
   a phantom with a documented reason) · **2** a report missing or unreadable in either run (not "nothing new").
   B211's DoD run (2026-10-15, `2026-10-14T19-18-00Z` → `2026-10-15T04-17-42Z`): 0 new in every tool.
+- **The deployed images too** (2026-10-16, `trivy-images`): the source scanners never read a Dockerfile's
+  `pip install` line, and 14 Dockerfiles install 103 packages that way (tool-server's `mcp` 1.28.1 sat in one through
+  GHSA-84m7-p3x7-pcfv). So the suite also scans every `registry.weyland.lab` image a manifest under `k8s/` deploys (the
+  CI-built ones in `scripts/ci/images.tsv` AND the hand-tagged ones it never lists: weyland-agent, ray-head,
+  mcp-server-datahub, weyland-jupyter, ranger, …; 23 on 2026-10-16), at the tag the manifest pins, pulled through `https://registry.weyland.lab` (`--insecure`, as CI does), one image at a time with the
+  cache cleared between. Results: `trivy-images.json` (`images`, plus `broken` and `missing` — an unscanned image is
+  never zero). `scan-diff.py` compares it keyed by image NAME + package + id (never the tag) and counts **MEDIUM** as
+  well: trivy rated the mcp advisory MEDIUM. A broken image is exit 2. The first run after the change has no
+  previous image scan and prints `trivy-images: baseline (N finding(s))`; every run after that is compared.
+- **No packages installed straight from a Dockerfile** (2026-10-16): `scripts/check-dockerfile-installs.sh`
+  (repo-guards) counts every package a Dockerfile `pip install`s outside a requirements file, in every stage, and holds
+  each Dockerfile to a ceiling in `scripts/ci/dockerfile-installs.baseline` that may only fall. The first count was
+  103 packages across 14 Dockerfiles (80 unpinned); all 14 now install from lockfiles, so the ceiling is 0. A new
+  direct install fails CI, named. To add a package, put it in the image's requirements file. A lockfile here is the
+  FULL frozen set of the image it replaced (`pip freeze` of the deployed image, verified freeze == file == deployed in
+  a rebuild). Builder stages that only export ONNX models are pinned at the day's resolution, since nothing deployed
+  holds them; conda-based images (ray-head, weyland-jupyter) pin only what their Dockerfile adds over the base.
+  ```
+  bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dockerfile-installs.sh --list
+  ```
 - **SonarQube pre-check before handoff** (2026-10-13) — the CI `sonar-gate` step blocks the build and the nightly ship,
   so scan changed files first, on rogueone:
   ```

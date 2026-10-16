@@ -10,9 +10,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 # build dies with ResolutionImpossible. Listing it unpinned declares the dependency without fighting checkov's pin.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates git xz-utils default-jre-headless \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir 'setuptools<81' checkov==3.2.257 bandit==1.7.10 semgrep==1.90.0 \
-         ruff==0.9.10 pip-audit==2.7.3 detect-secrets==1.5.0 mypy==1.14.1 boto3
+    && rm -rf /var/lib/apt/lists/*
+# 2026-10-16: the Python tools are pinned in requirements.txt (the full frozen set of the image this replaced), so a
+# rebuild cannot drift and the scanners can read their own dependencies.
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Static binaries (amd64). Each is a single file → drop into /usr/local/bin.
 RUN set -eux; \

@@ -1,0 +1,3 @@
+# scripts/check-dockerfile-installs.sh — per-Dockerfile ceiling on packages installed outside a
+# requirements file. It may only FALL: move installs into a pinned requirements file, then lower it
+# (scripts/check-dockerfile-installs.sh --write-baseline). <path>\t<count>; zero rows are omitted.

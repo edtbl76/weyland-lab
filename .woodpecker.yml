@@ -99,6 +99,10 @@ steps:
       # Every exact pin in a service's requirements.in must match its requirements.txt. dependabot compiles FROM
       # the .in, so a stale pin there regenerated a cryptography/mlflow downgrade on every re-cut (#63, 2026-09-25).
       - bash scripts/check-requirements-sync.sh
+      # 2026-10-16 — the ratchet on packages a Dockerfile `pip install`s outside a requirements file: invisible to every
+      # source scanner, and drift-prone when unpinned (103 at the first count). Per-Dockerfile ceilings in
+      # scripts/ci/dockerfile-installs.baseline may only fall. Pure file analysis.
+      - bash scripts/check-dockerfile-installs.sh
       - bash scripts/check-sa-automount-collisions.sh
       # B140 — a CronJob's cadence lives on three surfaces (manifest schedule · schedules.md ·
       # the freshness budget). Nothing kept them honest, so relaxing a schedule silently made

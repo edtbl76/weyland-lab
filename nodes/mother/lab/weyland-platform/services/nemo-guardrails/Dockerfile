@@ -9,10 +9,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir \
-    fastapi \
-    uvicorn \
-    nemoguardrails
+# 2026-10-16: pinned. requirements.txt is the full frozen set of the image this replaced, so a rebuild can no longer
+# drift and the source scanners can read it.
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY app.py /app/app.py
 COPY config/ /app/config/

@@ -3,7 +3,7 @@
 # grkit (github.com/edtbl76/grkit), instead of two byte-identical copies of guardrails/verdict.py held together by
 # check-verdict-sync.sh. The drift risk moved: two copies can't diverge any more, but two PINS can. A guard built on
 # v0.2.0 and a tool-server on a later grkit could disagree on the wire (Hook values are URL paths; Verdict is built
-# positionally). So every grkit reference in the repo (both Dockerfiles, both test requirement files) must be one
+# positionally). So every grkit reference in the repo (images and test lanes alike) must be one
 # identical, commit-pinned URL, and both services must carry it.
 
 setup() {
@@ -30,12 +30,15 @@ pins() {
   # A 40-hex commit, never a branch or a moving tag.
   [[ "$urls" =~ ^https://github\.com/edtbl76/grkit/archive/[0-9a-f]{40}\.tar\.gz#subdirectory=python$ ]] \
     || { echo "not a commit-pinned archive URL: $urls"; return 1; }
-  [ "$n_files" -ge 4 ] || { printf 'expected both Dockerfiles and both test requirement files, got:\n%s\n' "$output"; return 1; }
+  [ "$n_files" -ge 4 ] || { printf 'expected an image pin and a test pin for both services, got:\n%s\n' "$output"; return 1; }
 }
 
 @test "both services pin grkit in their image AND their test lane" {
+  # The image pin lives in the Dockerfile or, since 2026-10-16 (scripts/check-dockerfile-installs.sh), in the
+  # requirements.txt the Dockerfile installs; either way it must be there, and the test lane's copy too.
   for svc in weyland-guard weyland-tool-server; do
-    grep -q "grkit @ " "$S/$svc/Dockerfile" || { echo "$svc/Dockerfile has no grkit pin"; return 1; }
+    grep -q "grkit @ " "$S/$svc/Dockerfile" "$S/$svc/requirements.txt" 2>/dev/null \
+      || { echo "$svc has no grkit pin in its image (Dockerfile or requirements.txt)"; return 1; }
     grep -q "grkit @ " "$S/$svc/requirements-test.txt" || { echo "$svc/requirements-test.txt has no grkit pin"; return 1; }
   done
 }

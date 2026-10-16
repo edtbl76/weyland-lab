@@ -15,7 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl python3 py
 
 # PyFlink runtime - version pinned to the Flink dist (1.20.1) so the Python API + py4j gateway agree with the Java
 # runtime. The base image's pip predates PEP 668, so no --break-system-packages needed (or supported).
-RUN pip3 install --no-cache-dir apache-flink==${FLINK_VER}
+# 2026-10-16: pinned with all its dependencies (requirements-pyflink.txt). The file must keep apache-flink==FLINK_VER;
+# the build checks that, so bumping the arg without the file fails here instead of shipping a mismatch.
+COPY requirements-pyflink.txt /tmp/requirements-pyflink.txt
+RUN grep -qx "apache-flink==${FLINK_VER}" /tmp/requirements-pyflink.txt \
+    && pip3 install --no-cache-dir -r /tmp/requirements-pyflink.txt
 
 # Connectors/formats on the classpath: Kafka SQL connector (source + upsert-kafka sink) + Confluent-Avro (source).
 RUN set -eux; cd /opt/flink/lib; \

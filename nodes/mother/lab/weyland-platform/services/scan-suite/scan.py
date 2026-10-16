@@ -12,7 +12,7 @@ guards scan.py + the docs against it). weyland houses the build suite going forw
 — Python + Go + shell + docker + IaC + live HTTP-headers; a tool no-ops cleanly on a repo lacking its language (0 Go
 here → the Go tools post 0, correct for a multi-repo suite).
 """
-import json, os, subprocess, datetime, urllib.request, glob
+import json, os, re, subprocess, datetime, urllib.request, glob
 
 SRC = os.environ.get("SCAN_SRC", "/src")
 OUT = os.environ.get("SCAN_OUT", "/out")
@@ -299,6 +299,112 @@ def trivy():
                 if b:
                     c[b] += 1
     post("trivy", c)
+
+
+# ── deployed images (2026-10-16) ───────────────────────────────────────────────────────────────────────────────────
+# 14 Dockerfiles install 103 Python packages straight from `pip install` lines, which no source scanner reads:
+# tool-server's mcp==1.28.1 sat in one through GHSA-84m7-p3x7-pcfv. Scanning the BUILT image sees every installed
+# package however it got there. Only for a repo with scripts/ci/images.tsv (weyland-lab). The pull goes through
+# https://registry.weyland.lab (Traefik): since B211 the registry pod admits only Traefik and registry-ui, and the
+# lab CA isn't in this image, hence --insecure (as CI's supply-chain.sh does).
+IMAGES_TSV = "scripts/ci/images.tsv"
+PLATFORM = "nodes/mother/lab/weyland-platform"
+REGISTRY = "registry.weyland.lab"
+
+
+def _pinned_tag(src, manifest, name):
+    """The tag `manifest` pins for registry.weyland.lab/<name>, or None (unreadable file, or no such reference)."""
+    try:
+        with open(os.path.join(src, PLATFORM, manifest), encoding="utf-8") as m:
+            hit = re.search(rf"{re.escape(REGISTRY)}/{re.escape(name)}:([^\s\"'#]+)", m.read())
+    except OSError:
+        return None
+    return hit.group(1) if hit else None
+
+
+def deployed_images(src):
+    """(sorted image refs at the tag each image's FIRST manifest pins, names whose manifest pins none)."""
+    refs, missing = set(), []
+    with open(os.path.join(src, IMAGES_TSV), encoding="utf-8") as f:
+        rows = [line.rstrip("\n").split("\t") for line in f if line.strip() and not line.startswith("#")]
+    for cols in rows:
+        name, manifests = cols[0], (cols[2] if len(cols) > 2 else "").split()
+        tag = _pinned_tag(src, manifests[0], name) if manifests else None
+        if tag:
+            refs.add(f"{REGISTRY}/{name}:{tag}")
+        else:
+            missing.append(name)
+    refs |= _manifest_refs(src)
+    return sorted(refs), missing
+
+
+_INLINE_REF = re.compile(rf"{re.escape(REGISTRY)}/([a-z0-9][a-z0-9._/-]*):([A-Za-z0-9][A-Za-z0-9._-]*)")
+# Helm values that split the image (jupyterhub's singleuser.image): `name: registry…/x`, then `tag: y`.
+_SPLIT_REF = re.compile(rf"name:\s*[\"']?{re.escape(REGISTRY)}/([a-z0-9][a-z0-9._/-]*)[\"']?\s*\n(?:\s*#[^\n]*\n)*"
+                        r"\s*tag:\s*[\"']?([A-Za-z0-9][A-Za-z0-9._-]*)")
+
+
+def _manifest_refs(src):
+    """Every registry.weyland.lab image a manifest under k8s/ deploys, with its tag. Hand-tagged images (weyland-agent,
+    ray-head, mcp-server-datahub, weyland-jupyter) are not in images.tsv; the first version of this step missed them."""
+    out = set()
+    for p in glob.glob(os.path.join(src, PLATFORM, "k8s", "**", "*.y*ml"), recursive=True):
+        try:
+            with open(p, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            continue
+        for rx in (_INLINE_REF, _SPLIT_REF):
+            out |= {f"{REGISTRY}/{n}:{t}" for n, t in rx.findall(text) if t != "buildcache"}
+    return out
+
+
+def _is_trivy_report(d):
+    return isinstance(d, dict) and "SchemaVersion" in d and "ArtifactName" in d
+
+
+def _trivy_image(ref):
+    """trivy's JSON report for one image, or None when it could not scan (never an empty report)."""
+    out = f"{OUT}/.trivy-image.json"
+    sh(["trivy", "image", "--scanners", "vuln", "--insecure", "--quiet", "--format", "json", "--output", out, ref])
+    d = load(out)
+    try:
+        os.remove(out)
+    except OSError:
+        pass
+    sh(["trivy", "clean", "--scan-cache"])      # one image's layers at a time: the pod's disk is an emptyDir
+    return d if _is_trivy_report(d) else None
+
+
+def _image_counts(images):
+    m = {"CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low"}
+    c = z()
+    vulns = (v for d in images.values() for r in d.get("Results") or [] for v in r.get("Vulnerabilities") or [])
+    for v in vulns:
+        b = m.get((v.get("Severity") or "").upper())
+        if b:
+            c[b] += 1
+    return c
+
+
+def trivy_images():
+    if not os.path.exists(os.path.join(SRC, IMAGES_TSV)):
+        return
+    refs, missing = deployed_images(SRC)
+    images, broken = {}, []
+    for ref in refs:
+        d = _trivy_image(ref)
+        if d is None:
+            broken.append(ref)
+        else:
+            images[ref] = d
+    with open(f"{OUT}/trivy-images.json", "w") as f:
+        json.dump({"images": images, "broken": broken, "missing": missing}, f)
+    c = _image_counts(images)
+    if broken or missing:
+        print(f"  !! trivy-images: {len(broken)} image(s) could not be scanned {broken}, "
+              f"{len(missing)} with no pinned tag {missing}", flush=True)
+    post("trivy-images", c)
 
 
 def codemaat():
@@ -735,7 +841,7 @@ if __name__ == "__main__":
     # be set BEFORE any git-using check (secret_files runs 2nd, codemaat last) or those checks silently no-op.
     sh(["git", "config", "--global", "--add", "safe.directory", SRC])
     for fn in (gitleaks, secret_files, detect_secrets, checkov, kubescape, hadolint, bandit, ruff,
-               mypy, shfmt, osv, pip_audit, shellcheck, semgrep, trivy, go_vet, gosec, govulncheck,
+               mypy, shfmt, osv, pip_audit, shellcheck, semgrep, trivy, trivy_images, go_vet, gosec, govulncheck,
                staticcheck, headers, codemaat):
         try:
             fn()

@@ -1,0 +1,11 @@
+# weyland-jupyter singleuser image — the packages this Dockerfile adds on top of quay.io/jupyter/scipy-notebook,
+# at the versions the deployed registry.weyland.lab/weyland-jupyter:v1 runs (pip freeze, 2026-10-16). Only the
+# additions are pinned: the base is a conda scientific stack that owns its own environment (fsspec among it, which
+# s3fs pins exactly). aiobotocore is the one pip-installed dependency of s3fs. Was an unpinned
+# `pip install polars s3fs pylance duckdb fastavro` that no source scanner could read.
+polars==1.42.1
+s3fs==2026.6.0
+aiobotocore==3.7.0
+pylance==8.0.0
+duckdb==1.5.4
+fastavro==1.12.2

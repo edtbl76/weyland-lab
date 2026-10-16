@@ -50,6 +50,18 @@ def gitleaks(d):
     return {(x["File"], x["RuleID"]) for x in d} if isinstance(d, list) else set()
 
 
+def trivy_images(d):
+    """The DEPLOYED images (the suite's trivy_images step). Keyed by image NAME, package, id — never the tag, which
+    changes on every ship. MEDIUM counts here: trivy rated the mcp advisory MEDIUM (CVE-2026-59951, 2026-10-16)."""
+    out = set()
+    for ref, rep in (d.get("images") or {}).items():
+        name = ref.rsplit("/", 1)[-1].split(":", 1)[0]
+        for r in rep.get("Results") or []:
+            out |= {(v["Severity"], name, v.get("PkgName"), v.get("VulnerabilityID"))
+                    for v in r.get("Vulnerabilities") or [] if v.get("Severity") in HIGH + ("MEDIUM",)}
+    return out
+
+
 def kubescape(d):
     controls = (d.get("summaryDetails") or {}).get("controls") or {}
     return {(r["resourceID"], c["controlID"]) for r in d.get("results") or [] for c in r.get("controls") or []
@@ -58,7 +70,11 @@ def kubescape(d):
 
 
 TOOLS = {"trivy.json": trivy, "osv.json": osv, "bandit.json": bandit, "semgrep.json": semgrep,
-         "hadolint.json": hadolint, "gitleaks.json": gitleaks, "kubescape.json": kubescape}
+         "hadolint.json": hadolint, "gitleaks.json": gitleaks, "kubescape.json": kubescape,
+         "trivy-images.json": trivy_images}
+IMAGES_REPORT = "trivy-images.json"
+# Added after scans were already being archived: an OLD run without it is a baseline, not an unreadable report.
+LATER_TOOLS = {IMAGES_REPORT}
 
 
 def fetch(run, name):
@@ -73,18 +89,54 @@ def diff(old, new):
             for name, fn in TOOLS.items()}
 
 
+def _fetch_new(run):
+    new = {}
+    for n in TOOLS:
+        try:
+            new[n] = fetch(run, n)
+        except Exception as e:
+            hint = (" — the run predates the image scan (ship the scan-suite image) or its trivy_images step failed"
+                    if n in LATER_TOOLS else "")
+            raise RuntimeError(f"{n} unreadable in {run}: {e}{hint}") from e
+    return new
+
+
+def _fetch_old(run):
+    """(reports, the LATER_TOOLS the old run predates). Any other unreadable report raises."""
+    old, baseline = {}, []
+    for n in TOOLS:
+        try:
+            old[n] = fetch(run, n)
+        except Exception:
+            if n not in LATER_TOOLS:
+                raise
+            baseline.append(n)
+    return old, baseline
+
+
 def main(argv):
     if len(argv) != 3:
         print(__doc__.strip().split("\n\n")[1], file=sys.stderr)
         return 2
     try:
-        old = {n: fetch(argv[1], n) for n in TOOLS}
-        new = {n: fetch(argv[2], n) for n in TOOLS}
+        new = _fetch_new(argv[2])
+        old, baseline = _fetch_old(argv[1])
     except Exception as e:   # any unreadable report: we can't say "nothing new"
         print(f"CANNOT COMPARE: {e}", file=sys.stderr)
         return 2
+    broken = (new.get(IMAGES_REPORT) or {}).get("broken") or []
+    if broken:
+        print(f"CANNOT COMPARE: trivy-images could not scan {broken} (an unscanned image is not a clean one)",
+              file=sys.stderr)
+        return 2
+    for n in baseline:
+        print(f"{n.removesuffix('.json')}: baseline ({len(TOOLS[n](new[n]))} finding(s)); the previous run predates "
+              "this scan, so there is nothing to compare yet")
+        old[n] = new[n]
     added_any = False
     for name, (added, removed) in diff(old, new).items():
+        if name in baseline:
+            continue
         print(f"{name.removesuffix('.json')}: {len(added)} new, {removed} gone")
         for a in added:
             print("   +", " | ".join(str(x) for x in a))

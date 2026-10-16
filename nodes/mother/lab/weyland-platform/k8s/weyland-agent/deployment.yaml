@@ -20,7 +20,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: weyland-agent
-          image: registry.weyland.lab/weyland-agent:v8   # U13: bge query-embedder on raw ONNX Runtime (retrievers.py OnnxBge) — torch + sentence-transformers dropped (~1.2GB), byte-equivalent so no vector re-hydration. Hand-tagged (NOT in images.tsv change-detection).
+          image: registry.weyland.lab/weyland-agent:v9   # U13: bge query-embedder on raw ONNX Runtime (retrievers.py OnnxBge) — torch + sentence-transformers dropped (~1.2GB), byte-equivalent so no vector re-hydration. Hand-tagged (NOT in images.tsv change-detection). v9 (2026-10-16) = v8 with its packages pinned (services/weyland-agent/requirements.txt).
           imagePullPolicy: IfNotPresent
           resources:
             # Loads bge in-process (~torch) + langgraph/llama-index/mlflow client; LLM inference is remote (Ollama),

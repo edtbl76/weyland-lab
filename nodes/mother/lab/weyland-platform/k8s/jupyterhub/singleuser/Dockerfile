@@ -9,7 +9,9 @@
 # pinned deps below.
 FROM quay.io/jupyter/scipy-notebook:latest
 USER root
-RUN pip install --no-cache-dir polars s3fs pylance duckdb fastavro \
+# 2026-10-16: the additions are pinned (requirements-lake.txt, the versions weyland-jupyter:v1 runs).
+COPY requirements-lake.txt /tmp/requirements-lake.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-lake.txt \
     && mkdir -p /opt/examples
 COPY notebooks/ /opt/examples/
 RUN chmod -R a+rX /opt/examples

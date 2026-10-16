@@ -9,7 +9,9 @@ FROM python:3.12-slim
 # `--transport` (only stdio|sse now), which breaks the `--transport http` manifest + the compositor's http
 # upstream; 0.6.0 keeps http AND its dep range resolves mcp to 1.30.0. Runtime-verified in docker that
 # `mcp-server-datahub --transport http` starts on this exact combo (past arg-parse + mcp-1.30 import).
-RUN pip install --no-cache-dir 'mcp-server-datahub==0.6.0' 'mcp==1.30.0'
+# 2026-10-16: pinned with all its dependencies (requirements.txt, the frozen set of :0.3).
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 RUN useradd -u 10001 -m app
 USER 10001
 ENTRYPOINT ["mcp-server-datahub"]

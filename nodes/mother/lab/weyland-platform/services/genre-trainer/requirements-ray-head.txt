@@ -1,0 +1,45 @@
+# ray-head image (services/ray-head/Dockerfile, built with THIS dir as context) — what its pip line adds on top of
+# rayproject/ray:2.56.0-py311. Taken 2026-10-16 by diffing `pip freeze` of the deployed registry.weyland.lab/ray-head:v7
+# against the base image: these 40 are new or changed (pandas, pyarrow and boto3 are the base's own). Pinned at v7's
+# versions except four the 2026-10-15 advisories flagged elsewhere (the scanners could not see them in a Dockerfile
+# line), raised to their fixed versions. Was `pip install scikit-learn "mlflow==3.14.0" pandas pyarrow minio boto3`.
+alembic==1.18.5
+argon2-cffi==25.1.0
+argon2-cffi-bindings==25.1.0
+blinker==1.9.0
+contourpy==1.3.3
+cycler==0.12.1
+databricks-sdk==0.120.0
+docker==7.2.0
+Flask==3.1.3
+flask-cors==6.0.5
+fonttools==4.63.0
+gitdb==4.0.12
+GitPython==3.1.60   # 3.1.52 in v7: the operator's CVE floor
+graphene==3.4.3
+graphql-core==3.2.11
+graphql-relay==3.2.0
+greenlet==3.5.3
+gunicorn==26.0.0
+huey==3.2.1
+itsdangerous==2.2.0
+joblib==1.5.3
+kiwisolver==1.5.0
+Mako==1.4.2   # 1.3.12 in v7: PYSEC-2026-4243
+matplotlib==3.11.0
+minio==7.2.20
+mlflow==3.14.0
+mlflow-skinny==3.14.0
+mlflow-tracing==3.14.0
+narwhals==2.24.0
+pillow==12.3.0
+prettytable==3.18.0
+pycryptodome==3.23.0
+scikit-learn==1.9.0
+skops==0.14.0
+smmap==5.0.3
+SQLAlchemy==2.0.51
+sqlparse==0.6.0   # 0.5.5 in v7: PYSEC-2026-3696..3699, 3923
+threadpoolctl==3.6.0
+wcwidth==0.8.2
+Werkzeug==3.1.9   # 3.1.8 in v7: PYSEC-2026-4312

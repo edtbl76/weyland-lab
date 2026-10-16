@@ -6,8 +6,10 @@
 # The trainer CODE is baked at /home/ray/train_genre.py so the SERVER-SIDE submit paths (Ray Dashboard
 # "Submit Job", the Port action) can launch it — `python /home/ray/train_genre.py --tune` — with no client-side
 # working_dir upload. Build with the genre-trainer dir as context so train_genre.py is single-sourced:
-#   docker build -f services/ray-head/Dockerfile -t registry.weyland.lab/ray-head:v7 services/genre-trainer
+#   docker build -f services/ray-head/Dockerfile -t registry.weyland.lab/ray-head:vN services/genre-trainer   (next FREE tag)
 FROM rayproject/ray:2.56.0-py311
 
-RUN pip install --no-cache-dir scikit-learn "mlflow==3.14.0" pandas pyarrow minio boto3
+# 2026-10-16: pinned (requirements-ray-head.txt in the genre-trainer context: v7's additions, four raised past advisories).
+COPY requirements-ray-head.txt /tmp/requirements-ray-head.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-ray-head.txt
 COPY train_genre.py /home/ray/train_genre.py

@@ -12,7 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl bash ca-ce
 
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
+# 2026-10-16: no unpinned `pip install --upgrade pip` first: every package is pinned in requirements.txt, so the
+# base image's pip resolves it the same (scripts/check-dockerfile-installs.sh).
+RUN pip install --no-cache-dir -r requirements.txt
 COPY train_genre.py entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 

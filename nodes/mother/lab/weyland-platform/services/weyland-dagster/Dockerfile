@@ -3,8 +3,9 @@
 # bge-small. We export both once (transformer graph → model.onnx + tokenizer.json); the runtime stage runs them
 # on raw ONNX Runtime — no torch/transformers/sentence-transformers (and no CUDA wheel stack) at runtime.
 FROM python:3.11-slim AS bge-export
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir "optimum[onnxruntime]" transformers
+# 2026-10-16: pinned (requirements-bge-export.txt, today's resolution; torch from the PyTorch CPU index).
+COPY requirements-bge-export.txt /tmp/requirements-bge-export.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-bge-export.txt
 RUN python -c "from optimum.onnxruntime import ORTModelForFeatureExtraction as M; from transformers import AutoTokenizer as T; \
 [(M.from_pretrained(n, export=True).save_pretrained(d), T.from_pretrained(n).save_pretrained(d)) \
  for n, d in [('BAAI/bge-base-en-v1.5', '/export/bge_onnx_base'), ('BAAI/bge-small-en-v1.5', '/export/bge_onnx_small')]]"
@@ -21,7 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Upgrade pip first — the base image's pip 24.0 crashes (TypeError: 'NoneType' object is not iterable, in its
 # version parser) while resolving the pinned deps once a malformed version string lands on PyPI (hit 2026-08 around
 # pyiceberg). Newer pip parses it fine. Incidental to B82 — just unblocks the build.
-RUN pip install --no-cache-dir --upgrade "pip>=25"
+COPY requirements-pip.txt .
+RUN pip install --no-cache-dir -r requirements-pip.txt
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -48,7 +50,8 @@ RUN cd /app/dbt && DBT_PROFILES_DIR=/app/dbt dbt deps && DBT_PROFILES_DIR=/app/d
 # heavy layer, so it precedes COPY soda/ — editing checks won't rebuild it.
 # pip>=25 first: the base image's ensurepip pip (24.x) SEGFAULTS mid-resolve on this dep set when the layer cache
 # misses (seen 2026-08-06) — the same class of pip bug the main-env install already works around.
-RUN python -m venv /opt/soda-venv && /opt/soda-venv/bin/pip install --upgrade "pip>=25" && /opt/soda-venv/bin/pip install --no-cache-dir soda-core-trino
+COPY requirements-soda.txt .
+RUN python -m venv /opt/soda-venv && /opt/soda-venv/bin/pip install --no-cache-dir -r requirements-soda.txt
 COPY soda/ ./soda/
 
 # Great Expectations (B77 part b — DQ profiling/validation showcase) in its OWN isolated venv: GE 0.18 pins
@@ -57,7 +60,8 @@ COPY soda/ ./soda/
 # MAIN env's emit_ge_assertions() surfaces results to DataHub. pip PINNED to 25.x: base pip 24.0 AND pip 26.x both
 # SIGSEGV (exit 139) resolving GE 0.18's graph; 25.x is the known-good window. `pandas<3` because GE 0.18 predates
 # pandas 3 (unbounded `pandas>=1.3` otherwise pulls 3.0 → runtime + resolver trouble); numpy<2 is already GE-enforced.
-RUN python -m venv /opt/ge-venv && /opt/ge-venv/bin/pip install --upgrade "pip>=25,<26" && /opt/ge-venv/bin/pip install --no-cache-dir "great-expectations==0.18.*" "pandas<3" trino "sqlalchemy<2"
+COPY requirements-ge.txt .
+RUN python -m venv /opt/ge-venv && /opt/ge-venv/bin/pip install --no-cache-dir -r requirements-ge.txt
 COPY ge/ ./ge/
 
 # Ops scripts (feast_setup.py etc.) — run via `kubectl exec … python /app/scripts/<name>`. Last COPY so it never

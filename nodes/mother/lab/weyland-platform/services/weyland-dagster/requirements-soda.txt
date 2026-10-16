@@ -1,0 +1,46 @@
+# weyland-dagster /opt/soda-venv (soda-core-trino, isolated from the main env). The FULL frozen venv, taken 2026-10-16
+# with `pip freeze --all` from the deployed registry.weyland.lab/weyland-dagster-user-code:git-d3291ab9, so nothing moved (pip and setuptools included:
+# this file builds the venv from scratch). Was `pip install --upgrade "pip>=25"` + an unpinned `soda-core-trino`.
+annotated-types==0.8.0
+antlr4-python3-runtime==4.11.1
+certifi==2026.7.22
+charset-normalizer==3.5.2
+click==8.5.0
+googleapis-common-protos==1.75.5
+idna==3.20
+inflect==7.5.0
+Jinja2==3.1.6
+lz4==4.4.5
+MarkupSafe==3.0.4
+more-itertools==11.2.1
+opentelemetry-api==1.45.1
+opentelemetry-exporter-http-transport==0.66b1
+opentelemetry-exporter-otlp-common==0.66b1
+opentelemetry-exporter-otlp-proto-common==1.45.1
+opentelemetry-exporter-otlp-proto-http==1.45.1
+opentelemetry-proto==1.45.1
+opentelemetry-sdk==1.45.1
+opentelemetry-semantic-conventions==0.66b1
+orjson==3.13.0
+pip==26.2.1
+protobuf==7.36.2
+pydantic==2.14.1
+pydantic_core==2.50.1
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.4
+pytz==2026.5
+requests==2.34.2
+ruamel.yaml==0.17.40
+ruamel.yaml.clib==0.2.15
+setuptools==79.0.1
+six==1.17.0
+soda-core==3.5.6
+soda-core-trino==3.5.6
+sqlparse==0.6.0
+trino==0.340.0
+typeguard==4.6.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+tzlocal==5.4.4
+urllib3==2.8.0
+zstandard==0.25.0

@@ -4,8 +4,9 @@
 # runtime stage runs them on raw ONNX Runtime — no torch/transformers/sentence-transformers. (llama_guard.safety
 # is a REMOTE httpx client and pii.presidio is spaCy — neither pulled torch, so both are untouched.)
 FROM python:3.12-slim AS onnx-export
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir "optimum[onnxruntime]" transformers sentencepiece
+# 2026-10-16: pinned (requirements-onnx-export.txt, today's resolution; torch from the PyTorch CPU index).
+COPY requirements-onnx-export.txt /tmp/requirements-onnx-export.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-onnx-export.txt
 RUN python -c "from optimum.onnxruntime import ORTModelForSequenceClassification as M; from transformers import AutoTokenizer as T; \
 [(M.from_pretrained(n, export=True).save_pretrained(d), T.from_pretrained(n).save_pretrained(d)) \
  for n, d in [('cross-encoder/nli-deberta-v3-small', '/export/nli_onnx'), \
@@ -26,17 +27,10 @@ WORKDIR /app
 # not torch); Presidio does not hard-require transformers, so it installs torch-free.
 # grkit (B206 slice 2): the shared guard wire contract (grkit.verdict), stdlib only. Pinned to ONE commit (v0.2.0)
 # by GitHub archive URL, so no git binary is needed; scripts/tests/grkit-pin.bats holds every pin in the repo equal.
-RUN pip install --no-cache-dir \
-    fastapi \
-    uvicorn \
-    httpx \
-    psycopg2-binary \
-    prometheus-client \
-    onnxruntime \
-    tokenizers \
-    presidio-analyzer \
-    'grkit @ https://github.com/edtbl76/grkit/archive/0d0797785c3e802d801cc1185dad7a41f473d72e.tar.gz#subdirectory=python' \
-    spacy
+# 2026-10-16: pinned. requirements.txt is the full frozen runtime set of the image this replaced (grkit included,
+# at its one commit-pinned URL), so a rebuild can no longer drift and the source scanners can read it.
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 # HOME=/app keeps spaCy/Presidio caches + any onnxruntime/tokenizers cache under the workdir the non-root user owns.
 ENV HOME=/app

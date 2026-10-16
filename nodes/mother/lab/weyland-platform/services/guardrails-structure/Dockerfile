@@ -6,10 +6,10 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Only the guard's needs — guardrails-ai pulls litellm/openai/etc. transitively; no pins to fight in this image.
-RUN pip install --no-cache-dir \
-    fastapi \
-    uvicorn \
-    "guardrails-ai>=0.5.0"
+# 2026-10-16: pinned. requirements.txt is the full frozen set of the image this replaced, so a rebuild can no longer
+# drift and the source scanners can read it.
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY app.py /app/app.py
 
