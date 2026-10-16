@@ -178,9 +178,23 @@ def kubescape():
     post("kubescape", c)
 
 
+# A Dockerfile is `Dockerfile`, `Dockerfile.<variant>` or `<name>.dockerfile` — NOT any file whose name starts with
+# "dockerfile" (2026-10-16: `-iname 'Dockerfile*'` linted dockerfile_installs.py and dockerfile-installs.bats, two
+# DL1000 "HIGH" findings that were never Dockerfiles). A variant that is a doc/code extension is not a Dockerfile.
+_NOT_DOCKERFILE_EXT = {"md", "txt", "py", "sh", "bats", "json", "yaml", "yml", "baseline", "lock"}
+
+
+def _is_dockerfile(name):
+    low = name.lower()
+    if low == "dockerfile" or low.endswith(".dockerfile"):
+        return True
+    return low.startswith("dockerfile.") and low.split(".", 1)[1] not in _NOT_DOCKERFILE_EXT
+
+
 def hadolint():
-    files = subprocess.run(["find", SRC, "-iname", "Dockerfile*", "-not", "-path", "*/openclaw/*"],
+    found = subprocess.run(["find", SRC, "-type", "f", "-iname", "*dockerfile*", "-not", "-path", "*/openclaw/*"],
                            capture_output=True, text=True).stdout.split()
+    files = [f for f in found if _is_dockerfile(os.path.basename(f))]
     findings = []
     for df in files:
         r = subprocess.run(["hadolint", "-f", "json", df], capture_output=True, text=True)
