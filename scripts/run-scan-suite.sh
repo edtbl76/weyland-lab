@@ -4,13 +4,13 @@
 # triaged before "done" (fix real / document-accept phantom per docs/runbooks/code-quality.md). Runs from anywhere
 # with kubectl pointed at the cluster (e.g. rogueone). Tool registry: quality-tools.yaml. The weekly CronJob is the
 # safety net; this is the on-demand gate on top of it.
-#   usage: scripts/run-scan-suite.sh [wait-timeout]   (default 900s)
+#   usage: scripts/run-scan-suite.sh [wait-timeout]   (default 5400s — a full run took 43 min, over 60 with the B213 image scans)
 set -euo pipefail
 
 NS=weyland
 CRONJOB=code-scan-suite
 JOB=scan-suite-adhoc
-TIMEOUT="${1:-900s}"
+TIMEOUT="${1:-5400s}"
 # A bare integer (e.g. `900`) is a natural way to pass the wait, but `kubectl wait --timeout` REQUIRES a unit
 # ("missing unit in duration") and fails the wait — the job runs on, but the script reports it never completed.
 # Normalize a unitless number to seconds so the arg can't silently break the wait.

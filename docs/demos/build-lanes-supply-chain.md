@@ -62,7 +62,7 @@ source of truth; this fails if any runner's script drifts from it:
 bash scripts/check-quality-tools.sh
 ```
 
-Expected: `OK — 21 scan-suite tools match scan.py, 13 lang-scan tools match run-lang-scan.sh, 5
+Expected: `OK — 22 scan-suite tools match scan.py, 13 lang-scan tools match run-lang-scan.sh, 5
 supply-chain tools match supply-chain.sh.` Rust went from **0** registry entries to 4, Java from
 SonarQube-only to 5, the JS/TS family from no linter to 5.
 

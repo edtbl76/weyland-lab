@@ -7,7 +7,7 @@ everything is **outbound**: each scanner POSTs findings to Port's `code-quality`
 
 - **`code-scan-suite`** (Sun **13:00 UTC**) — an `initContainer` git-clones the public repo
   (`github.com/edtbl76/weyland-lab`, **full history** for code-maat) into `/src`, then the
-  `registry.weyland.lab/scan-suite` image runs the **`quality-tools.yaml`** roster (19 scan-suite tools, multi-language:
+  `registry.weyland.lab/scan-suite` image runs the **`quality-tools.yaml`** roster (22 scan-suite tools, multi-language:
   secrets/SAST/SCA/IaC/k8s/lint/vuln/HTTP-headers over Python + Go) best-effort over `/src` — each POSTing severity counts →
   **`security_scan`** blueprint (one entity per tool). code-maat then computes change-hotspots and POSTs the
   **top-20** to the **same** ingest URL with a `kind:"hotspot"` discriminator → **`code_hotspot`** blueprint.
@@ -23,21 +23,33 @@ See [../runbooks/code-quality.md](../runbooks/code-quality.md) and [../schedules
 sequenceDiagram
     participant Cron as CronJobs (ns weyland)<br/>Sun 12:00 + 13:00 UTC
     participant Clone as clone initContainer<br/>(git clone --full-history)
-    participant Suite as scan-suite image<br/>(10 checks + code-maat)
+    participant Suite as scan-suite image<br/>(22 tools, code-maat among them)
     participant Maven as maven build + sonar-scanner<br/>(Flink modules)
     participant Sonar as SonarQube<br/>(sonarqube.weyland.svc:9000)
     participant Ingest as Port webhook<br/>(code-quality ingest URL)
     participant BP as Port blueprints<br/>(security_scan / code_hotspot / code_quality)
     participant Dash as Code Health dashboard<br/>(Catalog → Code Health)
+    participant Reg as registry.weyland.lab<br/>(the deployed images)
+    participant Arch as s3://scan-reports<br/>(per-run archive, 90d)
+    participant Op as Operator (DoD Pillar 7)
 
     Note over Cron,BP: Path 1 — code-scan-suite (Sun 13:00 UTC)
     Cron->>Clone: start code-scan-suite
     Clone->>Suite: /src (full git history)
-    loop 10 checks best-effort
+    loop 22 tools best-effort
         Suite->>Ingest: POST per-tool counts {tool, critical/high/medium/low, ...}
         Ingest-->>Suite: 202 (queue-accepted, NOT entity-created)
         Ingest->>BP: map .body.tool!=null → security_scan (one entity per tool)
     end
+    Note over Suite,Reg: trivy-images (B213, weyland-lab only) — the images the manifests DEPLOY
+    Suite->>Suite: deployed_images — images.tsv refs plus every registry.weyland.lab ref in k8s/ (23)
+    loop each deployed image
+        Suite->>Reg: trivy image --scanners vuln (then trivy clean --scan-cache)
+        Reg-->>Suite: a trivy report, or none → recorded BROKEN, never zero
+    end
+    Suite->>Arch: trivy-images.json {images, broken, missing} with the run's other reports
+    Op->>Arch: scan-diff.py previous-run this-run — keyed image NAME + package + id, MEDIUM counted
+    Arch-->>Op: new / gone per tool, a baseline line when the old run predates the scan, exit 2 if any image BROKEN
     Suite->>Ingest: POST code-maat top-20 {kind:"hotspot", file, revisions, ...}
     Ingest-->>Suite: 202 (queue-accepted)
     Ingest->>BP: map .body.kind=="hotspot" → code_hotspot

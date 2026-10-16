@@ -45,7 +45,7 @@ tools:
 YAML
   : > "$scan"   # no post() calls: these fixtures declare no scan-suite tools
   printf 'run_tool clippy\n' > "$lang"
-  run env WEYLAND_QT_REGISTRY="$reg" WEYLAND_QT_SCAN="$scan" WEYLAND_QT_LANGSCAN="$lang" \
+  run env WEYLAND_QT_REGISTRY="$reg" WEYLAND_QT_SCAN="$scan" WEYLAND_QT_LANGSCAN="$lang" WEYLAND_QT_DOCS="$(mktemp -d)" \
       bash "$GUARD"
   [ "$status" -eq 1 ]
   [[ "$output" == *"ghost-tool"* ]]
@@ -59,7 +59,7 @@ tools:
 YAML
   : > "$scan"   # no post() calls: these fixtures declare no scan-suite tools
   printf 'run_tool clippy\nrun_tool undeclared-tool\n' > "$lang"
-  run env WEYLAND_QT_REGISTRY="$reg" WEYLAND_QT_SCAN="$scan" WEYLAND_QT_LANGSCAN="$lang" \
+  run env WEYLAND_QT_REGISTRY="$reg" WEYLAND_QT_SCAN="$scan" WEYLAND_QT_LANGSCAN="$lang" WEYLAND_QT_DOCS="$(mktemp -d)" \
       bash "$GUARD"
   [ "$status" -eq 1 ]
   [[ "$output" == *"undeclared-tool"* ]]
@@ -74,7 +74,48 @@ tools:
 YAML
   : > "$scan"   # no post() calls: these fixtures declare no scan-suite tools
   printf 'run_tool clippy\n' > "$lang"
-  run env WEYLAND_QT_REGISTRY="$reg" WEYLAND_QT_SCAN="$scan" WEYLAND_QT_LANGSCAN="$lang" \
+  run env WEYLAND_QT_REGISTRY="$reg" WEYLAND_QT_SCAN="$scan" WEYLAND_QT_LANGSCAN="$lang" WEYLAND_QT_DOCS="$(mktemp -d)" \
       bash "$GUARD"
   [ "$status" -eq 0 ]
+}
+
+# --- 2026-10-16: a scan-suite tool count stated in the docs must match the registry --------------------------------------
+# B213 added trivy-images (21 → 22). The docs then said 9, 19 and 21 in eleven places, and nothing compared a number
+# typed into prose with the roster — the check-doc-counts class, for this registry.
+
+@test "a doc stating a stale scan-suite tool count is caught, naming file and both numbers" {
+  d="$(mktemp -d)"
+  printf 'Runs the weekly 19-tool `code-scan-suite` every Sunday.\nThe image runs the roster (19 scan-suite tools).\n' > "$d/page.md"
+  WEYLAND_QT_DOCS="$d" run bash "$GUARD"
+  [ "$status" -eq 1 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"page.md:1"* && "$output" == *"claims 19"* && "$output" == *"actual 22"* ]] || { echo "$output"; return 1; }
+  [[ "$output" == *"page.md:2"* ]] || { echo "$output"; return 1; }   # "<N> scan-suite tools" counts too
+}
+
+@test "a doc stating the right scan-suite tool count passes" {
+  d="$(mktemp -d)"
+  printf 'Runs the weekly 22-tool `code-scan-suite`.\nThe scan-suite image (22 tools, code-maat among them).\n' > "$d/page.md"
+  WEYLAND_QT_DOCS="$d" run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"2 documented scan-suite tool count(s) agree"* ]] || { echo "$output"; return 1; }
+}
+
+@test "a tool count far from any scan-suite mention is not a scan-suite claim" {
+  d="$(mktemp -d)"
+  printf 'The coding-agents virtual key aggregates 232 tools across the fleet; unrelated to scanning entirely here.\n' > "$d/page.md"
+  WEYLAND_QT_DOCS="$d" run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "the append-only backlog may keep historical scan-suite counts" {
+  d="$(mktemp -d)"
+  printf -- '- B120 shipped the 19-tool `code-scan-suite`.\n' > "$d/backlog.md"
+  WEYLAND_QT_DOCS="$d" run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "an unreadable docs tree is exit 2, never 'no claims'" {
+  WEYLAND_QT_DOCS="$BATS_TEST_TMPDIR/nope" run bash "$GUARD"
+  [ "$status" -eq 2 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"CANNOT CHECK"* ]] || { echo "$output"; return 1; }
 }

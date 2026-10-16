@@ -210,7 +210,7 @@ open gap = not done:
 Scanners are a **gate**, not a dashboard to admire. Any batch that adds or changes **code, a Dockerfile, or a k8s
 manifest** runs the relevant scan and **triages the result before "done":**
 
-- **Run** the `code-scan-suite` (the multi-language 19-tool suite — see `quality-tools.yaml`, the registry source of
+- **Run** the `code-scan-suite` (the multi-language 22-tool suite — see `quality-tools.yaml`, the registry source of
   truth; B120) on-demand with **`./scripts/run-scan-suite.sh`** (clears any prior adhoc job → launches from
   `cronjob/code-scan-suite` → waits → prints findings; raw form:
   `kubectl -n weyland create job scan-suite-adhoc --from=cronjob/code-scan-suite`) — and, for changes SonarQube covers,

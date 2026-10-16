@@ -9,7 +9,7 @@ Audit method: read the actual lane machinery (`scripts/run-lang-tests.sh`, `scri
 | Category | Where | What it does |
 |----------|-------|--------------|
 | **Unit** | `run-lang-tests.sh` (pytest / mvn / go test / cargo / node --test / jest) + `coverage-ratchet.sh` | Per-language unit suites, discovered by test file → project root; coverage floor ratchet |
-| **Static / SAST** | `run-lang-scan.sh` (clippy, cargo-audit/deny, spotbugs, checkstyle, eslint, npm-audit) + the 19-tool `code-scan-suite` (bandit, semgrep, trivy, …) + SonarQube | Lint + security static analysis |
+| **Static / SAST** | `run-lang-scan.sh` (clippy, cargo-audit/deny, spotbugs, checkstyle, eslint, npm-audit) + the 22-tool `code-scan-suite` (bandit, semgrep, trivy, …) + SonarQube | Lint + security static analysis |
 | **Integration** | B88 tier in `.woodpecker.yml` (`test-integration-guard`, `test-integration-datahub`) | Black-box **live in-cluster** services (weyland-guard, DataHub↔Redpanda) |
 
 The seven target categories below have **no tooling at all** today.

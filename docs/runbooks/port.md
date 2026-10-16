@@ -71,7 +71,7 @@ what the thing *is*:
     `domain`, `system`, `resource`, `api`, `component` (component also relates to `k8s_workload`, `service`,
     APIs, and resources).
   - `blueprints.tf` — 7 webhook/integration blueprints fed by the observability tools:
-    `security_scan` (9-tool scan-suite), `code_hotspot` (code-maat churn), `glitchtip_issue`, `feature_flag` (Unleash),
+    `security_scan` (22-tool scan-suite), `code_hotspot` (code-maat churn), `glitchtip_issue`, `feature_flag` (Unleash),
     `code_quality` (SonarQube), `endpoint`, `ci_pipeline` (Woodpecker).
   - `cost.tf` — the `cost` (Recurring Cost) blueprint.
   - `b137_blueprints.tf` — the 8 hand-authored blueprints that had only ever existed in the UI:

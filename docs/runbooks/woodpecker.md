@@ -119,6 +119,7 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
   merge-base and current copies and compares only what can change a fixture lane: every top-level key (labels, `when`,
   shared anchors) and every step whose `when` gates on `RUN_FIXTURES`, with anchors resolved. A change confined to
   ungated steps selects lean. A base it cannot read or parse, or a file with no gated step at all, still selects `1`.
+  Decision flow: [flow-lean-ci-selector.md](../diagrams/flow-lean-ci-selector.md).
   **Full-matrix memory safety (B177 Phase 2 — closed on evidence, 2026-09-24):**
   - **Per-step caps already exist.** The `woodpecker` ns has the B93 `default-memory` LimitRange (128Mi request / 2Gi
     limit) on every step that declares no resources; the heavy compile lanes carry explicit 4–6Gi limits. Measured

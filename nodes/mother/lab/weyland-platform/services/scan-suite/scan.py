@@ -16,6 +16,8 @@ import json, os, re, subprocess, datetime, urllib.request, glob
 
 SRC = os.environ.get("SCAN_SRC", "/src")
 OUT = os.environ.get("SCAN_OUT", "/out")
+# A vendored third-party tree no `find`-driven check should walk.
+OPENCLAW_EXCLUDE = "*/openclaw/*"
 # B138 — the scanned repo's name (the Port label + report title). Every tool already scans /src generically, so
 # multi-repo scanning is just cloning each repo into /src and running this once per repo with SCAN_TARGET set.
 # Defaults to weyland-lab so the single-repo path is unchanged.
@@ -192,7 +194,7 @@ def _is_dockerfile(name):
 
 
 def hadolint():
-    found = subprocess.run(["find", SRC, "-type", "f", "-iname", "*dockerfile*", "-not", "-path", "*/openclaw/*"],
+    found = subprocess.run(["find", SRC, "-type", "f", "-iname", "*dockerfile*", "-not", "-path", OPENCLAW_EXCLUDE],
                            capture_output=True, text=True).stdout.split()
     files = [f for f in found if _is_dockerfile(os.path.basename(f))]
     findings = []
@@ -255,7 +257,7 @@ def osv():
 
 
 def shellcheck():
-    files = subprocess.run(["find", SRC, "-name", "*.sh", "-not", "-path", "*/openclaw/*"],
+    files = subprocess.run(["find", SRC, "-name", "*.sh", "-not", "-path", OPENCLAW_EXCLUDE],
                            capture_output=True, text=True).stdout.split()
     findings = []
     if files:
@@ -472,7 +474,7 @@ def ruff():
 def pip_audit():
     # Python dependency CVEs (PyPI advisory DB) — a 2nd engine next to osv. pip-audit gives no severity → all high.
     reqs = subprocess.run(["find", SRC, "-name", "requirements*.txt",
-                           "-not", "-path", "*/node_modules/*", "-not", "-path", "*/openclaw/*"],
+                           "-not", "-path", "*/node_modules/*", "-not", "-path", OPENCLAW_EXCLUDE],
                           capture_output=True, text=True).stdout.split()
     # ACCEPTED FINDINGS (B142, 2026-08-24). Same discipline as .trivyignore and osv-scanner.toml:
     # every entry is a DOCUMENTED, dated exception with its reasoning, never blanket suppression.
@@ -625,7 +627,7 @@ def headers():
 
 def _go_modules():
     return [os.path.dirname(p) for p in subprocess.run(
-        ["find", SRC, "-name", "go.mod", "-not", "-path", "*/node_modules/*", "-not", "-path", "*/openclaw/*"],
+        ["find", SRC, "-name", "go.mod", "-not", "-path", "*/node_modules/*", "-not", "-path", OPENCLAW_EXCLUDE],
         capture_output=True, text=True).stdout.split()]
 
 

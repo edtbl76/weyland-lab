@@ -29,11 +29,12 @@ here="$REPO_ROOT"
 REG="${WEYLAND_QT_REGISTRY:-$here/quality-tools.yaml}"
 SCAN="${WEYLAND_QT_SCAN:-$PLATFORM_DIR/services/scan-suite/scan.py}"
 LANGSCAN="${WEYLAND_QT_LANGSCAN:-$here/scripts/run-lang-scan.sh}"
+DOCS="${WEYLAND_QT_DOCS:-$here/docs}"
 
-python3 - "$REG" "$SCAN" "$LANGSCAN" <<'PY'
+python3 - "$REG" "$SCAN" "$LANGSCAN" "$DOCS" <<'PY'
 import sys, re, yaml
 
-reg, scan, langscan = sys.argv[1], sys.argv[2], sys.argv[3]
+reg, scan, langscan, docs = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 tools = yaml.safe_load(open(reg))["tools"]
 
 
@@ -95,11 +96,39 @@ if sc_declared:
               sorted(unimplemented))
         drift = True
 
+# ── documented scan-suite counts (2026-10-16) ────────────────────────────────────────────────────
+# A number typed into prose has no owner. B213 added trivy-images (21 -> 22) and the docs then said 9, 19 and 21 in
+# eleven places — the check-doc-counts class, for this registry. A claim is "<N>-tool" / "<N> tools" within 40
+# characters of a scan-suite mention; docs/backlog.md is append-only history and keeps the number of its day.
+if not os.path.isdir(docs):
+    print(f"CANNOT CHECK: docs tree {docs} is not readable — no claims read is not no claims")
+    sys.exit(2)
+NEAR = re.compile(r"scan[- ]suite|code-scan|scan-all|tool scan", re.I)
+COUNT = re.compile(r"\b(\d{1,3})(?:[- ]tools?|\s+scan[- ]suite\s+tools?)\b")
+claims, stale = 0, []
+for root, _dirs, files in os.walk(docs):
+    for fn in files:
+        if fn == "backlog.md" or not fn.endswith((".md", ".html", ".likec4")):
+            continue
+        path = os.path.join(root, fn)
+        for n, line in enumerate(open(path, encoding="utf-8", errors="replace"), 1):
+            for m in COUNT.finditer(line):
+                if not NEAR.search(line[max(0, m.start() - 40):m.end() + 40]):
+                    continue
+                claims += 1
+                if int(m.group(1)) != len(ss_declared):
+                    stale.append(f"{os.path.relpath(path, os.path.dirname(docs))}:{n}: \"{m.group(0)}\" "
+                                 f"claims {m.group(1)}, actual {len(ss_declared)}")
+for line in stale:
+    print("STALE scan-suite count:", line)
+drift = bool(stale) or drift
+
 if drift:
     sys.exit(1)
 # Report all three counts. A guard that silently skips a runner is indistinguishable from one that
 # checked and found nothing — the exact ambiguity this whole effort keeps closing.
 print(f"OK — {len(ss_declared)} scan-suite tools match scan.py, "
       f"{len(ls_declared)} lang-scan tools match run-lang-scan.sh, "
-      f"{len(sc_declared)} supply-chain tools match supply-chain.sh.")
+      f"{len(sc_declared)} supply-chain tools match supply-chain.sh; "
+      f"{claims} documented scan-suite tool count(s) agree.")
 PY

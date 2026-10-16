@@ -21,6 +21,8 @@ sequenceDiagram
     participant Port as Port catalog
     Op->>Det: short-circuit — any image context changed since its deployed tag?
     Det-->>Op: empty plan → exit 0, no pipeline triggered (NFR3)
+    Op->>Argo: FR-ARGO argocd app list — is the CLI session live?
+    Argo-->>Op: expired or empty → stop BEFORE the trigger, print the login command
     Op->>WP: trigger pipeline, then poll to a terminal status
     WP->>Reg: build + push registry.weyland.lab/img:git-sha
     WP->>GH: deploy-handoff — branch ci/image-bump-sha, open PR
@@ -70,6 +72,7 @@ Worth reading off the diagram rather than assuming three checks means three defe
 | Same-repo, not a fork | **GitHub** | Unspoofable. The load-bearing one — `weyland-lab` is public with no branch protection, so this is what stands between a stranger's PR and `main` |
 | `weyland-ci` author name | `git config` | A **convention**. Anyone who can write a commit can write that string. Defence in depth behind same-repo, never provenance alone |
 | Tags-only diff | the script | Written as *"no line fails to match"*, so a smuggled `memory: 8Gi` fails even though the diff still contains a valid tag line |
+| FR-ARGO | argocd CLI | A **precondition**, not a safety gate: it makes the post-merge `argocd app sync` real. Until 2026-10-16 an expired session turned every sync into a warning (8 of 8 on one ship) and the rollout raced Argo's ~3-minute poll |
 | FR1.5 | live pods | Proves the right **bytes** are on the node — a fact about images, not about function |
 | SMOKE | live workloads | Proves something **asked the application a question**. A workload with no `readinessProbe` reports `1/1 Ready` the instant PID 1 is alive |
 

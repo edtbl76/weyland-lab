@@ -135,11 +135,12 @@ Recorded honestly, because "the demo IS the test" and a written-but-unrun step p
 | `pr-staleness-check` | ✅ RUN ×3, 2026-08-22 | run 3: six repos fetched, 4 real alerts → Telegram + Alertmanager |
 | bats suite | ✅ RUN 2026-08-23 | 62 passed, 0 failed |
 | Freshness rules loaded | ✅ VERIFIED 2026-08-23 | group `scheduled-work-freshness`, 5 rules, `health: ok` |
-| **`SMOKE` gate, live** | 🟡 **NOT YET RUN** | added after the last real ship; needs a night where an image context actually changes |
+| **`SMOKE` gate, live** | ✅ RUN 2026-10-16 (and on every ship since B135) | `git-ce787810` ship: `11 workload(s) probe-backed and fully available`, scan-suite + weyland-flink-py named as not smoke-checked (CronJob / on-demand) |
+| **`FR-ARGO` gate** (added 2026-10-16) | ✅ RUN 2026-10-16 | live session → `argocd_session_ok` exit 0; `--server 127.0.0.1:1` → refused with the CLI's own words (`exit 20: … connection refused`), so it stops before the trigger. The expired-session case it exists for was observed on the `git-ce787810` ship itself, the run before the gate: 8 of 8 syncs `did not return cleanly` |
 | **`cron-freshness-check` scheduled run** | 🟡 **NOT YET RUN** | CronJob created ~4 min after its 04:30 slot; first firing is the following day |
 | **A cron-produced bump PR** | 🟡 **NOT YET RUN** | pipeline #25 built 0 images, so it opened no PR — B139 item 5 |
 
-The three 🟡 rows are why this demo is **🟡, not ✅**. They are not defects; they need a day on which an image
+The two remaining 🟡 rows are why this demo is **🟡, not ✅**. They are not defects; they need a day on which an image
 build context genuinely changes, which cannot be forced without manufacturing a change.
 
 **Deferred by decision to Linear EMA-77** ("B87 — Vet + live-validate all E2E demos"). B135/B131 closed with DoD

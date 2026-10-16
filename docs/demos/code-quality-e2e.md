@@ -17,7 +17,7 @@ and [../schedules.md](../schedules.md).
 sequenceDiagram
     participant Cron as CronJobs (ns weyland)<br/>Sun 12:00 + 13:00 UTC
     participant Clone as clone initContainer<br/>(git clone --full-history)
-    participant Suite as scan-suite image<br/>(9 tools + code-maat)
+    participant Suite as scan-suite image<br/>(22 tools, code-maat among them)
     participant Sonar as SonarQube<br/>(sonarqube.weyland.svc:9000)
     participant Ingest as Port webhook<br/>(code-quality ingest URL)
     participant BP as Port blueprints<br/>(security_scan / code_hotspot / code_quality)
@@ -69,7 +69,7 @@ sequenceDiagram
 The canonical trigger is the weekly Sunday CronJob. To kick each on-demand instead of waiting, create a Job
 `--from` the CronJob on **mother**.
 
-[mother] Kick the scan-suite (9 tools + code-maat) and read its log:
+[mother] Kick the scan-suite (22 tools, code-maat among them) and read its log:
 ```
 kubectl -n weyland create job scan-suite-smoke --from=cronjob/code-scan-suite && kubectl -n weyland wait --for=condition=complete job/scan-suite-smoke --timeout=360s && kubectl -n weyland logs job/scan-suite-smoke
 ```

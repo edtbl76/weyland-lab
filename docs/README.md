@@ -33,7 +33,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [aidlc-workflow.md](runbooks/aidlc-workflow.md) — AI-DLC v2 development workflow (B133) — `/aidlc` forwarding loop, stages, gates
 - [argocd.md](runbooks/argocd.md) — Argo CD GitOps (B58) — app-of-apps, sync mechanism, why the refresh annotation is forbidden, selfHeal rollback traps
 - [backups.md](runbooks/backups.md) — rogueone backups (B130) — restic → MinIO, `--files-from`/`forget`, Kuma dead-man's-switch
-- [code-quality.md](runbooks/code-quality.md) — weekly 21-tool `code-scan-suite` + `sonar-scan` (B69/B89/B90): → Port `code_quality`/`security_scan`/`code_hotspot` + Code Health dashboard; vm.max_map_count, Port webhook + paste-mangling gotchas
+- [code-quality.md](runbooks/code-quality.md) — weekly 22-tool `code-scan-suite` + `sonar-scan` (B69/B89/B90): → Port `code_quality`/`security_scan`/`code_hotspot` + Code Health dashboard; vm.max_map_count, Port webhook + paste-mangling gotchas
 - [code-review-stack.md](runbooks/code-review-stack.md) — the B106 adopted AI code-review set (7 tools, $0) — IDE + CI/PR lanes
 - [coding-agents.md](runbooks/coding-agents.md) — coding agents (B15) — local-model / free-hosted coding TUIs
 - [cube.md](runbooks/cube.md) — Cube semantic / metrics layer (B1.7 L6) — subPath + `MEASURE()` gotchas

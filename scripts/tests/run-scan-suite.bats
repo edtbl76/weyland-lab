@@ -44,6 +44,14 @@ teardown() { teardown_stubs; }
   grep -q -- '--timeout=900s' "$STUB_LOG"
 }
 
+# 2026-10-16: the default wait was 900s while a full run took 43 minutes, and with B213's 23 image scans over 60. A
+# plain `run-scan-suite.sh` therefore ALWAYS exited 2; the default must outlast a full run.
+@test "with no argument the wait is long enough for a full run (5400s)" {
+  stub_case kubectl 'wait' 0 'condition met'
+  run bash "$SUITE"
+  grep -q -- '--timeout=5400s' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+}
+
 # 2026-10-15: the script printed `--tail=200` of a ~25,000-line log under "triage NEW critical/high below", so only the
 # last two repos showed and weyland-lab's critical/high totals never reached the screen. The summary reads the WHOLE log.
 @test "a repo early in a long log still has its critical/high totals shown, with its archive path" {

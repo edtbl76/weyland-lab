@@ -1,7 +1,7 @@
 # Code-Review Stack — the B106 adopted set (7 tools, $0)
 
 The AI code-review layer, chosen in **B106** and wired here. It sits **on top of** the static-analysis lane
-(SonarQube + the 19-tool `scan-suite`, B120) — its job is **LLM contextual review** (diff-aware, cross-file,
+(SonarQube + the 22-tool `scan-suite`, B120) — its job is **LLM contextual review** (diff-aware, cross-file,
 natural-language), which SAST can't do. Owner chose **breadth over dedup**: multiple overlapping coverages, all
 free. Paid **Qodo is cancelled**; **CodeRabbit** is kept on its **free** tier.
 

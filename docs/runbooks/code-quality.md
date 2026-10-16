@@ -3,7 +3,7 @@
 **Two weekly k8s CronJobs → Port** (B69, replacing the old on-demand Jobs). **`code-scan-suite`** runs the **full
 scan-suite roster declared in the repo-root [`quality-tools.yaml`](../../quality-tools.yaml)** — the SOURCE OF TRUTH
 (`scripts/check-quality-tools.sh` drift-guards scan.py + these docs against it; a hand-copied list is how the old
-"9 vs 10" mismatch happened). **19 tools**, now **multi-language** (Python + Go for polyglot repos like Stud.io):
+"9 vs 10" mismatch happened). **22 scan-suite tools**, now **multi-language** (Python + Go for polyglot repos like Stud.io):
 secrets · SAST · SCA/deps · IaC/k8s · Dockerfile/shell lint · vuln · HTTP-headers, + **code-maat** change-hotspots;
 **`sonar-scan`** runs the always-on **SonarQube** server. All OSS/$0. Findings surface in Port as
 `security_scan` (per-tool), `code_hotspot` (churn), and `code_quality` (Sonar gate) → the **Code Health** dashboard.
@@ -17,8 +17,10 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   `k8s/sonarqube/sonar-scan.yaml` (`sonar-scan`, Sun 12:00 UTC). **On-demand — the per-batch DoD Pillar 7 gate:**
   `./scripts/run-scan-suite.sh` (clears any prior adhoc job → launches from `cronjob/code-scan-suite` → waits →
   prints the findings to triage; runs from anywhere with kubectl). **Exit 0 only when the job completed;** a job that
-  outlives the wait (default 900s; a full run takes over 30 minutes) exits **2**, `NOT a clean scan`, with the partial
-  logs. Pass a longer wait: `./scripts/run-scan-suite.sh 3600`. (It exited 0 on a timeout until 2026-10-14.) Raw form:
+  outlives the wait exits **2**, `NOT a clean scan`, with the partial logs. The default wait is **5400s** (2026-10-16):
+  a full run took 43 minutes, and **55 with the B213 image scans** (weyland-lab alone ~31), so the old 900s default
+  always timed out and even `3600` was too short. Pass a wait only to shorten it. (It exited 0 on a timeout until
+  2026-10-14.) Raw form:
   `kubectl -n weyland create job <name>-smoke --from=cronjob/<code-scan-suite|sonar-scan>`.
   **What it prints** (2026-10-15): per repo, every tool with a critical or high finding plus the run's archive prefix,
   read from the WHOLE job log, which it saves to a file and names. (It printed the last 200 lines until 2026-10-15; a
@@ -218,7 +220,7 @@ each package's latest release IS the advisory's `last_affected`): braces 3.0.3, 
 The three on-demand Jobs were folded into **two weekly CronJobs** (both `Sun`, `Etc/UTC`; see [schedules.md](../schedules.md)):
 - **`code-scan-suite`** (`k8s/code-quality/scan-suite.yaml`, 13:00 UTC) — ONE `registry.weyland.lab/scan-suite` image
   (`services/scan-suite/`, built via `scripts/build-push-images.sh`) clones the repo once and runs the
-  **`quality-tools.yaml`** roster (19 scan-suite tools) best-effort → per-tool severity counts POSTed to the Port
+  **`quality-tools.yaml`** roster (22 scan-suite tools) best-effort → per-tool severity counts POSTed to the Port
   `code-quality` webhook. The registry is authoritative; the build-suite-home adds (2026-08-07) were **ruff ·
   pip-audit · detect-secrets · headers · gosec · govulncheck · staticcheck · go-vet** (image `scan-suite:v4`).
   **`secret-files`** (B97, 2026-07-22) closes the gap that let the n8n key sit committed for 5 weeks: gitleaks `dir`
