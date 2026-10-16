@@ -37,9 +37,93 @@ teardown() { teardown_stubs; }
   [ "$output" = "1" ]
 }
 
-@test "a change to .woodpecker.yml runs the full matrix (1)" {
-  SELECT_CHANGED_FILES=$'.woodpecker.yml' CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
+@test "a change to .woodpecker.yml with no base version to compare runs the full matrix (1)" {
+  SELECT_CHANGED_FILES=$'.woodpecker.yml' SELECT_WOODPECKER_BASE="$STUB_DIR/absent.yml" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
   [ "$output" = "1" ]
+}
+
+# --- 2026-10-16: .woodpecker.yml counts only where it touches a fixture lane --------------------------------------------
+# Pipeline #382 ran the whole fixture matrix (hours) because one line was added to repo-guards — a step that runs in
+# every lean run anyway. The file stays a trigger, but only its fixture-gated steps and its top-level keys (labels,
+# when, the shared anchors) decide; a change confined to an ungated step selects lean.
+
+wp() {  # wp <file> <repo-guards command> <test-go image> [top-level label]
+  cat > "$1" <<EOF
+labels:
+  backend: ${4:-kubernetes}
+steps:
+  - name: repo-guards
+    image: alpine
+    commands:
+      - $2
+  - name: test-go
+    when: &fixture [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0"'}]
+    image: $3
+    commands:
+      - bash scripts/run-lang-tests.sh go
+  - name: test-rust
+    when: *fixture
+    image: rust:1
+EOF
+}
+
+@test ".woodpecker.yml changed only in an ungated step selects lean (0)" {
+  wp "$STUB_DIR/base.yml" "bash scripts/a.sh" golang:1.26
+  wp "$STUB_DIR/head.yml" "bash scripts/b.sh" golang:1.26
+  SELECT_CHANGED_FILES=$'.woodpecker.yml\ndocs/backlog.md' SELECT_WOODPECKER_BASE="$STUB_DIR/base.yml" \
+    SELECT_WOODPECKER_HEAD="$STUB_DIR/head.yml" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+  [ "$output" = "0" ]
+}
+
+@test ".woodpecker.yml changed in a fixture-gated step runs the full matrix (1)" {
+  wp "$STUB_DIR/base.yml" "bash scripts/a.sh" golang:1.26
+  wp "$STUB_DIR/head.yml" "bash scripts/a.sh" golang:1.27
+  SELECT_CHANGED_FILES=$'.woodpecker.yml' SELECT_WOODPECKER_BASE="$STUB_DIR/base.yml" \
+    SELECT_WOODPECKER_HEAD="$STUB_DIR/head.yml" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
+  [ "$output" = "1" ]
+}
+
+@test ".woodpecker.yml changed at the top level runs the full matrix (1)" {
+  wp "$STUB_DIR/base.yml" "bash scripts/a.sh" golang:1.26 kubernetes
+  wp "$STUB_DIR/head.yml" "bash scripts/a.sh" golang:1.26 local
+  SELECT_CHANGED_FILES=$'.woodpecker.yml' SELECT_WOODPECKER_BASE="$STUB_DIR/base.yml" \
+    SELECT_WOODPECKER_HEAD="$STUB_DIR/head.yml" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
+  [ "$output" = "1" ]
+}
+
+@test "a step that LOSES its fixture gate runs the full matrix (1)" {
+  wp "$STUB_DIR/base.yml" "bash scripts/a.sh" golang:1.26
+  wp "$STUB_DIR/head.yml" "bash scripts/a.sh" golang:1.26
+  sed -i 's/^    when: \*fixture$//' "$STUB_DIR/head.yml"
+  SELECT_CHANGED_FILES=$'.woodpecker.yml' SELECT_WOODPECKER_BASE="$STUB_DIR/base.yml" \
+    SELECT_WOODPECKER_HEAD="$STUB_DIR/head.yml" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
+  [ "$output" = "1" ]
+}
+
+@test "an unparseable .woodpecker.yml base runs the full matrix (1)" {
+  printf 'steps: [unclosed\n' > "$STUB_DIR/base.yml"
+  wp "$STUB_DIR/head.yml" "bash scripts/a.sh" golang:1.26
+  SELECT_CHANGED_FILES=$'.woodpecker.yml' SELECT_WOODPECKER_BASE="$STUB_DIR/base.yml" \
+    SELECT_WOODPECKER_HEAD="$STUB_DIR/head.yml" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
+  [ "$output" = "1" ]
+}
+
+@test "a base with NO fixture-gated steps runs the full matrix (1), never 'nothing gated changed'" {
+  printf 'steps:\n  - name: a\n    image: alpine\n' > "$STUB_DIR/base.yml"
+  printf 'steps:\n  - name: a\n    image: alpine:3\n' > "$STUB_DIR/head.yml"
+  SELECT_CHANGED_FILES=$'.woodpecker.yml' SELECT_WOODPECKER_BASE="$STUB_DIR/base.yml" \
+    SELECT_WOODPECKER_HEAD="$STUB_DIR/head.yml" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
+  [ "$output" = "1" ]
+}
+
+@test "the real push that tripped #382 (f9ac9ae1..d7ae173b, repo-guards only) selects lean (0)" {
+  { git -C "$REPO_ROOT" cat-file -e d7ae173b && git -C "$REPO_ROOT" cat-file -e f9ac9ae1; } 2>/dev/null || skip "commits not in this clone"
+  git -C "$REPO_ROOT" show f9ac9ae1:.woodpecker.yml > "$STUB_DIR/base.yml"
+  git -C "$REPO_ROOT" show d7ae173b:.woodpecker.yml > "$STUB_DIR/head.yml"
+  SELECT_CHANGED_FILES=$'.woodpecker.yml' SELECT_WOODPECKER_BASE="$STUB_DIR/base.yml" \
+    SELECT_WOODPECKER_HEAD="$STUB_DIR/head.yml" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD"
+  [ "$output" = "0" ]
 }
 
 @test "a change to the manifest itself runs the full matrix (1)" {
