@@ -1591,3 +1591,51 @@ _wire_branches() {
   run grep -c 'sweep_stale_bump_branches$' "$SHIP"
   [ "$output" -eq 4 ] || { echo "found $output call sites, want 4"; return 1; }
 }
+
+# 2026-10-16: the compositor gets a transaction THROUGH Bifrost (scripts/bifrost-fleet-txn.py, run from rogueone with the
+# ship-txn key). git-af3ae0c8 shipped the compositor green while Bifrost held a stale session to the old pod and every
+# agent's weyland_fleet call failed; the compositor had been "no transaction", so nothing looked. Seam:
+# SHIP_BIFROST_TXN (the command); the real script's verdicts are pinned by scripts/tests/test_bifrost_fleet_txn.py.
+@test "TXN checks the compositor THROUGH Bifrost and passes on TXN_OK (no longer unchecked)" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-mcp-compositor:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  printf '#!/usr/bin/env bash\necho TXN_OK\n' > "$STUB_DIR/bft"; chmod +x "$STUB_DIR/bft"
+  SHIP_BIFROST_TXN="$STUB_DIR/bft" run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" != *"no transaction"* ]]
+}
+
+@test "TXN FAILS a compositor ship when the fleet call through Bifrost fails, and names the fix" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-mcp-compositor:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  printf '#!/usr/bin/env bash\necho "TXN_FAIL weyland_fleet-k8s_namespaces_list errored: session terminated (404) — kubectl -n weyland rollout restart deploy/bifrost"\n' > "$STUB_DIR/bft"; chmod +x "$STUB_DIR/bft"
+  SHIP_BIFROST_TXN="$STUB_DIR/bft" run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-mcp-compositor"*"session terminated"* ]]
+}
+
+@test "TXN fails a compositor ship closed when the Bifrost transaction prints nothing" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-mcp-compositor:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$STUB_DIR/bft"; chmod +x "$STUB_DIR/bft"
+  SHIP_BIFROST_TXN="$STUB_DIR/bft" run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-mcp-compositor(no-answer)"* ]]
+}
+
+@test "the tool-server transaction calls MCP too: /mcp/ initialize, tools/list and a tools/call of status" {
+  # 2026-10-16: the mcp 1.30.0 bump changed exactly this endpoint and the transaction only ever asked /context/search.
+  # Pinned on the code the pod runs (the verdicts were proven live: a /mcp 307 and a missing tool each print TXN_FAIL).
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  stub_dispatch kubectl
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_tool_server 'dagster-user-code-abc'
+  [ "$status" -eq 0 ]
+  grep -q '/mcp/' "$STUB_LOG"
+  grep -q 'tools/list' "$STUB_LOG"
+  grep -q '"name": "status"' "$STUB_LOG"
+  grep -q '/context/search' "$STUB_LOG"
+}

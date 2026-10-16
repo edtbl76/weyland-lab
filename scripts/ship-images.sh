@@ -525,17 +525,44 @@ except Exception as e:
 # result set proves the embed model loaded, the vector DB is connected, and the index has content — which
 # ALSO verifies the rag-index Job, which has no endpoint of its own to probe. Shape observed live:
 # {"query": ..., "results": [{"source","chunk_index","similarity","content"}, ...]}.
+# Tool-server, two halves (the MCP half added 2026-10-16): (1) RAG retrieval over HTTP, /context/search must return
+# results; (2) the MCP endpoint agents use, /mcp/ (trailing slash: /mcp 307s, which urllib will not follow on a POST):
+# initialize, tools/list must offer status + context_search, and tools/call status must answer service
+# weyland-tool-server with status "ok" ("degraded" = a backend down = not verified). The mcp bump that day changed
+# exactly this endpoint and no ship check had ever called it. Observed live: stateless (no session id), 4 tools.
 txn_tool_server() {
   local pod="${1:?usage: txn_tool_server <pod>}"
   kubectl -n weyland exec "$pod" -- python3 -c '
 import json, urllib.request
+B = "http://weyland-tool-server.weyland.svc.cluster.local:8080"
+H = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+def mcp(body):
+    raw = urllib.request.urlopen(urllib.request.Request(B + "/mcp/", data=json.dumps(body).encode(), headers=H),
+                                 timeout=30).read().decode()
+    data = [l[5:].strip() for l in raw.splitlines() if l.startswith("data:")]
+    text = data[0] if data else raw
+    return json.loads(text) if text.strip() else {}
 try:
     body = {"query": "data platform", "limit": 3}
-    r = urllib.request.Request("http://weyland-tool-server.weyland.svc.cluster.local:8080/context/search",
-        data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
-    d = json.load(urllib.request.urlopen(r, timeout=25))
-    res = d.get("results") or []
-    print("TXN_OK" if res else "TXN_FAIL /context/search returned no results (empty or unbuilt RAG index)")
+    r = urllib.request.Request(B + "/context/search", data=json.dumps(body).encode(),
+                               headers={"Content-Type": "application/json"})
+    if not (json.load(urllib.request.urlopen(r, timeout=25)).get("results") or []):
+        print("TXN_FAIL /context/search returned no results (empty or unbuilt RAG index)"); raise SystemExit
+    mcp({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18",
+         "capabilities": {}, "clientInfo": {"name": "ship-txn", "version": "1"}}})
+    mcp({"jsonrpc": "2.0", "method": "notifications/initialized"})
+    tools = {t.get("name") for t in (mcp({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}).get("result") or {}).get("tools") or []}
+    if not {"status", "context_search"} <= tools:
+        print("TXN_FAIL /mcp/ tools/list lacks status/context_search: " + str(sorted(tools))[:120]); raise SystemExit
+    res = mcp({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "status", "arguments": {}}}).get("result") or {}
+    text = " ".join(str(c.get("text", "")) for c in res.get("content") or [] if isinstance(c, dict))
+    st = json.loads(text) if text.strip().startswith("{") else {}
+    if res.get("isError") or st.get("service") != "weyland-tool-server" or st.get("status") != "ok":
+        print("TXN_FAIL /mcp/ status: " + text[:140])
+    else:
+        print("TXN_OK")
+except SystemExit:
+    pass
 except Exception as e:
     print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
 ' 2>/dev/null
@@ -628,6 +655,16 @@ except SystemExit:
 except Exception as e:
     print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
 ' 2>/dev/null
+}
+
+# Compositor (2026-10-16): the path agents actually use, Bifrost -> weyland-mcp-compositor -> a backing server, asked
+# FROM ROGUEONE through https://bifrost.weyland.lab/mcp with the `ship-txn` virtual key (one read-only tool; key in
+# scripts/.env). Why from here and through Bifrost: git-af3ae0c8 shipped the compositor green while Bifrost kept the
+# old pod's MCP session ("session terminated (404)") and every weyland_fleet call failed until Bifrost restarted; an
+# in-cluster call straight to the compositor would have passed. Logic + verdicts: scripts/bifrost-fleet-txn.py.
+txn_bifrost_fleet() {
+  # shellcheck disable=SC2086  # SHIP_BIFROST_TXN is a command line (the test seam)
+  ${SHIP_BIFROST_TXN:-python3 $REPO_ROOT/scripts/bifrost-fleet-txn.py --env-file $REPO_ROOT/scripts/.env} 2>/dev/null
 }
 
 # ship_flag_allows — B88 #5, the Unleash deploy kill-switch. Returns 0 = ship allowed, 1 = HELD.
@@ -748,6 +785,7 @@ txn_ok() {
       weyland-guard)             verdict="$(txn_guard "$pod")" ;;
       weyland-operator)          verdict="$(txn_operator "$pod")" ;;
       realm-of-agents)           verdict="$(txn_realm "$pod")" ;;
+      weyland-mcp-compositor)    verdict="$(txn_bifrost_fleet)" ;;
       # NAMED, never silently passed — same discipline as smoke_ok. A CI image that runs as a Job has
       # no transaction to make; saying so is honest, implying it was verified is not.
       *) unchecked="${unchecked} ${img}"; continue ;;

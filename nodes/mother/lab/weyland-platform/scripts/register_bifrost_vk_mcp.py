@@ -10,7 +10,7 @@ by NAME and reloads the key in memory, so the change applies live (proven 2026-1
 
 `SCOPING` below is the source of truth (scope by USE, not per agent): coding agents get the dev/coding tool surface,
 the operator gets drawing/security plus read-only shared memory, chat-eval stays toolless, and agents-read (B209,
-unattended agents) gets reads only. Keys not named here (e.g.
+unattended agents) gets reads only, and ship-txn (the ship's MCP check) gets one read tool. Keys not named here (e.g.
 `realm-llm`) are never touched. Per key it compares the live grants with the desired set and PUTs only on a difference;
 a PUT carries the key's WHOLE set (Bifrost replaces it; existing rows keep their ids), then the key is read back.
 Fails (exit 1) on a missing key, a desired client that is not registered (run register_bifrost_mcp_clients.py first —
@@ -41,6 +41,10 @@ SCOPING = {
     # and Hugging Face. The interactive harnesses keep `coding-agents`, where a person approves each call.
     "agents-read":   ["weyland_fleet", "Context7", "Perplexity", ("GitHub_Remote", GITHUB_READ),
                       ("Agent_Memory", MEMORY_READ), ("Hugging_Face", HUGGING_FACE_READ)],
+    # 2026-10-16: the ship's end-to-end MCP transaction (scripts/ship-images.sh txn_bifrost_fleet). ONE read-only tool,
+    # so the key in rogueone's scripts/.env can list namespaces and nothing else. It proves the path agents use:
+    # Bifrost -> compositor -> a backing server (a compositor ship strands Bifrost's session until Bifrost restarts).
+    "ship-txn":      [("weyland_fleet", ["k8s_namespaces_list"])],
 }
 ALL_TOOLS = ["*"]
 

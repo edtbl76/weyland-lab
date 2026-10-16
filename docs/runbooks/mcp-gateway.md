@@ -421,6 +421,32 @@ kubectl -n weyland create job bifrost-mcp-watchdog-drill --from=cronjob/bifrost-
 `kubectl -n weyland rollout restart deploy/bifrost` (§ Fleet server reliability, rule 3). The alert repeats each morning
 while the client stays unhealthy.
 
+## Ship transaction key (`ship-txn`, 2026-10-16)
+
+The ship's compositor transaction (`scripts/bifrost-fleet-txn.py`, called by `ship-images.sh`) makes one real fleet call
+through Bifrost from rogueone. It authenticates with its own virtual key, **`ship-txn`**, scoped in
+`register_bifrost_vk_mcp.py` `SCOPING` to exactly `weyland_fleet` → `k8s_namespaces_list` and no providers, so the copy
+in rogueone's `scripts/.env` (`BIFROST_SHIP_TXN_VK`) can list namespaces and nothing else. The transaction fails if the
+key ever sees more than that one tool.
+
+**Run it by hand** (expect `TXN_OK`):
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/bifrost-fleet-txn.py --env-file /home/edwardmangini/IdeaProjects/weyland/scripts/.env
+```
+**When it fails after a compositor ship** with `session terminated (404)` or `Missing session ID`: Bifrost still holds
+the old pod's MCP session and does not re-initialize by itself (rule 3 below). Restart Bifrost, then re-run the line
+above and the watchdog (§ MCP watchdog):
+```
+kubectl -n weyland rollout restart deploy/bifrost && kubectl -n weyland rollout status deploy/bifrost --timeout=180s
+```
+**Recreate the key** (after a Bifrost rebuild): create it through the API with the setup token, writing its value into
+`scripts/.env` without printing it, then scope it:
+```
+kubectl -n weyland exec -i deploy/weyland-guard -c weyland-guard -- python -c "import os,json,httpx; c=httpx.Client(base_url='http://bifrost.weyland.svc.cluster.local:8080',headers={'X-Bifrost-Setup-Token':os.environ['BIFROST_SETUP_TOKEN']},timeout=30); r=c.post('/api/governance/virtual-keys',json={'name':'ship-txn','description':'ship-images.sh MCP transaction','is_active':True,'allow_all_providers':False}); r.raise_for_status(); print(next(v['value'] for v in c.get('/api/governance/virtual-keys',params={'limit':1000}).json()['virtual_keys'] if v['name']=='ship-txn'))" | python3 -c "import sys; v=sys.stdin.read().strip(); open('/home/edwardmangini/IdeaProjects/weyland/scripts/.env','a').write('\nBIFROST_SHIP_TXN_VK='+v+'\n'); print('written, length', len(v))"
+kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_vk_mcp.py
+```
+Delete any stale `BIFROST_SHIP_TXN_VK` line from `scripts/.env` first, so only the new value remains.
+
 ## Fleet server reliability — pin images, verify the RUNTIME (2026-09-22)
 
 Two fleet servers were crashlooping for weeks/months, both the same class — an **unpinned image that drifted into

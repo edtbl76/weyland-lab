@@ -30,6 +30,7 @@ def _settled():
         _vk("v3", "chat-eval", []),
         _vk("v4", "realm-llm", []),
         _vk("v5", "agents-read", [_cfg(n, t) for n, t in r.desired("agents-read").items()]),
+        _vk("v6", "ship-txn", [_cfg("weyland_fleet", ["k8s_namespaces_list"])]),
     ]
 
 
@@ -209,3 +210,9 @@ def test_agents_read_keeps_what_realms_roster_uses():
     grants = r.desired("agents-read")
     assert {"weyland_fleet", "Context7", "Perplexity"} <= set(grants)
     assert grants["Agent_Memory"] == sorted(r.MEMORY_READ)
+
+
+# --- 2026-10-16: `ship-txn`, the key the ship's MCP transaction uses from rogueone. It lives in a .env file on a laptop,
+# so it holds exactly one read-only tool and nothing else: a leaked copy can list namespaces, no more. ------------------
+def test_ship_txn_holds_exactly_one_read_tool():
+    assert r.desired("ship-txn") == {"weyland_fleet": ["k8s_namespaces_list"]}
