@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir \
     'starlette==1.3.1' \
     'uvicorn==0.51.0' \
     'fastmcp==3.4.5' \
-    'mcp==1.28.1' \
+    'mcp==1.30.0' \
     psycopg2-binary \
     httpx \
     onnxruntime \
