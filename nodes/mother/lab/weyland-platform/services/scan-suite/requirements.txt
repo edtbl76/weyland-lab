@@ -92,7 +92,7 @@ ply==3.11
 policy_sentry==0.13.2
 prettytable==3.18.0
 propcache==0.5.4
-protobuf==4.25.9
+protobuf==5.29.6
 py-serializable==1.1.2
 pycares==4.11.0
 pycep-parser==0.5.1
@@ -117,7 +117,7 @@ s3transfer==0.10.4
 schema==0.7.5
 semantic-version==2.10.0
 semgrep==1.90.0
-setuptools==80.10.2   # B214: KEPT. 82+ drops pkg_resources, which semgrep 1.90's opentelemetry-instrumentation imports; GHSA-h35f is macOS-sdist-only (osv-scanner.toml)
+setuptools==83.0.0   # B214: KEPT. 82+ drops pkg_resources, which semgrep 1.90's opentelemetry-instrumentation imports; GHSA-h35f is macOS-sdist-only (osv-scanner.toml)
 six==1.17.0
 smmap==5.0.3
 sortedcontainers==2.4.0
