@@ -39,18 +39,17 @@ dh_name_of() { case "$1" in cassandra) echo "Cassandra - Weyland" ;; mongodb) ec
                             cockroachdb) echo "CockroachDB - Weyland" ;; *) echo "" ;; esac; }
 dh_cron_of() { case "$1" in cassandra) echo "15 4 * * 0" ;; mongodb) echo "45 3 * * *" ;; cockroachdb) echo "30 3 * * *" ;; esac; }
 
-# datahub <args...> — run scripts/datahub_schedule.py against the real GMS: a temporary local port-forward to
-# data-mesh/datahub-datahub-gms and the token from the cluster Secret weyland/datahub-token, held only in this
-# process's environment (never printed, never written). STORE_PARK_DATAHUB_CMD replaces all of it (the bats seam).
+# datahub <args...> — run scripts/datahub_schedule.py against the real GMS through its LAN NodePort
+# (datahub-gms-lan, k8s/data-mesh/query-lan.yaml; the lab never port-forwards) with the token from the cluster Secret
+# weyland/datahub-token, held only in this process's environment (never printed, never written). DATAHUB_GMS_URL
+# overrides the endpoint. STORE_PARK_DATAHUB_CMD replaces all of it (the bats seam).
 datahub() {
   if [ -n "${STORE_PARK_DATAHUB_CMD:-}" ]; then "$STORE_PARK_DATAHUB_CMD" "$@"; return; fi
-  local port=$(( 20000 + RANDOM % 10000 )) pf rc token
+  local token
   token="$(kubectl -n weyland get secret datahub-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null)"
   [ -n "$token" ] || { echo "DataHub: cannot read the token from Secret weyland/datahub-token" >&2; return 2; }
-  kubectl -n data-mesh port-forward svc/datahub-datahub-gms "$port:8080" >/dev/null 2>&1 & pf=$!
-  for _ in $(seq 1 30); do (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break; sleep 0.5; done
-  DATAHUB_GMS_URL="http://127.0.0.1:$port" DATAHUB_GMS_TOKEN="$token" python3 "$REPO_ROOT/scripts/datahub_schedule.py" "$@"
-  rc=$?; kill "$pf" 2>/dev/null; wait "$pf" 2>/dev/null; return $rc
+  DATAHUB_GMS_URL="${DATAHUB_GMS_URL:-http://192.168.1.243:30818}" DATAHUB_GMS_TOKEN="$token" \
+    python3 "$REPO_ROOT/scripts/datahub_schedule.py" "$@"
 }
 
 # replica_line <store> -> "<line-number> <value>" of the ONE line that sets its replicas; fails closed otherwise.

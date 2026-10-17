@@ -430,14 +430,9 @@ kubectl exec -n weyland deploy/weyland-postgres -- psql -U weyland -d weyland -c
 
 ### Browse from a local tool (IntelliJ / DataGrip / psql on rogueone)
 
-Postgres has no external port, so port-forward the service, then point the client at it. Run on **mother**
-and leave it running while connected:
-```bash
-kubectl port-forward -n weyland --address 0.0.0.0 svc/weyland-postgres 5432:5432
-```
-Then connect to `mother:5432`, database `weyland`, user `weyland` (password lives in the `weyland-postgres`
-secret - not stored here). To avoid exposing it on the LAN, drop `--address 0.0.0.0` (binds mother's
-localhost) and use an SSH tunnel (`emangini@mother`) in the client instead.
+Postgres has **no external port, on purpose**: it runs STRICT mTLS (`postgres-strict`), so a plain client off the
+mesh cannot connect, and the lab never port-forwards (NodePorts only, AGENTS.md). Query it in-pod (the
+`kubectl exec ... psql` above); see [query/postgres.md](../query/postgres.md).
 
 ## rsync (from rogueone)
 

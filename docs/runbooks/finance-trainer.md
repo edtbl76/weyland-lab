@@ -22,21 +22,18 @@ meshed point-in-time join that lands `finance/parquet/price_feast_training/` in 
 
 ## 2. Run the trainer (rogueone)
 
-The trainer runs on rogueone against in-container/host port-forwards. Open the three forwards, export the creds
-from the k8s Secrets (NEVER inline — same Secrets `services/genre-trainer/entrypoint.sh` reads), then run. A
-Python venv with `mlflow scikit-learn pandas numpy minio pyarrow boto3` (+ `ray` for `--tune`) suffices.
+The trainer runs on rogueone against the platform's LAN NodePorts — `mlflow-lan` `192.168.1.243:30500` (admits
+rogueone only), `minio-s3-lan` `:30990`, `lakefs-lan` `:30800`; the lab never port-forwards. Export the creds from
+the k8s Secrets (NEVER inline — same Secrets `services/genre-trainer/entrypoint.sh` reads), then run. A Python venv
+with `mlflow scikit-learn pandas numpy minio pyarrow boto3` (+ `ray` for `--tune`) suffices.
 
 ```
-kubectl port-forward -n weyland   svc/mlflow 5000:5000 >/dev/null 2>&1 &
-kubectl port-forward -n minio     svc/minio  9000:9000 >/dev/null 2>&1 &
-kubectl port-forward -n data-mesh svc/lakefs 8000:8000 >/dev/null 2>&1 &
-
 export LAKEFS_ACCESS_KEY_ID=$(kubectl -n weyland get secret lakefs-creds -o jsonpath='{.data.LAKEFS_ACCESS_KEY_ID}' | base64 -d)
 export LAKEFS_SECRET_ACCESS_KEY=$(kubectl -n weyland get secret lakefs-creds -o jsonpath='{.data.LAKEFS_SECRET_ACCESS_KEY}' | base64 -d)
 export AWS_ACCESS_KEY_ID=$(kubectl -n weyland get secret aidlc-kb-minio-secret -o jsonpath='{.data.access_key}' | base64 -d)
 export AWS_SECRET_ACCESS_KEY=$(kubectl -n weyland get secret aidlc-kb-minio-secret -o jsonpath='{.data.secret_key}' | base64 -d)
-export MLFLOW_TRACKING_URI=http://localhost:5000 MLFLOW_S3_ENDPOINT_URL=http://localhost:9000
-export LAKEFS_ENDPOINT=http://localhost:8000 LAKEFS_BRANCH=main AWS_DEFAULT_REGION=us-east-1
+export MLFLOW_TRACKING_URI=http://192.168.1.243:30500 MLFLOW_S3_ENDPOINT_URL=http://192.168.1.243:30990
+export LAKEFS_ENDPOINT=http://192.168.1.243:30800 LAKEFS_BRANCH=main AWS_DEFAULT_REGION=us-east-1
 
 cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/finance-trainer
 python train_volatility.py --task both        # add --tune for a Ray-Tune sweep (needs a Ray cluster + `ray`)
@@ -47,8 +44,8 @@ serve-artifacts proxy.
 
 ## 2b. Or run the container (durable/reproducible — `registry.weyland.lab/finance-trainer`)
 
-`entrypoint.sh` opens the port-forwards + reads the Secrets itself from a mounted kubeconfig, so the container
-needs no host forwards and no creds on the CLI. Build (on a box with docker — rogueone Docker Desktop is
+`entrypoint.sh` reads the Secrets itself from a mounted kubeconfig and points the trainer at the same three
+NodePorts (waiting until each answers), so the container needs no creds on the CLI. Build (on a box with docker — rogueone Docker Desktop is
 amd64/x86_64, matching the cluster) + push + run:
 
 ```

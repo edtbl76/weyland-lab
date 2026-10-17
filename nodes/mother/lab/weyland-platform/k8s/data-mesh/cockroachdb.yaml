@@ -47,7 +47,7 @@ spec:
             - name: sql
               containerPort: 26257
             - name: http
-              containerPort: 8080     # built-in Admin UI (port-forward to reach it)
+              containerPort: 8080     # built-in Admin UI (cockroachdb.weyland.lab, Keycloak-gated)
           readinessProbe:
             httpGet:
               path: /health?ready=1

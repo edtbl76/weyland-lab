@@ -7,10 +7,11 @@ OFF** → plain HTTP, **no auth, no creds**. Two flavours of index live here: th
 **doc-per-row dataset indices** (index per silver parquet file, written by the `datasets_*_opensearch_load`
 assets). Everything is REST — you query it with `curl`.
 
-**Connect:** the 9200 REST port is **not** exposed on the LAN (only the Dashboards UI is). Two ways in:
+**Connect:** the 9200 REST port is the `opensearch-lan` NodePort `192.168.1.243:30920`, admitted for **rogueone only**
+(no auth, so the NetworkPolicy is the gate). Three ways in:
 - **Dashboards Dev Tools** — `opensearch.weyland.lab` → *Dev Tools* console (Keycloak forward-auth gated; log in
   with your lab SSO). Paste the `METHOD /path` + JSON body, hit run. Best for exploring.
-- **curl**, either port-forward the svc `opensearch-cluster-master` `9200` and hit `127.0.0.1:9200`, or in-pod:
+- **curl** from rogueone: `curl -s 192.168.1.243:30920/_cat/indices?v`, or in-pod:
   `kubectl -n opensearch exec opensearch-cluster-master-0 -- curl -s localhost:9200/...`
 
 In-cluster clients (Dagster, tool-server) use `http://opensearch-cluster-master.opensearch.svc.cluster.local:9200`.

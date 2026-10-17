@@ -1,5 +1,6 @@
 # B211 (2026-10-14) — OpenSearch (security plugin disabled: any caller could delete or write indices). Callers on 9200:
-# dagster-user-code (opensearch_write.py, loaders.py, datahub_emit), rag-index-opensearch, and the dashboards. 9300/9600
+# dagster-user-code (opensearch_write.py, loaders.py, datahub_emit), rag-index-opensearch, the dashboards, and rogueone
+# (192.168.1.230: curl via the opensearch-lan NodePort, externalTrafficPolicy Local; 2026-10-17 — not the LAN). 9300/9600
 # get nothing (single node). The dashboards' 5601 admits only Traefik (its forward-auth'd UI).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -20,6 +21,7 @@ spec:
         matchLabels: {app: rag-index-opensearch}
     - podSelector:
         matchLabels: {app.kubernetes.io/name: opensearch-dashboards}
+    - ipBlock: {cidr: 192.168.1.230/32}
     ports:
     - {protocol: TCP, port: 9200}
 ---

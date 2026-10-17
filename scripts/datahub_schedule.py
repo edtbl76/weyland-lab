@@ -9,8 +9,8 @@ restore it on wake, so one command does both. Called directly:
     datahub_schedule.py pause  <source name>
     datahub_schedule.py resume <source name> <cron interval> <timezone>
 
-Env: DATAHUB_GMS_URL, DATAHUB_GMS_TOKEN (store-park.sh supplies both — a local port-forward and the cluster Secret
-`weyland/datahub-token`, read at runtime and never printed). Exit 0 ok · 2 cannot read / did not land.
+Env: DATAHUB_GMS_URL, DATAHUB_GMS_TOKEN (store-park.sh supplies both — the datahub-gms-lan NodePort
+`http://192.168.1.243:30818` and the cluster Secret `weyland/datahub-token`, read at runtime and never printed). Exit 0 ok · 2 cannot read / did not land.
 
 Safety: the source is matched by its EXACT name; the update resends every field it read (name, type, config incl.
 recipe, source) so only the schedule changes; and every change is verified by reading the source back.

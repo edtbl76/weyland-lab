@@ -1,0 +1,67 @@
+# LAN NodePort reach for four data-mesh services that were reachable from rogueone only by `kubectl port-forward`
+# (2026-10-17). The lab never port-forwards: NodePorts ONLY (AGENTS.md). Same `-lan` pattern as tier2-lan.yaml /
+# minio-s3-lan / lakefs-lan / mlflow-lan.
+#
+#   DataHub GMS          192.168.1.243:30818 -> :8080  (REST/GraphQL; DATAHUB_GMS_TOKEN required) — store-park.sh
+#   Trino                192.168.1.243:30808 -> :8080  (JDBC/REST; DataGrip) — admitted for rogueone only, see below
+#   Valkey               192.168.1.243:30379 -> :6379  (RESP; DataGrip "Redis") — admitted for rogueone only
+#   musicbrainz-postgres 192.168.1.243:30544 -> :5432  (pg-wire; its own password)
+#
+# externalTrafficPolicy: Local keeps the client's source IP (single node, so no hop is lost). That is what lets a
+# NetworkPolicy ipBlock tell rogueone (192.168.1.230) from the rest of the LAN — the same mechanism as mlflow-lan.
+# Trino (no authenticator: X-Trino-User is self-asserted) and Valkey (no auth) are B211 front-door services, so
+# their policies (netpol-trino.yaml, netpol-valkey.yaml) admit 192.168.1.230/32 and nothing else from outside the
+# cluster. GMS (token) and musicbrainz-postgres (password) have no NetworkPolicy; their own auth is the gate, as
+# for the tier-2 stores. Valkey, musicbrainz-postgres and Trino are meshed; no PeerAuthentication in data-mesh, so
+# PERMISSIVE accepts the plain-text NodePort traffic. Auto-synced by the `data-mesh` Argo app (whole dir).
+apiVersion: v1
+kind: Service
+metadata:
+  name: datahub-gms-lan
+  namespace: data-mesh
+  labels: { app.kubernetes.io/name: datahub-gms }
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector: { app.kubernetes.io/instance: datahub, app.kubernetes.io/name: datahub-gms }
+  ports:
+    - { name: http, port: 8080, targetPort: http, protocol: TCP, nodePort: 30818 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino-lan
+  namespace: data-mesh
+  labels: { app: trino }
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector: { app: trino }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080, protocol: TCP, nodePort: 30808 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey-lan
+  namespace: data-mesh
+  labels: { app: valkey }
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector: { app: valkey }
+  ports:
+    - { name: tcp-valkey, port: 6379, targetPort: 6379, protocol: TCP, nodePort: 30379 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: musicbrainz-postgres-lan
+  namespace: data-mesh
+  labels: { app: musicbrainz-postgres }
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector: { app: musicbrainz-postgres }
+  ports:
+    - { name: postgres, port: 5432, targetPort: 5432, protocol: TCP, nodePort: 30544 }

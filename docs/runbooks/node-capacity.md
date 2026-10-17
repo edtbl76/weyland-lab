@@ -147,7 +147,7 @@ not ask the cluster):
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wait cockroachdb
 ```
 `wake` and `park` also **resume / pause the store's DataHub ingestion schedule** in the same command (via
-`scripts/datahub_schedule.py`: a temporary port-forward to GMS and the token from the cluster Secret
+`scripts/datahub_schedule.py`: GMS through the `datahub-gms-lan` NodePort `192.168.1.243:30818` and the token from the cluster Secret
 `weyland/datahub-token`, never printed; every change is read back, and `status` prints a config fingerprint so you can
 see the recipe came through untouched). **Park it again** the same way with `park` (then push and `wait`). `status` shows every store's git setting next to
 what is running; `all` works in place of a store name. Stores: `cassandra`, `mongodb`, `cockroachdb`,
@@ -190,7 +190,7 @@ expires the running CI task (pipelines show `killed`), and once (09-30 02:44 NY)
 **Triggers are incidental** — whatever adds the last few hundred MB: a CI step pod (+0.8–2.3 GB; the 00:40–01:13
 cluster), the 03:25 `pr-lifecycle-reconcile` CronJob starting (03:25 on 09-25/26/27/30, with 5–6 GB "free"),
 the 01:00 nightly-images build. Moving a trigger moves the stall; it does not remove it. The cause is the
-baseline. Timeline query (port-forward `svc/monitoring-kube-prometheus-prometheus` and scan
+baseline. Timeline query (Prometheus at the `prometheus-lan` NodePort `http://192.168.1.243:30909`; scan
 `node_memory_MemAvailable_bytes{instance="192.168.1.243:9100"}` at a 30s step for gaps ≥ 60s).
 
 ## Resizing mother's RAM (procedure)

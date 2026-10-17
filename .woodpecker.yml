@@ -155,6 +155,10 @@ steps:
       # the bundle the Dagster publisher reads (services/weyland-dagster/scripts/loop_library.json) is byte-identical
       # to a fresh bundle of the Markdown. Fail-closed 0/1/2. python3 + py3-yaml above.
       - bash scripts/check-loop-library.sh
+      # 2026-10-17 — NodePorts ONLY (AGENTS.md): no port-forward command or instruction in docs, scripts, manifests or
+      # code (kubectl port-forward, IntelliJ Forward Ports, the Python client's portforward). Prose that rejects it
+      # passes; docs/backlog.md history is not scanned. Fail-closed 0/1/2 (scanning nothing is 2). python3 above.
+      - bash scripts/check-no-port-forward.sh
 
   # ── 1b2. Port IaC coverage (B137) ───────────────────────────────────────────
   # SEPARATE from repo-guards because it is the only guard here that talks to a live API and needs

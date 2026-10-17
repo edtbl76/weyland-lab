@@ -1,7 +1,7 @@
 # MySQL — query cookbook
 
-**Connect:** `mysql.data-mesh.svc:3306` (user/dev-password). IntelliJ → MySQL driver, port-forward the `mysql`
-svc `3306`. In-pod: `kubectl -n data-mesh exec -it deploy/mysql -- mysql -u<user> -p<pw>`.
+**Connect:** `mysql.data-mesh.svc:3306` (user/dev-password). IntelliJ → MySQL driver at the `mysql-lan`
+NodePort `192.168.1.243:30306`. In-pod: `kubectl -n data-mesh exec -it deploy/mysql -- mysql -u<user> -p<pw>`.
 
 **One database per dataset** (table per silver parquet file). Health (6): `nhanes`, `big_five`, `who_gho`,
 `cdc_physical_activity`, `brfss`, `nhis`. Finance (2, B113 Phase 2): `company_financials`, `company_meta` —

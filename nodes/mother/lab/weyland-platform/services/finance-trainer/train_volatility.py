@@ -18,7 +18,7 @@ Modes per task:
 
 Same infra contract as genre-trainer: artifacts go DIRECT to MinIO (`s3://mlflow/…`, bypassing the
 serve-artifacts proxy); config comes from env (LAKEFS_*, MLFLOW_TRACKING_URI, MLFLOW_S3_ENDPOINT_URL, AWS_*);
-`entrypoint.sh` opens the port-forwards. Nothing secret on the CLI.
+`entrypoint.sh` points it at the mlflow/minio/lakefs LAN NodePorts. Nothing secret on the CLI.
 """
 import argparse
 import os
@@ -50,7 +50,7 @@ def _envflag(name):
 
 
 def _lakefs_client() -> Minio:
-    ep = os.environ.get("LAKEFS_ENDPOINT", "http://localhost:8000")
+    ep = os.environ["LAKEFS_ENDPOINT"]   # set by entrypoint.sh or the runbook: the lakefs-lan NodePort
     return Minio(ep.replace("https://", "").replace("http://", ""),
                  access_key=os.environ["LAKEFS_ACCESS_KEY_ID"],
                  secret_key=os.environ["LAKEFS_SECRET_ACCESS_KEY"],

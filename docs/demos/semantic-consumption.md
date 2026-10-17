@@ -65,7 +65,7 @@ sequenceDiagram
 ```
 kubectl -n data-mesh exec -i deploy/trino -- sh -c "PGPASSWORD=weyland_dev_password psql -h cube.data-mesh.svc.cluster.local -p 15432 -U cube -d cube -c \"SELECT track_genre, MEASURE(avg_danceability) FROM spotify_audio GROUP BY 1 ORDER BY 2 DESC LIMIT 5;\""
 ```
-> TODO: verify `psql` is on the `deploy/trino` image; if not, run the same `psql` from any box that can reach `cube.data-mesh.svc:15432` (or via an IntelliJ K8s port-forward of the Cube SQL port).
+> TODO: verify `psql` is on the `deploy/trino` image; if not, run the same `psql` from any box that can reach `cube.data-mesh.svc:15432` (never a port-forward — the lab is NodePorts only).
 
 [mother] Life expectancy by country through Cube (another governed metric):
 ```

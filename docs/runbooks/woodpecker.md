@@ -51,7 +51,7 @@ STUD.io's CI was migrated off its own local Woodpecker onto this server (B57b, p
   - **HTTP `192.168.1.243:30980`** (`woodpecker-http-lan`) — the REST/UI port for the CLI. The public URL is behind
     `traefik-forward-auth` (Keycloak), which **302-redirects Bearer API calls** to login, so `woodpecker-cli` can't
     use `woodpecker.weyland.lab`. This NodePort bypasses Traefik; trust = the caller's PAT. (Replaces the old ad-hoc
-    `kubectl -n woodpecker port-forward svc/woodpecker-server 8000:80`.)
+    port-forward; the lab is NodePorts only.)
 - **CLI** (`~/.local/bin/woodpecker-cli` v3.17; creds in `~/.config/studio/woodpecker-cli.env` — `WOODPECKER_SERVER=http://192.168.1.243:30980` + PAT, gitignored). Trigger + watch a STUD.io run:
 ```bash
 . ~/.config/studio/woodpecker-cli.env; export PATH="$HOME/.local/bin:$PATH"

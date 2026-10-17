@@ -1,0 +1,18 @@
+# LAN NodePort for the Prometheus HTTP API + UI (2026-10-17): 192.168.1.243:30909 -> :9090. Runbooks used to reach it
+# with `kubectl port-forward`; the lab never port-forwards (NodePorts ONLY, AGENTS.md). Read-only API (no admin API
+# enabled), no auth — LAN-only lab, same posture as the tier-2 store NodePorts. externalTrafficPolicy: Local keeps the
+# client IP, like mlflow-lan. Synced by `monitoring-extras` (whole k8s/monitoring dir).
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-lan
+  namespace: monitoring
+  labels: { app.kubernetes.io/name: prometheus }
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector:
+    app.kubernetes.io/name: prometheus
+    operator.prometheus.io/name: monitoring-kube-prometheus-prometheus
+  ports:
+    - { name: http-web, port: 9090, targetPort: 9090, protocol: TCP, nodePort: 30909 }

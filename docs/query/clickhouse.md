@@ -1,7 +1,7 @@
 # ClickHouse — query cookbook
 
 **Connect:** `/play` UI at `clickhouse.weyland.lab/play` (Keycloak-gated), or IntelliJ/DataGrip at
-`127.0.0.1:8123` (port-forward the `clickhouse` svc; user `default`, blank password; if the driver throws
+`192.168.1.243:30123` (the `clickhouse-lan` NodePort; user `default`, blank password; if the driver throws
 `[08000] databaseTerm/session_id`, **add** `databaseTerm=schema` in Advanced). In-pod:
 `kubectl -n data-mesh exec deploy/clickhouse -- clickhouse-client -q "…"`.
 

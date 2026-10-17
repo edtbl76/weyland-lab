@@ -16,16 +16,15 @@ Reconcile two planes; a table in the first but not the second is drift:
 
 ## CLI walkthrough (the test — RUN against live infra)
 
-From a box that can reach the cluster (rogueone), via port-forwards + the DataHub token:
+From rogueone, over the `trino-lan` (admitted for rogueone only) and `datahub-gms-lan` NodePorts + the DataHub token
+(the lab never port-forwards; the in-cluster CronJob run is in [runbooks/observability.md](../runbooks/observability.md)):
 
 ```
-kubectl -n data-mesh port-forward svc/trino-noauth 18200:8080 &
-kubectl -n data-mesh port-forward svc/datahub-datahub-gms 18201:8080 &
 TOKEN=$(kubectl -n weyland get secret datahub-token -o jsonpath='{.data.token}' | base64 -d)
 
-TRINO_HTTP=http://localhost:18200 DATAHUB_GMS_URL=http://localhost:18201 DATAHUB_GMS_TOKEN="$TOKEN" \
+TRINO_HTTP=http://192.168.1.243:30808 DATAHUB_GMS_URL=http://192.168.1.243:30818 DATAHUB_GMS_TOKEN="$TOKEN" \
   bash scripts/check-datahub-coverage.sh --list   # every mesh table + cataloged/UNCATALOGED
-TRINO_HTTP=http://localhost:18200 DATAHUB_GMS_URL=http://localhost:18201 DATAHUB_GMS_TOKEN="$TOKEN" \
+TRINO_HTTP=http://192.168.1.243:30808 DATAHUB_GMS_URL=http://192.168.1.243:30818 DATAHUB_GMS_TOKEN="$TOKEN" \
   bash scripts/check-datahub-coverage.sh           # the gate
 ```
 
@@ -64,6 +63,6 @@ TRINO_TABLES="datasets_finance.price_daily" DATAHUB_URNS="" \
 
 ## Teardown
 
-Read-only — one Trino query + a paged GMS read + a set diff; no data created (kill the two port-forwards).
+Read-only — one Trino query + a paged GMS read + a set diff; no data created, nothing to tear down.
 In the cluster it runs as the nightly `datahub-coverage` CronJob (03:05 NY), failure → Telegram via the
 existing `ScheduledJobFailed` rule.

@@ -1,0 +1,16 @@
+# LAN NodePort for Uptime Kuma's API (2026-10-17): 192.168.1.243:30301 -> :3001. `kuma.weyland.lab` sits behind
+# Keycloak forward-auth, which bounces API clients (the `uptime-kuma-api` Python client) to a login page; scripts used
+# `kubectl port-forward` instead, and the lab never port-forwards (NodePorts ONLY, AGENTS.md). Kuma's own login
+# (admin / LAB_PASSWORD) is the gate. externalTrafficPolicy: Local keeps the client IP, like mlflow-lan.
+apiVersion: v1
+kind: Service
+metadata:
+  name: uptime-kuma-lan
+  namespace: weyland
+  labels: { app: uptime-kuma }
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector: { app: uptime-kuma }
+  ports:
+    - { name: http, port: 3001, targetPort: 3001, protocol: TCP, nodePort: 30301 }

@@ -78,7 +78,7 @@ task) — keeping the big final fit off the 4Gi head pod.
 ### The standalone-container path (alternative)
 
 The `genre-trainer` image also runs on its own: `docker run` it with a mounted kubeconfig and it self-fetches
-creds from k8s Secrets + opens in-container `kubectl port-forward`s, reads lakeFS silver, trains, and logs to
+creds from k8s Secrets, reaches MLflow/MinIO/lakeFS over their LAN NodePorts, reads lakeFS silver, trains, and logs to
 MLflow (artifact direct to MinIO). No cluster, no submit — see **Execute** below. The container-specific gotchas
 (Docker Desktop RAM cap, loopback, `--add-host`) apply only to this path.
 
@@ -307,7 +307,7 @@ eye-candy. Firewall `.230:8080` when the DMZ lands.
 | 4 | registry `pull` fails mid-layer, 403 to `minio.svc:9000` | registry redirects to presigned MinIO URLs | `REGISTRY_STORAGE_REDIRECT_DISABLE=true` | both |
 | 5 | IntelliJ "Unsupported registry" | Traefik basic-auth 401 lacks the docker api-version header | drop registry auth (LAN-only) | both |
 | 6 | container can't resolve `mother` | Docker gives the container its own `/etc/hosts` | `--add-host mother:192.168.1.243` | container |
-| 7 | `--network host` container can't reach `localhost:8000` forwards | Docker Desktop `--network host` = the *VM's* loopback | in-container port-forwards (own localhost), bridge networking | container |
+| 7 | `--network host` container can't reach `localhost:8000` forwards | Docker Desktop `--network host` = the *VM's* loopback | bridge networking + the LAN NodePorts (`:30500`/`:30990`/`:30800`; the in-container forwards were retired 2026-10-17 — NodePorts only) | container |
 | 8 | `connection refused` to `mother:6443` on the bridge | `--add-host` pointed at rogueone's `.230`, not mother's `.243` | correct IP | container |
 | 9 | `pip` crash resolving `aiohttp` | the k8s Python client's dep tree + old pip | drop the client (use `kubectl`), upgrade pip | container |
 | 10 | Ray Tune trials OOM at **15.6 GB** on a 128 GB box | **Docker Desktop caps the container's memory** (its VM allocation) | raise Docker Desktop → Resources → Memory | container |

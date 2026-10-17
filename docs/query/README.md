@@ -27,8 +27,9 @@ syntax demos.
 | Cube + MetricFlow | [cube.md](cube.md) | semantic layer (B1.7 L6) — governed metrics over the 7 marts; Cube SQL/REST (`MEASURE()`) + MetricFlow `mf query` |
 | Prometheus (PromQL) | [prometheus.md](prometheus.md) | platform metrics, not datasets — the operator's decision-model shadow (B174: agreement, confident agreement, Jev spend, latency) and its brain/sweep counters; run in Grafana Explore |
 
-**Connecting:** each store's access (svc / ingress / port-forward / creds) is in its runbook and
-[../hosts.md](../hosts.md). Most are reachable from IntelliJ via the k8s-plugin port-forward, or in-pod via
+**Connecting:** each store's access (svc / ingress / NodePort / creds) is in its runbook and
+[../hosts.md](../hosts.md). From rogueone (IntelliJ/DataGrip, scripts) use the store's `-lan` NodePort on
+`192.168.1.243` — the lab never port-forwards — or in-pod via
 `kubectl -n data-mesh exec deploy/<store> -- <client>`.
 
 **Schemas drift** — datasets get reloaded and columns can change. When a query references a column that isn't

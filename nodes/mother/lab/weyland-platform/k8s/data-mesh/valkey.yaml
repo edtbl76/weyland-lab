@@ -1,7 +1,7 @@
 # B65 — shared Valkey: the data-mesh platform cache (Valkey = the BSD-licensed open-source Redis fork).
 # Superset uses it (cache + Celery results) now; future data-mesh apps (dbt/Feast/…) reuse it by Redis DB
 # index. Pure cache — no RDB/AOF persistence; no auth (in-cluster, LAN). Reach in-cluster at
-# valkey.data-mesh.svc:6379; IntelliJ via the k8s port-forward (DataGrip "Redis" data source, RESP-compatible).
+# valkey.data-mesh.svc:6379; DataGrip "Redis" data source at the valkey-lan NodePort 192.168.1.243:30379 (query-lan.yaml; rogueone only).
 apiVersion: apps/v1
 kind: Deployment
 metadata:

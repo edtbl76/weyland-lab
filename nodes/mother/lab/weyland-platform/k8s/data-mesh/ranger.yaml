@@ -1,7 +1,7 @@
 # Apache Ranger Admin (L5 — data-plane authz for Trino). Prebuilt image mr3project/ranger:2.6.0.
 # Policy DB = weyland-postgres (ns weyland) DB `ranger`, role `rangeradmin` (pre-created).
 # Meshed (istio sidecar) so it can reach STRICT-mTLS Postgres. Audit deferred (audit_store empty) — Slice A
-# refinement wires the shared ES later. UI on :6080; ingress added after we validate via port-forward.
+# refinement wires the shared ES later. UI on :6080; ingress added after we validate it in-cluster.
 apiVersion: v1
 kind: ConfigMap
 metadata:

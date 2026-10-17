@@ -51,6 +51,11 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
   (`set -a && . scripts/.env && set +a`); never ask the owner to paste a token; never `echo`/`printf` a secret value.
 - **Cluster is read-only for agents** except a write the owner explicitly authorized. Changes go through git → Argo CD
   (every app runs `selfHeal: true`, so live edits and `kubectl rollout undo` are silently reverted).
+- **NodePorts ONLY — never port-forward.** No `kubectl port-forward`, no IntelliJ k8s "Forward Ports", no Python
+  client `portforward`, in commands, runbooks or code. From rogueone, reach an in-cluster service at its `-lan` NodePort
+  (`192.168.1.243:<nodePort>`; a no-auth service's NetworkPolicy admits rogueone `192.168.1.230/32` only); otherwise run
+  the work in-cluster (a Job, `kubectl exec`). No NodePort yet? Propose one — never forward. Guard:
+  `scripts/check-no-port-forward.sh` (CI repo-guards).
 - **Docker verification runs as the invoking user** (`--user "$(id -u):$(id -g)"`) or with `:ro` mounts — a root
   container writing into the repo breaks git for the owner.
 - **Commands handed to the owner:** absolute paths only (never relative), one step, the host label (`[rogueone]`,

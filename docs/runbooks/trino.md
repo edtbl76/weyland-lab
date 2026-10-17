@@ -15,8 +15,9 @@ Superset / dbt / the B73 "use the data" work all ride on it. Manifest: `k8s/data
 
 ## How to connect
 - **CLI:** `kubectl -n data-mesh exec -it deploy/trino -- trino` → `trino>` prompt.
-- **IntelliJ / DataGrip:** forward port 8080 via the IntelliJ Kubernetes plugin (Services → trino →
-  Forward Ports), then a **Trino** data source at `jdbc:trino://localhost:8080`, user any / no password.
+- **IntelliJ / DataGrip:** a **Trino** data source at the `trino-lan` NodePort `jdbc:trino://192.168.1.243:30808`
+  (`k8s/data-mesh/query-lan.yaml`), user any / no password. Admitted for rogueone only (`netpol-trino.yaml`) —
+  Trino has no authenticator. NodePorts only, never a port-forward.
 - **Web UI:** `https://trino.weyland.lab` (forward-auth → Keycloak, then Trino username-only login). It's
   a **monitoring console** (running queries, timings, cluster), NOT a query editor — use Superset/CLI/IDE
   to run SQL.

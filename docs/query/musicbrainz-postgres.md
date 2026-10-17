@@ -1,7 +1,7 @@
 # MusicBrainz Postgres — query cookbook
 
 **Connect:** `musicbrainz-postgres.data-mesh.svc:5432`, db `musicbrainz_db`, schema `musicbrainz`
-(user `musicbrainz` / its password). IntelliJ → PostgreSQL driver, port-forward the svc `5432`. In-pod:
+(user `musicbrainz` / its password). IntelliJ → PostgreSQL driver at the `musicbrainz-postgres-lan` NodePort `192.168.1.243:30544`. In-pod:
 `kubectl -n data-mesh exec -it deploy/musicbrainz-postgres -- psql -U musicbrainz musicbrainz_db`.
 
 This is the **full native `mbdump`** — 2.9M artists, 39.3M recordings, 1.1M links — the real MusicBrainz schema

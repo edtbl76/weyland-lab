@@ -9,9 +9,9 @@ dbt marts (`iceberg.dbt.*`) see **[[dbt-marts]]** — don't duplicate them here.
 ## Connect
 
 - **CLI (in-pod):** `kubectl -n data-mesh exec -it deploy/trino -- trino` → `trino>` prompt. No auth.
-- **IntelliJ / DataGrip:** forward port **8080** on the `trino` svc via the IntelliJ Kubernetes plugin
-  (Services → trino → Forward Ports), then a **Trino** data source at `jdbc:trino://localhost:8080`, user any /
-  no password. In-cluster the svc is `trino.data-mesh.svc:8080`.
+- **IntelliJ / DataGrip:** a **Trino** data source at the `trino-lan` NodePort `jdbc:trino://192.168.1.243:30808`,
+  user any / no password — admitted for rogueone only (Trino has no authenticator, so the NetworkPolicy is the gate;
+  the lab never port-forwards). In-cluster the svc is `trino.data-mesh.svc:8080`.
 - **Web UI:** `https://trino.weyland.lab` (forward-auth → Keycloak, then Trino username-only login) — this is a
   **monitoring console** (running queries, timings, cluster), NOT a query editor. Run SQL via CLI / IntelliJ /
   **Superset** (Trino is a Superset database).

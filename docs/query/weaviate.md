@@ -4,7 +4,7 @@ Weaviate holds one **class per dataset** (v4 client, BYO vectors / `Vectorizer.n
 [Qdrant](qdrant.md) — two backends for the identical grid sets. Built by the `datasets_lib` vector loader from
 silver: numeric sets = z-scored feature vectors, text sets = bge-small (384-dim).
 
-**Connect** (v4, in-cluster; port-forward http 8080 + grpc 50051 for local):
+**Connect** (v4, in-cluster below; from rogueone use the NodePorts — http `192.168.1.243:30087`, grpc `192.168.1.243:32418`):
 ```python
 import weaviate
 wc = weaviate.connect_to_custom(

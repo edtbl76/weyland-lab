@@ -1,7 +1,7 @@
 # MongoDB — query cookbook
 
 **Connect:** `mongodb.data-mesh.svc:27017`, authSource `admin` (user `weyland` / dev password). IntelliJ →
-MongoDB driver, port-forward the `mongodb` svc `27017`. In-pod:
+MongoDB driver at the `mongodb-lan` NodePort `192.168.1.243:30017`. In-pod:
 `kubectl -n data-mesh exec -it deploy/mongodb -- mongosh -u weyland -p <pw> --authenticationDatabase admin`.
 
 DB `datasets_health` (doc-per-row): `who_gho_*` collections, `open_food_facts` (~4.5M), and `aidlc_kb.entries`

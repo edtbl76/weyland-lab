@@ -60,8 +60,7 @@ curl -sI https://grafana.weyland.lab        # expect HTTP/2 200/302, trusted cer
 ```
 Open `https://grafana.weyland.lab`, log in (grafana-admin secret), confirm the
 out-of-box dashboards have data: **Kubernetes / Compute Resources / Cluster**, **Node
-Exporter / Nodes**, etc. Check `Status > Targets` in Prometheus (port-forward or via a
-later Prometheus Ingress) shows the stack targets UP.
+Exporter / Nodes**, etc. Check `Status > Targets` in Prometheus (`http://192.168.1.243:30909`, the `prometheus-lan` NodePort) shows the stack targets UP.
 
 ---
 
@@ -197,20 +196,26 @@ segments** equal `schema.table` — which absorbs the platform prefixes (`iceber
   in the **weyland** namespace (it needs the `DATAHUB_GMS_TOKEN` from the local `datahub-token` Secret and
   reaches trino-noauth + datahub-gms in data-mesh by FQDN). No kubectl, no RBAC.
 - Failure routes to Telegram via the existing `ScheduledJobFailed` rule; freshness via `ScheduledJobStale`
-  (daily 26h budget) — both in `cron-freshness-rules.yaml`. `scripts/tests/datahub-coverage.bats` (12
+  (daily 26h budget) — both in `cron-freshness-rules.yaml`. `scripts/tests/datahub-coverage.bats` (14
   cases, incl. the byte-identity assertion) runs in CI. Regenerate the ConfigMap after editing the guard:
   `scripts/embed-datahub-coverage.sh`.
+- **The first Trino call retries a refused connection** (`--retry 5 --retry-delay 3 --retry-connrefused`, ~15 s,
+  then exit 2). k3s's NetworkPolicy controller admits a new pod's IP a few seconds after it starts, and the
+  trino-noauth policy admits this job by label, so its opening dial can be refused with the rule live and correct.
+  Seen 2026-10-17 03:05 NY: `Failed to connect ... after 1 ms`, the night failed, `monitoring-extras` went Degraded.
 
-Run it by hand from a box that can reach the cluster (rogueone), via port-forwards + the token:
+**After a failed night, don't wait for the next one** — run the CronJob now, in-cluster, exactly as scheduled:
 ```
-kubectl -n data-mesh port-forward svc/trino-noauth 18200:8080 &
-kubectl -n data-mesh port-forward svc/datahub-datahub-gms 18201:8080 &
-TOKEN=$(kubectl -n weyland get secret datahub-token -o jsonpath='{.data.token}' | base64 -d)
-TRINO_HTTP=http://localhost:18200 DATAHUB_GMS_URL=http://localhost:18201 DATAHUB_GMS_TOKEN="$TOKEN" \
-  bash scripts/check-datahub-coverage.sh --list   # every mesh table + cataloged/UNCATALOGED verdict
-TRINO_HTTP=http://localhost:18200 DATAHUB_GMS_URL=http://localhost:18201 DATAHUB_GMS_TOKEN="$TOKEN" \
-  bash scripts/check-datahub-coverage.sh           # the gate: OK — all N mesh table(s) catalogued
+J=datahub-coverage-manual-$(date +%s); kubectl -n weyland create job --from=cronjob/datahub-coverage "$J" && kubectl -n weyland wait --for=jsonpath='{.status.conditions[0].status}'=True --timeout=300s job/"$J" && kubectl -n weyland logs job/"$J" --tail=3
 ```
+Expect `OK — all N mesh table(s) in Trino are catalogued in DataHub.` A pass clears Argo's Degraded, but the failed
+Job keeps `ScheduledJobFailed` / `KubeJobFailed` firing until its 72 h TTL; once its cause is recorded, delete it:
+`kubectl -n weyland delete job <failed-job>`. The per-table verdicts (`--list`, every mesh table + cataloged /
+UNCATALOGED) are the first part of the same Job's log: `kubectl -n weyland logs job/"$J"`. The Job is the canonical
+run. From rogueone the guard also runs against the `trino-lan` (`192.168.1.243:30808`, admitted for rogueone only) and
+`datahub-gms-lan` (`:30818`) NodePorts — the walkthrough is in [demos/datahub-coverage.md](../demos/datahub-coverage.md);
+the lab never port-forwards.
+
 Live baseline 2026-09-05: **111/111 mesh tables catalogued, 0 drift** (exit 0).
 
 ### Placement inventory — placement.yaml and its checks (B198, 2026-09-27)
@@ -357,8 +362,7 @@ kubectl rollout status deployment/weyland-apisix -n weyland
 
 ### 2. Validate — all four targets `up` (mother is headless: CLI, no browser)
 ```
-kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090 >/dev/null 2>&1 &
-sleep 4; curl -s 'http://localhost:9090/api/v1/targets?state=active' | jq -r '.data.activeTargets[]|select(.scrapePool|test("weyland/"))|"\(.health)  \(.scrapePool)  \(.lastError)"'; kill %1
+curl -s 'http://192.168.1.243:30909/api/v1/targets?state=active' | jq -r '.data.activeTargets[]|select(.scrapePool|test("weyland/"))|"\(.health)  \(.scrapePool)  \(.lastError)"'
 ```
 Expect four lines starting `up` for `serviceMonitor/weyland/{qdrant,weaviate,weyland-apisix,weyland-lan-dns}/0`.
 A `down` line's `lastError` is the diagnosis (`connection refused` = wrong bind addr/port; `404` = wrong path).
@@ -487,9 +491,9 @@ Two things B5 intentionally does **not** cover. Both are reversible — revisit 
 
 ### 1. Prometheus UI is not TLS-fronted
 Only **Grafana** (`grafana.weyland.lab`) is ingressed. To reach the raw Prometheus UI (`Status > Targets`,
-ad-hoc PromQL) use a port-forward:
+ad-hoc PromQL) use the `prometheus-lan` NodePort (`k8s/monitoring/prometheus-lan.yaml`; read-only, admin API off):
 ```
-kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090
+http://192.168.1.243:30909
 ```
 Day-to-day this is fine — Grafana is the dashboard view and covers status checks. If a browsable Prometheus
 is ever wanted, add a Traefik Ingress mirroring `grafana-ingress.yaml`.

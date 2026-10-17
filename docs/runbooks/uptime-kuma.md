@@ -13,7 +13,7 @@ auth (set on first login). Single container, SQLite state on a PVC.
   auth + the Port ingest key). Local-only.
 - **Kuma's own login** (behind Keycloak): user `admin`, password = `LAB_PASSWORD` in `scripts/.env` (the lab dev
   password). Recorded 2026-10-03 after it was unknown when needed. The API is reachable for scripts via
-  `kubectl -n weyland port-forward svc/uptime-kuma 13001:3001` (the UI hostname sits behind forward-auth); the
+  the `uptime-kuma-lan` NodePort `http://192.168.1.243:30301` (the UI hostname sits behind forward-auth); the
   `uptime-kuma-api` Python client logs in with those credentials.
 
 ## Push monitors — the heartbeat interval must outlast the job's cadence

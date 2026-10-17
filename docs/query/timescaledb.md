@@ -1,7 +1,7 @@
 # TimescaleDB — query cookbook
 
 **Connect:** `timescaledb.data-mesh.svc:5432`, db `timeseries` (user `weyland` / dev password). Postgres wire —
-IntelliJ → PostgreSQL driver, port-forward the `timescaledb` svc `5432`. Also a **Grafana** datasource.
+IntelliJ → PostgreSQL driver at the `timescaledb-lan` NodePort `192.168.1.243:30543`. Also a **Grafana** datasource.
 
 Hypertables (time-partitioned). Two families:
 - **Platform metrics** (fed every 4h by Dagster `weyland_timeseries_job`): `eval_scores_ts`, `guardrail_verdicts_ts`,

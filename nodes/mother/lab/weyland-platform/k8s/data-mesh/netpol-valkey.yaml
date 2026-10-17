@@ -1,6 +1,8 @@
 # B211 (2026-10-14) — the shared Valkey's front door (no auth). Callers (14 days of istio traffic): dagster-user-code,
 # feast-server (the online store), langfuse-web/-worker, sourcebot, superset and superset-worker (scaled to 0 today,
-# admitted for when it scales up). Meshed, so Prometheus is admitted on the sidecar's metrics ports too.
+# admitted for when it scales up), and rogueone (192.168.1.230: DataGrip via the valkey-lan NodePort, query-lan.yaml,
+# externalTrafficPolicy Local; 2026-10-17 — rogueone only, not the whole LAN). Meshed, so Prometheus is admitted on the
+# sidecar's metrics ports too.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: {name: valkey-front-door-only, namespace: data-mesh}
@@ -32,6 +34,7 @@ spec:
         matchLabels: {app: superset}
     - podSelector:
         matchLabels: {app: superset-worker}
+    - ipBlock: {cidr: 192.168.1.230/32}
     ports:
     - {protocol: TCP, port: 6379}
   - from:

@@ -231,7 +231,9 @@ print('ok')"
 # B211 stores (2026-10-14). These policies select Helm or multi-label workloads and admit callers across namespaces, by
 # job-name and by CI step, so `check` above (one rule, `app=` sources) can't read them. `sources` renders every allowed
 # source per port, and each test pins the exact set: adding a caller is a deliberate change here, like the rest.
-#   source forms: `app=x` (same namespace, by label), `ns=n,k=v` (another namespace), `<key> In a|b` (matchExpressions)
+#   source forms: `app=x` (same namespace, by label), `ns=n,k=v` (another namespace), `<key> In a|b` (matchExpressions),
+#   `ip=<cidr>` (an ipBlock — e.g. rogueone 192.168.1.230/32 behind a `-lan` NodePort; it rendered as an EMPTY line
+#   until 2026-10-17, so an IP source could never be pinned by name)
 sources() {
   python3 - "$P/$1" "$2" "$3" <<'PY'
 import sys, yaml
@@ -247,6 +249,8 @@ for rule in pol["spec"]["ingress"]:
         parts = [f"ns={nsel}"] if nsel else []
         parts += [f"{k}={v}" for k, v in sorted((ps.get("matchLabels") or {}).items())]
         parts += [f"{e['key']} {e['operator']} {'|'.join(e['values'])}" for e in ps.get("matchExpressions") or []]
+        if src.get("ipBlock"):
+            parts.append(f"ip={src['ipBlock']['cidr']}")
         out.add(",".join(parts))
 print("\n".join(sorted(out)))
 PY
@@ -275,11 +279,28 @@ pinned() {   # pinned <file> <policy> <port> <expected sources...>
   pinned data-mesh/netpol-redpanda.yaml redpanda-front-door-only 9644 app=redpanda app=redpanda-console
 }
 
-@test "the shared Valkey admits only its seven clients (and Prometheus on the sidecar)" {
+@test "the shared Valkey admits only its seven clients, rogueone's NodePort (and Prometheus on the sidecar)" {
   pinned data-mesh/netpol-valkey.yaml valkey-front-door-only 6379 \
     app=feast-server app=superset app=superset-worker \
-    ns=weyland,app=dagster-user-code ns=weyland,app=langfuse-web ns=weyland,app=langfuse-worker ns=weyland,app=sourcebot
+    ns=weyland,app=dagster-user-code ns=weyland,app=langfuse-web ns=weyland,app=langfuse-worker ns=weyland,app=sourcebot \
+    ip=192.168.1.230/32
   pinned data-mesh/netpol-valkey.yaml valkey-front-door-only 15020 ns=monitoring,app.kubernetes.io/name=prometheus
+}
+
+# 2026-10-17: Trino and the RAG OpenSearch got `-lan` NodePorts for rogueone (no authenticator / no security plugin, so
+# the policy is the only gate). Pin them so a widened CIDR — or a new caller — is a deliberate change here.
+@test "Trino admits only its listed callers and rogueone (192.168.1.230/32, the trino-lan NodePort)" {
+  pinned data-mesh/netpol-trino.yaml trino-front-door-only 8080 \
+    app=trino-noauth-proxy app.kubernetes.io/name=acryl-datahub-actions app=superset \
+    ns=weyland,app=dagster-user-code ns=weyland,app=dbt-docs \
+    ns=kube-system,app.kubernetes.io/name=traefik ns=monitoring,app.kubernetes.io/name=prometheus \
+    ip=192.168.1.230/32
+}
+
+@test "the RAG OpenSearch admits only its writers, the dashboards and rogueone (the opensearch-lan NodePort)" {
+  pinned opensearch/netpol.yaml opensearch-front-door-only 9200 \
+    app.kubernetes.io/name=opensearch-dashboards ns=weyland,app=dagster-user-code ns=data-mesh,app=rag-index-opensearch \
+    ip=192.168.1.230/32
 }
 
 @test "GlitchTip's Valkey admits only GlitchTip" {

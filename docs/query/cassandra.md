@@ -1,6 +1,6 @@
 # Cassandra — query cookbook
 
-**Connect:** IntelliJ/DataGrip → Apache Cassandra driver, port-forward the `cassandra` svc `9042` (user/pass
+**Connect:** IntelliJ/DataGrip → Apache Cassandra driver, at the `cassandra-lan` NodePort `192.168.1.243:30942` (user/pass
 blank — no auth). In-pod: `kubectl -n data-mesh exec -it cassandra-0 -- cqlsh`.
 
 Keyspaces: `datasets_music`, `datasets_health`. Every table has a synthetic `row_id uuid` clustering column and

@@ -1,0 +1,17 @@
+# LAN NodePort for the RAG OpenSearch REST API (2026-10-17): 192.168.1.243:30920 -> :9200. Until now 9200 had no LAN
+# route at all; the lab is NodePorts ONLY (AGENTS.md). Security plugin is OFF (no auth,
+# any caller can delete indices), so netpol.yaml admits this NodePort for rogueone (192.168.1.230/32) only;
+# externalTrafficPolicy: Local keeps the client IP so that ipBlock can match — the mlflow-lan mechanism. Synced by the
+# opensearch raw-manifests app (k8s/opensearch, `*-values.yaml` excluded).
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-lan
+  namespace: opensearch
+  labels: { app.kubernetes.io/name: opensearch }
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector: { app.kubernetes.io/instance: opensearch, app.kubernetes.io/name: opensearch }
+  ports:
+    - { name: http, port: 9200, targetPort: 9200, protocol: TCP, nodePort: 30920 }

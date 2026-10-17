@@ -5,7 +5,7 @@ The weyland platform's **remote training job**. Training compute runs on **rogue
 + registry, MinIO artifacts, lakeFS silver); rogueone is the *muscle*. The image is built + pushed to the
 MinIO-backed registry, then **pulled + run ephemerally** on rogueone: pull → train → log to MLflow → exit
 (`docker run --rm`). Given just a mounted kubeconfig it is fully self-contained — it fetches its own creds and
-opens its own port-forwards.
+reaches the platform over its LAN NodePorts.
 
 > Full architecture, the registry, and the hard-won gotcha list: **[docs/runbooks/remote-training.md](../../../../../../docs/runbooks/remote-training.md)**.
 > The three documentable use cases + real numbers: **[docs/runbooks/mlflow-training.md](../../../../../../docs/runbooks/mlflow-training.md)**.
@@ -31,9 +31,9 @@ The container is handed **only a mounted kubeconfig** (`~/.kube/config`). From t
 `kubectl` to:
 1. **read the creds** from the k8s Secrets (`lakefs-creds`, `aidlc-kb-minio-secret`) → exports them — *no
    secret ever appears on the command line*;
-2. **open port-forwards** to `mlflow` / `minio` / `lakefs` on the **container's own** localhost — no host
-   port-forwards, no `--network host`, no host-loopback problems (rogueone runs Docker Desktop, whose
-   `--network host` is the VM's loopback, not the host's).
+2. **point the trainer at the LAN NodePorts** — `mlflow-lan` `192.168.1.243:30500` (admits rogueone only),
+   `minio-s3-lan` `:30990`, `lakefs-lan` `:30800` — and wait until each answers. The lab never port-forwards
+   (AGENTS.md); the native bridge reaches the LAN directly, so no `--network host` either.
 
 Then it execs the pure-Python trainer (`train_genre.py`), which reads its config from env.
 
@@ -42,8 +42,7 @@ Then it execs the pure-Python trainer (`train_genre.py`), which reads its config
 ## Prerequisites (one-time)
 
 - **The registry is up** — `registry.weyland.lab` (see the runbook). `docker` on rogueone can pull from it.
-- **rogueone has a working kubeconfig** at `~/.kube/config` whose user can read Secrets **and** `create
-  pods/portforward` in the cluster (the same one IntelliJ's k8s plugin uses).
+- **rogueone has a working kubeconfig** at `~/.kube/config` whose user can read Secrets in the cluster.
 - The `spotify_tracks` silver exists in lakeFS (`music` repo, `main/parquet/spotify_tracks/`).
 
 ## Build + push (on rogueone)
@@ -59,7 +58,7 @@ bash scripts/push-image.sh registry.weyland.lab/genre-trainer:v7   # pushes via 
 DOCKER_HOST=unix:///var/run/docker.sock docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v7 --source silver
 ```
 
-That's the **entire** run — no creds, no endpoint env, no host port-forwards. Three parts carry it:
+That's the **entire** run — no creds, no endpoint env. Three parts carry it:
 - `DOCKER_HOST=unix:///var/run/docker.sock` — pin to rogueone's **native** docker engine (Docker Desktop retired, B127);
   native has no VM RAM cap, so the container sees all 128 GB. Same as the `scripts/gpu-docker` wrapper + the `*-bench.sh`.
 - `-v $HOME/.kube/config:/root/.kube/config:ro` — the kubeconfig the container self-serves everything from.
@@ -69,8 +68,7 @@ That's the **entire** run — no creds, no endpoint env, no host port-forwards. 
 Expected output:
 ```
 [entrypoint] reading creds from k8s Secrets via the mounted kubeconfig...
-[entrypoint] port-forward weyland/mlflow -> localhost:5000        (+ minio, lakefs)
-[entrypoint] localhost:5000 ready                                 (+ 9000, 8000)
+[entrypoint] 192.168.1.243:30500 ready                           (+ 30990, 30800)
 [trainer] spotify silver: 89,741 rows / 113 genres after cleaning
 [trainer] [silver] fit complete in ~2s — scoring…
 [trainer] [silver] acc=0.321 f1_macro=0.305

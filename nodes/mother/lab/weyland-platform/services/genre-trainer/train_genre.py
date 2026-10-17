@@ -18,7 +18,7 @@ The key design point — TWO MLflow planes:
 
 Self-contained: no weyland_pipeline dependency. Creds (LAKEFS_* / AWS_*) and endpoints are supplied by
 entrypoint.sh, which — given only a mounted kubeconfig — reads the Secrets (lakefs-creds, aidlc-kb-minio-secret)
-and opens the mlflow/minio/lakefs port-forwards via kubectl. So this module stays pure training: it reads its
+and points it at the mlflow/minio/lakefs LAN NodePorts. So this module stays pure training: it reads its
 config from env (LAKEFS_ENDPOINT/…, MLFLOW_TRACKING_URI, MLFLOW_S3_ENDPOINT_URL/AWS_*). Nothing secret on the CLI.
 """
 import argparse
@@ -47,7 +47,7 @@ def log(msg):
 # --- feature sources ---------------------------------------------------------------------------------------
 
 def _lakefs_client() -> Minio:
-    ep = os.environ.get("LAKEFS_ENDPOINT", "http://localhost:8000")
+    ep = os.environ["LAKEFS_ENDPOINT"]   # set by entrypoint.sh or the runbook: the lakefs-lan NodePort
     return Minio(ep.replace("https://", "").replace("http://", ""),
                  access_key=os.environ["LAKEFS_ACCESS_KEY_ID"],
                  secret_key=os.environ["LAKEFS_SECRET_ACCESS_KEY"],

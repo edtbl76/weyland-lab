@@ -20,7 +20,7 @@ Scheduled hourly via `weyland_timeseries_schedule` / `weyland_timeseries_job`.
 
 ## Connect
 
-- **IntelliJ / DataGrip:** IntelliJ Kubernetes plugin → Services → data-mesh → timescaledb → Forward Ports → 5432. DataGrip "PostgreSQL" datasource: host `localhost`, port `5432`, db `timeseries`, user `weyland`, password `weyland_dev_password`.
+- **IntelliJ / DataGrip:** DataGrip "PostgreSQL" datasource at the `timescaledb-lan` NodePort: host `192.168.1.243`, port `30543`, db `timeseries`, user `weyland`, password `weyland_dev_password`.
 - **Grafana:** datasource "TimescaleDB" (PostgreSQL type, `timescaledb.data-mesh.svc.cluster.local:5432`, db `timeseries`, TimescaleDB toggle ON).
 - **Superset:** database connection `postgresql+psycopg2://weyland:weyland_dev_password@timescaledb.data-mesh.svc.cluster.local:5432/timeseries`.
 - **In-cluster (Dagster/other pods):** `timescaledb.data-mesh.svc.cluster.local:5432`.

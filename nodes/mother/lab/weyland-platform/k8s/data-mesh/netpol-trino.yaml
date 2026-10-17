@@ -1,7 +1,8 @@
 # B211 (2026-10-14) — Trino's front door. It has no authenticator, so X-Trino-User is self-asserted and Ranger can be
 # bypassed by claiming a privileged user; limiting WHO can connect is the control until a password authenticator lands.
 # Callers on 8080: the no-auth proxy, dagster-user-code (dbt, marts), DataHub actions, dbt-docs, Superset, Traefik (UI),
-# Prometheus (/metrics).
+# Prometheus (/metrics), and rogueone (192.168.1.230: DataGrip via the trino-lan NodePort, query-lan.yaml, which keeps
+# the client IP — externalTrafficPolicy Local; 2026-10-17). The NodePort admits only rogueone, not the whole LAN.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: {name: trino-front-door-only, namespace: data-mesh}
@@ -34,6 +35,7 @@ spec:
         matchLabels: {kubernetes.io/metadata.name: monitoring}
       podSelector:
         matchLabels: {app.kubernetes.io/name: prometheus}
+    - ipBlock: {cidr: 192.168.1.230/32}
     ports:
     - {protocol: TCP, port: 8080}
   - from:

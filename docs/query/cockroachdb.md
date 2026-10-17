@@ -1,7 +1,7 @@
 # CockroachDB — query cookbook
 
 **Connect:** pg-wire, insecure (user `root`, no password). Admin UI at `cockroachdb.weyland.lab` (Keycloak).
-IntelliJ/DataGrip → CockroachDB (or PostgreSQL) driver, port-forward the `cockroachdb` svc `26257`, `sslmode=disable`.
+IntelliJ/DataGrip → CockroachDB (or PostgreSQL) driver, at the `cockroachdb-lan` NodePort `192.168.1.243:30257`, `sslmode=disable`.
 In-pod: `kubectl -n data-mesh exec -it deploy/cockroachdb -- cockroach sql --insecure`.
 
 **One database per dataset:** `brfss`, `nhis` (US health surveys). Coded columns (cryptic names) — introspect first.

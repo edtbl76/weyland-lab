@@ -5,10 +5,10 @@ Numeric sets are z-scored feature vectors; text sets are bge-small (384-dim) emb
 filterable columns + `row_id` (the original id). See [../diagrams/graph-music-model.md] sibling — vectors are
 the *feature* slice of the catalog (graph is the *relationship* slice).
 
-**Connect** (in-cluster svc `qdrant.weyland.svc:6333`; for local Python/dashboard, port-forward the svc):
+**Connect** (in-cluster svc `qdrant.weyland.svc:6333`; from rogueone the NodePort `192.168.1.243:30083`, grpc `:30084`):
 ```python
 from qdrant_client import QdrantClient
-qc = QdrantClient(host="qdrant.weyland.svc.cluster.local", port=6333)   # or localhost via port-forward
+qc = QdrantClient(host="qdrant.weyland.svc.cluster.local", port=6333)   # or host="192.168.1.243", port=30083 from rogueone
 ```
 Web dashboard: `http://<qdrant>:6333/dashboard` (browse collections + points).
 

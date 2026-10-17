@@ -4,7 +4,7 @@
 # Always-on: receives continuous writes from Dagster (eval/guardrail/run metrics) + Prometheus remote-write.
 # Meshed → reaches STRICT-mTLS Postgres peers; Grafana + Superset connect via in-cluster svc.
 # Creds: timescaledb-secret (imperative, not in git) — POSTGRES_USER/PASSWORD/DB.
-# IntelliJ: standard Postgres JDBC via k8s port-forward (DataGrip "PostgreSQL" datasource).
+# IntelliJ: standard Postgres JDBC at the timescaledb-lan NodePort 192.168.1.243:30543 (tier2-lan.yaml; DataGrip "PostgreSQL").
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

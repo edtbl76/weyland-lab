@@ -15,8 +15,7 @@ failed on a malformed one. Now every data product has one `*.odcs.yaml`, and CI 
 **1. Generate a contract from the substance** (Trino columns+types · Soda rules · dbt descriptions):
 
 ```
-kubectl -n data-mesh port-forward svc/trino-noauth 18200:8080 &
-TRINO_HTTP=http://localhost:18200 python3 scripts/gen_odcs_contract.py \
+TRINO_HTTP=http://192.168.1.243:30808 python3 scripts/gen_odcs_contract.py \
   --domain music --product "Genre Taxonomy" --table iceberg.dbt.mart_fma_genre_tree \
   --id weyland-music-genre-taxonomy --out nodes/.../contracts/music/genre_taxonomy.odcs.yaml
 ```
@@ -74,4 +73,5 @@ pytest tests/test_product_contract_coverage.py   # 10/10 Music/Health/Finance pr
 ## Teardown
 
 The contracts + generator + gates are read-only git artifacts. The confirming `dbt build` rebuilt the 4
-finance marts (idempotent — the same thing the weekly `weyland_dbt_job` does). Kill the port-forward.
+finance marts (idempotent — the same thing the weekly `weyland_dbt_job` does). Nothing to tear down (Trino is reached at
+the `trino-lan` NodePort, admitted for rogueone only).

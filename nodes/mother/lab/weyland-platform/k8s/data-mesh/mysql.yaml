@@ -3,7 +3,7 @@
 # BRFSS, MyFitnessPal public data, UK Biobank (where accessible).
 # Always-on (stateful DB; data-mesh ns). Meshed → Trino postgresql catalog federates it.
 # Creds: mysql-secret (imperative, not in git) — MYSQL_ROOT_PASSWORD / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE.
-# IntelliJ: standard MySQL JDBC via k8s port-forward (DataGrip "MySQL" datasource).
+# IntelliJ: standard MySQL JDBC at the mysql-lan NodePort 192.168.1.243:30306 (tier2-lan.yaml; DataGrip "MySQL").
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

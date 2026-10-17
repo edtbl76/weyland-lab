@@ -3,8 +3,8 @@
 **Connect:** `weyland-postgres.weyland.svc.cluster.local:5432` (ns `weyland`, image `pgvector/pgvector:pg16`).
 Superuser `weyland`, default DB `weyland`. In-pod:
 `kubectl -n weyland exec -it deploy/weyland-postgres -- psql -U weyland weyland`.
-IntelliJ/DataGrip → PostgreSQL driver against `127.0.0.1:5432` after **port-forwarding the svc via the k8s
-plugin** (Services → `weyland-postgres` → Forward Ports). **STRICT mTLS** — the pod is meshed (Istio sidecar,
+**No LAN NodePort, on purpose:** STRICT mTLS means a plain client off the mesh cannot connect, and the lab never
+port-forwards — so query it in-pod (above), not from IntelliJ. **STRICT mTLS** — the pod is meshed (Istio sidecar,
 `appProtocol: tcp`); any *in-cluster* client must join the mesh or the connection dies with an opaque
 `ECONNRESET`. Password lives in `weyland-postgres-secret/POSTGRES_PASSWORD` (env `WEYLAND_PG_PASSWORD`) —
 never hardcode it.
@@ -125,8 +125,8 @@ FROM state_health_risk ORDER BY event_timestamp, diabetes_pct DESC;
 - **One instance, many DBs** — `\c <db>` to switch; a query only sees the DB you're connected to. The DataHub
   postgres source ingests *every* DB, which is why its recipe runs as the `weyland` superuser.
 - **STRICT mTLS** is the #1 gotcha: an in-cluster client that isn't meshed gets a bare `ECONNRESET`, not an auth
-  error. Mesh it (sidecar inject) or reach it from IntelliJ over the k8s port-forward. See
-  **[[postgres-strict-needs-mesh]]** · **[[feedback-intellij-k8s-portforward]]**.
+  error. Mesh it (sidecar inject), or query in-pod. See **[[postgres-strict-needs-mesh]]** ·
+  **[[feedback-intellij-k8s-portforward]]** (NodePorts only, never a port-forward).
 - **`Recreate` deploy strategy** — single-instance on RWO storage; don't `rollout restart` casually
   (**[[k8s-rwo-recreate-strategy]]**).
 - **pgvector** ships in the `pgvector/pgvector:pg16` image (`CREATE EXTENSION vector`); `<=>` cosine, `<->` L2,
