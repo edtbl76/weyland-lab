@@ -103,6 +103,25 @@ supersedes the cancelled B12 (a static registry without the lifecycle).
 - **Addressing convention:** k3s services -> `mother:<NodePort>` or `*.weyland.lab` (Traefik);
   standalone CTs -> reserved IP / `*.weyland.lab`; in-cluster-only -> `*.weyland.svc`.
 
+### 5a. Off-cluster access — NodePorts only, never port-forward (B218, 2026-10-17)
+
+Anything off the cluster (rogueone scripts, DataGrip, the trainers, CLIs) reaches an in-cluster service one way: its
+`-lan` NodePort on mother. The rule is an `AGENTS.md` hard rule, enforced by `scripts/check-no-port-forward.sh` in CI.
+It had lived only in one agent memory note, so 44 port-forward instructions survived, four of them in code that ran
+one (`store-park.sh`, both trainer entrypoints). Runbook with every NodePort: [lan-access.md](runbooks/lan-access.md).
+
+| Option for "reach service X from rogueone" | Standing endpoint | Who-may-connect control | Failure mode | Verdict |
+|---|---|---|---|---|
+| `kubectl port-forward` / IntelliJ Forward Ports | no — a background process per session | **none** — rides the kubelet API, bypasses the NetworkPolicy | dies silently; teardown burden; scripts race it (`store-park.sh` polled 30 × 0.5 s for it) | **rejected** |
+| Ingress `*.weyland.lab` (Traefik) | yes | Keycloak forward-auth | bounces API clients (Bearer, JDBC, RESP) to a login page | for **browsers** only |
+| **`-lan` NodePort**, `externalTrafficPolicy: Local` | yes | the target's own auth, or — for a no-auth target — its NetworkPolicy `ipBlock 192.168.1.230/32` (the client IP survives because `Local` skips SNAT) | refused = policy said no; observable | **the rule** |
+| In-cluster Job / `kubectl exec` | n/a | runs as a pod inside the policy | none extra | for targets that **cannot** take a NodePort: STRICT mTLS (weyland-postgres) or auth-stripping by design (trino-noauth) |
+
+No-auth targets with a NodePort — MLflow, Trino, Valkey, the RAG OpenSearch — admit rogueone and nobody else on the LAN:
+from a pod, all three new ones refuse while the unpinned Prometheus control connects (demo
+[no-port-forward.md](demos/no-port-forward.md)). The pins are tested (`write-surface-netpol.bats`, `ip=192.168.1.230/32`),
+so widening a CIDR is a reviewed change. Flow: [flow-no-port-forward.md](diagrams/flow-no-port-forward.md).
+
 ---
 
 ## 6. Component inventory

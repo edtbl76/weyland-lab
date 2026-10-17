@@ -33,7 +33,12 @@ spec:
     metadata:
       labels:
         app: mysql
-        sidecar.istio.io/inject: "true"
+        # UNMESHED (2026-10-17, B219). MySQL is SERVER-FIRST: the server sends its greeting before the client speaks. A
+        # PERMISSIVE sidecar's inbound listener waits for the client's first bytes (to tell mTLS from plaintext), so a
+        # plain client on the mysql-lan NodePort (DataGrip) hung forever — :30306 never worked from 2026-09-01 until the
+        # lan-nodeport-watch probe found it. Meshed in-cluster callers see no sidecar here and use plaintext; the MySQL
+        # password is the gate, as for the other unmeshed tier-2 stores (Cassandra, CockroachDB).
+        sidecar.istio.io/inject: "false"
     spec:
       containers:
         - name: mysql

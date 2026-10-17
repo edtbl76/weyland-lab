@@ -1,0 +1,20 @@
+# B219 — LAN NodePort watcher: every -lan NodePort probed at the protocol level FROM rogueone (the only vantage point
+# that tests the rogueone-only ports), pushed to an Uptime-Kuma push monitor (KUMA_LAN_PUSH_URL in scripts/.env).
+# USER unit (kubectl + the repo in the user's home). See docs/runbooks/lan-access.md § Watch.
+#   Install:  cp nodes/rogueone/systemd/lan-nodeport-watch.{service,timer} ~/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now lan-nodeport-watch.timer
+#   Run now:  systemctl --user start lan-nodeport-watch.service   ·   logs: journalctl --user -u lan-nodeport-watch
+[Unit]
+Description=LAN NodePort watcher — protocol probes from rogueone → Kuma (B219)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+# No EnvironmentFile on purpose: scripts/.env holds every lab secret, and this unit needs ONE value. The watcher reads
+# only KUMA_LAN_PUSH_URL from that file itself (least privilege — the 2026-10-17 OpenCode exposure came from handing a
+# process the whole file). Unset -> the verdict is not reported, the Kuma heartbeat goes missing, and that alerts.
+ExecStart=/usr/bin/python3 /home/edwardmangini/IdeaProjects/weyland/scripts/lan_nodeport_watch.py
+StandardOutput=journal
+StandardError=journal

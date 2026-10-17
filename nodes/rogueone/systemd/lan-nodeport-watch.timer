@@ -1,0 +1,12 @@
+# B219 — run the LAN NodePort watcher every 15 min. The Kuma push monitor's heartbeat interval is 1200 s (~20 min), so
+# a watcher that stops running alerts as well (dead-man's switch) — the same shape as agent-memory-watch.
+[Unit]
+Description=LAN NodePort watcher every 15 min (B219)
+
+[Timer]
+OnBootSec=6min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

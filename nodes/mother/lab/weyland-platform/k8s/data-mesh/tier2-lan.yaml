@@ -13,8 +13,11 @@
 #   TimescaleDB 192.168.1.243:30543 -> :5432  (pg-wire)
 #   MySQL       192.168.1.243:30306 -> :3306
 #
-# All six pods are UNMESHED — plain protocol on the wire, no TLS; the store's own auth (or none, for the
-# AllowAllAuthenticator Cassandra + insecure CockroachDB) is the gate. LAN-only lab; these ports are now LAN-
+# Mesh state (CHECKED 2026-10-17 — this comment used to claim all six were unmeshed, which was never true):
+# Cassandra, CockroachDB and MySQL are UNMESHED; ClickHouse, MongoDB and TimescaleDB are meshed, which works through a
+# NodePort only because their protocols are client-first. A SERVER-FIRST protocol (MySQL) behind a PERMISSIVE sidecar
+# hangs — the inbound listener waits for client bytes that never come — so MySQL was unmeshed (B219). Plain protocol on
+# the wire, no TLS; the store's own auth (or none, for the AllowAllAuthenticator Cassandra + insecure CockroachDB) is the gate. LAN-only lab; these ports are now LAN-
 # reachable, so credentials remain the sole guard. NodePorts are all inside the 30000-32767 range and were
 # free at creation (2026-09-01). Auto-synced by the existing `data-mesh` Argo app (whole-dir, selfHeal+prune).
 apiVersion: v1

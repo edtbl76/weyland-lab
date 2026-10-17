@@ -53,6 +53,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [jupyterhub.md](runbooks/jupyterhub.md) — JupyterHub notebook layer (B1.8 L8)
 - [keda.md](runbooks/keda.md) — KEDA — **RETIRED 2026-08-22** (installed 62 days, never used); kept for its single-node replica + cert-timing gotchas
 - [keycloak.md](runbooks/keycloak.md) — Keycloak IdP/SSO (B1.1): the `weyland` realm, native-OIDC vs forward-auth (auth-host mode, one redirect_uri, `/_oauth/logout`), mkcert CA back-channel, adding a gated subdomain
+- [lan-access.md](runbooks/lan-access.md) — LAN access: NodePorts ONLY, never port-forward — every `-lan` NodePort, how to add one (rogueone pinning), the `check-no-port-forward.sh` guard
 - [lan-dns.md](runbooks/lan-dns.md) — `weyland-lan-dns` — `*.weyland.lab` resolution, CoreDNS forward
 - [langfuse.md](runbooks/langfuse.md) — Langfuse LLM observability (B103) — sessions, online evals, OOM/Redis gotchas
 - [lightdash.md](runbooks/lightdash.md) — Lightdash dbt-native BI: trino-noauth proxy, PAT dbt project, metrics-as-code, S3, seed/content-as-code
