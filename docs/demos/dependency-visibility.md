@@ -108,6 +108,60 @@ naming the image, the Job fails without a retry, and `run-scan-suite.sh` exits 2
 (`tests/test_suite_verdict.py`, `scripts/tests/scan-all-runner.bats`, `scripts/tests/run-scan-suite.bats`). That
 case cannot be forced live without breaking a deployed image; the tests carry it.
 
+### 4. B214: the newly visible findings fixed or accepted (run 2026-10-17)
+
+The fixes shipped as `git-cecd52fc` (PR #197; scan-suite, pyflink, Dagster) plus `mcp-server-datahub:0.5` and
+`ray-head:v10`. Compare the next scan against the B213 re-scan:
+
+[rogueone]
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/scan-diff.py 2026-10-16T20-12-15Z 2026-10-17T02-38-33Z
+```
+
+Expected (exit 0: nothing new):
+```
+trivy: 0 new, 8 gone
+osv: 0 new, 114 gone
+bandit: 0 new, 0 gone
+semgrep: 0 new, 0 gone
+hadolint: 0 new, 0 gone
+gitleaks: 0 new, 0 gone
+kubescape: 0 new, 0 gone
+trivy-images: 0 new, 26 gone
+```
+
+All 122 findings B213 made visible are gone: bumped where a fixed version installs, or accepted in `osv-scanner.toml`
+with a reason and an expiry, per exact package version where it has no installable fix.
+
+**Every requirements directory is watched by Dependabot**, and the guard fails when one is not:
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dependabot-coverage.sh
+```
+```
+OK — 23 requirements directories watched by Dependabot (excluded: golden-paths/, tests/lang/).
+```
+
+Negative cases, in a `mktemp -d` scratch tree: a requirements directory with no entry, then no config at all.
+
+[rogueone]
+```
+T=$(mktemp -d) && mkdir -p $T/.github $T/svc/a && : > $T/svc/a/requirements.txt && printf 'version: 2\nupdates: []\n' > $T/.github/dependabot.yml && DEPENDABOT_ROOT=$T bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dependabot-coverage.sh; echo "exit $?"; rm -f $T/.github/dependabot.yml; DEPENDABOT_ROOT=$T bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dependabot-coverage.sh; echo "exit $?"
+```
+```
+UNWATCHED: svc/a has requirements files but no pip entry in .github/dependabot.yml
+1 of 1 requirements directory unwatched: an advisory against their pins never reaches a security PR. Add a pip entry for each.
+exit 1
+CANNOT CHECK: /tmp/tmp.XXXXXXXXXX/.github/dependabot.yml does not exist
+exit 2
+```
+
+**A version-scoped accept suppresses only that version.** Two directories, protobuf 4.25.9 (overridden) and 4.23.4 (not),
+scanned with the suite's own osv-scanner 1.9.1: only 4.23.4 is reported, with its 4 advisories. That is why
+`osv-scanner.toml` uses `[[PackageOverrides]]` with `name` + `version` for pins that have no installable fix, and
+`[[IgnoredVulns]]` by id only for an advisory that cannot apply anywhere.
+
 ## UI walkthrough + UAT
 
 1. Open <https://app.port.io> → **Catalog** → **Security scans** (`security_scan`), search `trivy-images`.

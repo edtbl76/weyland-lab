@@ -275,6 +275,28 @@ from, its `requirements.txt`. Loose `.in` entries (`>=`, bare names) are not com
 [rogueone] bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-requirements-sync.sh
 ```
 
+**Every requirements directory is watched by Dependabot (B214, 2026-10-16).** `.github/dependabot.yml` says an unlisted
+directory is an unwatched one, yet 19 of 23 had no entry, 9 of them lockfiles B213 had just frozen. All 23 now have a
+security-only pip entry (`open-pull-requests-limit: 0`, grouped), and `scripts/check-dependabot-coverage.sh`
+(`repo-guards`) fails, naming the directory, when a `requirements*.txt` directory has none; it exits 2 when it cannot
+read the config. `golden-paths/` (service templates) and `tests/lang/` (fixtures) are excluded with that reason.
+```
+[rogueone] bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dependabot-coverage.sh
+```
+
+**Remediating a newly visible advisory: the rules B214 learned (2026-10-16).**
+- **Read every advisory's range, not the highest fix.** A range can end in `last_affected` with no fix: mlflow 3.15.0
+  fixed 5 advisories and still carried an AI Gateway SSRF affecting through 3.15.2. ray-head went to 3.16.1.
+- **Find what holds a pin before moving it** (`importlib.metadata` requirements inside the image). scan-suite's urllib3
+  sat at 2.0.7 because checkov 3.2.257 pinned `botocore==1.34.25` (<2.1); the smallest move was checkov 3.2.290.
+- **Prefer the smallest move, and run the real tool after it.** Moving semgrep would have freed protobuf, but every
+  semgrep from about 1.140 pins an mcp version with GHSA-84m7; setuptools 82+ drops `pkg_resources`, which crashed
+  semgrep 1.90 at startup. `pip check` passed on both; only running the tool showed it.
+- **Accept what has no installable fix, scoped to the exact version.** `osv-scanner.toml` `[[PackageOverrides]]` with
+  `name` + `version` + `vulnerability.ignore = true` suppresses that one version only (proven on osv-scanner 1.9.1: the
+  same advisory on another version elsewhere still reports). `[[IgnoredVulns]]` by id is repo-wide: use it only when
+  the advisory cannot apply anywhere (setuptools' macOS-sdist bypass). Every entry carries its reason and an expiry.
+
 **B92 (ranger creds, 2026-07-20):** the last real finding — `ranger.yaml`'s ConfigMap shipped 9 plaintext dev passwords —
 is fixed: they now live in the `ranger-admin-secret` SealedSecret and a `render-install-props` initContainer substitutes
 them into `install.properties` at startup (see [ranger.md](ranger.md)). **`KSV-0109` is now blanket-accepted** in

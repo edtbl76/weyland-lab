@@ -1292,6 +1292,11 @@ survive worse pressure than the outage via clean kernel-OOM; kubelet reserves + 
   the ground truth: `trivy-images` scans the 23 `registry.weyland.lab` images the manifests deploy (a failed scan is
   `broken`, never zero), and every Dockerfile installs from a lockfile frozen from the deployed image, held at zero
   direct installs by a `repo-guards` ratchet. The first scan was a baseline; the packages it made visible are B214.
+  **B214 (2026-10-16)** fixed them by the smallest move that installs (urllib3 via a checkov step, PyJWT, mlflow,
+  GitPython, pymongo, multidict, pip) and accepted, per exact package version in `osv-scanner.toml`, what has no
+  installable fix (pyflink's protobuf/pyarrow/httplib2 under apache-beam 2.48 until Flink 2.x; scan-suite's protobuf
+  under semgrep's mcp pin; build-stage-only transformers; nltk with no release). Dependabot now watches all 23
+  requirements directories, held by `check-dependabot-coverage.sh`.
   Flow: [diagrams/flow-code-quality.md](diagrams/flow-code-quality.md); runbook: [runbooks/code-quality.md](runbooks/code-quality.md).
 - **Deploy model:** **GitOps** (B58) — the k8s layer reconciles from the public repo via **Argo CD** (app-of-apps;
   push to git → Argo syncs; `rsync` retired), and **OpenTofu** codifies the non-k8s lane (Port/Proxmox, state in MinIO).
