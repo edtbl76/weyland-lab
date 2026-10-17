@@ -58,7 +58,7 @@ two halves, and we only had the first:
 ### Archiving + History Server
 - FlinkDeployment `flinkConfiguration`: `jobmanager.archive.fs.dir: s3://warehouse/_flink/completed-jobs`. On
   completion the JM writes a self-contained archive (job graph, config, exceptions, per-vertex metrics) to MinIO.
-- **History Server** — a standalone Deployment (NOT operator-managed): image `weyland-flink:local` running
+- **History Server** — a standalone Deployment (NOT operator-managed): image `weyland-flink:local` (since B57a: CI-built `registry.weyland.lab/weyland-flink:git-<sha>`) running
   `bin/historyserver.sh start-foreground`; config `historyserver.archive.fs.dir: s3://warehouse/_flink/completed-jobs`,
   `historyserver.archive.fs.refresh-interval: 10000`, `historyserver.web.port: 8082`; `AWS_*` from `nessie-secret`;
   sidecar OFF; ingress **`flink-history.weyland.lab`** (forward-auth). It scans the archive dir and serves **all**

@@ -283,6 +283,12 @@ read the config. `golden-paths/` (service templates) and `tests/lang/` (fixtures
 ```
 [rogueone] bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dependabot-coverage.sh
 ```
+**An acceptance in `osv-scanner.toml` needs a matching Dependabot `ignore` (2026-10-17).** Dependabot does not read
+`osv-scanner.toml`. Within hours of the 19 new entries it opened 8 grouped security PRs (#189–#196), five of them for
+versions B214 had accepted because they break the build (pyflink past apache-beam's caps, scan-suite protobuf 5 and
+setuptools 83, transformers 5 in the export stages), and they would recur every week. Each of those directories now
+carries an `ignore` rule (`dependency-name` + the breaking `versions` range) with the same reason; GitHub documents that
+`ignore` applies to security updates too. Lift the rule with the acceptance.
 
 **Remediating a newly visible advisory: the rules B214 learned (2026-10-16).**
 - **Read every advisory's range, not the highest fix.** A range can end in `last_affected` with no fix: mlflow 3.15.0

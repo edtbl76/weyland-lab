@@ -32,6 +32,10 @@ updates:
       security-and-patches:
         applies-to: security-updates
         patterns: ["*"]
+    # B214 (2026-10-16): mirrors osv-scanner.toml — no installable fix here; re-proposing it only breaks the build.
+    ignore:
+      - dependency-name: "transformers"   # build-stage ONNX export only; 5.x risks a byte-different export (U13)
+        versions: [">=5.0.0"]
 
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/services/genre-trainer"
@@ -72,6 +76,14 @@ updates:
       security-and-patches:
         applies-to: security-updates
         patterns: ["*"]
+    # B214 (2026-10-16): mirrors osv-scanner.toml — no installable fix here; re-proposing it only breaks the build.
+    ignore:
+      - dependency-name: "protobuf"   # apache-beam 2.48 (apache-flink 1.20.x) caps it; Flink 2.x lifts
+        versions: [">=4.24.0"]
+      - dependency-name: "pyarrow"   # apache-beam 2.48 caps it; Flink 2.x lifts
+        versions: [">=12.0.0"]
+      - dependency-name: "httplib2"   # apache-beam 2.48 caps it; Flink 2.x lifts
+        versions: [">=0.23.0"]
 
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/k8s/jupyterhub/singleuser"
@@ -144,6 +156,12 @@ updates:
       security-and-patches:
         applies-to: security-updates
         patterns: ["*"]
+    # B214 (2026-10-16): mirrors osv-scanner.toml — no installable fix here; re-proposing it only breaks the build.
+    ignore:
+      - dependency-name: "protobuf"   # semgrep 1.90 pins opentelemetry 1.25 -> protobuf <5; newer semgrep pins a vulnerable mcp
+        versions: [">=5.0.0"]
+      - dependency-name: "setuptools"   # 82+ drops pkg_resources, which semgrep 1.90 imports (crashed at startup); the advisory is macOS-sdist-only
+        versions: [">=82.0.0"]
 
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/services/weyland-agent"
@@ -153,6 +171,10 @@ updates:
       security-and-patches:
         applies-to: security-updates
         patterns: ["*"]
+    # B214 (2026-10-16): mirrors osv-scanner.toml — no installable fix here; re-proposing it only breaks the build.
+    ignore:
+      - dependency-name: "transformers"   # build-stage ONNX export only; 5.x risks a byte-different export (U13)
+        versions: [">=5.0.0"]
 
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/services/weyland-dagster-base"
@@ -171,6 +193,10 @@ updates:
       security-and-patches:
         applies-to: security-updates
         patterns: ["*"]
+    # B214 (2026-10-16): mirrors osv-scanner.toml — no installable fix here; re-proposing it only breaks the build.
+    ignore:
+      - dependency-name: "transformers"   # build-stage ONNX export only; 5.x risks a byte-different export (U13)
+        versions: [">=5.0.0"]
 
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/services/weyland-mcp-compositor"
@@ -207,6 +233,10 @@ updates:
       security-and-patches:
         applies-to: security-updates
         patterns: ["*"]
+    # B214 (2026-10-16): mirrors osv-scanner.toml — no installable fix here; re-proposing it only breaks the build.
+    ignore:
+      - dependency-name: "transformers"   # build-stage ONNX export only; 5.x risks a byte-different export (U13)
+        versions: [">=5.0.0"]
 
   - package-ecosystem: "pip"
     directory: "/nodes/rogueone/basic-memory"

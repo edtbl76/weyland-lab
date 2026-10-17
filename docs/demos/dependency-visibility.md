@@ -162,6 +162,10 @@ scanned with the suite's own osv-scanner 1.9.1: only 4.23.4 is reported, with it
 `osv-scanner.toml` uses `[[PackageOverrides]]` with `name` + `version` for pins that have no installable fix, and
 `[[IgnoredVulns]]` by id only for an advisory that cannot apply anywhere.
 
+**Port shows the re-scan** (checked by API 2026-10-17): `osv-scanner-weyland-lab` 973 → 859 high,
+`trivy-weyland-lab` 71 → 63 high, `pip-audit-weyland-lab` 57 → 35 high, `trivy-images-weyland-lab` 3313 → 3301 high,
+each `scannedAt` 2026-10-17T02:25–02:37Z.
+
 ## UI walkthrough + UAT
 
 1. Open <https://app.port.io> → **Catalog** → **Security scans** (`security_scan`), search `trivy-images`.

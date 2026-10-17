@@ -66,7 +66,7 @@ The union of the three component demos' prerequisites:
   `musicbrainz-postgres-secret`.
 - **Flink** — Flink K8s Operator healthy; session cluster `weyland-flink` (ns `data-mesh`) `READY`, UI
   `https://flink.weyland.lab`; `flink-jars` (nginx) serving `sql-runner.jar` + `health-job.jar`; History Server
-  `https://flink-history.weyland.lab`; PyFlink image `weyland-flink-py:local`.
+  `https://flink-history.weyland.lab`; PyFlink image `registry.weyland.lab/weyland-flink-py` (CI-built).
 - **Nessie / Iceberg** (`nessie.data-mesh.svc:19120`, ref `main`) + **MinIO** for checkpoints (`s3://warehouse/_flink`).
 - **Trino** — `trino.data-mesh.svc:8080` reads the Flink-written Iceberg.
 - `kubectl` runs on **mother** (`emangini@mother`).

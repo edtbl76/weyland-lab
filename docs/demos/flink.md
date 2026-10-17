@@ -12,7 +12,7 @@ Four jobs cover all four Flink surfaces:
 | 4 | **music — popularity tier** | PyFlink + Python UDF | `datasets.music.lastfm` → Kafka `analytics.music.artist_tier` (upsert-kafka) | bounded | `flink-pyflink.yaml` |
 
 Jobs 1–3 run on the shared session cluster; job 4 runs in its own application-mode `FlinkDeployment`
-(`weyland-flink-py:local`) because PyFlink needs a ~1 GB python + `apache-flink` runtime that would otherwise
+(`registry.weyland.lab/weyland-flink-py`, CI-built) because PyFlink needs a ~1 GB python + `apache-flink` runtime that would otherwise
 bloat the session image and force a restart of the running CDC job. State + checkpoints go to MinIO
 (`s3://warehouse/_flink`); the two SQL jobs write **Iceberg on the same Nessie catalog** as Trino/dbt. Design:
 [../design/flink-streaming-design.md](../design/flink-streaming-design.md).
@@ -61,7 +61,7 @@ sequenceDiagram
 - **Flink Kubernetes Operator** (Argo helm app, `webhook.create: false` — no cert-manager needed) — healthy,
   watching `data-mesh`.
 - **Session cluster** `weyland-flink` (FlinkDeployment) `READY` — JM REST/UI `weyland-flink-rest:8081`, ingress
-  `flink.weyland.lab` (Keycloak forward-auth). Image `weyland-flink:local` (ctr-imported, `Never`).
+  `flink.weyland.lab` (Keycloak forward-auth). Image `registry.weyland.lab/weyland-flink:git-<sha>` (CI-built, shipped by `ship-images.sh`).
 - **flink-jars** (nginx) serving `sql-runner.jar` + `health-job.jar` at
   `http://flink-jars.data-mesh.svc.cluster.local/`. Session-mode `FlinkSessionJob`s **cannot** use a `local://`
   jarURI (the operator uploads the jar to the running cluster, so it must be http/s3) — this server closes that gap.
@@ -71,7 +71,7 @@ sequenceDiagram
 - **Redpanda** source topics: `datasets.music.lastfm` (RTA + PyFlink), `cdc.musicbrainz.public.cdc_demo` (CDC —
   see [cdc.md](cdc.md)), `datasets.health.brfss` (health). Re-produce via the Dagster stream-produce assets if a
   bounded source was drained by retention.
-- **PyFlink image** `weyland-flink-py:local` (ctr-imported) for job 4 only.
+- **PyFlink image** `registry.weyland.lab/weyland-flink-py:git-<sha>` (CI-built, shipped by `ship-images.sh`) for job 4 only.
 
 ## UI walkthrough
 

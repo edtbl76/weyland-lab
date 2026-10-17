@@ -12,30 +12,32 @@ node) — never `docker pull` (`imagePullPolicy: Never`).
 | Component | What | Manifest |
 |-----------|------|----------|
 | Flink operator | watches `data-mesh`, reconciles FlinkDeployments/SessionJobs | `k8s/flink/flink-operator-values.yaml` (Argo helm) |
-| `weyland-flink` | session cluster (JM+TM), image `weyland-flink:local` | `k8s/data-mesh/flink-session.yaml` |
+| `weyland-flink` | session cluster (JM+TM), image `registry.weyland.lab/weyland-flink:git-<sha>` (CI-built) | `k8s/data-mesh/flink-session.yaml` |
 | `flink-jars` | nginx, serves `sql-runner.jar` + `health-job.jar` for session jobs | `k8s/data-mesh/flink-jar-server.yaml` |
 | `flink-history` | standalone History Server, `flink-history.weyland.lab` | `k8s/data-mesh/flink-history-server.yaml` |
 | RTA / CDC / health jobs | `FlinkSessionJob`s on the session cluster | `k8s/data-mesh/flink-{rta,cdc,health}-sessionjob.yaml` |
-| PyFlink job | application-mode `FlinkDeployment`, image `weyland-flink-py:local` | `k8s/data-mesh/flink-pyflink.yaml` |
+| PyFlink job | application-mode `FlinkDeployment`, image `registry.weyland.lab/weyland-flink-py:git-<sha>` (CI-built) | `k8s/data-mesh/flink-pyflink.yaml` |
 | metrics | Prometheus reporter `:9249` + `ServiceMonitor` | `k8s/data-mesh/flink-metrics.yaml` |
 
 ## Build + deploy the images
 
-Two images. Build context is `k8s/flink/` (rsynced to `~/flink-src/` on mother).
-
-**Session image** `weyland-flink:local` (Flink + Iceberg/Nessie/Kafka jars + `sql-runner.jar` + `health-job.jar`):
-
-```
-[workstation] rsync -a --delete <repo>/k8s/flink/ emangini@mother:~/flink-src/
-[mother] cd ~/flink-src && sudo docker build -t weyland-flink:local . && sudo docker save weyland-flink:local | sudo k3s ctr -n k8s.io images import -
-[mother] kubectl -n data-mesh rollout restart deploy/flink-jars && kubectl -n data-mesh rollout status deploy/flink-jars   # refresh served jars
-```
-
-**PyFlink image** `weyland-flink-py:local` (Flink + python3 + `apache-flink` + Kafka/Avro jars + `music_tier.py`):
+Two images, both from the build context `k8s/flink/`, both **built by CI** (`scripts/ci/images.tsv`: `weyland-flink`
+from `Dockerfile`, `weyland-flink-py` from `Dockerfile.pyflink`; a change anywhere in `k8s/flink/` rebuilds both).
+CI pushes `registry.weyland.lab/<image>:git-<sha>` and opens the tag-bump PR; ship it with the ship loop, never by hand:
 
 ```
-[mother] cd ~/flink-src && sudo docker build -f Dockerfile.pyflink -t weyland-flink-py:local . && sudo docker save weyland-flink-py:local | sudo k3s ctr -n k8s.io images import -
+[rogueone] RUN_FIXTURES=0 bash /home/edwardmangini/IdeaProjects/weyland/scripts/ship-images.sh
 ```
+
+(Until B57a these were `:local` images built on mother and `ctr`-imported; that path is retired, and a ctr-imported
+image is pruned by the node's image GC.)
+
+**PyFlink Python dependencies** are pinned in `k8s/flink/requirements-pyflink.txt` (B213), and the build refuses a file
+whose `apache-flink==` line differs from the Dockerfile's `FLINK_VER`. `apache-flink` 1.20.x requires `apache-beam`
+<2.49, and beam 2.48 caps protobuf <4.24, pyarrow <12 and httplib2 <0.23: their advisories have no installable fix
+under Flink 1.20 and are accepted per exact version in `osv-scanner.toml` (B214), naming Flink 2.x as what lifts them.
+Bump the others there (B214 moved urllib3 to 2.8.0 and pymongo to 4.18.2), then rebuild and prove the image:
+`pip3 check`, freeze == the file, and a `TableEnvironment` starting.
 
 After rebuilding a jar that the session jobs fetch, `rollout restart deploy/flink-jars` so its initContainer
 re-copies the new jar, then delete+re-apply the affected `FlinkSessionJob` (a bare re-apply may keep the failed

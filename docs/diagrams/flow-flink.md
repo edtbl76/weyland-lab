@@ -19,7 +19,7 @@ Two real jobs (Flink SQL) + two example surfaces (Java DataStream, PyFlink) — 
    running mean of `Data_value` → Kafka `analytics.health.state_risk`.
 4. **music — popularity tier** (PyFlink + Python UDF): `datasets.music.lastfm` → `SUM(play_count)` per artist → a
    Python UDF buckets the total into a tier → upsert-kafka `analytics.music.artist_tier`. Runs in its own
-   application-mode `FlinkDeployment` (`weyland-flink-py:local`) to keep the ~1 GB python runtime off the session
+   application-mode `FlinkDeployment` (`registry.weyland.lab/weyland-flink-py`, CI-built) to keep the ~1 GB python runtime off the session
    cluster.
 
 **Current state (2026-07-15):** all four jobs validated end-to-end — RTA appended and queried in Trino, CDC running
