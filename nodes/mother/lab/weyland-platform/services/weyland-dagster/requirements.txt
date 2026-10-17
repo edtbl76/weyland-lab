@@ -161,7 +161,7 @@ neo4j==6.2.0
 networkx==3.6.1
 numba==0.66.0
 numpy==2.4.6
-oauthlib==3.3.1
+oauthlib==4.0.0   # GHSA-hj66-6f7g-4r5v, GHSA-xpv3-w29h-x7cv (fixed 4.0.0); only requests-oauthlib (kubernetes client) uses it, >=3.0.0. Replaces dependabot #194, which regenerated the whole file
 onnxruntime==1.30.0
 openlineage-dbt==1.51.0
 openlineage-integration-common==1.51.0
