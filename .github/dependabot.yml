@@ -60,6 +60,181 @@ updates:
         applies-to: security-updates
         patterns: ["*"]
 
+  # ---- B214 (2026-10-16): the 19 requirements directories that had no entry ------------------------------------
+  # Only 4 of 23 were listed, so an advisory against the other 19 never reached a PR, 9 of them the lockfiles B213
+  # had just frozen from the deployed images. scripts/check-dependabot-coverage.sh (repo-guards) now fails on a
+  # requirements directory with no pip entry. Same shape as above: security updates only, grouped, Sunday 09:00.
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/k8s/flink"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/k8s/jupyterhub/singleuser"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/finance-trainer"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/guardrails-structure"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/mcp-server-datahub"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/nemo-guardrails"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/rag-embed"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/realm-of-agents"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/scan-suite"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/weyland-agent"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/weyland-dagster-base"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/weyland-guard"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/weyland-mcp-compositor"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/weyland-mcp-gateway"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/weyland-operator"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/weyland-tool-server"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/rogueone/basic-memory"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/rogueone/services/gpu-inference/clef-flash"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/scripts"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
   # ---- Docker base images ----------------------------------------------------------------------------------
   # The scan-suite image pins tool versions by hand in its Dockerfile; base-image bumps still matter.
   - package-ecosystem: "docker"
@@ -67,9 +242,8 @@ updates:
     schedule: { interval: "weekly", day: "sunday", time: "09:00" }
     open-pull-requests-limit: 0
 
-  # weyland-tool-server has NO requirements.txt — it pip-installs inline in its Dockerfile, so a "pip" entry
-  # here would silently no-op (Dependabot needs a manifest to parse). Docker is the ecosystem that applies;
-  # its Python pins are only reachable by editing that RUN line, which no scanner will PR for us.
+  # weyland-tool-server: its Python pins live in requirements.txt since B213 (2026-10-16) and have a pip entry above;
+  # this docker entry covers the base image.
   - package-ecosystem: "docker"
     directory: "/nodes/mother/lab/weyland-platform/services/weyland-tool-server"
     schedule: { interval: "weekly", day: "sunday", time: "09:00" }

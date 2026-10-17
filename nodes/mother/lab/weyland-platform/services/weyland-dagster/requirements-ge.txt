@@ -76,7 +76,7 @@ pandas==2.3.3
 pandocfilters==1.5.1
 parso==0.8.7
 pexpect==4.9.0
-pip==25.3
+pip==26.2.1   # B214: 5 advisories (fixed by 26.2.0); matches the main env and the Soda venv
 platformdirs==4.13.0
 prometheus_client==0.26.0
 prompt_toolkit==3.0.53

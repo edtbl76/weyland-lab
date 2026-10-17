@@ -95,3 +95,13 @@ CVE-2026-85393 exp:2027-01-02
 # the Realm never performs (it only makes TLS client calls). Lift it when the MLflow server and its clients move to 3.16+.
 # Same ID in osv-scanner.toml. `exp:` re-surfaces it on 2027-01-09.
 CVE-2026-69247 exp:2027-01-09
+
+# ---- B214 accepted (2026-10-16) ----
+# nltk 3.10.3 (GHSA-8mgp-746c-j5xp): model-artifact save/load APIs bypass nltk's path security. NO FIXED RELEASE.
+# weyland-agent gets nltk only via llama-index-core, and nothing in its image outside nltk calls those APIs (checked
+# 2026-10-16). Same entry, reasoning in full, in osv-scanner.toml. Remove when nltk ships a fix and the pin moves.
+CVE-2026-81726
+# protobuf JSON recursion depth bypass (GHSA-7gcm-g887-7qv7). Two places, both with NO installable fix: scan-suite's
+# 4.25.9 (semgrep 1.90 pins opentelemetry 1.25 -> protobuf <5; every newer semgrep pins a vulnerable mcp) and
+# pyflink's 4.23.4 (apache-beam 2.48 via apache-flink 1.20.x -> <4.24). Reasoning per version in osv-scanner.toml.
+CVE-2026-0994

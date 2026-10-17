@@ -67,3 +67,57 @@ reason = "cryptography 49.0.0 (CVE-2026-69247): PKCS#7 EnvelopedData decryption 
 id = "GO-2026-5932"
 ignoreUntil = 2027-04-12
 reason = "golang.org/x/crypto/openpgp is unmaintained (GO-2026-5932, no fixed release). Flagged at MODULE level on the golden-path echo and gin samples, which import other x/crypto packages but never openpgp; the scan's govulncheck (symbol-level reachability) reports 0 for both. Re-check on expiry, or sooner if a sample starts using openpgp. Accepted 2026-10-12 (B179 DoD scan)."
+
+[[IgnoredVulns]]
+id = "GHSA-8mgp-746c-j5xp"
+ignoreUntil = 2027-01-16
+reason = "nltk 3.10.3 (CVE-2026-81726 / PYSEC-2026-3740): model-artifact APIs (TransitionParser.train/parse, AveragedPerceptron.save/load, PerceptronTagger.save_to_json, save_maxent_params) bypass nltk's path security. No fixed release (last_affected 3.10.3). weyland-agent gets nltk only through llama-index-core (nltk>=3.9.3); nothing in its image outside nltk itself calls those APIs (grep of site-packages, 2026-10-16), and the agent never loads or saves an nltk model from a caller-supplied path. Bump as soon as nltk ships a fix. Accepted 2026-10-16 (B214)."
+
+[[IgnoredVulns]]
+id = "GHSA-h35f-9h28-mq5c"
+ignoreUntil = 2027-04-16
+reason = "setuptools <83 (CVE-2026-59890 / PYSEC-2026-3447): MANIFEST.in exclusions bypassed when building an sdist on macOS APFS/HFS+ (NFC/NFD name collision). Does not apply here: every image runs on Linux and none builds an sdist. Kept below 83 on purpose in scan-suite (82+ drops pkg_resources, which semgrep 1.90's opentelemetry-instrumentation imports) and in the Dagster GE/Soda venvs (79.0.1, the venvs' own resolution). Accepted 2026-10-16 (B214)."
+
+# ---- B214 (2026-10-16): VERSION-SCOPED overrides. Each matches one exact package version, so the same advisory
+# elsewhere in the repo (another version, another lockfile) is still reported. Proven against osv-scanner 1.9.1:
+# protobuf 4.25.9 suppressed while 4.23.4 in another directory still reported its 4 advisories.
+
+[[PackageOverrides]]
+name = "protobuf"
+version = "4.25.9"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-16
+reason = "scan-suite only (GHSA-7gcm-g887-7qv7: JSON recursion depth bypass; fixed in 5.29.6 / 6.33.5). Held below 5 by opentelemetry-proto 1.25, which semgrep 1.90 pins. Every semgrep new enough to lift that (about 1.140+) pins mcp==1.16.0..1.29.0 exactly, which re-introduces GHSA-84m7-p3x7-pcfv, the advisory B213 bumped mcp for. The scanner parses no untrusted protobuf JSON; it parses repo files and talks to Port and osv.dev. Lift when a semgrep release stops pinning a vulnerable mcp. Accepted 2026-10-16 (B214)."
+
+[[PackageOverrides]]
+name = "protobuf"
+version = "4.23.4"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-04-16
+reason = "pyflink only (GHSA-7gcm-g887-7qv7 fixed 5.29.6; GHSA-8qvm-5x2c-j2w7 fixed 4.25.8). apache-flink 1.20.x requires apache-beam <2.49, and beam 2.48 caps protobuf <4.24: no fixed version is installable under Flink 1.20 (checked 1.20.5). Flink 2.x (beam <=2.61) lifts it, a major upgrade of the streaming tier (B83). The job is bounded and on-demand (deleted at rest); protobuf carries Flink's own JobManager-to-Python-worker messages, not untrusted input. Accepted 2026-10-16 (B214)."
+
+[[PackageOverrides]]
+name = "pyarrow"
+version = "11.0.0"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-04-16
+reason = "pyflink only (GHSA-5wvp-7f3h-6wmm / PYSEC-2023-238: code execution loading a malicious IPC/Parquet file; fixed 14.0.1; PYSEC-2024-161 fixed 17.0.0). Capped <12 by apache-beam 2.48, which apache-flink 1.20.x requires; Flink 2.x lifts it. music_tier.py reads a Kafka topic and writes upsert-kafka: it loads no Arrow or Parquet file. Accepted 2026-10-16 (B214)."
+
+[[PackageOverrides]]
+name = "httplib2"
+version = "0.22.0"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-04-16
+reason = "pyflink only (GHSA-j5g9-f88f-gfj3: decompression bomb DoS; fixed 0.32.0). Capped <0.23 by apache-beam 2.48 (apache-flink 1.20.x); Flink 2.x lifts it. httplib2 serves beam's Google Cloud clients, which the Kafka-to-Kafka music_tier job never uses. Accepted 2026-10-16 (B214)."
+
+[[PackageOverrides]]
+name = "transformers"
+version = "4.57.6"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-16
+reason = "BUILD STAGES ONLY: the four ONNX export stages (weyland-dagster, weyland-tool-server, weyland-agent bge-export; weyland-guard onnx-export). They run once at build time to export fixed public models (BAAI bge-base/bge-small, the guard's two DeBERTa classifiers) and only the .onnx + tokenizer.json reach the runtime image; transformers is never shipped. The advisories (GHSA-29pf-2h5f-8g72, GHSA-69w3-r845-3855, GHSA-fgcw-684q-jj6r, GHSA-x9r9-c232-4q39, GHSA-xrqw-3rrv-vx5w) concern malicious model files, trust_remote_code and Trainer; the stages never set trust_remote_code and never train. Every fix is in transformers 5.x, and a new exporter risks a byte-different ONNX graph, which would force re-embedding every vector store (U13 relies on byte-equivalence). Gap noted, not fixed here: the stages do not pin a model revision. Accepted 2026-10-16 (B214)."

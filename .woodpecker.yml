@@ -103,6 +103,9 @@ steps:
       # source scanner, and drift-prone when unpinned (103 at the first count). Per-Dockerfile ceilings in
       # scripts/ci/dockerfile-installs.baseline may only fall. Pure file analysis.
       - bash scripts/check-dockerfile-installs.sh
+      # B214 (2026-10-16) — every directory holding a requirements*.txt has a pip entry in .github/dependabot.yml.
+      # 19 of 23 had none, so an advisory against those pins never reached a security PR. Pure file analysis.
+      - bash scripts/check-dependabot-coverage.sh
       - bash scripts/check-sa-automount-collisions.sh
       # B140 — a CronJob's cadence lives on three surfaces (manifest schedule · schedules.md ·
       # the freshness budget). Nothing kept them honest, so relaxing a schedule silently made
