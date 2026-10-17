@@ -36,7 +36,11 @@ sequenceDiagram
 - `mother` — Ray head (`k8s/ray/`, `ray.weyland.lab`, GCS `:6379`, Jobs API `:8265`), MLflow LAN
   NodePort `mlflow-lan` (`192.168.1.243:30500`), MinIO, lakeFS silver.
 - `rogueone` — the native Ray edge worker must be up: `systemctl status ray-worker`. Its venv is
-  built from the head's `pip freeze` (env parity); `AWS_CA_BUNDLE` is baked into the systemd unit.
+  built from the head's packages (env parity; `pip list --format=freeze`, see the runbook); `AWS_CA_BUNDLE` is baked
+  into the systemd unit. **Rebuilt 2026-10-17 after ray-head v10** (RUN): the worker had mlflow 3.14.0 and GitPython
+  3.1.52 against the head's 3.16.1 / 3.1.62. After the rebuild: Python 3.11.14, ray 2.56.0, mlflow 3.16.1, GitPython
+  3.1.62, pyarrow 19.0.1, `pip check` clean; `ray.nodes()` shows the new worker alive on 192.168.1.230 with 28 CPU and
+  the pre-rebuild node DEAD.
 - The MinIO-backed OCI registry `registry.weyland.lab` (the ray-head image lives here; build+push on
   rogueone, which trusts the mkcert CA).
 - For `--source feast` / `--source mart`, materialize the bridge asset first (see below).

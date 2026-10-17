@@ -83,9 +83,9 @@ weekly_op_job 691200  # weekly -> 8d'
   pipe_defs "$HEALTHY_DEFS"
   watch_budgets "$HEALTHY_BUDGETS"
   run bash "$GUARD"
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"OK"* ]]
-  [[ "$output" == *"2 budgeted"* ]]
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }   # print WHY: this test flaked in CI twice (B211, #399)
+  [[ "$output" == *"OK"* ]] || { echo "$output"; return 1; }
+  [[ "$output" == *"2 budgeted"* ]] || { echo "$output"; return 1; }
 }
 
 @test "a RUNNING schedule with no budget fails, naming the job" {

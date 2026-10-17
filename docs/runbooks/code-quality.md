@@ -302,6 +302,14 @@ carries an `ignore` rule (`dependency-name` + the breaking `versions` range) wit
   `name` + `version` + `vulnerability.ignore = true` suppresses that one version only (proven on osv-scanner 1.9.1: the
   same advisory on another version elsewhere still reports). `[[IgnoredVulns]]` by id is repo-wide: use it only when
   the advisory cannot apply anywhere (setuptools' macOS-sdist bypass). Every entry carries its reason and an expiry.
+- **Read a Dependabot security PR's whole diff before merging (2026-10-17).** Its grouped PR may REGENERATE the
+  lockfile from the `.in`: #194 (oauthlib 3.3.1 → 4.0.0 in weyland-dagster) also renamed packages, dropped the B113/B213
+  rationale comments and added packages. Apply the one line yourself (find its dependents in the image first: here only
+  `requests-oauthlib` via the kubernetes client, `>=3.0.0`), prove it on the deployed image (`pip check`, the users
+  import, `dagster definitions validate`), and close the PR with that reason. A clean one-line PR (#121, #195: GitPython)
+  is merged after the requirements-sync guard passes on its head and its file installs on the service's base image.
+- **A ray-head bump must be followed by a worker rebuild** ([remote-training.md](remote-training.md) § the worker venv):
+  B214's v10 moved mlflow 3.14 → 3.16.1 on the head while the rogueone worker kept 3.14.0 and GitPython 3.1.52.
 
 **B92 (ranger creds, 2026-07-20):** the last real finding — `ranger.yaml`'s ConfigMap shipped 9 plaintext dev passwords —
 is fixed: they now live in the `ranger-admin-secret` SealedSecret and a `render-install-props` initContainer substitutes
