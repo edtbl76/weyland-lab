@@ -19,7 +19,7 @@ langfuse==4.14.3
 pyjwt==2.15.0                    # 2.13.0: PYSEC-2026-4142/4150/4151
 urllib3==2.8.0                   # 2.7.0: PYSEC-2026-4175/4176/4177
 sqlparse==0.6.0                  # 0.5.5: PYSEC-2026-3696..3699, 3923
-gitpython==3.1.60
+gitpython==3.1.62
 cryptography==50.0.0
 # CVE floor pins, 2026-10-15 (B206 DoD scan, scripts/scan-diff.py): advisories published that day
 langgraph-sdk==0.4.4             # 0.4.2: PYSEC-2026-4240
