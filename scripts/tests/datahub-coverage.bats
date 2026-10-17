@@ -129,6 +129,31 @@ datasets_finance.filings_text" \
   [[ "$output" == *"filings_text"* ]]
 }
 
+# --- first-call admission retry ------------------------------------------------------------------
+#
+# k3s's NetworkPolicy controller admits a NEW pod's IP a few seconds after the pod starts, and the
+# trino-noauth proxy's policy (B211) admits this job by label — so the CronJob's very first Trino call
+# can be refused while the rule is live and correct. Observed 2026-10-17 03:05 NY: "Failed to connect
+# ... after 1 ms", the whole night failed, monitoring-extras went Degraded. The first statement POST
+# therefore carries a bounded curl retry on refusal; a Trino that stays down still fails closed (2).
+
+@test "fetch: the first Trino call retries a refused connection, bounded" {
+  stub curl 0 '{"data":[["datasets_finance.price_daily"]]}'
+  DATAHUB_URNS="iceberg.datasets_finance.price_daily" run "$GUARD"
+  [ "$status" -eq 0 ]
+  local first; first="$(grep -m1 '^curl ' "$STUB_LOG")"
+  [[ "$first" == *"/v1/statement"* ]]
+  [[ "$first" == *"--retry-connrefused"* ]]
+  [[ "$first" =~ --retry\ [1-9]([^0-9]|$) ]]
+}
+
+@test "fetch: a Trino that stays unreachable still fails closed as exit 2 and says why" {
+  stub curl 7 ''
+  DATAHUB_URNS="iceberg.datasets_finance.price_daily" run "$GUARD"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"could not read mesh tables from Trino"* ]]
+}
+
 # --- anti-drift ----------------------------------------------------------------------------------
 #
 # The CronJob (k8s/monitoring/datahub-coverage.yaml) runs an EMBEDDED copy of this guard from a

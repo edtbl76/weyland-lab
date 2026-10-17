@@ -92,7 +92,12 @@ fetch_trino_tables() { # -> newline schema.table for the mesh data estate, or no
   sql="SELECT table_schema || '.' || table_name FROM iceberg.information_schema.tables
        WHERE table_schema LIKE 'datasets\_%' ESCAPE '\\'
           OR (table_schema = 'dbt' AND table_name LIKE 'mart\_%' ESCAPE '\\')"
-  body="$(curl -sS -f -X POST "$TRINO_HTTP/v1/statement" \
+  # The FIRST call retries a refused connection (bounded, ~15 s): k3s's NetworkPolicy controller admits a
+  # new pod's IP a few seconds after it starts, so the CronJob's opening dial can be refused while the
+  # trino-noauth policy is live and correct (2026-10-17 03:05 NY: refused "after 1 ms", the night failed).
+  # A Trino that stays down still fails here, and main turns that into exit 2. Later calls need no retry:
+  # by then the pod is admitted.
+  body="$(curl -sS -f --retry 5 --retry-delay 3 --retry-connrefused -X POST "$TRINO_HTTP/v1/statement" \
             -H "X-Trino-User: $TRINO_USER" -H 'Content-Type: text/plain' \
             --data "$sql")" || return 1
   while :; do
