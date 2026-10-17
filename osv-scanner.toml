@@ -58,10 +58,9 @@ id = "GHSA-86w9-cpqp-85rv"
 ignoreUntil = 2027-01-02
 reason = "node-forge <=1.4.0 (CVE-2026-85393 / CVE-2026-33894): RSA PKCS#1 v1.5 verification accepts extra nested DigestAlgorithm. No fixed release (1.4.0 is latest). Only in the react-native golden-path sample's dev tooling; nothing verifies untrusted signatures. Accepted 2026-10-02."
 
-[[IgnoredVulns]]
-id = "GHSA-g6cj-pr64-35w5"
-ignoreUntil = 2027-01-09
-reason = "cryptography 49.0.0 (CVE-2026-69247): PKCS#7 EnvelopedData decryption flaw, fixed in 50.0.0. realm-of-agents pins 49.0.0 because mlflow 3.15.x (matching the MLflow 3.15.1 server) requires cryptography<50; the Realm never decrypts PKCS#7. Lift when MLflow server + clients move to 3.16+. Accepted 2026-10-09 (B202)."
+# REMOVED 2026-10-17 (B215): the GHSA-g6cj-pr64-35w5 acceptance (cryptography 49.0.0 in realm-of-agents). FIXED, not
+# re-accepted: the MLflow server and the Realm moved to 3.16.1 together, which lifts mlflow 3.15's cap, and the Realm
+# now pins cryptography 50.0.2.
 
 [[IgnoredVulns]]
 id = "GO-2026-5932"

@@ -73,9 +73,14 @@ a trace pins the prompt version that produced each answer. Registered prompts (`
   `kubectl -n weyland exec deploy/<svc> -- sh -c "cd /app && python -c \"import prompts; prompts.load_prompt('<name>','fb'); print(prompts.loaded_version('<name>'))\""`.
 
 ## Gotchas
-- **pip-on-start (v1).** The container installs `psycopg2-binary` + `boto3` on every start (no custom image),
-  so first/restart boot is ~1–2 min and needs egress. If restarts get slow/flaky, bake a small
-  `FROM ghcr.io/mlflow/mlflow:v3.14.0` + `pip install` image and drop the install from the command.
+- **pip-on-start (v1).** The container installs `psycopg2-binary`, `boto3`, `mlflow[gateway]` and `litellm` on every
+  start (no custom image), so first/restart boot is ~1–2 min and needs egress. The server is
+  `ghcr.io/mlflow/mlflow:v3.16.1` since B215 (2026-10-17), and the `mlflow[gateway]==` pin MUST equal the image tag:
+  pip is authoritative at runtime, so a stale pin silently downgrades the image's mlflow on every boot. **Known gap:**
+  `psycopg2-binary`, `boto3` and `litellm` are installed UNPINNED, so each restart can pull new versions — the drift
+  class B213 closed for Dockerfiles, which its ratchet cannot see here because the install is in the manifest. If
+  restarts get slow/flaky, or to close that gap, bake a small `FROM ghcr.io/mlflow/mlflow:v3.16.1` image with a lockfile
+  and drop the install from the command.
 - **No native auth** — access is gated by **Keycloak SSO** via the shared `traefik-forward-auth` Middleware
   (forward-auth → Keycloak, SSO across `*.weyland.lab`), like Kiali. The old `mlflow-auth` basicAuth dev-password
   Middleware is retired/superseded by the forward-auth gate.

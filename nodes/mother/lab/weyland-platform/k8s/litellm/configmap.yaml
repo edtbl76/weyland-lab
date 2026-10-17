@@ -24,12 +24,12 @@ data:
       - model_name: "anthropic/*"
         litellm_params:
           model: "anthropic/*"
-          api_key: os.environ/ANTHROPIC_API_KEY
+          api_key: os.environ/LITELLM_ANTHROPIC_API_KEY   # LiteLLM's own key, not Bifrost's (2026-10-17)
       # --- Friendly aliases (existing convenience names — consumers depend on these) ---
       - model_name: claude-haiku
         litellm_params:
           model: anthropic/claude-haiku-4-5-20251001
-          api_key: os.environ/ANTHROPIC_API_KEY
+          api_key: os.environ/LITELLM_ANTHROPIC_API_KEY   # LiteLLM's own key, not Bifrost's (2026-10-17)
       - model_name: gemini-flash      # B17: via Bifrost (free fallback rung across many chains)
         litellm_params:
           model: openai/gemini/gemini-2.5-flash

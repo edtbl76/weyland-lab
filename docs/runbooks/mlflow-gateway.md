@@ -17,9 +17,10 @@ guardrailed, budget-capped, provider-agnostic. `openai:/…` / OpenAI SDK compat
 The built-in gateway's UI is bundled in the tracking server, but its **backend API 404s without the `[gateway]`
 extras** (tiktoken/slowapi/watchfiles). Added to the MLflow deploy's startup install — `k8s/mlflow/mlflow.yaml`:
 ```
-pip install --quiet --no-cache-dir psycopg2-binary boto3 'mlflow[gateway]==3.14.0' && mlflow db upgrade … && mlflow server …
+pip install --quiet --no-cache-dir psycopg2-binary boto3 'mlflow[gateway]==3.16.1' litellm && mlflow db upgrade … && mlflow server …
 ```
-Diagnose "is it mounted?" by introspecting the live app, never by guessing REST paths:
+The `[gateway]` pin must equal the server image tag (`v3.16.1` since B215, 2026-10-17, which cleared the AI Gateway
+SSRF GHSA-h7x2-h6g9-p789, an unvalidated `api_base`, <=3.15.2). Diagnose "is it mounted?" by introspecting the live app, never by guessing REST paths:
 ```
 kubectl -n weyland exec deploy/mlflow -- python -c "from mlflow.server import app; print([str(r) for r in app.url_map.iter_rules() if 'gateway' in str(r)][:5])"
 ```

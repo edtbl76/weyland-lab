@@ -42,6 +42,14 @@ spec:
             - secretRef:
                 name: bifrost-provider-keys
           env:
+            # LiteLLM's OWN Anthropic key (2026-10-17, after the OpenCode exposure). It used to read ANTHROPIC_API_KEY from
+            # the envFrom above — Bifrost's secret — so the two gateways shared one key. The litellm-secrets
+            # ANTHROPIC_API_KEY slot (set from ANTHROPIC_LITELLM_KEY in .env) is LiteLLM's own. docs/runbooks/secrets-map.md.
+            - name: LITELLM_ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-secrets
+                  key: ANTHROPIC_API_KEY
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:

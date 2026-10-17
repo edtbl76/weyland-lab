@@ -26,10 +26,19 @@ OPENROUTER_API_KEY PERPLEXITY_API_KEY FIREWORKS_API_KEY XAI_API_KEY CEREBRAS_API
 HUGGING_FACE_API_KEY OPENCODE_ZEN_API_KEY REPLICATE_API_KEY RUNWAY_API_KEY RUNWARE_API_KEY \
 ELEVEN_LABS_API_KEY TOGETHER_API_KEY"
 
+# PER-CONSUMER KEYS (2026-10-17, after the OpenCode exposure): Bifrost's own Anthropic and OpenAI keys live in .env as
+# ANTHROPIC_BIFROST_KEY / OPENAI_BIFROST_KEY and are sealed under the names Bifrost already reads (ANTHROPIC_API_KEY /
+# OPENAI_API_KEY), so bifrost.yaml and the env.VAR provider refs are unchanged. Both are REQUIRED — a missing one stops
+# the run instead of sealing a secret without it (which would silently drop that provider). docs/runbooks/secrets-map.md.
+declare -A SOURCE=( [ANTHROPIC_API_KEY]=ANTHROPIC_BIFROST_KEY [OPENAI_API_KEY]=OPENAI_BIFROST_KEY )
 args=()
 for var in $VARS; do
-  val="${!var:-}"
-  if [ -z "$val" ]; then echo "WARN: $var missing in .env — skipped" >&2; continue; fi
+  src="${SOURCE[$var]:-$var}"
+  val="${!src:-}"
+  if [ -z "$val" ]; then
+    if [ -n "${SOURCE[$var]:-}" ]; then echo "ERROR: $src missing in $ENV_FILE — Bifrost's own key is required" >&2; exit 1; fi
+    echo "WARN: $var missing in .env — skipped" >&2; continue
+  fi
   args+=( "--from-literal=$var=$val" )
 done
 [ ${#args[@]} -eq 0 ] && { echo "ERROR: no keys found in $ENV_FILE" >&2; exit 1; }

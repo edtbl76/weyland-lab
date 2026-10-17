@@ -47,9 +47,18 @@ it writes `reverse.py` + `test_reverse.py`, runs pytest, **6/6 pass**, `$0` (Gem
 
 ```
 pkill -f opencode
-set -a; . ~/IdeaProjects/weyland/scripts/.env; set +a
-cd <project-dir> && opencode
+cd <project-dir> && env -i HOME="$HOME" PATH="$PATH" TERM="$TERM" LANG="${LANG:-C.UTF-8}" ANTHROPIC_API_KEY="$(sed -n 's/^ANTHROPIC_OPENCODE_WORKSPACE_KEY=//p' ~/IdeaProjects/weyland/scripts/.env)" opencode
 ```
+**OpenCode gets ONE key, never the lab's `.env` (2026-10-17).** The old launch (`set -a; . scripts/.env; set +a`) exported
+all 57 lab credentials into OpenCode's process, and OpenCode's built-in providers turn on for any standard key variable
+they find: with `ANTHROPIC_API_KEY` present (the lab's shared key at the time) its 20 Anthropic models were live on the
+lab key — no prompt, no config line. That key was later exposed via OpenCode's old console and abused (~$60), so now:
+`env -i` starts OpenCode with an EMPTY environment plus the basics and `ANTHROPIC_API_KEY` set from
+`ANTHROPIC_OPENCODE_WORKSPACE_KEY` — OpenCode's own key, in its own Anthropic workspace with its own lower spend limit.
+Verified: inside, the environment is exactly `ANTHROPIC_API_KEY HOME LANG PATH PWD TERM`. Consequence: the custom
+Gemini/Groq/Mistral/OpenRouter providers in `opencode.json` resolve `{env:...}` to nothing and do not authenticate; give
+any of them its own OpenCode-only key the same way if wanted. Map of every key and its consumer:
+[secrets-map.md](secrets-map.md).
 Then pick **Gemini 2.5 Flash (direct, free)** in the model picker.
 
 Non-interactive (proven form — good for scripts / CI / smoke tests):

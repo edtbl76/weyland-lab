@@ -43,7 +43,7 @@ spec:
     spec:
       containers:
         - name: mlflow
-          image: ghcr.io/mlflow/mlflow:v3.15.1  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root  (B47: 2.18.0 -> 3.14.0 cleared the 2025/2026 RCE CVEs; 2026-08-20: 3.14.0 -> 3.15.1 clears CVE-2026-64849, unauthenticated full-read SSRF in webhook delivery — this server has an un-authed LAN NodePort :30500, so the SSRF was reachable without credentials)
+          image: ghcr.io/mlflow/mlflow:v3.16.1  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root  (B47: 2.18.0 -> 3.14.0 cleared the 2025/2026 RCE CVEs; 2026-08-20: 3.14.0 -> 3.15.1 clears CVE-2026-64849, unauthenticated full-read SSRF in webhook delivery — this server has an un-authed LAN NodePort :30500, so the SSRF was reachable without credentials; 2026-10-17 B215: 3.15.1 -> 3.16.1 clears GHSA-h7x2-h6g9-p789 / CVE-2026-71211, the AI Gateway SSRF via an unvalidated api_base, <=3.15.2 — this server runs that gateway. 3 forward-only migrations, proven locally on a 3.15.1 DB)
           imagePullPolicy: IfNotPresent
           # B47 hardening: drop priv-esc + seccomp (see arch)
           securityContext:
@@ -57,12 +57,12 @@ spec:
             # a no-op once migrated, so it's safe on every pod restart. BACK UP the mlflow DB before first rollout.
             # B100 P4: `mlflow[gateway]` adds the built-in AI Gateway's backend deps (tiktoken/slowapi/watchfiles) —
             # without them the gateway UI renders but its API 404s (unmounted). mlflow==3.15.1 is already in the image,
-            # so this just pulls the missing extras. (If restarts get slow, bake these into a small image — see top note.)
+            # so this just pulls the missing extras (the image is 3.16.1 since B215, 2026-10-17). (If restarts get slow, bake these into a small image — see top note.)
             # ⚠ THIS PIN MUST TRACK THE IMAGE TAG ABOVE. pip is authoritative at runtime: leaving it at an older
             # version silently DOWNGRADES the image's mlflow on every pod start, so a CVE bump done only on the
             # image tag would look applied and not be. (Caught during the 3.14.0 -> 3.15.1 CVE-2026-64849 bump.)
             - >
-              pip install --quiet --no-cache-dir psycopg2-binary boto3 'mlflow[gateway]==3.15.1' litellm &&
+              pip install --quiet --no-cache-dir psycopg2-binary boto3 'mlflow[gateway]==3.16.1' litellm &&
               mlflow db upgrade "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow" &&
               mlflow server --host 0.0.0.0 --port 5000
               --backend-store-uri "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"

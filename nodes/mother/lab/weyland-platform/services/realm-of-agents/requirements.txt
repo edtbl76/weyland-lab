@@ -1,8 +1,11 @@
 # FROZEN from requirements.in (see its header): the exact package set of the live v21 image, taken 2026-10-08 with
 # `pip freeze` in the running pod (B202) — nothing moved. Do not hand-edit; regenerate.
 # 2026-10-09 (B202 DoD scan): re-resolved with pip-compile to clear 1 critical + 15 high CVEs — GitPython 3.1.60,
-# langgraph-sdk 0.4.4, mcp 1.28.1, PyJWT 2.14.0, sqlparse 0.6.0, urllib3 2.8.0. cryptography stays 49.0.0: mlflow
-# 3.15.x (matching the 3.15.1 server) caps it <50; its one HIGH is accepted in .trivyignore.
+# langgraph-sdk 0.4.4, mcp 1.28.1, PyJWT 2.14.0, sqlparse 0.6.0, urllib3 2.8.0. cryptography stayed 49.0.0 then: mlflow
+# 3.15.x (matching the 3.15.1 server) capped it <50.
+# 2026-10-17 (B215): mlflow / mlflow-skinny / mlflow-tracing 3.15.1 -> 3.16.1 with the server (GHSA-h7x2-h6g9-p789, the
+# AI Gateway SSRF, <=3.15.2), which lifts the cap: cryptography 49.0.0 -> 50.0.2 (GHSA-g6cj-pr64-35w5). pip resolved
+# with the rest held changed only these four.
 # 2026-10-11 (DoD scan): GitPython 3.1.62 (GHSA-59cr-6r3x-644w) and PyJWT 2.15.0 (GHSA-42vr-xj54-vc7v, GHSA-x33g-cr3x-6449);
 # Also multidict 6.9.1 (CVE-2026-104874) and Werkzeug 3.1.9 (CVE-2026-102598), from pip-audit; pip-compile with
 # the rest held changed only these four.
@@ -23,7 +26,7 @@ charset-normalizer==3.4.9
 click==8.4.2
 cloudpickle==3.1.2
 contourpy==1.3.3
-cryptography==49.0.0
+cryptography==50.0.2
 cycler==0.12.1
 databricks-sdk==0.125.0
 distro==1.9.0
@@ -73,9 +76,9 @@ Mako==1.4.2
 MarkupSafe==3.0.3
 matplotlib==3.11.1
 mcp==1.30.0
-mlflow==3.15.1
-mlflow-skinny==3.15.1
-mlflow-tracing==3.15.1
+mlflow==3.16.1
+mlflow-skinny==3.16.1
+mlflow-tracing==3.16.1
 multidict==6.9.1
 narwhals==2.24.0
 numpy==2.5.2

@@ -85,8 +85,11 @@ _NATIVE = [
     ("OPENROUTER_API_KEY", "openrouter", "openrouter", "meta-llama/llama-3.3-70b-instruct:free"),
     ("XAI_API_KEY",        "xai",        "xai",        "grok-3-mini"),
 ]
+# PER-CONSUMER KEYS (2026-10-17, after the OpenCode exposure): the gateway's own Anthropic and OpenAI keys are
+# ANTHROPIC_MLFLOW_KEY / OPENAI_MLFLOW_KEY in .env, never a name another consumer reads. docs/runbooks/secrets-map.md.
+_OWN = {"ANTHROPIC_API_KEY": "ANTHROPIC_MLFLOW_KEY", "OPENAI_API_KEY": "OPENAI_MLFLOW_KEY"}
 for env_var, secret_name, provider, default_models in _NATIVE:
-    key = os.environ.get(env_var)
+    key = os.environ.get(_OWN.get(env_var, env_var))
     if not key:
         continue
     SECRETS.append({"secret_name": secret_name, "provider": provider, "api_key": key})  # no api_base — native
@@ -123,10 +126,22 @@ def _list(path):
     return []
 
 
+# Key rotation (2026-10-17, after an exposed-key notice): ensure_secret only CREATES, so a rotated key in scripts/.env
+# never reached a secret that already existed — the gateway kept serving with the old, exposed key. Name the secrets to
+# rotate (GATEWAY_ROTATE_SECRETS=openai,anthropic) and an existing one gets its value replaced IN PLACE: same
+# secret_id, so every model-definition linked to it keeps working. The value is never printed.
+ROTATE = {n.strip() for n in os.environ.get("GATEWAY_ROTATE_SECRETS", "").split(",") if n.strip()}
+ROTATED = set()
+
+
 def ensure_secret(spec):
     def find():
         return next((s["secret_id"] for s in _list("/secrets/list") if s["secret_name"] == spec["secret_name"]), None)
     if (sid := find()):
+        if spec["secret_name"] in ROTATE:
+            _req("POST", "/secrets/update", {"secret_id": sid, "secret_value": {"api_key": spec["api_key"]}})
+            print(f"  rotated secret {spec['secret_name']} (id {sid}, value not shown)")
+            ROTATED.add(spec["secret_name"])
         return sid
     auth_config = {"auth_mode": "api_key"}
     if spec.get("api_base"):  # only Ollama/LiteLLM/Groq-via-openai; native cloud providers use their default endpoint
@@ -347,6 +362,9 @@ def refresh_guardrails():
 
 def main():
     sids = {s["secret_name"]: ensure_secret(s) for s in SECRETS}
+    if ROTATE - ROTATED:  # fail closed: a requested rotation that did not happen must never read as done
+        raise SystemExit(f"NOT ROTATED: {sorted(ROTATE - ROTATED)} — no existing secret by that name, or its key is "
+                         "missing from scripts/.env. The gateway still holds the old value.")
     print(f"secrets: {sids}")
     existing = {e["name"] for e in _list("/endpoints/list")}
     created = skipped = 0
