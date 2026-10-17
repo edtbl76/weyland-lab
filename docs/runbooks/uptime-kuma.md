@@ -28,6 +28,7 @@ after every successful push (found 2026-10-03: `machine-inventory-drift` and `ag
 | `machine-inventory-drift` | `machine-inv-drift.timer` (rogueone) | nightly ~03:45 | **93600 s** (26 h) — fixed from 60 s 2026-10-03 | `KUMA_INVENTORY_PUSH_URL` |
 | `agent-memory` | `agent-memory-watch.timer` (rogueone, B182) | every 15 min | **1200 s** (20 min) — fixed from 60 s 2026-10-03 | `KUMA_MEMORY_PUSH_URL` |
 | `emdash-conveyor` | `emdash-conveyor-watch.timer` (rogueone, B179) | daily 06:00 | **90000 s** (25 h) | `KUMA_CONVEYOR_PUSH_URL` |
+| `lan-nodeports` | `lan-nodeport-watch.timer` (rogueone, B219) | every 15 min | **1200 s** (20 min) | `KUMA_LAN_PUSH_URL` |
 
 **This table is checked nightly** (2026-10-13): `machine-inv-drift.sh` runs `scripts/kuma_push_check.py`, which reads
 every push monitor from Kuma's store (read-only) and turns `machine-inventory-drift` down on any interval that differs
@@ -39,6 +40,19 @@ hand on rogueone:
 python3 /home/edwardmangini/IdeaProjects/weyland/scripts/kuma_push_check.py
 ```
 Exit 0 all match · 1 findings, named · 2 could not read Kuma (never clean).
+
+**Create a push monitor (step by step, Kuma 1.x).** Add its row to the table above FIRST, then:
+1. Open `https://kuma.weyland.lab` (Keycloak SSO, then Kuma's own login: `admin` / `LAB_PASSWORD` from `scripts/.env`).
+2. **+ Add New Monitor** (top left).
+3. **Monitor Type:** `Push`. **Friendly Name:** the table's name (e.g. `lan-nodeports`).
+4. **Heartbeat Interval:** the table's value (e.g. `1200`) — the FIRST interval field, not *Heartbeat Retry Interval*.
+5. **Notifications** (right-hand column): tick the Telegram notification.
+6. The form shows a **Push URL** (`https://kuma.weyland.lab/api/push/<token>?status=up&msg=OK&ping=`) with a copy
+   button. Copy it and **delete everything from `?` on** — the watcher appends its own `?status=…`.
+7. **Save**.
+8. Put it in `scripts/.env` yourself as `<ENV VAR>=https://kuma.weyland.lab/api/push/<token>` (the table's env var).
+   Never paste the URL into chat — the token is the credential.
+9. Check: `python3 /home/edwardmangini/IdeaProjects/weyland/scripts/kuma_push_check.py` exits 0.
 
 A **down** push is not the same as a missed one: `machine-inventory-drift` pushes `down` when the job or the estate
 failed (an unreachable host, host placement drift, Port emit/verify, a push-interval finding). Catalog drift alone is
