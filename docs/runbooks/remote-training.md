@@ -211,7 +211,7 @@ then pyarrow/numpy pickle/serialization ABI mismatches, then the boto3 upload). 
 
 | Layer | Requirement | Failure if mismatched |
 |---|---|---|
-| Python | **3.11.9** (patch-exact, via `pyenv`) | Ray rejects the worker on version mismatch |
+| Python | **3.11.14** today (patch-exact, via `pyenv`; was 3.11.9 at Ray 2.37) | Ray rejects the worker on version mismatch |
 | Ray | `ray[tune]==2.37.0` (not `ray[default]`) | `fsspec` / `ray.tune` ImportError |
 | Serialization | `pyarrow==14.0.2`, `numpy==1.26.4`, `pandas==1.5.3`, `scikit-learn`, `mlflow==2.18.0` | `LocalFileSystem._reconstruct` / numpy ABI errors mid-sweep |
 | S3 client | `boto3==1.26.76`, `botocore==1.29.165`, `s3transfer==0.6.2` | `UnboundLocalError` in botocore `serialize.py` on artifact upload |
@@ -219,14 +219,20 @@ then pyarrow/numpy pickle/serialization ABI mismatches, then the boto3 upload). 
 **The durable fix is to build the worker venv from the head's `pip freeze`** — one source of truth, no
 whack-a-mole:
 ```
-# on mother:  capture the head's exact env
-kubectl -n weyland exec deploy/ray-head -- pip freeze > head-freeze.txt   # copy head-freeze.txt to rogueone
-# on rogueone: recreate the venv against it
-pyenv install -s 3.11.9
-rm -rf ~/ray-worker && ~/.pyenv/versions/3.11.9/bin/python -m venv ~/ray-worker
-~/ray-worker/bin/pip install -U pip && ~/ray-worker/bin/pip install -r head-freeze.txt py-spy
+# on rogueone (kubectl reaches the cluster from here): capture the head's exact env as PLAIN pins
+kubectl -n weyland exec deploy/ray-head -- pip list --format=freeze | grep -viE '^(conda|conda[-_][a-z_-]+|libmambapy|menuinst|pycosat|py-rattler|pip|setuptools|wheel)==' > ~/head-freeze.txt
+# recreate the venv against it (the head's Python is 3.11.14 — patch-exact)
+pyenv install -s 3.11.14
+rm -rf ~/ray-worker && ~/.pyenv/versions/3.11.14/bin/python -m venv ~/ray-worker && ~/ray-worker/bin/pip install -U pip && ~/ray-worker/bin/pip install -r ~/head-freeze.txt py-spy
 sudo systemctl restart ray-worker
 ```
+**`pip list --format=freeze`, not `pip freeze`** (2026-10-17). Since the head moved to the conda-based
+`rayproject/ray` image, `pip freeze` prints `@ file:///home/conda/feedstock_root/...` paths for 48 conda-installed
+packages, Ray itself included, and the install fails on the first one. `pip list --format=freeze` prints plain
+`name==version`; conda's own tooling is dropped because it is not on PyPI and a worker never needs it. Proven
+2026-10-17 in a scratch venv: installs clean, `pip check` clean, ray 2.56.0 + mlflow 3.16.1 import.
+**Rebuild the worker after every ray-head tag change** (B214's v10 moved mlflow 3.14 → 3.16.1 on the head while the
+worker kept 3.14.0, the mismatch the table above warns of).
 (A failed start can leave an **orphan raylet** advertising the wrong CPU/GPU count — clear it with
 `~/ray-worker/bin/ray stop --force; pkill -9 -f raylet` before restarting.)
 
