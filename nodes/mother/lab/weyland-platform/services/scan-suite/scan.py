@@ -391,7 +391,14 @@ def _is_trivy_report(d):
 def _trivy_image(ref):
     """trivy's JSON report for one image, or None when it could not scan (never an empty report)."""
     out = f"{OUT}/.trivy-image.json"
-    sh(["trivy", "image", "--scanners", "vuln", "--insecure", "--quiet", "--format", "json", "--output", out, ref])
+    cmd = ["trivy", "image", "--scanners", "vuln", "--insecure", "--quiet", "--format", "json", "--output", out]
+    # Accepted image findings (B220, 2026-10-17): until now the image scan applied NO ignore file, so a finding accepted
+    # with a reason (kernel headers no container executes, with no Ubuntu fix yet) was re-reported forever. Each entry in
+    # .trivyignore-images.yaml names its id AND its package purl, so the acceptance cannot spread to another package.
+    ign = f"{SRC}/.trivyignore-images.yaml"
+    if os.path.exists(ign):
+        cmd += ["--ignorefile", ign]
+    sh(cmd + [ref])
     d = load(out)
     try:
         os.remove(out)

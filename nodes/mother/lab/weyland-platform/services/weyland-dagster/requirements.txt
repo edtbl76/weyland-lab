@@ -1,6 +1,6 @@
 acryl-datahub==1.6.0.15
-adbc-driver-flightsql==1.11.0
-adbc-driver-manager==1.11.0
+adbc-driver-flightsql==1.12.0
+adbc-driver-manager==1.12.0
 aenum==3.1.17
 agate==1.9.1
 aiobotocore==3.8.0

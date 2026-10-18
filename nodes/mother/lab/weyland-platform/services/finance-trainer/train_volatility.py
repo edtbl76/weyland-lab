@@ -31,6 +31,12 @@ import pandas as pd
 from minio import Minio
 from mlflow.tracking import MlflowClient
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+
+# skops >= 0.16 (2026-10) refuses to load sklearn's tree node storage unless the caller trusts it, and MLflow's sklearn
+# flavour re-loads the model it just saved to check it — so every RandomForest log_model failed on a fresh build
+# (UntrustedTypesFoundException, found 2026-10-17 by B220's proof run). skops' warning is about a malicious file from
+# someone else; this model was trained seconds earlier in this process, so trusting the type is accurate.
+SKOPS_TRUSTED = ["sklearn.tree._tree.Tree"]
 from sklearn.metrics import accuracy_score, f1_score, r2_score, root_mean_squared_error
 from sklearn.model_selection import train_test_split
 
@@ -113,7 +119,8 @@ def _register(model, params, metrics, run_name, registered_model):
         mlflow.log_params({"n_features": len(FEATURES), **params})
         mlflow.log_metrics(metrics)
         t0 = time.time()
-        mlflow.sklearn.log_model(model, "model", registered_model_name=registered_model)
+        mlflow.sklearn.log_model(model, "model", registered_model_name=registered_model,
+                                 skops_trusted_types=SKOPS_TRUSTED)
         log(f"model registered as {registered_model!r} in {time.time() - t0:.1f}s — "
             + " ".join(f"{k}={v:.4f}" for k, v in metrics.items()))
 

@@ -36,6 +36,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import train_test_split
 
+# skops >= 0.16 (2026-10) refuses to load sklearn's tree node storage unless the caller trusts it, and MLflow's sklearn
+# flavour re-loads the model it just saved to check it — so every RandomForest log_model failed on a fresh build
+# (UntrustedTypesFoundException, found 2026-10-17 by B220's proof run). skops' warning is about a malicious file from
+# someone else; this model was trained seconds earlier in this process, so trusting the type is accurate.
+SKOPS_TRUSTED = ["sklearn.tree._tree.Tree"]
+
 AUDIO = ["danceability", "energy", "key", "loudness", "mode", "speechiness",
          "acousticness", "instrumentalness", "liveness", "valence", "tempo"]
 
@@ -190,7 +196,8 @@ def _register(clf, source, params, acc, f1, n_classes, n_rows, run_name, registe
                            "n_classes": int(n_classes), "n_rows": int(n_rows), **params})
         mlflow.log_metrics({"accuracy": acc, "f1_macro": f1})
         t0 = time.time()
-        mlflow.sklearn.log_model(clf, "model", registered_model_name=registered_model)
+        mlflow.sklearn.log_model(clf, "model", registered_model_name=registered_model,
+                                 skops_trusted_types=SKOPS_TRUSTED)
         log(f"model logged + registered as {registered_model!r} in {time.time() - t0:.1f}s "
             f"— acc={acc:.3f} f1_macro={f1:.3f}")
 
@@ -307,7 +314,8 @@ def _tune(args, splits, n_classes, n_rows):
                                "n_classes": int(n_classes), "n_rows": int(n_rows), "mode": "ray-tune-best",
                                "tune_trials": trials_n, **{k: config[k] for k in _pk}})
             mlflow.log_metrics({"accuracy": acc, "f1_macro": f1})
-            mlflow.sklearn.log_model(clf, "model", registered_model_name=registered)
+            mlflow.sklearn.log_model(clf, "model", registered_model_name=registered,
+                                     skops_trusted_types=SKOPS_TRUSTED)
         return acc, f1
 
     acc, f1 = ray.get(retrain_register.remote(bc))

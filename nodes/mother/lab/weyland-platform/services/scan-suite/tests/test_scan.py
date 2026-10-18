@@ -127,3 +127,29 @@ def test_hadolint_maps_levels(scan, captured_posts, monkeypatch):
     scan.hadolint()
     # error→high, warning→medium, info→low, style→low
     assert captured_posts[-1] == ("hadolint", {"critical": 0, "high": 1, "medium": 1, "low": 2})
+
+
+# ── trivy image: accepted findings (B220, 2026-10-17) ─────────────────────────────────────────────
+# The image scan applied NO ignore file, so an image finding accepted with a reason had nowhere to be recorded and
+# was re-reported forever. It now reads SRC/.trivyignore-images.yaml when the scanned repo has one, and only then.
+def _image_cmds(scan, monkeypatch):
+    calls = []
+    monkeypatch.setattr(scan, "sh", lambda cmd, **k: calls.append(cmd))
+    monkeypatch.setattr(scan, "load", lambda p: {"SchemaVersion": 2, "ArtifactName": "x"})
+    scan._trivy_image("registry.weyland.lab/x:v1")
+    return [c for c in calls if c[:2] == ["trivy", "image"]]
+
+
+def test_trivy_image_passes_the_image_ignorefile_when_the_repo_has_one(scan, monkeypatch, tmp_path):
+    (tmp_path / ".trivyignore-images.yaml").write_text("vulnerabilities: []\n")
+    monkeypatch.setattr(scan, "SRC", str(tmp_path))
+    (cmd,) = _image_cmds(scan, monkeypatch)
+    i = cmd.index("--ignorefile")
+    assert cmd[i + 1] == f"{tmp_path}/.trivyignore-images.yaml"
+    assert cmd[-1] == "registry.weyland.lab/x:v1"
+
+
+def test_trivy_image_runs_without_an_ignorefile_when_the_repo_has_none(scan, monkeypatch, tmp_path):
+    monkeypatch.setattr(scan, "SRC", str(tmp_path))
+    (cmd,) = _image_cmds(scan, monkeypatch)
+    assert "--ignorefile" not in cmd

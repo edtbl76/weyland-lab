@@ -7,7 +7,9 @@
 # the singleuser postStart hook (see jupyterhub-values.yaml) — git is already in the scipy base, so growing the
 # library is a `git push`, NOT an image rebuild. Rebuild this image only to refresh the offline fallback or the
 # pinned deps below.
-FROM quay.io/jupyter/scipy-notebook:latest
+# Pinned by digest (2026-10-17, B220): `:latest` silently jumped ubuntu-24.04 → 26.04 and JupyterHub 5 → 6 between
+# rebuilds. This digest = lab-4.6.4 / python-3.13.16 / ubuntu-26.04 (2026-10-12), the one tested. Bump it on purpose.
+FROM quay.io/jupyter/scipy-notebook:lab-4.6.4@sha256:8f8a5763d9a01e7f488eff8d9379654788e9cc08286dbcbc6bcda129c1b0edcd
 USER root
 # 2026-10-16: the additions are pinned (requirements-lake.txt, the versions weyland-jupyter:v1 runs).
 COPY requirements-lake.txt /tmp/requirements-lake.txt

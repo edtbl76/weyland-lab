@@ -194,7 +194,7 @@ spec:
         # repo). The ConfigMap mount is read-only, so render here — copy the template + sed each @@TOKEN@@ into the
         # writable emptyDir the main container mounts as key/.
         - name: render-install-props
-          image: registry.weyland.lab/ranger:2.6.0-py3
+          image: registry.weyland.lab/ranger:2.6.0-py3-r2
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args:
@@ -209,7 +209,9 @@ spec:
             - { name: key-template, mountPath: /template }
       containers:
         - name: ranger-admin
-          image: registry.weyland.lab/ranger:2.6.0-py3   # baked = mr3project/ranger:2.6.0 + python3 (services/ranger/Dockerfile)
+          # r2 (2026-10-17, B220): rebuilt with apt on archive.debian.org (Debian 11 is EOL; the old build 404'd) +
+          # apt-get upgrade — 84 fewer HIGH/CRITICAL. Still Debian 11: the real fix is B221. Roll back = 2.6.0-py3.
+          image: registry.weyland.lab/ranger:2.6.0-py3-r2   # baked = mr3project/ranger:2.6.0 + python3 (services/ranger/Dockerfile)
           imagePullPolicy: IfNotPresent            # local ctr-imported image (same pattern as the dagster image)
           command: ["/bin/bash", "-c"]
           args:

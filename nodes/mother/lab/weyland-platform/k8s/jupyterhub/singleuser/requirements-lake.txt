@@ -9,3 +9,7 @@ aiobotocore==3.7.0
 pylance==8.0.0
 duckdb==1.5.4
 fastavro==1.12.2
+# 2026-10-17 (B220): the base moved to JupyterHub 6.0.1 (ubuntu-26.04); the hub runs k8s-hub 3.3.8 = JupyterHub 4.1.6.
+# Pin the singleuser side to 5.5.0 — the version weyland-jupyter:v1 ran against this hub, proven to spawn. Lift it with
+# the hub chart upgrade, never alone.
+jupyterhub==5.5.0

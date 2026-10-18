@@ -3,6 +3,31 @@
 # webhook (same payload as the semgrep/trivy Jobs) + raw JSON archived to MinIO s3://scan-reports/<ts>/ (90d ILM;
 # OUT itself is an emptyDir, so the upload is what makes findings outlive the pod). Built + pushed to
 # registry.weyland.lab via scripts/build-push-images.sh. Pin bumps: check each tool's latest release if a URL 404s.
+# Go tools are BUILT FROM SOURCE with one current toolchain (2026-10-17, B220). Every Go binary carries the Go runtime
+# and modules it was built with, and upstream release builds lag: the old set carried Go-stdlib and golang.org/x/text
+# advisories (gitleaks' newest release is still go1.24; kubescape/osv-scanner/shfmt releases go1.26.8–1.27.1, short
+# of the go1.27.2 fixes). Building here puts every tool on go1.27.2, and gitleaks on x/text 0.41.0 (its go.mod pins
+# 0.22). osv-scanner v2 needs go ≥ 1.27; kubescape's go.mod has replace directives, so it builds from a clone.
+# Contract checks for the major bumps (kubescape v3 → v4, osv-scanner v1 → v2), run on this repo 2026-10-17:
+#   kubescape: identical resourcesSeverityCounters + ResourceCounters (653 H / 799 M / 392 L, 163 failing resources).
+#   osv-scanner: same flags and JSON shape; the osv-scanner.toml accept list still applies (0 of 7 accepted ids
+#   reported). v2 reports FEWER: v1 scored an UNPINNED requirement as version 0.0.0 and listed every advisory ever
+#   filed for it (91 phantoms on golden-paths/python/django alone).
+FROM golang:1.27.2 AS gotools
+ENV GOTOOLCHAIN=local GOBIN=/out
+RUN set -eux; \
+    go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.7.0; \
+    go install mvdan.cc/sh/v3/cmd/shfmt@v3.14.1; \
+    go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0; \
+    go install golang.org/x/vuln/cmd/govulncheck@v1.1.4; \
+    go install honnef.co/go/tools/cmd/staticcheck@2026.2.2; \
+    git clone -q --depth 1 -b v8.30.1 https://github.com/gitleaks/gitleaks /src/gitleaks; \
+    git clone -q --depth 1 -b v4.0.16 https://github.com/kubescape/kubescape /src/kubescape
+WORKDIR /src/gitleaks
+RUN go get golang.org/x/text@v0.41.0 && go build -o /out/gitleaks .
+WORKDIR /src/kubescape
+RUN go build -o /out/kubescape .
+
 FROM python:3.12-slim
 ENV DEBIAN_FRONTEND=noninteractive
 # boto3 (for the MinIO archive step in scan.py) is deliberately UNPINNED: checkov pins boto3 to an EXACT version
@@ -16,28 +41,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Static binaries (amd64). Each is a single file → drop into /usr/local/bin.
+# Static binaries (amd64). Each is a single file → drop into /usr/local/bin. trivy's release is already built with
+# go1.27.2 (bumped 0.72 → 0.76, 2026-10-17); the other Go tools come from the gotools stage above.
 RUN set -eux; \
-    curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" | tar -xz -C /usr/local/bin gitleaks; \
-    curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.72.0/trivy_0.72.0_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy; \
+    curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy; \
     curl -fsSL -o /usr/local/bin/hadolint "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64"; \
-    curl -fsSL -o /usr/local/bin/kubescape "https://github.com/kubescape/kubescape/releases/download/v3.0.8/kubescape-ubuntu-latest"; \
-    curl -fsSL -o /usr/local/bin/osv-scanner "https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64"; \
     curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz" | tar -xJ --strip-components=1 -C /usr/local/bin shellcheck-v0.10.0/shellcheck; \
     curl -fsSL -o /opt/code-maat.jar "https://github.com/adamtornhill/code-maat/releases/download/v1.0.4/code-maat-1.0.4-standalone.jar"; \
-    curl -fsSL "https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64" -o /usr/local/bin/shfmt; \
-    chmod +x /usr/local/bin/hadolint /usr/local/bin/kubescape /usr/local/bin/osv-scanner /usr/local/bin/shfmt
+    chmod +x /usr/local/bin/hadolint
 
 # Go toolchain + Go security tools (gosec/govulncheck/staticcheck) for polyglot repos (Stud.io etc.). `go vet`
-# ships with the toolchain. GOBIN → /usr/local/bin (world-readable, on PATH for uid 10001); a go.mod-less repo
-# (weyland's own tree) no-ops these cleanly. Runtime GOCACHE/GOPATH default under the scan user's writable $HOME.
-ENV PATH=/usr/local/go/bin:/usr/local/bin:$PATH
-RUN set -eux; \
-    curl -fsSL "https://go.dev/dl/go1.23.4.linux-amd64.tar.gz" | tar -xz -C /usr/local; \
-    GOBIN=/usr/local/bin go install github.com/securego/gosec/v2/cmd/gosec@v2.21.4; \
-    GOBIN=/usr/local/bin go install golang.org/x/vuln/cmd/govulncheck@v1.1.3; \
-    GOBIN=/usr/local/bin go install honnef.co/go/tools/cmd/staticcheck@2024.1.1; \
-    rm -rf /root/.cache/go-build /root/go/pkg
+# ships with the toolchain. The analysers need the toolchain at scan time, so it is copied from the gotools stage
+# (go1.27.2) along with every Go tool built there. A go.mod-less repo (weyland's own tree) no-ops these cleanly.
+# Runtime GOCACHE/GOPATH default under the scan user's writable $HOME.
+ENV PATH=/usr/local/go/bin:/usr/local/bin:$PATH GOTOOLCHAIN=local
+COPY --from=gotools /usr/local/go /usr/local/go
+COPY --from=gotools /out/ /usr/local/bin/
 
 COPY scan.py /usr/local/bin/scan.py
 RUN useradd -u 10001 -m scan

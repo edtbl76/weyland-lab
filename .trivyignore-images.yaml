@@ -1,0 +1,254 @@
+# Accepted findings for the DEPLOYED-IMAGE scan (scan-suite `trivy-images`), applied with --ignorefile (B220,
+# 2026-10-17). The source scan keeps using .trivyignore. Same discipline as .trivyignore / osv-scanner.toml: every entry
+# says why it is fine and what would lift it. Every entry is scoped by PURL to its one package, so an acceptance never
+# hides the same id in another package, and carries an expiry so it is re-reviewed, never forgotten.
+#
+# weyland-jupyter (registry.weyland.lab/weyland-jupyter:v2, ubuntu-26.04 base) — linux-libc-dev 7.0.0-38.38.
+# Kernel HEADERS: C header files the compiler reads. The advisories are bugs in the Linux kernel; a container runs on
+# the host's kernel (mother) and never executes these files. The package is there because the notebook image keeps a C
+# compiler (gcc → libc6-dev → linux-libc-dev) so users can `pip install` packages that need building — the owner chose
+# to keep it (2026-10-17). Ubuntu has published no fixed version yet (apt-cache policy: 7.0.0-38.38 is the candidate).
+# LIFT: rebuild weyland-jupyter when Ubuntu ships a fixed linux-libc-dev, then delete these entries.
+vulnerabilities:
+  - id: CVE-2022-50240
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2025-40190
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-68103
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-68451
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-72198
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-72497
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-74446
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-74465
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-74470
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-74506
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-74510
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-74529
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-74534
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-74535
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80681
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80683
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80691
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80692
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80693
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80700
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80702
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80710
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80714
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80716
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80718
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-80721
+    purls:
+      - pkg:deb/ubuntu/linux-libc-dev
+    statement: kernel headers, never executed in a container; no Ubuntu fix yet (weyland-jupyter v2; B220)
+    expired_at: 2027-01-17
+
+# weyland-dagster-user-code — adbc_driver_flightsql 1.12.0 (PyPI's newest), libadbc_driver_flightsql.so. The wheel bundles
+# a compiled Go library with its own runtime + modules (go1.26.5, grpc 1.82.1, x/net 0.57.0, x/text 0.40.0); pip cannot
+# upgrade those, and no published wheel is newer. Only emit_duckdb() uses it (GizmoSQL → DataHub catalog, in-cluster).
+# The owner chose to wait for upstream over building the driver from Arrow's source (2026-10-17). Scoped to the driver's
+# PATH as well as the package, so the same stdlib/grpc ids in any other Go binary are still reported.
+# LIFT: an adbc release built with go >= 1.26.9 (or 1.27.2) and grpc >= 1.83.1 — bump requirements.txt, delete these.
+  - id: CVE-2026-33818
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/stdlib
+    statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.25.13, 1.26.6, 1.27.0-rc.3; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-39821
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/stdlib
+    statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.25.13, 1.26.6, 1.27.0-rc.3; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-46600
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/stdlib
+    statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.26.6, 1.27.0-rc.3; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-56851
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/golang.org/x/text
+    statement: golang.org/x/text v0.40.0 bundled in adbc_driver_flightsql 1.12.0, fixed in 0.41.0; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-56853
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/stdlib
+    statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.25.13, 1.26.6, 1.27.0-rc.3; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-56858
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/stdlib
+    statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.25.13, 1.26.6, 1.27.0-rc.3; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-56859
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/stdlib
+    statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.25.13, 1.26.6, 1.27.0-rc.3; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-56860
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/stdlib
+    statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.25.13, 1.26.6, 1.27.0-rc.3; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-56862
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/stdlib
+    statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.25.13, 1.26.6, 1.27.0-rc.3; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-78667
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/stdlib
+    statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.26.9, 1.27.2; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-78669
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/golang.org/x/net
+    statement: golang.org/x/net v0.57.0 bundled in adbc_driver_flightsql 1.12.0, fixed in 0.60.0; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-78669
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/stdlib
+    statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.26.9, 1.27.2; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-84304
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/google.golang.org/grpc
+    statement: google.golang.org/grpc v1.82.1 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.83.1; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-84445
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/google.golang.org/grpc
+    statement: google.golang.org/grpc v1.82.1 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.82.2, 1.83.2, 1.84.0-dev.0.20260825144003-d5a41119e0e3, 1.85.0-dev.0.20260825072537-93e31b48545e; no newer wheel yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-97031
+    paths:
+      - "**/adbc_driver_flightsql/libadbc_driver_flightsql.so"
+    purls:
+      - pkg:golang/stdlib
+    statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.26.9, 1.27.2; no newer wheel yet (B220)
+    expired_at: 2027-01-17

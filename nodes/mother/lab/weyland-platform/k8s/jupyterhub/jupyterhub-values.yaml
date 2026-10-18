@@ -63,7 +63,10 @@ singleuser:
     # triggers a re-pull. Rebuild = bump the tag + `docker build/push registry.weyland.lab/weyland-jupyter:<tag>`
     # + bump `tag` here (dagster-image-registry-tag-flow pattern). No imagePullSecret — the node has registry access.
     name: registry.weyland.lab/weyland-jupyter
-    tag: v1
+    # v2 (2026-10-17, B220): rebuilt on scipy-notebook pinned by digest (ubuntu-26.04, lab 4.6.4) — 100 → 26
+    # linux-libc-dev advisories — with jupyterhub pinned to 5.5.0 to match this hub (k8s-hub 3.3.8 = JupyterHub 4.1.6),
+    # the version v1 ran. Roll back = set v1 (still in the registry).
+    tag: v2
     pullPolicy: IfNotPresent
   storage:
     capacity: 2Gi

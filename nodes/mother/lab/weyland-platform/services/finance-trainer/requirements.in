@@ -3,11 +3,15 @@
 # had drifted into an unbuildable state (pinned cryptography==50.0.0 against mlflow's cryptography<50), so a
 # fresh rebuild failed ResolutionImpossible. A lean top-level list is reproducible enough for an on-demand lab
 # trainer and can't rot the same way. `ray[default]` carries ray.tune + the dashboard for `--task … --tune`.
-mlflow
+# 2026-10-17 (B220): pinned to the MLflow SERVER's version (ghcr.io/mlflow/mlflow:v3.16.1) — a newer client can call
+# APIs the server lacks. Bump with the server.
+mlflow==3.16.1
 scikit-learn
 pandas
 numpy
 minio
 pyarrow
 boto3
-ray[default]
+# 2026-10-17 (B220): Ray's client and cluster must be the SAME version — `--tune` joins the ray-head cluster, which
+# runs ray 2.56.0 (registry.weyland.lab/ray-head:v10). Unpinned, a rebuild resolved 2.59.0. Bump with ray-head.
+ray[default]==2.56.0

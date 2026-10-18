@@ -50,15 +50,19 @@ amd64/x86_64, matching the cluster) + push + run:
 
 ```
 cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services
-docker build -t registry.weyland.lab/finance-trainer:v1 finance-trainer
-docker push registry.weyland.lab/finance-trainer:v1
-docker run --rm -v "$HOME/.kube/config":/app/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/finance-trainer:v1 --task both
+docker build -t registry.weyland.lab/finance-trainer:v2 finance-trainer
+docker push registry.weyland.lab/finance-trainer:v2
+docker run --rm -v "$HOME/.kube/config":/app/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/finance-trainer:v2 --task both
 ```
 
 Note the kubeconfig mounts to **`/app/.kube/config`** (the image runs as `appuser` with `HOME=/app`), NOT
-`/root/.kube/config`. The image uses a LEAN top-level `requirements.txt` (mlflow/scikit-learn/pandas/numpy/
-minio/pyarrow/boto3/ray[default]) — deliberately NOT genre-trainer's 130-line freeze, which had drifted to an
-unbuildable pin set (`cryptography==50.0.0` vs mlflow's `cryptography<50`).
+`/root/.kube/config`. **Pinned since v2 (2026-10-17, B220):** `requirements.in` is the human-edited source (the
+top-level deps, plus `mlflow==3.16.1` = the server and `ray[default]==2.56.0` = the ray-head cluster, which must
+match); `requirements.txt` is the FULL set frozen from a clean resolve of it (119 pins, `pip check` clean) —
+recompile it, never hand-edit (genre-trainer's hand-kept freeze once drifted into an unresolvable set). Unpinned, a
+rebuild had resolved ray 2.59.0 against the 2.56.0 cluster. **skops >= 0.16** refuses sklearn's tree storage unless
+trusted, so `log_model` passes `skops_trusted_types=["sklearn.tree._tree.Tree"]` (the model was trained in-process).
+Proven 2026-10-17: `--task both` registered `price_volatility_regressor` / `_classifier` v3.
 
 ## 3. Result
 
