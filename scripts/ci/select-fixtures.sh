@@ -66,8 +66,9 @@ fi
 
 # 3. Decide. Python matches each changed file against the manifest's fixture_trigger_paths prefixes.
 #    Any python trouble (missing python3, missing pyyaml, unparseable manifest, no prefixes) prints "1".
+LIST_ROOTS_CMD="${SELECT_LIST_ROOTS_CMD:-bash $ROOT/scripts/run-lang-tests.sh}"
 CHANGED="$changed" MANIFEST="$MANIFEST" WP_BASE="$WP_BASE" WP_HEAD="$WP_HEAD" PLAN="$PLAN" ROOT="$ROOT" \
-  LIST_ROOTS_CMD="${SELECT_LIST_ROOTS_CMD:-bash $ROOT/scripts/run-lang-tests.sh}" python3 - <<'PY' || emit_run_all
+  LIST_ROOTS_CMD="$LIST_ROOTS_CMD" python3 - <<'PY' || emit_run_all
 import os, re, shlex, subprocess, sys
 PLAN = os.environ.get("PLAN") == "1"
 FULL = "RUN_FIXTURES=1\nFIXTURE_LANES=''\nGOLDEN_PATH_ONLY=''"
