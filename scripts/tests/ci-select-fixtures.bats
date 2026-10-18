@@ -217,3 +217,135 @@ PY
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
   [[ "$output" == *"scripts checked"* ]] || { echo "$output"; return 1; }
 }
+
+# --- 2026-10-18: --plan narrows a golden-path-only change to the lanes that test it --------------------------------------
+# select-fixtures printed only 0/1, so ONE golden path's change (swift-nio in golden-paths/swift/vapor-app, CI #413) ran
+# all ~46 fixture lanes. --plan prints RUN_FIXTURES + FIXTURE_LANES (the lane keys: test-<key>/scan-<key>) +
+# GOLDEN_PATH_ONLY (the changed golden paths that have a Dockerfile, for golden-path-smoke). It narrows ONLY when every
+# fixture-path change is inside golden-paths/<a>/<b>/ and maps to lanes through the lanes' OWN discovery
+# (run-lang-tests.sh --list-roots); anything shared, unmapped or unreadable stays the full matrix (FIXTURE_LANES="").
+plan_wp() {  # a .woodpecker.yml with two lane keys (swift, node) + the smoke step
+  cat > "$1" <<'YML'
+steps:
+  - name: test-swift
+    when: [{event: [manual, cron], evaluate: 'RUN_FIXTURES != "0"'}]
+    commands: [bash scripts/run-lang-tests.sh swift]
+  - name: scan-swift
+    when: [{event: [manual, cron], evaluate: 'RUN_FIXTURES != "0"'}]
+    commands: [bash scripts/run-lang-scan.sh swift]
+  - name: test-node
+    when: [{event: [manual, cron], evaluate: 'RUN_FIXTURES != "0"'}]
+    commands: [bash scripts/run-lang-tests.sh javascript, bash scripts/run-lang-tests.sh react]
+  - name: golden-path-smoke
+    when: [{event: [manual, cron], evaluate: 'RUN_FIXTURES != "0"'}]
+    commands: [bash scripts/run-golden-path-jobs.sh $GOLDEN_PATH_ONLY]
+YML
+}
+ROOTS=$'swift golden-paths/swift/vapor-app\nswift golden-paths/mobile/swift-ios\njavascript golden-paths/node/express\nreact golden-paths/frontend/vite-react'
+
+plan() {  # plan <changed files>
+  plan_wp "$STUB_DIR/wp.yml"
+  SELECT_CHANGED_FILES="$1" SELECT_WOODPECKER_HEAD="$STUB_DIR/wp.yml" SELECT_LANG_ROOTS="$ROOTS" \
+    CI_LANGS_FILE="$MANIFEST" run bash "$GUARD" --plan
+}
+
+@test "--plan: one golden path narrows to its own lanes and smoke-tests only that path" {
+  plan $'golden-paths/swift/vapor-app/Package.resolved'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"RUN_FIXTURES=1"* ]]
+  [[ "$output" == *"FIXTURE_LANES='swift'"* ]]
+  [[ "$output" == *"GOLDEN_PATH_ONLY='swift/vapor-app'"* ]]
+}
+
+@test "--plan: a path the lane DISCOVERS (not its fixture) selects that lane; no Dockerfile means no smoke target" {
+  plan $'golden-paths/mobile/swift-ios/Sources/App.swift'
+  [[ "$output" == *"FIXTURE_LANES='swift'"* ]]
+  [[ "$output" == *"GOLDEN_PATH_ONLY=''"* ]]
+}
+
+@test "--plan: two languages select both lanes" {
+  plan $'golden-paths/swift/vapor-app/Package.swift\ngolden-paths/frontend/vite-react/src/App.tsx'
+  [[ "$output" == *"FIXTURE_LANES='node swift'"* ]]
+  [[ "$output" == *"GOLDEN_PATH_ONLY='frontend/vite-react swift/vapor-app'"* ]]
+}
+
+@test "--plan: a golden path no fixture lane tests runs no lane (none), only its smoke" {
+  plan $'golden-paths/python/flask/app.py'
+  [[ "$output" == *"FIXTURE_LANES='none'"* ]]
+  [[ "$output" == *"GOLDEN_PATH_ONLY='python/flask'"* ]]
+}
+
+@test "--plan: a shared fixture trigger alongside stays the FULL matrix (empty FIXTURE_LANES = all)" {
+  plan $'golden-paths/swift/vapor-app/Package.swift\nscripts/run-lang-tests.sh'
+  [[ "$output" == *"RUN_FIXTURES=1"* ]]
+  [[ "$output" == *"FIXTURE_LANES=''"* ]]
+  [[ "$output" == *"GOLDEN_PATH_ONLY=''"* ]]
+}
+
+@test "--plan: production-only changes skip fixtures (RUN_FIXTURES=0)" {
+  plan $'nodes/mother/lab/weyland-platform/services/weyland-dagster/x.py'
+  [[ "$output" == *"RUN_FIXTURES=0"* ]]
+}
+
+@test "--plan: lane discovery that fails stays the full matrix, never a narrowed guess" {
+  plan_wp "$STUB_DIR/wp.yml"
+  stub failing-roots 3 ''
+  SELECT_CHANGED_FILES=$'golden-paths/swift/vapor-app/Package.swift' SELECT_WOODPECKER_HEAD="$STUB_DIR/wp.yml" \
+    SELECT_LIST_ROOTS_CMD="$STUB_DIR/failing-roots" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD" --plan
+  [[ "$output" == *"RUN_FIXTURES=1"* ]]
+  [[ "$output" == *"FIXTURE_LANES=''"* ]]
+}
+
+@test "--plan output is eval-safe shell assignments, three lines" {
+  plan $'golden-paths/swift/vapor-app/Package.resolved'
+  [ "${#lines[@]}" -eq 3 ]
+  eval "$output"
+  [ "$FIXTURE_LANES" = "swift" ]
+}
+
+@test "the REAL .woodpecker.yml: every fixture lane gates on its OWN lane key, and the smoke step on its scope" {
+  python3 - "$REPO_ROOT/.woodpecker.yml" <<'PY'
+import re, sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+bad = []
+for s in d["steps"]:
+    w = str(s.get("when", ""))
+    if "RUN_FIXTURES" not in w:
+        continue
+    name = s["name"]
+    if name == "golden-path-smoke":
+        if "GOLDEN_PATH_ONLY" not in w or "FIXTURE_LANES" not in w:
+            bad.append(f"{name}: must gate on FIXTURE_LANES + GOLDEN_PATH_ONLY")
+        continue
+    key = re.sub(r"^(test|scan)-", "", name)
+    if f'" {key} "' not in w or "FIXTURE_LANES" not in w:
+        bad.append(f"{name}: evaluate must test FIXTURE_LANES for \" {key} \"")
+print("\n".join(bad)); sys.exit(1 if bad else 0)
+PY
+}
+
+@test "--plan: a .woodpecker.yml change confined to ONE lane's steps narrows to that lane (the swift 6.4.1 bump)" {
+  plan_wp "$STUB_DIR/base.yml"
+  sed 's|run-lang-tests.sh swift]|run-lang-tests.sh swift, echo swift-6.4.1]|' "$STUB_DIR/base.yml" > "$STUB_DIR/head.yml"
+  SELECT_CHANGED_FILES=$'.woodpecker.yml\ngolden-paths/swift/vapor-app/Package.resolved' \
+    SELECT_WOODPECKER_BASE="$STUB_DIR/base.yml" SELECT_WOODPECKER_HEAD="$STUB_DIR/head.yml" \
+    SELECT_LANG_ROOTS="$ROOTS" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD" --plan
+  [[ "$output" == *"FIXTURE_LANES='swift'"* ]]
+  [[ "$output" == *"GOLDEN_PATH_ONLY='swift/vapor-app'"* ]]
+}
+
+@test "--plan: a change to the golden-path-smoke step itself stays the full matrix" {
+  plan_wp "$STUB_DIR/base.yml"
+  sed 's|run-golden-path-jobs.sh $GOLDEN_PATH_ONLY|run-golden-path-jobs.sh --verbose $GOLDEN_PATH_ONLY|' "$STUB_DIR/base.yml" > "$STUB_DIR/head.yml"
+  SELECT_CHANGED_FILES=$'.woodpecker.yml' SELECT_WOODPECKER_BASE="$STUB_DIR/base.yml" SELECT_WOODPECKER_HEAD="$STUB_DIR/head.yml" \
+    SELECT_LANG_ROOTS="$ROOTS" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD" --plan
+  [[ "$output" == *"FIXTURE_LANES=''"* ]]
+}
+
+@test "--plan: a top-level .woodpecker.yml change stays the full matrix even if a lane step also changed" {
+  plan_wp "$STUB_DIR/base.yml"
+  { echo "labels: {backend: docker}"; sed 's|run-lang-tests.sh swift]|run-lang-tests.sh swift, echo x]|' "$STUB_DIR/base.yml"; } > "$STUB_DIR/head.yml"
+  SELECT_CHANGED_FILES=$'.woodpecker.yml' SELECT_WOODPECKER_BASE="$STUB_DIR/base.yml" SELECT_WOODPECKER_HEAD="$STUB_DIR/head.yml" \
+    SELECT_LANG_ROOTS="$ROOTS" CI_LANGS_FILE="$MANIFEST" run bash "$GUARD" --plan
+  [[ "$output" == *"FIXTURE_LANES=''"* ]]
+}

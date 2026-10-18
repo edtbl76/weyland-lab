@@ -18,10 +18,10 @@
 # fixture_trigger_path all yield RUN_FIXTURES=1 (run everything). "Skip" is only ever chosen on a
 # git diff that SUCCEEDED and matched none of the trigger paths.
 #
-# COARSE ON PURPOSE (it's a lab): a change to ONE golden path re-runs ALL fixture lanes, not just that
-# language. Golden-path edits are rare and usually touch shared scaffolding, so running the whole matrix
-# then is correct and cheap to reason about. Per-language precision is a possible future refinement if
-# golden-path edits ever become frequent (they are not). Runbook: docs/runbooks/woodpecker.md.
+# PER-LANE (2026-10-18): `select-fixtures.sh --plan` narrows a change confined to golden paths (or to lane steps in
+# .woodpecker.yml) to the lanes that test it (FIXTURE_LANES) + the changed golden paths for the smoke (GOLDEN_PATH_ONLY),
+# mapped through each lane's own discovery (run-lang-tests.sh --list-roots). It was coarse until a one-path Swift bump ran
+# all 46 fixture lanes (#413). Anything shared or unmappable is still the full matrix. Runbook: docs/runbooks/woodpecker.md.
 
 # Lanes that ALWAYS run — they cover REAL production code, not hello-world fixtures. These keep the
 # plain `when: *skip_on_smoke` gate in .woodpecker.yml (never gated by RUN_FIXTURES). Listed here as the

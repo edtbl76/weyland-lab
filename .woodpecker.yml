@@ -393,7 +393,7 @@ steps:
       - bash scripts/coverage-ratchet.sh run java
 
   - name: test-go
-    when: &fixture [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0"'}]
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " go ")'}]
     image: golang:1.26
     environment:                              # B88 #6 — persist the go module + build caches
       GOMODCACHE: /cache/go/mod
@@ -408,7 +408,7 @@ steps:
       - bash scripts/coverage-ratchet.sh run go   # B88 gap #1 — coverage ratchet
 
   - name: test-rust
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " rust ")'}]
     image: rust:1-slim
     # B88 #6 — persist CARGO_HOME (registry + cargo-installed bins, so cargo-llvm-cov is not recompiled
     # every run). PATH is set LITERALLY (image PATH + the cache bin) rather than with $PATH, so the
@@ -438,7 +438,7 @@ steps:
       - bash scripts/coverage-ratchet.sh run rust
 
   - name: test-dotnet
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " dotnet ")'}]
     image: mcr.microsoft.com/dotnet/sdk:8.0
     commands:
       # No NuGet cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) — dotnet
@@ -449,21 +449,21 @@ steps:
 
   # B164 extended-language wave — clean keeps. Each verified in its toolchain image on rogueone before wiring.
   - name: test-erlang
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " erlang ")'}]
     image: erlang:27
     commands:
       - bash scripts/run-lang-tests.sh erlang --self-check
       - bash scripts/run-lang-tests.sh erlang
 
   - name: test-julia
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " julia ")'}]
     image: julia:1.11
     commands:
       - bash scripts/run-lang-tests.sh julia --self-check
       - bash scripts/run-lang-tests.sh julia
 
   - name: test-lua
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " lua ")'}]
     image: alpine:3.20
     commands:
       # OpenResty ships LuaJIT but no luarocks; busted runs on lua5.4 (the handlers are pure string ops,
@@ -475,7 +475,7 @@ steps:
       - bash scripts/run-lang-tests.sh lua
 
   - name: test-swift
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " swift ")'}]
     # swift:6.4.1 (2026-10-18, B220): swift-nio >= 2.98 needs tools 6.1 — on 6.0 the resolver held the golden path at
     # swift-nio 2.97.1 (5 advisories). Keep test-swift, scan-swift and golden-paths/swift/vapor-app/Dockerfile in step.
     image: swift:6.4.1
@@ -498,7 +498,7 @@ steps:
       - bash scripts/run-lang-tests.sh swift
 
   - name: test-dart
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " dart ")'}]
     image: dart:stable
     commands:
       - bash scripts/run-lang-tests.sh dart --self-check
@@ -506,7 +506,7 @@ steps:
 
   # B164 extended-language wave — optional/breadth langs (R/Perl/Haskell/Ada). Each docker-verified on rogueone.
   - name: test-r
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " r ")'}]
     image: rocker/r-ver:4
     commands:
       # the dispatch installs plumber/jsonlite/testthat (rocker PPM binaries) if absent
@@ -514,7 +514,7 @@ steps:
       - bash scripts/run-lang-tests.sh r
 
   - name: test-perl
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " perl ")'}]
     image: perl:5.40
     commands:
       # the dispatch runs `cpanm --installdeps .` (Mojolicious) — cpanm ships in the perl image
@@ -522,7 +522,7 @@ steps:
       - bash scripts/run-lang-tests.sh perl
 
   - name: test-haskell
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " haskell ")'}]
     image: haskell:9.8
     # GHC rebuilds Scotty's whole dep graph cold (no cabal cache volume yet) — heavy + best-effort, so
     # full-parallelism ($ncpus packages at once) OOM-killed the step pod on the RAM-tight node (#122).
@@ -544,7 +544,7 @@ steps:
       - bash scripts/run-lang-tests.sh haskell
 
   - name: test-ada
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " ada ")'}]
     image: ubuntu:24.04
     # Alire builds gnatcoll (AWS's dependency) FROM SOURCE — a source-builder like swift/haskell, and
     # best-effort by default, so gprbuild's $ncpus fan-out OOM-killed the step pod mid-compile (#124).
@@ -573,7 +573,7 @@ steps:
       - bash scripts/run-lang-tests.sh ada
 
   - name: test-kotlin
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " kotlin ")'}]
     image: gradle:8.10-jdk21
     commands:
       # No gradle cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) — gradle
@@ -583,7 +583,7 @@ steps:
       # (coverage ratchet for kotlin is a fast-follow, like dotnet)
 
   - name: test-scala
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " scala ")'}]
     image: sbtscala/scala-sbt:eclipse-temurin-21.0.12_8_1.13.0_3.8.4
     commands:
       # No sbt/coursier cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) —
@@ -593,7 +593,7 @@ steps:
       # (coverage ratchet for scala is a fast-follow, like dotnet/kotlin)
 
   - name: test-php
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " php ")'}]
     image: composer:2.7
     commands:
       - apk add --no-cache bash >/dev/null   # the composer image is alpine; the runner needs bash (arrays)
@@ -602,7 +602,7 @@ steps:
       # (coverage ratchet for php is a fast-follow, like dotnet/kotlin/scala)
 
   - name: test-ruby
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " ruby ")'}]
     image: ruby:3.3   # Debian-based: bash + build-essential (puma C ext) already present, no apk dance
     commands:
       - bash scripts/run-lang-tests.sh ruby --self-check
@@ -610,7 +610,7 @@ steps:
       # (coverage ratchet for ruby is a fast-follow, like dotnet/kotlin/scala/php)
 
   - name: test-elixir
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " elixir ")'}]
     image: elixir:1.17   # Debian-based: bash + build tools present
     commands:
       - mix local.hex --force && mix local.rebar --force
@@ -619,7 +619,7 @@ steps:
       # (coverage ratchet for elixir is a fast-follow, like dotnet/kotlin/scala/php/ruby)
 
   - name: test-clojure
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " clojure ")'}]
     image: clojure:temurin-21-lein   # Debian-based: bash present; lein is the toolchain
     commands:
       - bash scripts/run-lang-tests.sh clojure --self-check
@@ -627,7 +627,7 @@ steps:
       # (coverage ratchet for clojure is a fast-follow, like dotnet/kotlin/scala/php/ruby/elixir)
 
   - name: test-cpp
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " cpp ")'}]
     image: gcc:14   # trixie-based; cmake + git for FetchContent (cpp-httplib + doctest)
     commands:
       - apt-get update && apt-get install -y --no-install-recommends cmake git >/dev/null
@@ -635,7 +635,7 @@ steps:
       - bash scripts/run-lang-tests.sh cpp
 
   - name: test-c
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " c ")'}]
     image: gcc:14
     commands:
       - apt-get update && apt-get install -y --no-install-recommends cmake pkg-config libmicrohttpd-dev >/dev/null
@@ -643,7 +643,7 @@ steps:
       - bash scripts/run-lang-tests.sh c
 
   - name: test-node
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " node ")'}]
     image: node:24-alpine
     environment:
       npm_config_cache: /cache/npm            # B88 #6 — persist the npm package cache
@@ -676,7 +676,7 @@ steps:
   # it rides test-swift's discovery (Package.swift + *Tests.swift); the iOS/SwiftUI surface is parked on
   # the Mac hardware gate and #if canImport(SwiftUI)-guarded so the Linux build stays green.
   - name: test-react-native
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " react-native ")'}]
     image: node:24
     environment:
       npm_config_cache: /cache/npm            # same npm cache as test-node
@@ -690,7 +690,7 @@ steps:
       - cd golden-paths/mobile/react-native && npm run bundle && cd -
 
   - name: test-flutter
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " flutter ")'}]
     image: ghcr.io/cirruslabs/flutter:stable   # the standard Flutter CI image (Ubuntu; bash + flutter SDK)
     commands:
       - bash scripts/run-lang-tests.sh flutter --self-check
@@ -707,7 +707,7 @@ steps:
   # violate the fail-closed contract). This is the Linux-verifiable half of "Swift UI"; the iOS/SwiftUI
   # on-device surface stays parked on the Mac hardware gate (swift-ios).
   - name: test-swift-tokamak
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " swift-tokamak ")'}]
     image: ghcr.io/swiftwasm/carton:0.20.1
     # carton compiles Tokamak + OpenCombine + JavaScriptKit to wasm — heavy like test-swift, and equally
     # best-effort by default. Same memory-request→Burstable fix so a RAM spike doesn't OOM-kill it on the
@@ -744,7 +744,7 @@ steps:
   # defect this whole item exists to remove, reintroduced in the CI wiring. The exit-code contract
   # in run-lang-scan.sh already does the filtering: findings are 0, broken is 2.
   - name: scan-rust
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " rust ")'}]
     image: rust:1-slim
     environment:                              # B88 #6 — same cargo cache as test-rust (audit/deny bins persist)
       CARGO_HOME: /cache/cargo
@@ -765,26 +765,26 @@ steps:
       - bash scripts/run-lang-scan.sh java
 
   - name: scan-dotnet
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " dotnet ")'}]
     image: mcr.microsoft.com/dotnet/sdk:8.0
     commands:
       - bash scripts/run-lang-scan.sh dotnet
 
   # B164 extended-language wave — scan lanes (advisory findings; lane fails only if the scanner is missing).
   - name: scan-erlang
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " erlang ")'}]
     image: erlang:27
     commands:
       - bash scripts/run-lang-scan.sh erlang
 
   - name: scan-julia
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " julia ")'}]
     image: julia:1.11
     commands:
       - bash scripts/run-lang-scan.sh julia
 
   - name: scan-lua
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " lua ")'}]
     image: alpine:3.20
     commands:
       - apk add --no-cache bash lua5.4 lua5.4-dev luarocks5.4 gcc musl-dev make   # bash: the lane driver uses arrays (alpine ships only busybox sh)
@@ -793,34 +793,34 @@ steps:
       - bash scripts/run-lang-scan.sh lua
 
   - name: scan-swift
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " swift ")'}]
     image: swift:6.4.1
     commands:
       - bash scripts/run-lang-scan.sh swift
 
   - name: scan-dart
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " dart ")'}]
     image: dart:stable
     commands:
       - bash scripts/run-lang-scan.sh dart
 
   # B164 optional/breadth scan lanes.
   - name: scan-r
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " r ")'}]
     image: rocker/r-ver:4
     commands:
       # scan_r installs lintr on demand (fail-closed)
       - bash scripts/run-lang-scan.sh r
 
   - name: scan-perl
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " perl ")'}]
     image: perl:5.40
     commands:
       - cpanm --quiet --notest Perl::Critic
       - bash scripts/run-lang-scan.sh perl
 
   - name: scan-haskell
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " haskell ")'}]
     image: haskell:9.8
     # `cabal install hlint` builds hlint + its deps (aeson/conduit/yaml/vector/…) FROM SOURCE — the same
     # heavy source-build OOM class as test-haskell (#125), and best-effort by default. Burstable request +
@@ -838,7 +838,7 @@ steps:
       - bash scripts/run-lang-scan.sh haskell
 
   - name: scan-ada
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " ada ")'}]
     image: ubuntu:24.04
     # Same gnatcoll-from-source OOM class as test-ada (scan re-runs `alr build`): Burstable floor + -j cap.
     environment:
@@ -861,59 +861,59 @@ steps:
       - bash scripts/run-lang-scan.sh ada
 
   - name: scan-kotlin
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " kotlin ")'}]
     image: gradle:8.10-jdk21
     commands:
       - bash scripts/run-lang-scan.sh kotlin
 
   - name: scan-scala
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " scala ")'}]
     image: sbtscala/scala-sbt:eclipse-temurin-21.0.12_8_1.13.0_3.8.4
     commands:
       - bash scripts/run-lang-scan.sh scala
 
   - name: scan-php
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " php ")'}]
     image: composer:2.7
     commands:
       - apk add --no-cache bash >/dev/null
       - bash scripts/run-lang-scan.sh php
 
   - name: scan-ruby
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " ruby ")'}]
     image: ruby:3.3
     commands:
       - bash scripts/run-lang-scan.sh ruby
 
   - name: scan-elixir
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " elixir ")'}]
     image: elixir:1.17
     commands:
       - mix local.hex --force && mix local.rebar --force
       - bash scripts/run-lang-scan.sh elixir
 
   - name: scan-clojure
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " clojure ")'}]
     image: cljkondo/clj-kondo:latest   # ships clj-kondo + bash; lints statically, no lein/dep fetch
     commands:
       - bash scripts/run-lang-scan.sh clojure
 
   - name: scan-cpp
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " cpp ")'}]
     image: gcc:14
     commands:
       - apt-get update && apt-get install -y --no-install-recommends cppcheck >/dev/null
       - bash scripts/run-lang-scan.sh cpp
 
   - name: scan-c
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " c ")'}]
     image: gcc:14
     commands:
       - apt-get update && apt-get install -y --no-install-recommends cppcheck >/dev/null
       - bash scripts/run-lang-scan.sh c
 
   - name: scan-node
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " node ")'}]
     image: node:24-alpine
     environment:
       npm_config_cache: /cache/npm            # B88 #6 — same npm cache as test-node
@@ -928,7 +928,7 @@ steps:
 
   # B164 mobile scan lanes. react-native reuses eslint (eslint.config.mjs); flutter uses `flutter analyze`.
   - name: scan-react-native
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " react-native ")'}]
     image: node:24
     environment:
       npm_config_cache: /cache/npm            # same npm cache as test-node/scan-node
@@ -938,7 +938,7 @@ steps:
       - bash scripts/run-lang-scan.sh react-native
 
   - name: scan-flutter
-    when: *fixture
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " flutter ")'}]
     image: ghcr.io/cirruslabs/flutter:stable
     commands:
       - bash scripts/run-lang-scan.sh flutter
@@ -962,7 +962,7 @@ steps:
     # paths is wasted (and fragile — a flaky apt mirror in one path's Docker build fails the whole step).
     when:
       - event: [manual, cron]
-        evaluate: 'SMOKE_ONLY == "smoke" || RUN_FIXTURES != "0"'
+        evaluate: 'SMOKE_ONLY == "smoke" || (RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || GOLDEN_PATH_ONLY != ""))'
     image: moby/buildkit:latest
     environment:
       BUILDKIT_ADDR: tcp://buildkitd:1234       # step runs in ns woodpecker, so the bare service name resolves

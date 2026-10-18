@@ -97,11 +97,22 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
   is production/docs/scripts only (not `golden-paths/`), gate the fixture lanes off with `RUN_FIXTURES=0`. Compute it
   from the working tree **BEFORE you push** (an empty post-push diff fails closed to the full matrix — by design):
   ```bash
-  RUN_FIXTURES="$(bash scripts/ci/select-fixtures.sh)"   # 1 = full matrix, 0 = skip fixtures (fail-closed to 1)
+  eval "$(SELECT_BASE=<pre-push origin/main sha> bash scripts/ci/select-fixtures.sh --plan)"   # sets the three vars below
   # ... git push ...
-  woodpecker-cli pipeline create edtbl76/weyland-lab --branch main --var RUN_FIXTURES="$RUN_FIXTURES"
+  woodpecker-cli pipeline create edtbl76/weyland-lab --branch main --var RUN_FIXTURES="$RUN_FIXTURES" \
+    --var FIXTURE_LANES="$FIXTURE_LANES" --var GOLDEN_PATH_ONLY="$GOLDEN_PATH_ONLY"
   ```
-  Fixture lanes carry `when: *fixture` (`SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0"`); an UNSET var reads `"" != "0"`
+  **Per-lane selection (2026-10-18):** `--plan` narrows a change confined to golden paths (or to lane steps in
+  `.woodpecker.yml`) to just the lanes that test it — `FIXTURE_LANES` = the lane keys (`test-<key>`/`scan-<key>`, e.g.
+  `swift`), `GOLDEN_PATH_ONLY` = the changed golden paths that have a Dockerfile (for `golden-path-smoke`). The mapping is
+  the lanes' OWN discovery (`run-lang-tests.sh <lang> --list-roots`), so `golden-paths/mobile/swift-ios` selects `swift`.
+  `FIXTURE_LANES=''` = every lane (full), `'none'` = no lane (a golden path only the smoke covers, e.g. `python/flask` —
+  python is a production lane that always runs). Anything shared, unmapped or unreadable stays full. The Swift 6.4.1 push
+  that ran all 46 lanes (#413) replays as `FIXTURE_LANES='swift' GOLDEN_PATH_ONLY='swift/vapor-app'`. Plain `0`/`1`
+  output (no `--plan`) is unchanged.
+  Each fixture lane gates on its own key — `SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" ||
+  (" " + FIXTURE_LANES + " ") contains " <key> ")` — and `golden-path-smoke` additionally skips in a narrowed run with no
+  smoke target; `ci-select-fixtures.bats` fails any fixture step that does not gate on its own key. An UNSET var reads `"" != "0"`
   → runs, so a plain `create` and the nightly cron still do the **full** matrix (the safe default — B160's "CI is the
   proving ground" for the golden paths). Production lanes (test-python/shell/java, scan-java, the two integration
   lanes) keep `when: *skip_on_smoke` and always run. The selector reads `ci-langs.yaml` (the manifest: production
