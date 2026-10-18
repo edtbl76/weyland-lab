@@ -36,6 +36,18 @@ Rebuild the whole gateway from scratch (idempotent, self-healing):
    `gateway/<model>` experiment (MLflow → Evaluation tab).
 5. **Tracing** — any gateway call appears as a trace under its `gateway/<model>` experiment.
 
+## On MLflow 3.16.1 (B215, run 2026-10-17/18)
+
+The server and gateway moved 3.15.1 → **3.16.1** (GHSA-h7x2-h6g9-p789 / CVE-2026-71211, an SSRF). Proven live:
+- **Data intact after the migration:** `gateway/endpoints/list` = **17**, `secrets/list` = 10, `model-definitions/list` = 17,
+  `experiments/search` = 28 (run inside the pod: `kubectl -n weyland exec deploy/mlflow -c mlflow -- python -c …`).
+- **The rotated keys work** (2026-10-17): the gateway's masked `openai` / `anthropic` values match `OPENAI_MLFLOW_KEY` /
+  `ANTHROPIC_MLFLOW_KEY` (compared in-process, never printed).
+- **Guardrails** — `python3 nodes/mother/lab/weyland-platform/scripts/verify_gateway_guardrails.py`: benign **PASS** on all 6
+  local models; unsafe REFUSED/REVIEW; **pii BLOCK on 5 of 6** — the 400 is the *Safety* guard rejecting a reply whose
+  rationale says "does not violate policies". Fails safe (no PII leaks); filed as **B222** (EMA-310), not fixed in B215.
+- **Realm** (the gateway's main client) runs `mlflow 3.16.1` / `cryptography 50.0.2` (`git-d4cc9652`).
+
 ## Expected result
 
 A provider-agnostic, guardrailed, budget-capped model gateway where a single `chat/completions` call is tracked,

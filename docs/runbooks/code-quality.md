@@ -50,6 +50,29 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   never zero). `scan-diff.py` compares it keyed by image NAME + package + id (never the tag) and counts **MEDIUM** as
   well: trivy rated the mcp advisory MEDIUM. A broken image is exit 2. The first run after the change has no
   previous image scan and prints `trivy-images: baseline (N finding(s))`; every run after that is compared.
+- **Accepting an IMAGE finding (2026-10-17, B220): `.trivyignore-images.yaml`.** The image scan (`trivy-images`) used to
+  apply NO ignore file, so an image finding accepted with a reason had nowhere to be recorded and came back every run.
+  `scan.py` now passes `--ignorefile .trivyignore-images.yaml` to `trivy image` when the repo has one (`.trivyignore`
+  stays the SOURCE-scan file). Every entry carries its id, a **purl** (the one package; with a version for a vendored
+  copy, e.g. `pkg:pypi/msgpack@1.1.2` inside pip), a **path** when the purl is generic (`stdlib`, `docker/docker` — scope
+  it to the one binary, e.g. `**/adbc_driver_flightsql/libadbc_driver_flightsql.so`), a `statement` with the reason, and
+  `expired_at` (90 days) so it is re-reviewed. Test an entry by scanning the image with it AND a control image without:
+  the accepted finding must vanish and the same id elsewhere must stay reported.
+- **osv-scanner v2 grades DECLARED pins (`--no-resolve`, 2026-10-18).** v2 resolves a requirements.txt's transitive
+  deps itself (deps.dev) and reports the versions it GUESSES — `requests==2.9.2` for a file that does not list requests
+  (177 phantom "new" findings on its first scan). `scan.py` runs it with `--no-resolve`: osv answers "what do the
+  lockfiles declare", `trivy-images` answers "what is installed". v1 had the opposite phantom — an UNPINNED requirement
+  scored as `0.0.0`, every advisory ever filed (91 on `golden-paths/python/django` alone) — which v2 does not do.
+- **gitleaks allowlist: `.gitleaks.toml` (2026-10-17).** gitleaks 8.30 (the scan-suite bump from 8.21) found 111 new
+  matches on a clean checkout — 108 SealedSecret ciphertext, 2 Phoenix dev/test `secret_key_base` fixtures, 1 doc dummy
+  login. All reviewed (values redacted); the root `.gitleaks.toml` allows exactly those paths with the reason and keeps
+  the default rules on. Prove an edit: a planted realistic token outside the allowlist must still be caught.
+- **scan-suite's Go tools are built from source (2026-10-18).** Every Go binary bundles its runtime + modules, and release
+  builds lag: the image builds osv-scanner/shfmt/staticcheck with `go install` and gitleaks/gosec/govulncheck/kubescape
+  from clones with vulnerable modules raised by `go get`, all on one pinned toolchain (`golang:1.27.2` builder stage).
+  Re-check after any tool bump: `trivy image` on the built scan-suite → Go-binary HIGH/CRITICAL must be NONE (or accepted
+  in `.trivyignore-images.yaml`). Major bumps are contract-tested first — run old and new on this repo with `scan.py`'s
+  exact flags and compare the fields it parses (kubescape v3 → v4 and osv-scanner v1 → v2 were, 2026-10-17).
 - **No packages installed straight from a Dockerfile** (2026-10-16): `scripts/check-dockerfile-installs.sh`
   (repo-guards) counts every package a Dockerfile `pip install`s outside a requirements file, in every stage, and holds
   each Dockerfile to a ceiling in `scripts/ci/dockerfile-installs.baseline` that may only fall. The first count was

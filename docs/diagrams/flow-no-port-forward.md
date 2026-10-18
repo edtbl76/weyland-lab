@@ -47,3 +47,33 @@ flowchart TD
 The scan itself fails closed: zero files scanned is exit 2 (a wrong root is "could not run", never "clean").
 `docs/backlog.md`, notebooks (`.ipynb` outputs are recorded data), generated trees and the guard's own files are not
 scanned.
+
+## Watching the NodePorts (B219)
+
+```mermaid
+sequenceDiagram
+    participant T as rogueone user timer (every 15 min)
+    participant W as lan_nodeport_watch.py
+    participant K as kubectl (live cluster)
+    participant N as mother NodePorts
+    participant U as Uptime Kuma push monitor lan-nodeports
+    T->>W: run
+    W->>K: get svc, deploy+sts, nodes
+    K-->>W: NodePort inventory, replicas, node InternalIP
+    loop every NodePort
+        alt workload parked (replicas 0)
+            W-->>W: list as parked, no probe
+        else no probe defined for it
+            W-->>W: UNPROBED, exit 1
+        else
+            W->>N: protocol probe (HTTP < 500, Redis PONG, pg SSL byte, MySQL greeting)
+            N-->>W: answer or nothing
+        end
+    end
+    W->>U: push status up (exit 0) or down with the findings (exit 1/2)
+    Note over U: a missed heartbeat (watcher not running) alerts too, after 1200 s
+```
+
+rogueone is the vantage point because the rogueone-only ports refuse every other source; an in-cluster probe would only
+ever see "refused". The first run found the MySQL NodePort had never worked (a server-first protocol behind a PERMISSIVE
+sidecar); MySQL was unmeshed and the watcher now reports `30 up, 3 parked, 33 NodePort(s) — exit 0`.

@@ -55,6 +55,24 @@ Expected: `1`.
 Pipeline #384 (ce787810, the selector change itself) ran lean, 22 steps instead of 69. `shell-tests` ran the 23
 selector cases, including the real f9ac9ae1..d7ae173b push.
 
+## Per-lane: one golden path runs only its lanes (run 2026-10-18, B224)
+
+[rogueone] Replay the Swift 6.4.1 push (#413 ran all 46 fixture lanes for it):
+```
+cd /home/edwardmangini/IdeaProjects/weyland
+git show d4cc9652:.woodpecker.yml > /tmp/wp-base.yml; git show 5999a4d6:.woodpecker.yml > /tmp/wp-head.yml
+SELECT_CHANGED_FILES="$(git diff --name-only d4cc9652 5999a4d6)" SELECT_WOODPECKER_BASE=/tmp/wp-base.yml SELECT_WOODPECKER_HEAD=/tmp/wp-head.yml bash scripts/ci/select-fixtures.sh --plan
+```
+Output (run): `RUN_FIXTURES=1` · `FIXTURE_LANES='swift'` · `GOLDEN_PATH_ONLY='swift/vapor-app'`.
+
+[rogueone] Run a narrowed pipeline:
+```
+woodpecker-cli pipeline create edtbl76/weyland-lab --branch main --var RUN_FIXTURES=1 --var FIXTURE_LANES=swift --var GOLDEN_PATH_ONLY=swift/vapor-app
+```
+Result (run, **#416**): **25 steps** (the full matrix is 69) — `test-swift`, `scan-swift`, `golden-path-smoke` (swift/vapor-app
+only) plus the production lanes (test-python/shell/java, scan-java, both integration lanes); the other 44 fixture steps are
+dropped. **success in 17 min.** The negative cases are bats-tested: a shared trigger alongside → full; failed discovery → full.
+
 ## UI walkthrough
 
 No UI of its own. The effect shows in **Woodpecker** (<https://woodpecker.weyland.lab> → `edtbl76/weyland-lab` →

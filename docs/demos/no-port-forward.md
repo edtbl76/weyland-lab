@@ -85,7 +85,30 @@ the tree before the purge (`git archive 1122c5bb`): `FAIL — 44 port-forward co
 **7. The tests:** `scripts/tests/no-port-forward.bats` (11 cases, CI `shell-tests`) and the rogueone pins in
 `scripts/tests/write-surface-netpol.bats` (Valkey, Trino, OpenSearch each pinned with `ip=192.168.1.230/32`).
 
+## The NodePort watcher (B219, run 2026-10-17/18)
+
+**8. Every NodePort answers, at the protocol level, from rogueone:**
+
+[rogueone]
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/lan_nodeport_watch.py --no-push
+```
+Output (first run, 2026-10-17): `DOWN data-mesh/mysql-lan:30306 [mysql] — no greeting (server-first protocol swallowed —
+a PERMISSIVE sidecar?)` · `29 up, 3 parked, 33 NodePort(s) — exit 1` — a real break nobody had noticed. After MySQL was
+unmeshed: `30 up, 3 parked, 33 NodePort(s) — exit 0`, and the timer runs show the same in
+`journalctl --user -u lan-nodeport-watch`.
+
+**9. The alert fires.** Point the probes at an unreachable address so every port is DOWN:
+
+[rogueone]
+```
+LAN_NODEPORT_HOST=192.0.2.1 python3 /home/edwardmangini/IdeaProjects/weyland/scripts/lan_nodeport_watch.py
+```
+Output (run 2026-10-18): `0 up, 3 parked, 33 NodePort(s) — exit 1`, pushed `down` to the Kuma monitor `lan-nodeports`
+(Telegram alert); the next normal run pushed `up` (exit 0). UAT: in Uptime Kuma (`kuma.weyland.lab`), `lan-nodeports`
+shows the red beat followed by green.
+
 ## Teardown
 
-Steps 1–4 and 6 are read-only. Step 5 writes only to a `mktemp -d` scratch directory outside the repo — remove it with
+Steps 1–4, 6 and 8 are read-only; step 9 pushes one `down` heartbeat, cleared by the next timer run. Step 5 writes only to a `mktemp -d` scratch directory outside the repo — remove it with
 `rm -r "$D"` (or leave it to the OS tmp cleaner). Nothing is created in the cluster.

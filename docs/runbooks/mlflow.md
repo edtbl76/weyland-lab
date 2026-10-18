@@ -81,6 +81,11 @@ a trace pins the prompt version that produced each answer. Registered prompts (`
   class B213 closed for Dockerfiles, which its ratchet cannot see here because the install is in the manifest. If
   restarts get slow/flaky, or to close that gap, bake a small `FROM ghcr.io/mlflow/mlflow:v3.16.1` image with a lockfile
   and drop the install from the command.
+- **Upgrades migrate the DB schema — roll back by RESTORE, not by image tag (B215, 2026-10-17).** The server runs
+  `mlflow db upgrade` on start, so a 3.16.1 → 3.15.1 image revert would meet a newer schema. Before any MLflow bump,
+  confirm the core Postgres dump from the night before contains the `mlflow` database
+  (`zgrep -c '^\\connect mlflow' /mnt/minio/backups/pg/weyland-all-<YYYYMMDD>.sql.gz` on mother — 1 or more). To roll back:
+  revert the image in git, then restore that dump's `mlflow` database ([dr.md](../dr.md), Postgres — weyland core).
 - **No native auth** — access is gated by **Keycloak SSO** via the shared `traefik-forward-auth` Middleware
   (forward-auth → Keycloak, SSO across `*.weyland.lab`), like Kiali. The old `mlflow-auth` basicAuth dev-password
   Middleware is retired/superseded by the forward-auth gate.
