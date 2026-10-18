@@ -63,10 +63,11 @@ singleuser:
     # triggers a re-pull. Rebuild = bump the tag + `docker build/push registry.weyland.lab/weyland-jupyter:<tag>`
     # + bump `tag` here (dagster-image-registry-tag-flow pattern). No imagePullSecret — the node has registry access.
     name: registry.weyland.lab/weyland-jupyter
-    # v2 (2026-10-17, B220): rebuilt on scipy-notebook pinned by digest (ubuntu-26.04, lab 4.6.4) — 100 → 26
-    # linux-libc-dev advisories — with jupyterhub pinned to 5.5.0 to match this hub (k8s-hub 3.3.8 = JupyterHub 4.1.6),
-    # the version v1 ran. Roll back = set v1 (still in the registry).
-    tag: v2
+    # v3 (2026-10-18, B220): scipy-notebook pinned by digest (ubuntu-26.04, lab 4.6.4), jupyterhub pinned 5.5.0 to
+    # match this hub (k8s-hub 3.3.8 = JupyterHub 4.1.6), + apt-get upgrade (curl fix) and /usr/bin/pebble removed
+    # (unused; go1.26.7). v1 → v3: 100 linux-libc-dev HIGH/CRIT → 26 (accepted: kernel headers, no Ubuntu fix).
+    # Roll back = set v2 or v1 (both still in the registry).
+    tag: v3
     pullPolicy: IfNotPresent
   storage:
     capacity: 2Gi
@@ -79,7 +80,8 @@ singleuser:
   defaultUrl: /lab            # JupyterLab, not the classic tree
   extraLabels:
     # MESH-JOIN the singleuser pods (B81) so notebooks can reach the MESHED data-mesh stores over mTLS —
-    # GizmoSQL (nb 21) and any Tier-2 store whose pod carries a sidecar (mysql/timescale opt in; the others
+    # GizmoSQL (nb 21) and any Tier-2 store whose pod carries a sidecar (timescale opts in; mysql was unmeshed
+    # 2026-10-17, B219 — server-first behind a PERMISSIVE sidecar hung — and a meshed client reaches it in plaintext; the others
     # inherit the injected ns default on restart) (nb 22). Without a sidecar a plaintext client deadlocks at
     # the store's inbound proxy. This is a POD LABEL, not a namespace label: the istio `object` injector
     # webhook injects any pod labelled inject=true in a ns that has NO `istio-injection` label (jupyterhub

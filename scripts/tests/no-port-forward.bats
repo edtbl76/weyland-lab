@@ -80,6 +80,14 @@ setup() {
   [[ "$output" == *"nodes/k8s/lan.yaml:1"* ]]
 }
 
+@test "vendored dependency trees are not scanned (SwiftPM .build, node_modules)" {
+  mkdir -p "$ROOT/golden-paths/swift/app/.build/checkouts/dep" "$ROOT/node_modules/x"
+  printf 'kubectl port-forward deployment/http-server 8080:8080\n' >"$ROOT/golden-paths/swift/app/.build/checkouts/dep/README.md"
+  printf 'kubectl port-forward svc/x 80:80\n' >"$ROOT/node_modules/x/README.md"
+  SCAN_ROOT="$ROOT" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
 @test "the backlog's history is not scanned (DONE records describe what was, not what to do)" {
   printf -- '- **B57** — DONE: replaced `kubectl port-forward svc/woodpecker-server 8000:80` with a NodePort\n' >"$ROOT/docs/backlog.md"
   SCAN_ROOT="$ROOT" run bash "$GUARD"

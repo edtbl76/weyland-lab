@@ -1,6 +1,6 @@
 # Golden path Swift / Vapor. Multi-stage: swift build → slim Swift runtime.
 # buildkit → registry.weyland.lab/golden-swift-vapor-app.
-FROM swift:6.0-jammy AS build
+FROM swift:6.4.1-jammy AS build
 WORKDIR /build
 # Resolve deps against the committed Package.resolved first (cache-friendly layer).
 COPY Package.swift Package.resolved ./
@@ -14,7 +14,7 @@ RUN swift build -c release --product Run \
 # Runtime: swift:*-slim carries the Swift runtime shared libraries (Foundation/NIO/etc.) but not
 # the compiler — so a dynamically linked Vapor binary runs. A plain ubuntu base would fail to load
 # libswift* at start. curl is added for the ephemeral smoke.
-FROM swift:6.0-jammy-slim
+FROM swift:6.4.1-jammy-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \

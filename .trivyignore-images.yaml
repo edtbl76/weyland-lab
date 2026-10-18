@@ -252,3 +252,50 @@ vulnerabilities:
       - pkg:golang/stdlib
     statement: stdlib v1.26.5 bundled in adbc_driver_flightsql 1.12.0, fixed in 1.26.9, 1.27.2; no newer wheel yet (B220)
     expired_at: 2027-01-17
+
+# pip's VENDORED copies (pip 26.2.1 = the newest release, in weyland-jupyter's conda env), reported from pip's own SBOM
+# (pip/_vendor/bom.cdx.json) — real code shipped inside pip, not separately installed packages. pip has not re-vendored
+# fixed versions yet. Exposure: the vendored msgpack only reads pip's own HTTP download cache; the setuptools advisory is
+# in package_index's download routine, which pip does not call. Scoped by purl WITH the vendored version, so an
+# installed setuptools/msgpack at any other version is still reported.
+# LIFT: a pip release that vendors msgpack >= 1.2.1, setuptools >= 78.1.1 and urllib3 >= 2.8.0 — rebuild weyland-jupyter, delete these.
+  - id: GHSA-6v7p-g79w-8964
+    purls:
+      - pkg:pypi/msgpack@1.1.2
+    statement: msgpack 1.1.2 vendored inside pip 26.2.1 (pip/_vendor); no pip release re-vendors a fix yet (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2025-47273
+    purls:
+      - pkg:pypi/setuptools@70.3.0
+    statement: setuptools 70.3.0 vendored inside pip 26.2.1; the vulnerable PackageIndex download path is not used by pip (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-97687
+    purls:
+      - pkg:pypi/urllib3@2.7.0
+    statement: urllib3 2.7.0 vendored inside pip 26.2.1; the installed urllib3 is 2.8.0 (fixed) (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-97689
+    purls:
+      - pkg:pypi/urllib3@2.7.0
+    statement: urllib3 2.7.0 vendored inside pip 26.2.1; the installed urllib3 is 2.8.0 (fixed) (B220)
+    expired_at: 2027-01-17
+
+# scan-suite — kubescape v4.0.16 (built from source here) links github.com/docker/docker v28.5.2+incompatible. Both
+# advisories are Docker ENGINE (daemon) flaws — running a malicious image, overwriting host files — and the old module
+# path gets no fixes (Moby moved to github.com/moby/moby). kubescape uses only the client library for image metadata;
+# it runs no daemon and executes no containers. Scoped to the kubescape binary's path, so the same ids in any other
+# binary are still reported. LIFT: a kubescape release on the moby/moby module — rebuild scan-suite, delete these.
+  - id: CVE-2026-41567
+    paths:
+      - "usr/local/bin/kubescape"
+    purls:
+      - pkg:golang/github.com/docker/docker
+    statement: Docker engine flaw; kubescape links the client lib only; no fix on the docker/docker module (B220)
+    expired_at: 2027-01-17
+  - id: CVE-2026-42306
+    paths:
+      - "usr/local/bin/kubescape"
+    purls:
+      - pkg:golang/github.com/docker/docker
+    statement: Docker engine flaw; kubescape links the client lib only; no fix on the docker/docker module (B220)
+    expired_at: 2027-01-17

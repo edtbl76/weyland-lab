@@ -15,18 +15,26 @@
 #   filed for it (91 phantoms on golden-paths/python/django alone).
 FROM golang:1.27.2 AS gotools
 ENV GOTOOLCHAIN=local GOBIN=/out
+# go install where the release's go.mod is clean; a clone + `go get` where a pinned module carried an advisory
+# (2026-10-18, B220 — the re-scan found them): gitleaks x/crypto 0.35 → 0.55 + x/text 0.22 → 0.41; gosec x/net → 0.60,
+# grpc → 1.83.2; govulncheck x/mod 0.22 → 0.40; kubescape x/image → 0.45, x/net → 0.60 (and kubescape's go.mod has
+# replace directives, so it never builds via go install).
 RUN set -eux; \
     go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.7.0; \
     go install mvdan.cc/sh/v3/cmd/shfmt@v3.14.1; \
-    go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0; \
-    go install golang.org/x/vuln/cmd/govulncheck@v1.1.4; \
     go install honnef.co/go/tools/cmd/staticcheck@2026.2.2; \
     git clone -q --depth 1 -b v8.30.1 https://github.com/gitleaks/gitleaks /src/gitleaks; \
+    git clone -q --depth 1 -b v2.29.0 https://github.com/securego/gosec /src/gosec; \
+    git clone -q --depth 1 -b v1.1.4 https://go.googlesource.com/vuln /src/vuln; \
     git clone -q --depth 1 -b v4.0.16 https://github.com/kubescape/kubescape /src/kubescape
 WORKDIR /src/gitleaks
-RUN go get golang.org/x/text@v0.41.0 && go build -o /out/gitleaks .
+RUN go get golang.org/x/text@v0.41.0 golang.org/x/crypto@v0.55.0 && go build -o /out/gitleaks .
+WORKDIR /src/gosec
+RUN go get golang.org/x/net@v0.60.0 google.golang.org/grpc@v1.83.2 && go build -o /out/gosec ./cmd/gosec
+WORKDIR /src/vuln
+RUN go get golang.org/x/mod@v0.40.0 && go build -o /out/govulncheck ./cmd/govulncheck
 WORKDIR /src/kubescape
-RUN go build -o /out/kubescape .
+RUN go get golang.org/x/image@v0.45.0 golang.org/x/net@v0.60.0 && go build -o /out/kubescape .
 
 FROM python:3.12-slim
 ENV DEBIAN_FRONTEND=noninteractive

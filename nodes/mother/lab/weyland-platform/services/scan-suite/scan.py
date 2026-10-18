@@ -244,7 +244,10 @@ def osv():
     #
     # This is the file's own failure mode turned on itself: a control that looks maintained —
     # the toml exists, is thorough, is under review — while covering nothing. Do not drop this flag.
-    sh(["osv-scanner", "--format", "json", "--config", f"{SRC}/osv-scanner.toml", "-r", SRC],
+    # --no-resolve (B220, 2026-10-18): v2 otherwise RESOLVES a requirements.txt's transitive deps itself and reports
+    # versions it guessed (requests==2.9.2 for a file that does not list requests) — 177 phantoms on the first v2 run.
+    # osv grades what the lockfiles DECLARE; what is INSTALLED is trivy-images' job.
+    sh(["osv-scanner", "--format", "json", "--config", f"{SRC}/osv-scanner.toml", "--no-resolve", "-r", SRC],
        outfile=f"{OUT}/osv.json")
     d = load(f"{OUT}/osv.json") or {}
     c = z()

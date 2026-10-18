@@ -31,7 +31,7 @@ import os, re, sys
 
 root = sys.argv[1]
 EXTS = {".md", ".sh", ".bash", ".py", ".yaml", ".yml", ".toml"}
-SKIP_DIRS = {".git", "node_modules", "site-techdocs", "aidlc-docs", ".venv", "venv", "__pycache__", ".claude"}
+SKIP_DIRS = {".git", "node_modules", ".build", "site-techdocs", "aidlc-docs", ".venv", "venv", "__pycache__", ".claude"}
 SKIP_FILES = {"docs/backlog.md", "scripts/check-no-port-forward.sh", "scripts/tests/no-port-forward.bats"}
 
 RESOURCE = re.compile(r"^(svc|service|services|pod|pods|po|deploy|deployment|deployments|sts|statefulset|"

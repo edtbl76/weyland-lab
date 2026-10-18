@@ -153,3 +153,19 @@ def test_trivy_image_runs_without_an_ignorefile_when_the_repo_has_none(scan, mon
     monkeypatch.setattr(scan, "SRC", str(tmp_path))
     (cmd,) = _image_cmds(scan, monkeypatch)
     assert "--ignorefile" not in cmd
+
+
+# ── osv-scanner: declared pins only (B220, 2026-10-18) ────────────────────────────────────────────
+# osv-scanner v2 RESOLVES transitive dependencies of a requirements.txt by itself (deps.dev) and reports the versions
+# it guesses: requests==2.9.2 (2016) for a file that does not list requests at all — 177 phantom "new" findings on the
+# first v2 scan. osv must grade what the lockfiles DECLARE (every image installs a frozen lockfile, B213); what is
+# actually INSTALLED is trivy-images' job. --no-resolve keeps the two questions apart.
+def test_osv_scans_declared_pins_only(scan, monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(scan, "sh", lambda cmd, **k: calls.append(cmd))
+    monkeypatch.setattr(scan, "load", lambda p: {"results": []})
+    monkeypatch.setattr(scan, "SRC", str(tmp_path))
+    scan.osv()
+    (cmd,) = [c for c in calls if c and c[0] == "osv-scanner"]
+    assert "--no-resolve" in cmd
+    assert cmd[cmd.index("--config") + 1] == f"{tmp_path}/osv-scanner.toml"

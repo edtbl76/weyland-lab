@@ -81,6 +81,17 @@ reason = "setuptools <83 (CVE-2026-59890 / PYSEC-2026-3447): MANIFEST.in exclusi
 # elsewhere in the repo (another version, another lockfile) is still reported. Proven against osv-scanner 1.9.1:
 # protobuf 4.25.9 suppressed while 4.23.4 in another directory still reported its 4 advisories.
 
+
+[[IgnoredVulns]]
+id = "HSEC-2023-0007"
+reason = """
+base 4.19.2.0 (golden-paths/haskell/scotty/cabal.project.freeze) — "readFloat: memory exhaustion with large exponent".
+NOT FIXABLE: the advisory is open-ended for `base` (introduced 3.0.3.1, no fixed version), and `base` is GHC's own
+standard library — it moves only with the compiler. The golden path is a hello-world fixture (B88) that never parses
+untrusted floats. Newly visible 2026-10-18 because osv-scanner v2 reads cabal.project.freeze (v1 did not).
+Re-evaluate if a fixed `base` / GHC is published. Accepted 2026-10-18 (B220).
+"""
+
 [[PackageOverrides]]
 name = "protobuf"
 version = "4.25.9"
