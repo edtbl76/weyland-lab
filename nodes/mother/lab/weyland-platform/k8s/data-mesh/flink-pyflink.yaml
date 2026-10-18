@@ -10,7 +10,7 @@ metadata:
   name: flink-pyflink
   namespace: data-mesh
 spec:
-  image: registry.weyland.lab/weyland-flink-py:git-cecd52fc
+  image: registry.weyland.lab/weyland-flink-py:git-d4cc9652
   imagePullPolicy: IfNotPresent
   flinkVersion: v1_20
   serviceAccount: flink
