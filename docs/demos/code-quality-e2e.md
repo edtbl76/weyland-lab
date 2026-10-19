@@ -87,6 +87,26 @@ The Port entities appear within seconds of each `202` (Sonar lags a few seconds 
 the report before its native webhook fires). Remember: a `202` is queue-acceptance, **not** proof an entity was
 created — confirm in the Port catalog tables above.
 
+### Shell scripts inside ConfigMaps (B230, RUN 2026-10-19)
+
+CI's `shellcheck` step used to see only `scripts/**`; 7 scripts that live only in a ConfigMap were never linted. The
+guard, in CI's own image:
+
+[rogueone]
+```
+cd /home/edwardmangini/IdeaProjects/weyland && docker run --rm -v "$PWD:/repo:ro" -w /repo --entrypoint sh koalaman/shellcheck-alpine:stable -c 'apk add --no-cache python3 py3-yaml bash >/dev/null; bash scripts/check-configmap-shellcheck.sh'
+```
+Output (run): `OK — 13 ConfigMap shell script(s) under weyland-platform/k8s pass shellcheck --severity=warning.`, exit 0.
+
+**Negative case** — a scratch copy of the k8s tree with a bare `cd $dir` planted in the `sonar-scan-repos` runner,
+checked with `CM_SHELLCHECK_K8S_DIR=<copy>/k8s`:
+```
+sonarqube/sonar-scan-repos.yaml:sonar-all.sh:23:3: warning: Use 'cd ... || exit' or 'cd ... || return' in case cd fails. [SC2164]
+CONFIGMAP SHELLCHECK: 1 of 13 ConfigMap shell script(s) have findings at --severity=warning.
+```
+exit 1, the finding named by manifest and data key. The fail-closed cases (no k8s dir, an unparseable manifest, zero
+scripts, no shellcheck → exit 2) are in `scripts/tests/configmap-shellcheck.bats` (8 cases).
+
 ## Expected result
 
 - **9** `security_scan` entities in Port (one per tool), each with severity counts; **20** `code_hotspot` entities

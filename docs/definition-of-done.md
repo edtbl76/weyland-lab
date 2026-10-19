@@ -44,6 +44,11 @@ capability is **NOT done** until ALL nine pillars hold. "Ran once" ≠ done.
   - **No heavy-on-heavy** — a new heavy timer must not share its slot with an existing heavy job; check the
     timetable for the nearest heavy neighbour before picking a time. **Clock caveat:** Woodpecker crons run in **UTC**
     (not NY-pinnable) — pick the UTC expression so the NY-equivalent stays off-hours in **both** EDT and EST.
+  - **One clock** — a k8s CronJob sets `timeZone: America/New_York` (schedules.md Design Rule #1). Four weekly scans
+    sat on `Etc/UTC` at Sunday 08:00–11:00 NY, mid-day and sliding an hour at each DST change, until the 2026-10-19
+    DoD audit (B228).
+  - **Prove a timer change now, not at its next tick** — the applied spec plus one on-demand run from the same
+    definition (Pillar 5: never wait on a scheduled run).
 - **Runbook** — `docs/runbooks/<x>.md` with the real operational commands.
 - **Query cookbook** — `docs/query/<x>.md` if the workflow adds a queryable surface.
 - **platform-map** — `docs/platform-map.html` (+ `docs/data-mesh-map.html`) refreshed for any component add / remove /
@@ -89,6 +94,14 @@ capability is **NOT done** until ALL nine pillars hold. "Ran once" ≠ done.
 - **backlog.md** — flip the item to DONE with a substantial summary (backlog = ordered source; Linear = status).
 - **Memory** — capture any durable, non-obvious lesson.
 - **VERIFY IT — `bash scripts/check-linear-sync.sh`. Do not hand-tick this pillar.**
+- **Close on evidence you can produce NOW — never wait on a scheduled run (2026-10-19, B228).** An item is not
+  held open for "next Sunday's scan", "tonight's nightly" or "the next cron tick". Produce the evidence instead: the
+  live spec the cluster applied (`kubectl get cronjob <x> -o custom-columns=…schedule,timeZone`), a run on demand from
+  the same definition (`kubectl create job <x>-smoke --from=cronjob/<x>`, the runbook's runner, `woodpecker-cli
+  pipeline create`), and the gates. "Left: the next scheduled run" is never an acceptance criterion. Say exactly
+  which run proves what — a run from BEFORE a change still proves a job template the change did not touch, and the
+  record must say so. (The owner, twice: "We DONT WAIT FOR TONIGHTS RUN" 2026-10-17; "We DONT WAIT ON SCANS to close
+  work" 2026-10-19.)
 - **Every DoD run reconciles the WHOLE tracker, not just the unit in hand (2026-09-01).**
   `check-linear-sync.sh` is a full backlog ↔ Linear sweep, so run it and drive it to **clean (exit 0)** on
   *every* DoD invocation — then **fix every drift it names, whichever item it belongs to**, before Pillar 5
@@ -216,6 +229,12 @@ manifest** runs the relevant scan and **triages the result before "done":**
   `kubectl -n weyland create job scan-suite-adhoc --from=cronjob/code-scan-suite`) — and, for changes SonarQube covers,
   `sonar-scan`. Both feed Port `security_scan` / `code_quality` (the **Code Health** dashboard). It's also a weekly
   CronJob (B69); this pillar is the **per-batch** gate on top of that safety net, not a substitute for it.
+- **Shell inside a manifest is shell too** (B230, 2026-10-19). CI lints `scripts/**` AND every ConfigMap `*.sh` key
+  (`scripts/check-configmap-shellcheck.sh`, in the CI `shellcheck` step). Run both before handoff — the exact CI
+  command plus the ConfigMap guard (`docker run --rm -v "$PWD:/repo:ro" -w /repo --entrypoint sh
+  koalaman/shellcheck-alpine:stable -c 'apk add --no-cache python3 py3-yaml bash >/dev/null; bash scripts/check-configmap-shellcheck.sh'`).
+  A script that runs in another image must also be checked IN that image for the tools it calls (B229: the
+  sonar-scanner image has no `find`).
 - **SonarQube pre-check BEFORE handoff** (2026-10-13). CI's `sonar-gate` step BLOCKS the build and that night's image
   ship, and nothing in the local guard suite runs Sonar — B190 reported "all gates pass" and failed CI #279 on 18
   new-code issues. Scan every changed file Sonar covers with
@@ -403,7 +422,7 @@ in the LikeC4 model or `tools.md`, and that was never written down. So:
 | **4 Cleanup** | Say where it writes. Prefer writing **outside the repo** entirely over gitignoring output. |
 | **5 Tracking** | Unchanged. `scripts/check-linear-sync.sh`. |
 | **6 Ops** | Not N/A — **restated**: say explicitly whether it runs **by hand at close-out, in CI, or on a timer, and why**. Each has a real trade: a by-hand guard only runs when someone remembers; a CI guard needs whatever credentials it reads; a CronJob needs a schedules row + freshness budget + failure rule. Record the choice, not just the outcome. |
-| **7 Scan** | `shellcheck --severity=warning` and a `bats` suite. Both are already CI steps. |
+| **7 Scan** | `shellcheck --severity=warning` (on `scripts/**` and, via `check-configmap-shellcheck.sh`, on every ConfigMap `*.sh`) and a `bats` suite. All are CI steps. |
 | **8 Cascade** | Unchanged, and usually the only one doing real work on a tooling change. |
 | **9 DR** | **N/A** when the tool holds no state; say so in one line. A tool that writes state (a snapshot, a cache worth keeping) gets a dr.md row. |
 

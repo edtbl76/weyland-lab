@@ -73,6 +73,15 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   Re-check after any tool bump: `trivy image` on the built scan-suite → Go-binary HIGH/CRITICAL must be NONE (or accepted
   in `.trivyignore-images.yaml`). Major bumps are contract-tested first — run old and new on this repo with `scan.py`'s
   exact flags and compare the fields it parses (kubescape v3 → v4 and osv-scanner v1 → v2 were, 2026-10-17).
+- **Shell scripts inside ConfigMaps are linted** (B230, 2026-10-19): `scripts/check-configmap-shellcheck.sh`, in CI's
+  `shellcheck` step, writes every ConfigMap `data` key ending `.sh` under the platform's `k8s/` to a temp file and runs
+  `shellcheck --severity=warning` on it — 13 scripts today, 7 of which (pr-staleness, port-pr-reconcile,
+  cron-freshness, image-provenance, the scan-suite and sonar-scan-repos runners, feast-ui's launcher) live only in
+  their manifest and were never linted before. A finding names `<manifest>:<key>:<line>:<col>` (exit 1); no k8s dir,
+  an unparseable manifest, zero scripts or no shellcheck is exit 2. Run it as CI does:
+  ```
+  cd /home/edwardmangini/IdeaProjects/weyland && docker run --rm -v "$PWD:/repo:ro" -w /repo --entrypoint sh koalaman/shellcheck-alpine:stable -c 'apk add --no-cache python3 py3-yaml bash >/dev/null; bash scripts/check-configmap-shellcheck.sh'
+  ```
 - **No packages installed straight from a Dockerfile** (2026-10-16): `scripts/check-dockerfile-installs.sh`
   (repo-guards) counts every package a Dockerfile under `nodes/` or `golden-paths/` (the templates, in scope since the
   2026-10-19 DoD audit — 68 Dockerfiles) `pip install`s outside a requirements file, in every stage, and holds

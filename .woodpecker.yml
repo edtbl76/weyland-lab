@@ -253,6 +253,11 @@ steps:
     image: koalaman/shellcheck-alpine:stable
     commands:
       - shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh scripts/ci/*.sh scripts/integration/*.sh scripts/perf/*.sh eval/coding-agents/tasks/*/grade.sh
+      # B230 (2026-10-19) — the shell scripts that live INSIDE k8s ConfigMaps (pr-staleness, port-pr-reconcile,
+      # cron-freshness, image-provenance, the scan-suite + sonar-scan-repos runners, …) were never linted: the glob
+      # above sees only scripts/**. Extract each ConfigMap `*.sh` key and check it at the same severity. Fail-closed 0/1/2.
+      - apk add --no-cache python3 py3-yaml bash >/dev/null
+      - bash scripts/check-configmap-shellcheck.sh
 
   # ── 1c2. shell tests ────────────────────────────────────────────────────────
   # B131/B135 — the repo's FIRST shell test harness. shellcheck above catches malformed shell; it
