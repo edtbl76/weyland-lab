@@ -21,7 +21,7 @@ sequenceDiagram
     Note over A,B: same VK also serves the 241-prompt repo and the 583-skill plugin marketplace (git-served)
 ```
 
-## Who authenticates how (v2.2.6, B202 — 2026-10-09)
+## Who authenticates how (since v2.2.6, B202 — 2026-10-09; unchanged on v2.3.1, B231)
 
 ```mermaid
 sequenceDiagram
@@ -29,7 +29,7 @@ sequenceDiagram
     participant L as LiteLLM (hosted lanes)
     participant R as Register scripts · Dagster registrations · Realm
     participant P as Prometheus
-    participant B as Bifrost v2.2.6
+    participant B as Bifrost v2.3.1
     L->>B: POST /v1/chat/completions (x-bf-vk = realm-llm)
     B->>B: enforce_auth_on_inference - a virtual key is required
     B-->>L: 200 (no key - 401)

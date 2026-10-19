@@ -50,6 +50,23 @@ claude plugin install bifrost-weyland-conventions@bifrost-skills
 ```
 (Every skill installs as `bifrost-<name>` — e.g. `bifrost-deploy-via-argo`, `bifrost-systematic-debugging`, `bifrost-ct-bcg-matrix`.)
 
+## v2.3.1 — the upgrade, and stranded MCP sessions now recover (B231, RUN 2026-10-19)
+
+Bifrost moved v2.2.6 → **v2.3.1** after B212 tested 2.3 on throwaway instances
+([concepts/bifrost-2-3-evaluation.md](../concepts/bifrost-2-3-evaluation.md)). Nothing changed for callers: the setup
+lock, inference auth and the VK scoping behave as in v2.2.6 (the section below still applies). Run, in order:
+
+- **Pre-upgrade backup** (`kubectl -n weyland create job --from=cronjob/bifrost-backup …`): `20261019T190603Z` —
+  providers 22, VKs 6, MCP clients 10, prompts 280, skills 589. The rollback point.
+- **Baseline on v2.2.6** (watchdog on demand): `Agent_Memory` and `Hugging_Face` **unhealthy**, `ping failed: … Missing
+  session ID` — the morning reboot of rogueone had restarted Basic Memory and v2.2.6 kept the dead session (~10 h).
+- **After the roll** (Argo, ~5 min): step 1 below → `version v2.3.1`, `no token 401 | wrong 403 | token 200`; the
+  watchdog → `checked 10 MCP client(s): 0 alert(s) fired`; `scripts/bifrost-fleet-txn.py` → `TXN_OK`; prompts **280**,
+  skills **589**; one `wl-default` call through LiteLLM (fallbacks off) → `ok`, served via `bifrost.weyland.svc:8080/v1`.
+- **The negative case, recovered:** `systemctl --user restart basic-memory.service` on rogueone (the event that broke
+  v2.2.6) → within 20 s the watchdog shows 0 alerts with **no Bifrost restart**, and an agent's `search_notes` through
+  Bifrost answers.
+
 ## v2.2.6 — the setup lock, inference auth, owned settings (B202, 2026-10-09)
 
 Bifrost moved from v1.6.7 to **v2.2.6**. Three things changed for callers: `/api` needs the setup token (dashboard auth
@@ -72,7 +89,7 @@ Flow: [flow-bifrost § Who authenticates how](../diagrams/flow-bifrost.md). Runb
 
 Each command runs on rogueone; the token and the key are read inside the pods, never printed.
 
-**1. Version and the setup lock** — expect `version v2.2.6`, then `401`, `403`, `200`:
+**1. Version and the setup lock** — expect `version v2.3.1` (v2.2.6 until 2026-10-19), then `401`, `403`, `200`:
 
 [rogueone]
 ```
