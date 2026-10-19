@@ -101,7 +101,7 @@ spec:
             summary: "BACKUP {{ $labels.cronjob }} has not succeeded in over 26h — data is unprotected"
             description: "Last success was {{ $value | humanizeDuration }} ago in namespace {{ $labels.namespace }}. Whatever the cause (failed, stuck pulling its image, suspended), the MinIO buckets (mlflow models, tofu state — irreplaceable) or database dumps are not being backed up. The 2026-09 incident was 13 days of this at warning."
 
-        # weekly (Sunday) → 8d budget. sonar-scan 08:00 · code-scan-suite 09:00.
+        # weekly (Sunday, NY) → 8d budget. sonar-scan 03:00 · sonar-scan-repos 03:15 · sonar-scan-gradle 03:30 · code-scan-suite 04:00 (B228).
         # NOT 24h: on 2026-08-23 sonar-scan read 160.8h since last success and was entirely on
         # schedule — it is weekly and was due that afternoon. Checking the schedule before choosing
         # the number is the whole reason this rule is not one blanket threshold.

@@ -3,7 +3,7 @@
 # sonar-scanner-cli analyzes against the in-cluster SonarQube over http (ClusterIP — no Traefik/mkcert TLS; the Job
 # is unmeshed and SonarQube is PERMISSIVE mTLS, so plaintext is accepted). Kept SEPARATE from code-scan-suite:
 # that one runs server-less file scanners → Port; SonarQube needs its own server. Token in Secret
-# sonarqube-scan-token (global analysis token), created out-of-band, never committed. Weekly Sun 12:00 UTC (08:00 NY).
+# sonarqube-scan-token (global analysis token), created out-of-band, never committed. Weekly Sun 03:00 NY (B228, 2026-10-19: moved out of the working day — Design Rule #5 — and onto the NY clock, Rule #1).
 #
 # SCOPE (B138 lane model): SonarQube owns CODE QUALITY on real application source. The scan lane (code-scan-suite:
 # trivy/checkov/gitleaks) already owns SECURITY across ALL files including IaC. Scanning `.` naively made SonarQube
@@ -27,8 +27,8 @@ metadata:
   name: sonar-scan
   namespace: weyland
 spec:
-  schedule: "0 12 * * 0"
-  timeZone: Etc/UTC
+  schedule: "0 3 * * 0"
+  timeZone: America/New_York
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2

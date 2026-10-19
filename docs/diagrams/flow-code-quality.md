@@ -5,13 +5,13 @@ feed Port.io, and a **Code Health** Port dashboard assembles the result. The lab
 everything is **outbound**: each scanner POSTs findings to Port's `code-quality` webhook ingest URL (Secret
 `port-ingest-url`), and SonarQube's native webhook POSTs its quality gate the same way.
 
-- **`code-scan-suite`** (Sun **13:00 UTC**) — an `initContainer` git-clones the public repo
+- **`code-scan-suite`** (Sun **04:00 NY**, B228) — an `initContainer` git-clones the public repo
   (`github.com/edtbl76/weyland-lab`, **full history** for code-maat) into `/src`, then the
   `registry.weyland.lab/scan-suite` image runs the **`quality-tools.yaml`** roster (22 scan-suite tools, multi-language:
   secrets/SAST/SCA/IaC/k8s/lint/vuln/HTTP-headers over Python + Go) best-effort over `/src` — each POSTing severity counts →
   **`security_scan`** blueprint (one entity per tool). code-maat then computes change-hotspots and POSTs the
   **top-20** to the **same** ingest URL with a `kind:"hotspot"` discriminator → **`code_hotspot`** blueprint.
-- **`sonar-scan`** (Sun **12:00 UTC**) — clone → Maven-compile the Flink modules → `sonar-scanner-cli` against the
+- **`sonar-scan`** (Sun **03:00 NY**, B228) — clone → Maven-compile the Flink modules → `sonar-scanner-cli` against the
   in-cluster SonarQube (`sonarqube.weyland.svc:9000`); SonarQube's **native webhook** POSTs the quality gate →
   **`code_quality`** blueprint (one entity: `weyland-lab`).
 
@@ -33,7 +33,7 @@ sequenceDiagram
     participant Arch as s3://scan-reports<br/>(per-run archive, 90d)
     participant Op as Operator (DoD Pillar 7)
 
-    Note over Cron,BP: Path 1 — code-scan-suite (Sun 13:00 UTC)
+    Note over Cron,BP: Path 1 — code-scan-suite (Sun 04:00 NY)
     Cron->>Clone: start code-scan-suite
     Clone->>Suite: /src (full git history)
     loop 22 tools best-effort
@@ -55,7 +55,7 @@ sequenceDiagram
     Ingest-->>Suite: 202 (queue-accepted)
     Ingest->>BP: map .body.kind=="hotspot" → code_hotspot
 
-    Note over Cron,BP: Path 2 — sonar-scan (Sun 12:00 UTC)
+    Note over Cron,BP: Path 2 — sonar-scan (Sun 03:00 NY)
     Cron->>Clone: start sonar-scan
     Clone->>Maven: /src (Maven-compile Flink modules)
     Maven->>Sonar: sonar-scanner-cli analysis

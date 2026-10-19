@@ -7,8 +7,8 @@
 #
 # An alpine/git initContainer clones each repo into /src/<repo> (with the pr-lifecycle Contents:read token, so
 # it reaches the private freejack/startme-curator); the scanner container then loops those checkouts. Cloning
-# stays in the git image so the scanner image needs nothing extra. Weekly Sun 14:00 UTC — clear of sonar-scan
-# (12:00) and code-scan-suite (13:00). Token in Secret sonarqube-scan-token (global analysis token).
+# stays in the git image so the scanner image needs nothing extra. Weekly Sun 03:15 NY — after sonar-scan
+# (03:00), before code-scan-suite (04:00) (B228, 2026-10-19: moved out of the working day — Design Rule #5 — and onto the NY clock, Rule #1). Token in Secret sonarqube-scan-token (global analysis token).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -17,14 +17,25 @@ metadata:
 data:
   sonar-all.sh: |
     #!/bin/sh
-    # Scan every pre-cloned repo under /src (one Sonar project per repo). Best-effort per repo: one failure
+    # Scan every pre-cloned repo under /src (SONAR_SRC overrides it for the bats suite; one Sonar project per repo). Best-effort per repo: one failure
     # never skips the rest, but the job exits nonzero so a persistent failure is visible (never a silent green).
     set -u
     : "${SONAR_HOST_URL:?}"
     : "${SONAR_TOKEN:?}"
     rc=0
     DEFAULT_EXCL='**/node_modules/**,**/.git/**,**/build/**,**/dist/**,**/.next/**,**/vendor/**,**/*.min.js'
-    for dir in /src/*/; do
+    # Source-only Java (2026-10-19, B229): these repos have no Java build, so no compiled classes exist, and
+    # SonarQube's Java analyzer refuses to run without `sonar.java.binaries` — freejack's 1,704 lesson .java files
+    # failed the whole Job on 2026-10-18. Pointing it at an EMPTY directory = analyze the source as-is (cross-file type
+    # rules lose some precision). A repo whose own sonar-project.properties sets the binaries keeps its own setting.
+    NO_CLASSES=$(mktemp -d)
+    # Does the repo hold any .java outside node_modules/.git? `ls -R` + awk, NOT find: the scanner image
+    # (sonarsource/sonar-scanner-cli, Amazon Linux 2023) has no `find`, and a missing find here would silently skip
+    # the setting while the bats image (which has find) stayed green.
+    has_java() {
+      ls -R "$1" 2>/dev/null | awk '/:$/ { skip = ($0 ~ /\/(node_modules|\.git)(\/|:$)/) } !skip && /\.java$/ { found = 1 } END { exit !found }'
+    }
+    for dir in "${SONAR_SRC:-/src}"/*/; do
       [ -d "$dir" ] || continue
       repo=$(basename "$dir")
       echo "======================= sonar-scan-repos: ${repo} ======================="
@@ -37,6 +48,9 @@ data:
         set --
       else
         set -- -Dsonar.sources=. -Dsonar.exclusions="${DEFAULT_EXCL}"
+      fi
+      if has_java "$dir" && ! grep -qs '^sonar\.java\.binaries=' "${dir}sonar-project.properties"; then
+        set -- "$@" -Dsonar.java.binaries="${NO_CLASSES}"
       fi
       if ! sonar-scanner \
           -Dsonar.projectKey="${repo}" \
@@ -58,8 +72,8 @@ metadata:
   name: sonar-scan-repos
   namespace: weyland
 spec:
-  schedule: "0 14 * * 0"
-  timeZone: Etc/UTC
+  schedule: "15 3 * * 0"
+  timeZone: America/New_York
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2

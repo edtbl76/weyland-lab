@@ -8,15 +8,15 @@
 # ⚠ NEEDS A LIVE VERIFY (documented as a decision, not an oversight): the Gradle build reaches out for the
 # wrapper distribution + dependencies and its JDK/Gradle versions are the project's, none of which can be tested
 # from the repo. First run confirms; iterate on the JDK image or java.binaries glob if it complains. Weekly
-# Sun 15:00 UTC — after sonar-scan-repos (14:00). Token in Secret sonarqube-scan-token.
+# Sun 03:30 NY — after sonar-scan-repos (03:15) (B228, 2026-10-19: moved out of the working day — Design Rule #5 — and onto the NY clock, Rule #1). Token in Secret sonarqube-scan-token.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: sonar-scan-gradle
   namespace: weyland
 spec:
-  schedule: "0 15 * * 0"
-  timeZone: Etc/UTC
+  schedule: "30 3 * * 0"
+  timeZone: America/New_York
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2

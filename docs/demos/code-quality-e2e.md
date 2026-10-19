@@ -23,7 +23,7 @@ sequenceDiagram
     participant BP as Port blueprints<br/>(security_scan / code_hotspot / code_quality)
     participant Dash as Code Health dashboard
 
-    Cron->>Clone: start code-scan-suite (13:00 UTC)
+    Cron->>Clone: start code-scan-suite (Sun 04:00 NY)
     Clone->>Suite: /src (full git history)
     loop 9 tools best-effort
         Suite->>Ingest: POST per-tool counts
@@ -32,7 +32,7 @@ sequenceDiagram
     end
     Suite->>Ingest: POST code-maat top-20 {kind:"hotspot"}
     Ingest->>BP: .body.kind=="hotspot" → code_hotspot
-    Cron->>Clone: start sonar-scan (12:00 UTC)
+    Cron->>Clone: start sonar-scan (Sun 03:00 NY)
     Clone->>Sonar: Maven-compile + sonar-scanner
     Sonar->>Ingest: native webhook POST quality gate
     Ingest->>BP: .body.qualityGate!=null → code_quality (weyland-lab)
@@ -43,8 +43,8 @@ sequenceDiagram
 
 - **Port** — `https://app.port.io`; blueprints `security_scan`, `code_hotspot`, `code_quality`
   (`tofu/port/blueprints.tf`); webhook DS `code-quality` with a **3-entry mapping array** (UI-only, `operation: create`).
-- **CronJobs** (both `Sun`, `Etc/UTC`): `code-scan-suite` (`k8s/code-quality/scan-suite.yaml`, 13:00 UTC),
-  `sonar-scan` (`k8s/sonarqube/sonar-scan.yaml`, 12:00 UTC).
+- **CronJobs** (both `Sun`, `America/New_York` since B228): `code-scan-suite` (`k8s/code-quality/scan-suite.yaml`, 04:00),
+  `sonar-scan` (`k8s/sonarqube/sonar-scan.yaml`, 03:00).
 - **scan-suite image** — `registry.weyland.lab/scan-suite` (`services/scan-suite/`); ingest URL in Secret
   `port-ingest-url` (key `url`).
 - **SonarQube** — `https://sonarqube.weyland.lab`, in-cluster `sonarqube.weyland.svc:9000`, native webhook → Port.

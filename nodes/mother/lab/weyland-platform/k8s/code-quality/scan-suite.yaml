@@ -4,8 +4,8 @@
 # the pr-lifecycle token (Contents: read → works for public AND private repos), then runs the shared scan.py
 # once with SCAN_TARGET set, so each repo gets its own Port `code-quality` counts + MinIO report. The tool
 # roster is the repo-root quality-tools.yaml (SOURCE OF TRUTH; scripts/check-quality-tools.sh guards it).
-# SonarQube is its own CronJob (sonar-scan). Weekly Sun 13:00 UTC (09:00 NY) — clear of the DataHub train and
-# image-prune. Image built via scripts/build-push-images.sh (scan.py's SCAN_TARGET support needs a rebuild).
+# SonarQube is its own CronJob (sonar-scan). Weekly Sun 04:00 NY — after the three Sonar scans
+# (03:00–03:30), clear of the 02:17 ingestion and the 06:00 dbt build; ~44–55 min (B228, 2026-10-19: moved out of the working day — Design Rule #5 — and onto the NY clock, Rule #1). Image built via scripts/build-push-images.sh (scan.py's SCAN_TARGET support needs a rebuild).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -55,8 +55,8 @@ metadata:
   name: code-scan-suite
   namespace: weyland
 spec:
-  schedule: "0 13 * * 0"
-  timeZone: Etc/UTC
+  schedule: "0 4 * * 0"
+  timeZone: America/New_York
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2

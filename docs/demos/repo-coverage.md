@@ -71,4 +71,4 @@ dashboards (`dashboard?id=<repo>`) and the code-scan-suite → Port `security_sc
 
 The adhoc jobs are verification-only — delete them:
 `kubectl -n weyland delete job sonar-scan-repos-adhoc sonar-scan-gradle-adhoc`. The weekly CronJobs
-(`sonar-scan-repos` Sun 14:00 UTC, `sonar-scan-gradle` 15:00) are the durable path; the guard is read-only.
+(`sonar-scan-repos` Sun 03:15 NY, `sonar-scan-gradle` 03:30 — B228) are the durable path; the guard is read-only.

@@ -13,8 +13,8 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   db/role `sonarqube`). Auth is **double-login**: a **Keycloak forward-auth gate** (`traefik-forward-auth`) sits
   **in front of** SonarQube's own login (`admin`/`admin` → forced change) — Keycloak SSO first, then SonarQube's
   own login. Stateless-ish: data + extensions on RWO PVCs.
-- Weekly CronJobs (clone → scan → Port): `k8s/code-quality/scan-suite.yaml` (`code-scan-suite`, Sun 13:00 UTC) +
-  `k8s/sonarqube/sonar-scan.yaml` (`sonar-scan`, Sun 12:00 UTC). **On-demand — the per-batch DoD Pillar 7 gate:**
+- Weekly CronJobs (clone → scan → Port): `k8s/code-quality/scan-suite.yaml` (`code-scan-suite`, Sun 04:00 NY) +
+  `k8s/sonarqube/sonar-scan.yaml` (`sonar-scan`, Sun 03:00 NY; both moved out of the working day by B228, 2026-10-19). **On-demand — the per-batch DoD Pillar 7 gate:**
   `./scripts/run-scan-suite.sh` (clears any prior adhoc job → launches from `cronjob/code-scan-suite` → waits →
   prints the findings to triage; runs from anywhere with kubectl). **Exit 0 only when the job completed;** a job that
   outlives the wait exits **2**, `NOT a clean scan`, with the partial logs. The default wait is **5400s** (2026-10-16):
@@ -251,8 +251,8 @@ each package's latest release IS the advisory's `last_affected`): braces 3.0.3, 
 
 ## B69 — weekly CronJobs + the scan-suite (2026-07-18)
 
-The three on-demand Jobs were folded into **two weekly CronJobs** (both `Sun`, `Etc/UTC`; see [schedules.md](../schedules.md)):
-- **`code-scan-suite`** (`k8s/code-quality/scan-suite.yaml`, 13:00 UTC) — ONE `registry.weyland.lab/scan-suite` image
+The three on-demand Jobs were folded into **two weekly CronJobs** (both `Sun`, `America/New_York` since B228 — 03:00–04:00, out of the working day; see [schedules.md](../schedules.md)):
+- **`code-scan-suite`** (`k8s/code-quality/scan-suite.yaml`, Sun 04:00 NY) — ONE `registry.weyland.lab/scan-suite` image
   (`services/scan-suite/`, built via `scripts/build-push-images.sh`) clones the repo once and runs the
   **`quality-tools.yaml`** roster (22 scan-suite tools) best-effort → per-tool severity counts POSTed to the Port
   `code-quality` webhook. The registry is authoritative; the build-suite-home adds (2026-08-07) were **ruff ·
@@ -261,7 +261,7 @@ The three on-demand Jobs were folded into **two weekly CronJobs** (both `Sun`, `
   HONORS `.gitignore`, so a file that is BOTH tracked in git AND gitignored (a secret hidden after it was already
   committed) is invisible to it. `secret_files` finds that intersection via `git check-ignore --no-index` over the
   tracked-file list — no entropy heuristics — and marks each hit CRITICAL. Near-zero false positives. Replaces `semgrep-scan-job` + `trivy-scan-job` (deleted).
-- **`sonar-scan`** (`k8s/sonarqube/sonar-scan.yaml`, 12:00 UTC) — clone → Maven-compile the Flink modules → sonar-scanner
+- **`sonar-scan`** (`k8s/sonarqube/sonar-scan.yaml`, Sun 03:00 NY) — clone → Maven-compile the Flink modules → sonar-scanner
   (kept separate: needs the server + a Java build). Replaces `sonar-scan-job` (deleted).
 
 Image gotchas hit during bring-up (all in the `scan-suite` Dockerfile/`scan.py`): pinned tool download URLs 404 on a
