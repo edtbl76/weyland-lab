@@ -74,7 +74,8 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   in `.trivyignore-images.yaml`). Major bumps are contract-tested first — run old and new on this repo with `scan.py`'s
   exact flags and compare the fields it parses (kubescape v3 → v4 and osv-scanner v1 → v2 were, 2026-10-17).
 - **No packages installed straight from a Dockerfile** (2026-10-16): `scripts/check-dockerfile-installs.sh`
-  (repo-guards) counts every package a Dockerfile `pip install`s outside a requirements file, in every stage, and holds
+  (repo-guards) counts every package a Dockerfile under `nodes/` or `golden-paths/` (the templates, in scope since the
+  2026-10-19 DoD audit — 68 Dockerfiles) `pip install`s outside a requirements file, in every stage, and holds
   each Dockerfile to a ceiling in `scripts/ci/dockerfile-installs.baseline` that may only fall. The first count was
   103 packages across 14 Dockerfiles (80 unpinned); all 14 now install from lockfiles, so the ceiling is 0. A new
   direct install fails CI, named. To add a package, put it in the image's requirements file. A lockfile here is the
@@ -322,8 +323,9 @@ carries an `ignore` rule (`dependency-name` + the breaking `versions` range) wit
   semgrep from about 1.140 pins an mcp version with GHSA-84m7; setuptools 82+ drops `pkg_resources`, which crashed
   semgrep 1.90 at startup. `pip check` passed on both; only running the tool showed it.
 - **Accept what has no installable fix, scoped to the exact version.** `osv-scanner.toml` `[[PackageOverrides]]` with
-  `name` + `version` + `vulnerability.ignore = true` suppresses that one version only (proven on osv-scanner 1.9.1: the
-  same advisory on another version elsewhere still reports). `[[IgnoredVulns]]` by id is repo-wide: use it only when
+  `name` + `version` + `vulnerability.ignore = true` suppresses that one version only (proven on osv-scanner 1.9.1, and re-checked on the
+  v2.7 suite by B220's contract test: the same advisory on another version elsewhere still reports). Since B220 osv runs
+  with `--no-resolve`, so it grades the pins a file declares and never versions it guessed for transitive deps. `[[IgnoredVulns]]` by id is repo-wide: use it only when
   the advisory cannot apply anywhere (setuptools' macOS-sdist bypass). Every entry carries its reason and an expiry.
 - **Read a Dependabot security PR's whole diff before merging (2026-10-17).** Its grouped PR may REGENERATE the
   lockfile from the `.in`: #194 (oauthlib 3.3.1 → 4.0.0 in weyland-dagster) also renamed packages, dropped the B113/B213

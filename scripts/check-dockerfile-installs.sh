@@ -2,7 +2,7 @@
 # Dockerfile direct-install ratchet (2026-10-16). A `pip install <pkg>` line in a Dockerfile is invisible to every
 # source scanner (they read requirements files) and, unpinned, drifts on any rebuild — the class that took Dagster down
 # on 2026-10-01; tool-server's mcp 1.28.1 hid in one through GHSA-84m7-p3x7-pcfv. The first count was 103 packages
-# (23 pinned, 80 unpinned) across 14 Dockerfiles. Each Dockerfile has a ceiling in scripts/ci/dockerfile-installs.baseline
+# (23 pinned, 80 unpinned) across 14 Dockerfiles. Scope: every Dockerfile* under nodes/ and golden-paths/. Each Dockerfile has a ceiling in scripts/ci/dockerfile-installs.baseline
 # that may only FALL: move installs into a pinned requirements file, then lower it with --write-baseline.
 #
 #   usage: scripts/check-dockerfile-installs.sh [--list | --write-baseline]
@@ -20,10 +20,13 @@ PYTHONPATH="$REPO_ROOT/scripts/lib" python3 - "$ROOT" "$BASELINE" "$MODE" <<'PY'
 import glob, os, sys
 import dockerfile_installs as d
 root, baseline_path, mode = sys.argv[1:]
-files = sorted(p for p in glob.glob(os.path.join(root, "nodes", "**", "Dockerfile*"), recursive=True)
-               if os.path.isfile(p))
+# nodes/ (what the lab builds and deploys) and golden-paths/ (the templates new services start from — in scope since the
+# 2026-10-19 DoD audit: a direct install added to a template would be copied into every service made from it).
+files = sorted(p for top in ("nodes", "golden-paths")
+               for p in glob.glob(os.path.join(root, top, "**", "Dockerfile*"), recursive=True) if os.path.isfile(p))
 if not files:
-    print(f"CANNOT CHECK: no Dockerfile under {root}/nodes — refusing to report a clean tree", file=sys.stderr)
+    print(f"CANNOT CHECK: no Dockerfile under {root}/nodes or {root}/golden-paths — refusing to report a clean tree",
+          file=sys.stderr)
     sys.exit(2)
 counts = {}
 for p in files:
@@ -51,5 +54,6 @@ for low in lower:
 if bad:
     print(f"DOCKERFILE INSTALLS ABOVE THE RATCHET: {len(bad)} file(s). Move them into a pinned requirements file.")
     sys.exit(1)
-print(f"OK — {sum(counts.values())} direct pip install(s) across {used} Dockerfile(s), none above its ceiling.")
+print(f"OK — {len(files)} Dockerfile(s) scanned; {sum(counts.values())} direct pip install(s) across {used} of them, "
+      "none above its ceiling.")
 PY

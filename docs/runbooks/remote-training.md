@@ -334,9 +334,10 @@ kubectl -n weyland exec deploy/ray-head -- ray job submit --address http://local
 **[services/genre-trainer/README.md](https://github.com/edtbl76/weyland-lab/blob/main/nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)**.
 ```
 # Pick the NEXT free tag first (never reuse one): curl -s https://registry.weyland.lab/v2/genre-trainer/tags/list
-docker build -t registry.weyland.lab/genre-trainer:v7 <path-to-genre-trainer>
-bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/genre-trainer:v7   # B211: pushes via the authenticated host
-docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v7 --source silver
+# v8 (2026-10-19) is current — the B218 NodePort entrypoint + skops trusted types; the next build is v9.
+docker build -t registry.weyland.lab/genre-trainer:v9 <path-to-genre-trainer>
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/genre-trainer:v9   # B211: pushes via the authenticated host
+docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v8 --source silver
 ```
 Then `mlflow.weyland.lab` → experiment `genre-classifier`, model `genre_classifier`.
 

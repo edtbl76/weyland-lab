@@ -71,7 +71,14 @@ woodpecker-cli pipeline create edtbl76/weyland-lab --branch main --var RUN_FIXTU
 ```
 Result (run, **#416**): **25 steps** (the full matrix is 69) — `test-swift`, `scan-swift`, `golden-path-smoke` (swift/vapor-app
 only) plus the production lanes (test-python/shell/java, scan-java, both integration lanes); the other 44 fixture steps are
-dropped. **success in 17 min.** The negative cases are bats-tested: a shared trigger alongside → full; failed discovery → full.
+dropped. **success in 17 min.**
+
+[rogueone] **Negative case — a shared file alongside → the FULL matrix** (run 2026-10-19). The same replay with
+`scripts/run-lang-tests.sh` (every lane's runner) added to the changed files:
+```
+SELECT_CHANGED_FILES="$(git diff --name-only d4cc9652 5999a4d6; echo scripts/run-lang-tests.sh)" SELECT_WOODPECKER_BASE=/tmp/wp-base.yml SELECT_WOODPECKER_HEAD=/tmp/wp-head.yml bash scripts/ci/select-fixtures.sh --plan
+```
+Output (run): `RUN_FIXTURES=1` · `FIXTURE_LANES=''` · `GOLDEN_PATH_ONLY=''` — empty lanes mean every fixture lane runs. Failed lane discovery also falls back to full (bats-tested).
 
 ## UI walkthrough
 

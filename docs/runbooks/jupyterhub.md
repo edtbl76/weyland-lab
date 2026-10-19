@@ -74,6 +74,12 @@ browser ──► jupyter.weyland.lab (Traefik ingress + weyland-wildcard-tls)
 
 ## 3. Gotchas (all hit during bring-up — read before touching)
 
+- **The singleuser image has two pins that move only on purpose (B220, 2026-10-17/18).** (1) The base
+  `quay.io/jupyter/scipy-notebook` is pinned by **digest** in `singleuser/Dockerfile`: `:latest` silently jumped Ubuntu
+  24.04 → 26.04 and JupyterHub 4.x → 6.0.1 under an unchanged tag. (2) `jupyterhub==5.5.0` in
+  `singleuser/requirements-lake.txt` matches this hub (chart `k8s-hub` 3.3.8 = JupyterHub 4.1.6) — the base's 6.0.1
+  is not proven against it. Move either only together with the hub chart, rebuild on the next FREE `weyland-jupyter`
+  tag, and re-run §5's spawn UAT.
 - **OIDC back-channel needs the mkcert CA.** The hub's SERVER-SIDE token/userinfo calls to `keycloak.weyland.lab`
   use the mkcert cert; libcurl won't trust it → `HTTP 599 SSL certificate problem` → **500 on `/hub/oauth_callback`**.
   Fix: mount `weyland-mkcert-ca` + `c.GenericOAuthenticator.http_request_kwargs = {"ca_certs": "/etc/mkcert/rootCA.pem"}`
@@ -155,10 +161,12 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   Cockroach need none. **Reach from rogueone = the new `-lan` NodePorts** (`k8s/data-mesh/tier2-lan.yaml`:
   clickhouse 30123 · cassandra 30942 · mongodb 30017 · cockroachdb 30257 · timescaledb 30543 · mysql 30306) — the
   lab is NodePorts-only, never `kubectl port-forward`. **Mesh caveat (in-pod UAT):** `data-mesh` is istio-injected;
-  cassandra opts out (`inject:false`), mysql/timescale opt in (`inject:true`), the rest inherit the ns default — so
-  a store IS meshed once its pod restarts, and a plaintext client (an unmeshed singleuser pod) then can't reach it.
-  The notebook was validated from INSIDE the mesh (the real in-cluster environment); for the actual spawn to reach
-  the meshed stores (MySQL here, GizmoSQL in `21`) the singleuser pod must be mesh-joined — track that in the UAT.
+  cassandra, cockroachdb and **mysql opt out** (`inject:false`; MySQL since B219, 2026-10-17 — it is server-first, and a
+  PERMISSIVE sidecar's inbound listener waits for client bytes that never come, so its greeting never arrived),
+  timescaledb opts in (`inject:true`), the rest inherit the ns default (enabled). Live 2026-10-19: **ClickHouse,
+  MongoDB and TimescaleDB are meshed; MySQL is not.** The notebook was validated from INSIDE the mesh (the real
+  in-cluster environment); for the actual spawn to reach the meshed stores (ClickHouse/MongoDB/TimescaleDB here,
+  GizmoSQL in `21`) the singleuser pod must be mesh-joined — track that in the UAT.
 - **Vector & graph (2026-09-01, all four validated live, headless-execute clean):** `30_vector_qdrant` (served
   vector DB — semantic ANN seeded from a stored vector, payload-filtered search, HNSW/quantization tuning over
   `weyland_chunks`/dataset collections) · `31_vector_weaviate` (**the U16 deliverable** — class/object browse, vector
@@ -279,7 +287,7 @@ Storage (needs `lakefs-creds`, `iceberg-s3-creds`):
 Query:
 - [ ] `20_query_trino_federation` — the `iceberg.eval ⋈ postgresql` join returns rows.
 - [ ] `21_query_duckdb_gizmosql` — **MESHED-STORE CHECK**: the GizmoSQL (served) half connects over mTLS; embedded DuckDB over lakeFS works.
-- [ ] `22_query_tier2_native` — **MESHED-STORE CHECK**: all six stores; **MySQL** is the one that only works if the sidecar is present (needs `tier2-creds`).
+- [ ] `22_query_tier2_native` — **MESHED-STORE CHECK**: every unparked store returns data (needs `tier2-creds`); ClickHouse, MongoDB and TimescaleDB are the meshed ones, MySQL is unmeshed since B219. **Run it per store** — JupyterLab's Run All stops at the first error, so a parked store (Cassandra/CockroachDB/MongoDB, replicas 0) hides every cell after it (UAT 2026-10-18).
 
 Vector/graph (Qdrant/Weaviate open; `33` needs `neo4j-creds`):
 - [ ] `30_vector_qdrant` — `weyland_chunks` search (768-dim, ~8300 pts).
@@ -311,7 +319,7 @@ Streaming (no creds):
 
 ### 5.3 Sign-off
 - [ ] Every notebook above ran with **0 error outputs** in-pod (nb 51 model-load note excepted, by design).
-- [ ] The three meshed-store checks (21 GizmoSQL, 22 MySQL, 41 Cube) succeeded → the singleuser mesh-join is confirmed working.
+- [ ] The three meshed-store checks (21 GizmoSQL, 22 ClickHouse/TimescaleDB, 41 Cube) succeeded → the singleuser mesh-join is confirmed working.
 - [ ] The RAG egress check (60) succeeded → git-sync + public `%pip`/HF egress confirmed.
 - [ ] Record the run (date + any deviation) here, flip **B81/EMA-71 → Done**, and mark the DoD demo pillar for the notebook library.
 

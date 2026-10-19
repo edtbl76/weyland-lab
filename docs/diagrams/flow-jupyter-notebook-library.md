@@ -36,7 +36,7 @@ sequenceDiagram
     KC-->>Hub: token → user authenticated (allow_all)
 
     Note over Hub,Pod: 3. KubeSpawner spawns the singleuser pod
-    Hub->>Reg: pull registry.weyland.lab/weyland-jupyter:v1<br/>(pullPolicy: IfNotPresent)
+    Hub->>Reg: pull registry.weyland.lab/weyland-jupyter (the tag in jupyterhub-values.yaml, v3 since B220)<br/>(pullPolicy: IfNotPresent)
     Reg-->>Hub: image
     Hub->>Pod: spawn pod, extraLabels sidecar.istio.io/inject:"true"
     Note over Pod: istio-proxy sidecar injected → mesh-joined
@@ -50,7 +50,7 @@ sequenceDiagram
     Note over Pod,Mesh: 5. A notebook runs and queries the live mesh
     SS-->>Pod: injected creds (lakefs/iceberg/gizmosql/tier2/<br/>neo4j/cube/mlplat/litellm/datahub)
     Op->>Pod: Run All Cells
-    Pod->>Mesh: meshed stores over mTLS via the sidecar<br/>(GizmoSQL, MySQL, Cube)
+    Pod->>Mesh: meshed stores over mTLS via the sidecar<br/>(GizmoSQL, ClickHouse, TimescaleDB, Cube)
     Pod->>Mesh: unmeshed stores plaintext<br/>(Trino, lakeFS, Qdrant, Neo4j, Redpanda, ...)
     Mesh-->>Pod: rows / vectors / features / traces
     Pod-->>Op: results in the notebook
@@ -63,7 +63,7 @@ reading a real slice of the live mesh:
 
 - **Storage** — lakeFS (git-for-data) · Nessie/Iceberg (table versioning) on MinIO.
 - **Query** — Trino (federated SQL, unmeshed) · DuckDB embedded + **GizmoSQL** served over Arrow Flight SQL (meshed) ·
-  the six Tier-2 native clients (ClickHouse/Cassandra/MongoDB/CockroachDB/TimescaleDB/**MySQL** — MySQL is meshed).
+  the six Tier-2 native clients (ClickHouse/Cassandra/MongoDB/CockroachDB/TimescaleDB/MySQL — ClickHouse, MongoDB and TimescaleDB are meshed; MySQL is not, since B219).
 - **Vector / graph** — Qdrant · Weaviate · LanceDB (lakeFS-backed) · Neo4j (bolt).
 - **Transform / semantic** — the 7 dbt marts via Trino · **Cube** SQL API (meshed).
 - **Feature / ML** — Feast (Valkey online + Postgres point-in-time) · MLflow (tracking + registry).
@@ -75,7 +75,7 @@ reading a real slice of the live mesh:
 
 - **Hub + proxy stay unmeshed; only singleuser pods join the mesh.** `sidecar.istio.io/inject:"true"` is a **pod
   label** (`singleuser.extraLabels`), not a namespace label — the istio object injector meshes only the pods that
-  carry it. Meshed stores (GizmoSQL, MySQL, Cube) need the sidecar or a plaintext client deadlocks at their inbound
+  carry it. Meshed stores (GizmoSQL, ClickHouse, TimescaleDB, Cube) need the sidecar or a plaintext client deadlocks at their inbound
   proxy; unmeshed stores are reached over plain HTTP through the `privateIPs` NetworkPolicy allowance.
 - **Two egress classes, one NetworkPolicy.** Z2JH's default singleuser policy blocks private cluster IPs (a security
   default) and the cloud-metadata block stays; `egressAllowRules.privateIPs: true` re-allows the mesh, and public

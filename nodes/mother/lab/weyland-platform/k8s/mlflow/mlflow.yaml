@@ -56,8 +56,8 @@ spec:
             # starts (2->3 changes the schema; the 3.x server refuses to start on a 2.x DB otherwise). Idempotent —
             # a no-op once migrated, so it's safe on every pod restart. BACK UP the mlflow DB before first rollout.
             # B100 P4: `mlflow[gateway]` adds the built-in AI Gateway's backend deps (tiktoken/slowapi/watchfiles) —
-            # without them the gateway UI renders but its API 404s (unmounted). mlflow==3.15.1 is already in the image,
-            # so this just pulls the missing extras (the image is 3.16.1 since B215, 2026-10-17). (If restarts get slow, bake these into a small image — see top note.)
+            # without them the gateway UI renders but its API 404s (unmounted). mlflow==3.16.1 is already in the image
+            # (since B215, 2026-10-17), so this just pulls the missing extras. (If restarts get slow, bake these into a small image — see top note.)
             # ⚠ THIS PIN MUST TRACK THE IMAGE TAG ABOVE. pip is authoritative at runtime: leaving it at an older
             # version silently DOWNGRADES the image's mlflow on every pod start, so a CVE bump done only on the
             # image tag would look applied and not be. (Caught during the 3.14.0 -> 3.15.1 CVE-2026-64849 bump.)

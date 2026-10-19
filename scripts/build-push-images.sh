@@ -7,9 +7,8 @@
 # unreachable — because it builds with plain `docker` on the dev machine and depends on none of that.
 #
 # HEADER CORRECTED 2026-08-21. It previously said "all 8 images" (it builds 11) and described the retired
-# `:vN` hand-bump convention as if it were current. It also does NOT build `ranger` — the codekb claimed it
-# did; there is no `build ranger` line here. Nothing in this repo builds ranger, or the nine other `:vN`
-# images (ray-head, …); those are built by hand and undocumented. (realm-of-agents moved into CI 2026-10-08, B202;
+# `:vN` hand-bump convention as if it were current. It builds `ranger` only when RANGER_TAG names the next free tag
+# (see the ranger block at the end). The other hand-tagged `:vN` images (ray-head, …) are built by hand. (realm-of-agents moved into CI 2026-10-08, B202;
 # weyland-guard 2026-10-14, B207 — see docs/runbooks/guardrails.md § Build & deploy for its escape-hatch build.)
 # B135 phase 2 brings them into CI (weyland-operator moved into scripts/ci/images.tsv 2026-10-02).
 #
@@ -48,8 +47,14 @@ build scan-suite                "services/scan-suite"
 build guardrails-structure      "services/guardrails-structure"   # B115 Structure layer (guardrails-ai isolated)
 build nemo-guardrails           "services/nemo-guardrails"        # B115 Dialog layer (NeMo Guardrails isolated)
 
-# ranger is VERSION-PINNED (mr3project base tag), not TAG-following — build it explicitly (B92: was a local
-# ctr-import, moved to the registry so it survives a prune/reschedule like the rest).
-echo "==== ranger:2.6.0-py3 (version-pinned) ===="; docker build -t "$REG/ranger:2.6.0-py3" services/ranger; bash "$SCRIPT_DIR/push-image.sh" "$REG/ranger:2.6.0-py3"
+# ranger is VERSION-PINNED (mr3project base tag), not TAG-following — built only when RANGER_TAG names the NEXT FREE
+# tag (B92: was a local ctr-import, moved to the registry). Never a fixed tag here: this line used to rebuild
+# `2.6.0-py3` — the ROLLBACK image since B220 moved the deployment to `2.6.0-py3-r2` — and a push silently overwrites
+# an existing tag (2026-10-19 DoD audit). List first: curl -s https://registry.weyland.lab/v2/ranger/tags/list
+if [ -n "${RANGER_TAG:-}" ]; then
+  echo "==== ranger:$RANGER_TAG (version-pinned) ===="; docker build -t "$REG/ranger:$RANGER_TAG" services/ranger; bash "$SCRIPT_DIR/push-image.sh" "$REG/ranger:$RANGER_TAG"
+else
+  echo "---- ranger skipped: set RANGER_TAG to the next free tag to build it (docs/runbooks/ranger.md) ----"
+fi
 
-echo "---- done: 8 images at :$TAG + ranger:2.6.0-py3 pushed to $REG. Now push the repointed k8s manifests so Argo redeploys. ----"
+echo "---- done: images at :$TAG${RANGER_TAG:+ + ranger:$RANGER_TAG} pushed to $REG. Now push the repointed k8s manifests so Argo redeploys. ----"

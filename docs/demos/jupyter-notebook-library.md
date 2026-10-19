@@ -15,7 +15,7 @@ and that IS the test (DoD). Distribution is git-sync on spawn, not an image rebu
 1. **Spawn a server** — browse `https://jupyter.weyland.lab` → **Keycloak login** (weyland realm, OIDC) →
    JupyterHub spawns a per-user singleuser pod.
    **UAT — confirm:**
-   - The spawn **pulls `registry.weyland.lab/weyland-jupyter:v1`** from the in-cluster registry (a few
+   - The spawn **pulls `registry.weyland.lab/weyland-jupyter:<tag>`** (the `singleuser.image.tag` in `jupyterhub-values.yaml`; `v3` since B220, 2026-10-18) from the in-cluster registry (a few
      seconds; `pullPolicy: IfNotPresent`, prune-safe — see the runbook §3 `ErrImageNeverPull` gotcha).
    - JupyterLab opens at `/lab`.
    - `~/notebooks` is **populated by the postStart git-sync**: 25 numbered notebooks + `datasets_lake.ipynb`

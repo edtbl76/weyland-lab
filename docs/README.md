@@ -61,7 +61,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [linear-backup.md](runbooks/linear-backup.md) — nightly Linear workspace snapshot → MinIO `linear-backup` (B194): operate, verify, install, rotate the read-only key
 - [mcp-fleet.md](runbooks/mcp-fleet.md) — MCP server fleet (B17+B19 Phase 3) — 6 read-only servers + FastMCP compositor
 - [mcp-gateway.md](runbooks/mcp-gateway.md) — `weyland-mcp-gateway` — mesh / fleet governance, Keycloak auth proxy
-- [mlflow-gateway.md](runbooks/mlflow-gateway.md) — MLflow AI Gateway (B100 P4) — 17 endpoints + guardrails + budget
+- [mlflow-gateway.md](runbooks/mlflow-gateway.md) — MLflow AI Gateway (B100 P4) — 18 endpoints + guardrails + budget
 - [mlflow-training.md](runbooks/mlflow-training.md) — MLflow training — one model, two feature sources, three use cases
 - [mlflow.md](runbooks/mlflow.md) — MLflow (B10+B16): experiment tracking + model registry, Postgres backend + MinIO artifacts, meshed, dev-password
 - [model-gateway.md](runbooks/model-gateway.md) — LiteLLM hosted-model gateway (Gemini + OpenRouter) + model catalog

@@ -95,7 +95,7 @@ model {
         }
 
         query = zone "Query / BI / semantic" {
-          trino = component "Trino" "Federation SQL — iceberg (native Nessie) + postgresql"
+          trino = component "Trino" "Federation SQL — iceberg (native Nessie) + postgresql; NodePort 30808 (rogueone only — no authenticator, B218)"
           gizmosql = component "GizmoSQL" "DuckDB over Arrow Flight SQL — persisted silver"
           superset = component "Superset" "BI/SQL exploration over Trino + stores"
           lightdash = component "Lightdash" "dbt-native BI over the marts"
@@ -119,9 +119,9 @@ model {
           mysql = store "MySQL" "Health datasets — 6 DBs / 32 tables; NodePort 30306; UNMESHED since B219 (server-first protocol: a PERMISSIVE sidecar swallowed the greeting)"
           mongodb = store "MongoDB" "Document store — who_gho, OFF, aidlc-kb"
           timescale = store "TimescaleDB" "Time-series hypertables"
-          opensearch = store "OpenSearch" "Search — RAG BM25 index target"
-          musicbrainz = store "MusicBrainz Postgres" "Full mbdump — CDC source"
-          valkey = store "Valkey" "Shared cache — Superset / Feast online"
+          opensearch = store "OpenSearch" "Search — RAG BM25 index target; NodePort 30920 (rogueone only — security plugin off, B218)"
+          musicbrainz = store "MusicBrainz Postgres" "Full mbdump — CDC source; NodePort 30544 (password, B218)"
+          valkey = store "Valkey" "Shared cache — Superset / Feast online; NodePort 30379 (rogueone only — no auth, B218)"
         }
 
         ml = zone "Feature store + ML" {
@@ -135,7 +135,7 @@ model {
         }
 
         gov = zone "Governance" {
-          datahub = component "DataHub" "Metadata catalog + lineage + domains/products/glossaries + applications (B82 app lens)"
+          datahub = component "DataHub" "Metadata catalog + lineage + domains/products/glossaries + applications (B82 app lens); GMS NodePort 30818 (token, B218)"
           ranger = component "Apache Ranger" "Trino authz — column masking, default-deny"
           soda = component "Soda" "Data-quality contracts (marts + silver) -> DataHub Assertions"
           greatExpectations = component "Great Expectations" "B77b auto-profiling + validation -> DataHub Assertions + Data Docs"
@@ -163,7 +163,7 @@ model {
         }
 
         obs = zone "Observability" {
-          grafana = component "Prometheus + Grafana" "Metrics + Alertmanager -> Telegram"
+          grafana = component "Prometheus + Grafana" "Metrics + Alertmanager -> Telegram; Prometheus NodePort 30909 (read-only API, B218)"
           loki = component "Loki + Alloy" "Logs -> MinIO; ruler -> Alertmanager"
           tempo = component "Tempo" "Traces -> MinIO (Jaeger retired)"
           pveExporter = component "PVE exporter" "Proxmox metrics -> Prometheus"
@@ -171,7 +171,7 @@ model {
           glitchtip = component "GlitchTip" "Error tracking -> Port"
           langfuse = component "Langfuse" "LLM observability (B103) — traces/scores/prompts/sessions + online evals (native LLM-as-judge evaluators + git-SSOT Datasets); reuses data-mesh ClickHouse/Valkey/MinIO + weyland-postgres"
           promptfoo = component "Promptfoo" "LLM eval / red-team harness UI (promptfoo.weyland.lab) — prompt/model eval + adversarial red-team suites over the model fleet"
-          kuma = component "Uptime Kuma" "25 monitors -> Telegram"
+          kuma = component "Uptime Kuma" "Monitors -> Telegram; API NodePort 30301 (Kuma login, B218)"
           kiali = component "Kiali" "Mesh observability UI"
           smCoverage = component "ServiceMonitor coverage" "B148 CronJob (ns monitoring, 02:45 NY, unmeshed, read-only SA). Reconciles every live ServiceMonitor across three planes - intended (.spec.replicas, trustworthy because Argo selfHeal), actual (.status.readyReplicas), observed (Prometheus scrape-pool targets). Exists because data-mesh/trino exported zero metrics for 59 days behind an unlabelled Service and no affirmative check could see it"
           placementCoverage = component "Placement coverage" "B198 CronJob (ns monitoring, 03:40 NY, unmeshed, Prometheus-only). Reconciles placement.yaml — where every workload runs, what it holds, whether it can move, its Strix Halo target — against kube-state-metrics workloads, node-exporter systemd units (rogueone, last 24h) and pve-exporter guests. Byte-identical embedded script + inventory (scripts/embed-placement.sh + placement.bats)"

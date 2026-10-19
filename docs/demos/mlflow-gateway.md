@@ -1,6 +1,6 @@
 # Demo — MLflow AI Gateway (B100 P4)
 
-One governed OpenAI-compatible front door over **17 models** (6 local + 9 hosted), with **LLM-judge guardrails**
+One governed OpenAI-compatible front door over **18 endpoints** (6 local + 9 hosted models, 2 small local ex-judges, and the one unguarded judge), with **LLM-judge guardrails**
 (Safety + PII) and a **global budget cap**, folded into MLflow so every call is usage-tracked. Fully codified — one
 self-healing script builds endpoints + scorers + guardrails + budget. Built + validated 2026-07-25.
 

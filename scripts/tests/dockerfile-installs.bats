@@ -16,7 +16,22 @@ setup() {
 @test "at the ceiling is exit 0" {
   run bash "$SCRIPT"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  [[ "$output" == *"OK — 2 direct pip install(s) across 1 Dockerfile(s)"* ]]
+  [[ "$output" == *"OK — 2 Dockerfile(s) scanned; 2 direct pip install(s) across 1 of them"* ]]
+}
+
+@test "a golden-path Dockerfile is in scope: a direct install there is exit 1 (DoD audit 2026-10-19)" {
+  mkdir -p "$T/golden-paths/python/app"; printf 'FROM python:3.12-slim\nRUN pip install flask\n' > "$T/golden-paths/python/app/Dockerfile"
+  run bash "$SCRIPT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"golden-paths/python/app/Dockerfile: 1 direct pip install(s), baseline 0 (not in the baseline)"* ]]
+}
+
+@test "the scanned count is printed even when no Dockerfile installs directly" {
+  printf 'FROM python:3.12-slim\nRUN pip install -r requirements.txt\n' > "$T/nodes/a/Dockerfile"
+  printf '' > "$T/baseline"
+  run bash "$SCRIPT"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"OK — 2 Dockerfile(s) scanned; 0 direct pip install(s)"* ]]
 }
 
 @test "one more direct install is exit 1, named" {

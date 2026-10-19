@@ -69,7 +69,7 @@ API-lifecycle guards then pass.
 |---|---|
 | HTTP surface | `/health` `/ready` `/metrics` `/hello` (`Sources/App/routes.swift`), bound `0.0.0.0:8080` (`configure.swift`) |
 | Self-test | `Tests/AppTests/ContractTests.swift` (XCTVapor over all four) + `Tests/SelfCheckTests/` (env-gated deliberate fail) |
-| Build | multi-stage non-root `Dockerfile` (`swift:6.0-jammy` build → `swift:6.0-jammy-slim` runtime) → `registry.weyland.lab/golden-swift-vapor-app` |
+| Build | multi-stage non-root `Dockerfile` (`swift:6.4.1-jammy` build → `swift:6.4.1-jammy-slim` runtime) → `registry.weyland.lab/golden-swift-vapor-app` |
 | Observability | structured logging (Vapor `Logger`) + `/metrics` (minimal Prometheus counter `golden_hello_requests_total`) |
 | Lane facts | runner `swift`; root marker `Package.swift`; tests `Tests/**/*.swift`; scan `swift-format lint` if available (none-standard otherwise) |
 

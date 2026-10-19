@@ -5,7 +5,9 @@
 #              "<dir>::<dockerfile-relpath>" (context=<dir>, Dockerfile=<dir>/<dockerfile-relpath>)
 #   manifests  space-separated k8s manifests whose image tag tracks this build (lockstep — all move together)
 # Paths are relative to nodes/mother/lab/weyland-platform/ (the platform dir), matching build-push-images.sh.
-# ranger is version-pinned (not tag-following) and intentionally omitted — build via build-push-images.sh.
+# ranger is version-pinned (not tag-following) and intentionally omitted — build via build-push-images.sh with RANGER_TAG.
+# genre-trainer and finance-trainer (rogueone trainers, run by hand with `docker run`, deployed nowhere) are hand-tagged
+# vN and intentionally omitted — build on the next free tag per runbooks/remote-training.md / finance-trainer.md.
 # weyland-jupyter (JupyterHub singleuser, B81) is tag-pinned (registry.weyland.lab/weyland-jupyter:vN, pullPolicy
 # IfNotPresent) and built MANUALLY (bump the tag in k8s/jupyterhub/jupyterhub-values.yaml, then docker build/push)
 # — the notebook library is git-synced not baked, so the image changes only on a dep/toolkit bump. Intentionally

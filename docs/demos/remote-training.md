@@ -76,7 +76,7 @@ Train from the TESTED dbt mart instead (materialize the in-cluster bridge export
 
 Standalone-container path (one-off fit, no cluster) on rogueone:
 
-[rogueone] `docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v7 --source silver`
+[rogueone] `docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v8 --source silver`
 
 Confirm the artifact landed direct in MinIO:
 

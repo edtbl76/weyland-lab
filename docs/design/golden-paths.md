@@ -189,7 +189,7 @@ framework-agnostic contract + the prove-in-Docker-before-push cadence. **Clean k
 docker-verified on rogueone** (tests pass · selfcheck fails · non-root multi-stage image · all four
 endpoints served): **Erlang**/Cowboy (`rebar3`, eunit) · **Julia**/Oxygen.jl (`Pkg.test`, env-gated selfcheck) ·
 **Lua**/OpenResty (busted, hand-rolled JSON+metrics — nginx as uid 10001) · **Swift**/Vapor (server-side Linux
-toolchain, `swift test`, `swift:6.0-jammy-slim` runtime — NOT the hardware-gated iOS Swift, which stays B164
+toolchain, `swift test`, `swift:6.4.1-jammy-slim` runtime (6.0 until B220, 2026-10-18 — swift-nio ≥ 2.98 needs tools 6.1) — NOT the hardware-gated iOS Swift, which stays B164
 workstream 1) · **Dart**/shelf (`dart compile exe`, `-t selfcheck --run-skipped`). Lanes wired: `run-lang-tests.sh`
 (markers + dispatch) + `lib/lang-fixtures.sh` (fixtures) + `run-lang-scan.sh` (scanners: `rebar3 xref` · JuliaFormatter ·
 `luacheck` · `swift format lint` · `dart analyze`) + `quality-tools.yaml` (26 lang-scan tools) + `.woodpecker.yml`

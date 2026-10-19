@@ -31,7 +31,7 @@ Output (run): `gpu-driver-drift: OK — loaded module 595.99.02 == nvidia-driver
 
 [rogueone]
 ```
-GPU_DRIFT_MODULE_FILE=<file holding the old /proc line> python3 /home/edwardmangini/IdeaProjects/weyland/scripts/gpu_driver_drift.py; echo "exit=$?"
+M=$(mktemp) && printf 'NVRM version: NVIDIA UNIX Open Kernel Module for x86_64  595.91.07  Release Build  (forced test)  Wed Jul 29 03:01:16 UTC 2026\n' > $M && GPU_DRIFT_MODULE_FILE=$M python3 /home/edwardmangini/IdeaProjects/weyland/scripts/gpu_driver_drift.py; echo "exit=$?"; rm -f $M
 ```
 Output (run): `DRIFT: loaded module 595.91.07 != installed nvidia-driver-595-open 595.99.02 — reboot to load the installed
 driver (until then a restarted Ollama may lose the GPU)`, `exit=1`. It pushed `down`; **the owner received the Telegram

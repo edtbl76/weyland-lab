@@ -19,7 +19,7 @@ under Xcode/macOS. So the app is **split** so the maximum is Linux-verifiable:
 
 | Piece | Status | How |
 |---|---|---|
-| `Sources/Greeting/Greeting.swift` (pure view-model logic) | **✅ Linux-verified** | `swift build` + `swift test` in `swift:6.0` |
+| `Sources/Greeting/Greeting.swift` (pure view-model logic) | **✅ Linux-verified** | `swift build` + `swift test` in `swift:6.4.1` (CI's `test-swift` image since B220) |
 | `Tests/AppTests/GreetingTests.swift` (5 contract tests) | **✅ Linux-verified** | `swift test` — all pass |
 | `Tests/SelfCheckTests/SelfCheckTests.swift` (deliberate fail) | **✅ Linux-verified** | `GOLDEN_SELFCHECK=1 swift test --filter SelfCheckTests` → non-zero |
 | `Sources/App/ContentView.swift` (SwiftUI `View`) | **⏸ PARKED — iOS hardware gate** | needs macOS + Xcode; `#if canImport(SwiftUI)` excludes it on Linux |
@@ -40,10 +40,10 @@ swift format lint --recursive Sources Tests             # scan (advisory style f
 Verified in Docker on rogueone:
 
 ```
-docker run --rm -v "$PWD/golden-paths/mobile/swift-ios:/w" -w /w swift:6.0 swift test           # exit 0, 5 pass, 1 skipped
-docker run --rm -e GOLDEN_SELFCHECK=1 -v "$PWD/golden-paths/mobile/swift-ios:/w" -w /w swift:6.0 \
+docker run --rm -v "$PWD/golden-paths/mobile/swift-ios:/w" -w /w swift:6.4.1 swift test         # exit 0, 5 pass (re-run 2026-10-19)
+docker run --rm -e GOLDEN_SELFCHECK=1 -v "$PWD/golden-paths/mobile/swift-ios:/w" -w /w swift:6.4.1 \
     swift test --filter SelfCheckTests                                                          # exit 1 (deliberate)
-docker run --rm -v "$PWD/golden-paths/mobile/swift-ios:/w" -w /w swift:6.0 swift build          # exit 0 (guarded SwiftUI excluded)
+docker run --rm -v "$PWD/golden-paths/mobile/swift-ios:/w" -w /w swift:6.4.1 swift build        # exit 0 (guarded SwiftUI excluded)
 ```
 
 The selfcheck lives in a second test target (`SelfCheckTests`). A bare `swift test` runs it too, so
@@ -66,7 +66,7 @@ carry the **same marker (`Package.swift`) + the same test glob (`*Tests.swift`)*
   build-infra probe, counted once and excluded from real-project discovery. **This package is
   discovered as an ordinary real swift project** under the same lane and runs alongside it.
 - **This package has no external dependencies** (no `Package.resolved`, no network fetch), so its
-  `swift test` runs offline in `swift:6.0` — a plus for CI, unlike `vapor` which fetches Vapor.
+  `swift test` runs offline in `swift:6.4.1` — a plus for CI, unlike `vapor` which fetches Vapor.
 - **The Job harness skips it by construction.** `scripts/run-golden-path-jobs.sh` auto-discovers by
   **Dockerfile presence**; this client path has no Dockerfile, so it is never built/served as a Job
   (correct — a mobile client has no in-cluster image).

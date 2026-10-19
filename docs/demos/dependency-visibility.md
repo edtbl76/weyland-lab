@@ -166,6 +166,52 @@ scanned with the suite's own osv-scanner 1.9.1: only 4.23.4 is reported, with it
 `trivy-weyland-lab` 71 → 63 high, `pip-audit-weyland-lab` 57 → 35 high, `trivy-images-weyland-lab` 3313 → 3301 high,
 each `scannedAt` 2026-10-17T02:25–02:37Z.
 
+### 5. B220: the 216 base-image findings fixed or accepted (run 2026-10-19)
+
+The B218 DoD scan (`2026-10-17T21-25-35Z`) showed 216 new `trivy-images` HIGH/CRITICAL — new advisories against
+unchanged images. B220 rebuilt six images, then had to fix the scanners themselves: the image scan applied no ignore
+file, and osv-scanner v2 invented transitive versions. The final scan against the one that found the 216:
+
+[rogueone]
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/scan-diff.py 2026-10-17T21-25-35Z 2026-10-18T21-10-54Z
+```
+```
+trivy: 0 new, 2 gone
+osv: 0 new, 618 gone
+bandit: 0 new, 0 gone
+semgrep: 0 new, 0 gone
+hadolint: 0 new, 0 gone
+gitleaks: 0 new, 0 gone
+kubescape: 0 new, 0 gone
+trivy-images: 888 new, 8000 gone
+exit 1
+```
+The 888 are **all MEDIUM** (the scan-diff lines: `+ MEDIUM | weyland-flink-py | libc6 | …`; 876 in Jupyter's new
+Ubuntu 26.04 base) — 0 HIGH/CRITICAL. Against the morning re-scan the same command
+(`2026-10-18T04-06-06Z 2026-10-18T21-10-54Z`) prints **0 new in every scanner** (osv 186 gone, trivy-images 77 gone),
+exit 0.
+
+**How the accepts are scoped.** `.trivyignore-images.yaml` holds 47 entries, every one with an `expired_at`, matched
+by package URL (and by path for the adbc wheel), so an accept never hides the same CVE in another package or image;
+`scan.py` passes it with `--ignorefile` (lines 318, 403). osv runs with `--no-resolve` (line 250): it grades the pins a
+requirements file declares, and `trivy-images` grades what is actually installed.
+
+**The gitleaks allowlist still catches a real secret.** gitleaks 8.30 found 111 reviewed false positives on a clean
+tree, so `.gitleaks.toml` allows those exact paths. Negative case: a random `ghp_…` token planted in a scratch copy,
+scanned with the suite's own gitleaks (`registry.weyland.lab/scan-suite:git-5999a4d6`) and the repo's allowlist,
+output redacted:
+
+[rogueone]
+```
+S=$(mktemp -d) && cp /home/edwardmangini/IdeaProjects/weyland/.gitleaks.toml $S/ && python3 -c "import secrets,string;print('TOKEN = \"ghp_'+''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(36))+'\"')" > $S/config.py && docker run --rm --user "$(id -u):$(id -g)" -v $S:/scan:ro --entrypoint gitleaks registry.weyland.lab/scan-suite:git-5999a4d6 dir /scan --config /scan/.gitleaks.toml --redact --no-banner; echo "exit=$?"
+```
+```
+WRN leaks found: 1
+exit=1
+```
+With `config.py` removed: `INF no leaks found`, exit 0.
+
 ## UI walkthrough + UAT
 
 1. Open <https://app.port.io> → **Catalog** → **Security scans** (`security_scan`), search `trivy-images`.

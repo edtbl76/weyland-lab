@@ -2,7 +2,7 @@
 # Uptime-Kuma push monitor (KUMA_GPU_DRIFT_PUSH_URL in scripts/.env). USER unit: /proc and dpkg-query need no root.
 # Paired with the unattended-upgrades hold nodes/rogueone/apt/51weyland-hold-nvidia. See docs/runbooks/model-serving-ollama.md
 # § NVIDIA driver.
-#   Install:  cp nodes/rogueone/systemd/gpu-driver-drift.{service,timer} ~/.config/systemd/user/
+#   Install:  cp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/gpu-driver-drift.{service,timer} /home/edwardmangini/.config/systemd/user/
 #             systemctl --user daemon-reload && systemctl --user enable --now gpu-driver-drift.timer
 #   Run now:  systemctl --user start gpu-driver-drift.service   ·   logs: journalctl --user -u gpu-driver-drift
 [Unit]

@@ -44,7 +44,7 @@ sequenceDiagram
     Note over Suite,Reg: trivy-images (B213, weyland-lab only) — the images the manifests DEPLOY
     Suite->>Suite: deployed_images — images.tsv refs plus every registry.weyland.lab ref in k8s/ (23)
     loop each deployed image
-        Suite->>Reg: trivy image --scanners vuln (then trivy clean --scan-cache)
+        Suite->>Reg: trivy image --scanners vuln --ignorefile .trivyignore-images.yaml (B220: purl-scoped accepts, each with expired_at — then trivy clean --scan-cache)
         Reg-->>Suite: a trivy report, or none → recorded BROKEN, never zero
     end
     Suite->>Arch: trivy-images.json {images, broken, missing} with the run's other reports

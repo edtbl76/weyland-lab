@@ -33,10 +33,16 @@ Meshed (istio) so it reaches STRICT-mTLS Postgres.
    ```
 2. **Build + push the image** (on **rogueone**). B92 moved this off the local `ctr`-import onto the registry — a
    pruned local-only image left Ranger unable to restart at all (`Init:ImagePullBackOff`, nothing to pull from):
+   **Take the next FREE tag — never rebuild one that exists.** The deployed image is `2.6.0-py3-r2` (B220) and
+   `2.6.0-py3` is its rollback; a push silently overwrites an existing tag. List them first:
    ```
-   docker build -t registry.weyland.lab/ranger:2.6.0-py3 services/ranger && docker push registry.weyland.lab/ranger:2.6.0-py3
+   curl -s https://registry.weyland.lab/v2/ranger/tags/list
    ```
-   Also wired into `scripts/build-push-images.sh` (version-pinned, not TAG-following).
+   then build the next one (here `r3`) from the platform dir and point `ranger.yaml` at it (both `image:` lines):
+   ```
+   cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform && docker build -t registry.weyland.lab/ranger:2.6.0-py3-r3 services/ranger && bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/ranger:2.6.0-py3-r3
+   ```
+   `scripts/build-push-images.sh` builds ranger only when `RANGER_TAG` names that next tag.
 3. **Deploy** (on **mother**):
    ```
    kubectl apply -f ~/ranger.yaml

@@ -80,7 +80,7 @@ a trace pins the prompt version that produced each answer. Registered prompts (`
   `psycopg2-binary`, `boto3` and `litellm` are installed UNPINNED, so each restart can pull new versions — the drift
   class B213 closed for Dockerfiles, which its ratchet cannot see here because the install is in the manifest. If
   restarts get slow/flaky, or to close that gap, bake a small `FROM ghcr.io/mlflow/mlflow:v3.16.1` image with a lockfile
-  and drop the install from the command.
+  and drop the install from the command — tracked as **B227** (EMA-315).
 - **Upgrades migrate the DB schema — roll back by RESTORE, not by image tag (B215, 2026-10-17).** The server runs
   `mlflow db upgrade` on start, so a 3.16.1 → 3.15.1 image revert would meet a newer schema. Before any MLflow bump,
   confirm the core Postgres dump from the night before contains the `mlflow` database

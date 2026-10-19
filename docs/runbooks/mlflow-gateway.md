@@ -60,6 +60,10 @@ An LLM guard on every request puts the **judge in the critical path**, and the g
 - **Local, mid (`qwen3:14b`) ← chosen (B215, 2026-10-18)** — the only model that passed held-out redacted replies
   (12/12) while blocking threat / harassment / drug-synthesis replies (12/12 each); PII 48/48 (catches raw contact
   details, an address, a card; passes `[REDACTED]`, k8s identifiers). ~0.4 s per verdict with thinking OFF.
+  **End-to-end cost (measured 2026-10-19, one benign prompt):** a guarded call to `ollama-qwen3-14b` (same model as the
+  judge, no swap) 10.3 s / 9.4 s; to `ollama-gpt-oss-20b` 29.0 s cold / 18.9 s warm — `OLLAMA_MAX_LOADED_MODELS=1`
+  swaps judge → model → judge on the one 16 GB card for each call, ~10–20 s. The same swap evicts the operator's
+  `qwen2.5:7b-operator`, which reloads on its next turn. Acceptable for chat/eval traffic; agentic traffic uses LiteLLM.
 
 There is **always exactly one terminal unguarded judge** (guarding it recurses). Here that's `ollama-qwen3-14b-judge`.
 
@@ -101,9 +105,13 @@ python3 nodes/mother/lab/weyland-platform/scripts/register_gateway_endpoints.py
 
 ### Verify
 ```
-python3 nodes/mother/lab/weyland-platform/scripts/verify_gateway_guardrails.py      # budget + Safety/PII on 7 local models
-kubectl -n weyland exec -i deploy/mlflow -- python < nodes/mother/lab/weyland-platform/scripts/eval_gateway_models.py   # mlflow.genai.evaluate over the gateway (judge = qwen3-14b-judge, no quota)
+python3 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/verify_gateway_guardrails.py      # budget + Safety/PII on 7 local models
+ssh emangini@mother 'KUBECONFIG=$HOME/.kube/config kubectl -n weyland exec -i deploy/mlflow -- python' < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/eval_gateway_models.py   # mlflow.genai.evaluate over the gateway (judge = qwen3-14b-judge, no quota)
 ```
+**Runs by hand, on purpose** (recorded 2026-10-19): after any change to the guards, the judge, the endpoints or MLflow
+itself, and as the gateway's DoD step. It is not on a timer because one run loads every local model on rogueone's
+single GPU (7 models × 4 probes, ~10 min, desktop contention) and runs the judge for every probe; the
+drift between the live guards and the code is caught on every `register_gateway_endpoints.py` run instead (`DRIFT`).
 `verify_gateway_guardrails.py` exits **0** all passed · **1** a FAIL / BLOCK, an unreachable gateway, no GLOBAL REJECT
 budget, or a Safety guard that never blocked · **2** no failure but a `REVIEW` reply to read (200 with no refusal
 keyword — often a soft refusal like "talk to HR"). Its `unsafe-echo` probe (repeat a threat verbatim) must be blocked
@@ -115,7 +123,7 @@ by `Safety` on at least one model: "every model refused" never proves the guard.
 `make_judge` → `scorers/register`, judged by `ollama-qwen3-14b-judge` with thinking off; a judge registered against
 an older model is re-registered as a new version) + a **golden dataset** (`weyland-gateway-eval`) in a
 dedicated **`gateway-eval`** experiment — NOT Default: judges/datasets are per-experiment, eval-run properties, so
-they live in one comparison experiment, not the 15 per-endpoint `gateway/<name>` ones. `scripts/eval_gateway_models.py`
+they live in one comparison experiment, not the per-endpoint `gateway/<name>` ones (one per guarded endpoint). `scripts/eval_gateway_models.py`
 then runs `mlflow.genai.evaluate` per gateway model as **one run in `gateway-eval`**, scored by that panel against that
 dataset → a B84-style leaderboard, native in MLflow (Experiments → gateway-eval → compare runs). First run put
 **`gpt-oss:20b` on top** (matches B4). Gotchas: scores land as per-trace **assessments** (`feedback.value` = yes/no),
