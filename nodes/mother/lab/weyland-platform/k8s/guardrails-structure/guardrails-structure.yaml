@@ -23,7 +23,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: guardrails-structure
-          image: registry.weyland.lab/guardrails-structure:git-ce787810
+          image: registry.weyland.lab/guardrails-structure:git-8ae0ea19
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
