@@ -2,8 +2,8 @@
 """B100 P4 follow-on — register reusable eval assets: a JUDGE PANEL + a golden DATASET (mlflow.genai).
 
 Populates the AI Gateway's **Judges** + **Datasets** tabs with governed, reusable artifacts (vs the inline
-scorers/questions in eval_gateway_models.py). The judges score via the local `ollama-qwen25-7b` gateway endpoint
-(no quota, on-LAN). Idempotent. Run in the mlflow pod (has mlflow.genai; gateway + tracking on localhost, no keys):
+scorers/questions in eval_gateway_models.py). The judges score via the local `ollama-qwen3-14b-judge` gateway endpoint
+(no quota, on-LAN; the one unguarded judge, shared with the guardrails — B215). Idempotent. Run in the mlflow pod (has mlflow.genai; gateway + tracking on localhost, no keys):
   kubectl -n weyland exec -i deploy/mlflow -- python < scripts/register_eval_assets.py
 """
 import os
@@ -13,11 +13,13 @@ import mlflow.genai as G
 
 GW = os.environ.get("GATEWAY_OPENAI_BASE", "http://localhost:5000/gateway/mlflow/v1")
 mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
-# Judge = the local qwen2.5:7b endpoint via the gateway's OpenAI-compat surface. No real key (gateway holds them).
+# Judge = the local qwen3:14b judge endpoint via the gateway's OpenAI-compat surface. No real key (gateway holds them).
 os.environ["OPENAI_BASE_URL"] = GW
 os.environ["OPENAI_API_BASE"] = GW
 os.environ.setdefault("OPENAI_API_KEY", "gateway")
-JUDGE = os.environ.get("GATEWAY_EVAL_JUDGE", "openai:/ollama-qwen25-7b")
+JUDGE = os.environ.get("GATEWAY_EVAL_JUDGE", "openai:/ollama-qwen3-14b-judge")
+# Same as the guardrails: deterministic, and no qwen3 reasoning pass (17.7 s → 0.4 s per verdict).
+JUDGE_PARAMS = {"temperature": 0, "reasoning_effort": "none"}
 # Dedicated eval home (created if absent) — NOT Default. Judges/datasets are eval-run properties, not per-model, so
 # they live in one comparison experiment, not the 15 per-endpoint `gateway/<name>` ones.
 EXP = mlflow.set_experiment(os.environ.get("EVAL_ASSETS_EXPERIMENT", "gateway-eval")).experiment_id
@@ -49,16 +51,18 @@ RECORDS = [
 
 def register_judges():
     try:
-        existing = {s.name for s in G.list_scorers(experiment_id=EXP)}
+        existing = {s.name: s for s in G.list_scorers(experiment_id=EXP)}
     except Exception:
-        existing = set()
+        existing = {}
     for name, instr in JUDGES:
-        if name in existing:
+        have = existing.get(name)
+        if have is not None and getattr(have, "model", None) == JUDGE:
             print(f"  judge exists: {name}")
             continue
-        try:
-            G.make_judge(name=name, instructions=instr, model=JUDGE).register(experiment_id=EXP)
-            print(f"  registered judge: {name}")
+        try:  # absent, or registered against an older judge model → register (a new version of the same name)
+            G.make_judge(name=name, instructions=instr, model=JUDGE, inference_params=JUDGE_PARAMS).register(
+                experiment_id=EXP)
+            print(f"  registered judge: {name}" + (f" (was {getattr(have, 'model', '?')})" if have else ""))
         except Exception as e:
             print(f"  judge {name} FAILED: {type(e).__name__}: {str(e)[:220]}")
 

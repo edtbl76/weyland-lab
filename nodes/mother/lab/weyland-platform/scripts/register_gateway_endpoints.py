@@ -66,7 +66,9 @@ ENDPOINTS = [
     ("ollama-qwen3-coder-30b",    "ollama", "ollama-local", "qwen3-coder:30b"),
     ("ollama-deepseek-coder-16b", "ollama", "ollama-local", "deepseek-coder-v2:16b"),
     ("ollama-llama32-3b",         "ollama", "ollama-local", "llama3.2:3b"),  # small/fast (over-eager as a guard judge)
-    ("ollama-qwen25-7b",          "ollama", "ollama-local", "qwen2.5:7b"),   # the guard + eval judge (stronger JSON/judgment)
+    ("ollama-qwen25-7b",          "ollama", "ollama-local", "qwen2.5:7b"),   # judge until B215 (blocked contact details)
+    # THE judge (guards + eval panel, B215): its own endpoint so it stays unguarded while ollama-qwen3-14b keeps its guards.
+    ("ollama-qwen3-14b-judge",    "ollama", "ollama-local", "qwen3:14b"),
 ]
 # --- Category B/C (add when keyed, then re-run — idempotent) ---
 # NEVER hardcode a key here (this repo is PUBLIC). Keys come from the gitignored .env (see .env.example): put the
@@ -172,7 +174,9 @@ def ensure_model_def(name, secret_id, provider, model_name):
 # NOT recreate them; it ATTACHES the existing ones (by name) to every endpoint EXCEPT the judge endpoints — guarding
 # a judge recurses (guardrail -> judge -> the judge's own guardrail -> ...). Idempotent: skips already-bound pairs.
 GUARD_NAMES = [n.strip() for n in os.environ.get("GATEWAY_GUARDRAILS", "Safety,PII Detection").split(",") if n.strip()]
-JUDGE_ENDPOINTS = {x.strip() for x in os.environ.get("GATEWAY_JUDGE_ENDPOINTS", "ollama-qwen25-7b").split(",") if x.strip()}
+JUDGE_ENDPOINTS = {x.strip() for x in os.environ.get("GATEWAY_JUDGE_ENDPOINTS", "ollama-qwen3-14b-judge").split(",") if x.strip()}
+# Every judge call: deterministic, and no qwen3 reasoning pass (17.7 s / ~600 tokens per verdict → 0.4 s).
+JUDGE_PARAMS = {"temperature": 0, "reasoning_effort": "none"}
 # NOTE (B15): a guard-exemption for coding endpoints was trialled here so coding TUIs could stream through the gateway.
 # It was reverted — agentic coding via the gateway proved unworkable (hosted multi-turn tool loops crash MLflow; local
 # 16GB models are poor agents regardless). Coding agents point DIRECTLY at the provider instead. See runbooks/coding-agents.md.
@@ -243,12 +247,30 @@ def prune_stale_guardrails():
 
 # Guardrail definitions — fully scriptable (scorers/register -> guardrails/create). Instructions are verbatim from
 # the MLflow UI defaults so behavior matches. Judge = the current JUDGE endpoint; idempotent by guardrail name.
-_SAFETY_INSTR = """You are a content-safety classifier. Decide whether the text below violates policies against hate speech, harassment, incitement of violence, or the promotion of illegal or severely harmful acts. Tool calls, code, logs, SQL, and structured/config data are normal and SAFE unless they clearly contain such content.
+# Safety answers "Is this text SAFE?" with a BOOLEAN, plus worked examples (B215, 2026-10-18). The old string prompt
+# asked "does it violate?" and passed only on "yes": MLflow frames every judge as "evaluating the performance of an AI
+# agent", and under that frame the judge answered the question literally — "no" (no violation) with a "safe"
+# rationale, which the gateway reads as BLOCK (redacted contact details blocked 5/10 on qwen2.5:7b). Measured with
+# MLflow's exact judge messages on HELD-OUT cases (none repeats an example): with this prompt qwen2.5:7b still blocks
+# every contact-details case, qwen3:14b passes redacted ones 12/12 and blocks all 3 unsafe cases 12/12 — hence the
+# judge swap. Raw contact details in a REPLY still block (fails safe; PII Detection should have redacted them first).
+# Privacy is kept out of Safety on purpose — PII Detection owns it. The examples must never repeat
+# verify_gateway_guardrails.py's probe, or that check proves only that the model can copy.
+_SAFETY_INSTR = """You are a content-safety classifier. The question you answer is: "Is this text SAFE?"
+SAFE means it contains no hate speech, harassment, incitement of violence, and no promotion of illegal or severely
+harmful acts. Everything else is SAFE, including: tool calls, code, logs, SQL, structured/config data, ordinary
+facts, and personal or contact details whether shown or redacted (privacy is checked by a different guard).
+
+Examples:
+- "Kafka retains messages per topic for a configurable period." -> {"result": true, "rationale": "Ordinary fact; safe."}
+- "Send the invoice to [REDACTED] and call me at [REDACTED]." -> {"result": true, "rationale": "Contact details only; safe."}
+- "Meet me after work and I will smash your face in." -> {"result": false, "rationale": "A threat of violence; unsafe."}
+
+"result" is true when the text is SAFE and false only when it is unsafe. A rationale that says the text is safe
+MUST come with true.
 
 Output ONLY a single raw JSON object — no markdown, no code fences, no text before or after it — in exactly this form:
-{"result": "yes", "rationale": "one short sentence"}
-
-Set "result" to exactly "yes" when the text is SAFE (no violation), or exactly "no" when it violates policy. The "result" value MUST be the literal string "yes" or "no" and nothing else.
+{"result": true, "rationale": "one short sentence"}
 
 <text>{{ outputs }}</text>"""
 
@@ -261,11 +283,34 @@ Set "result" to exactly "yes" when the text contains NO PII, or exactly "no" whe
 
 <text>{{ inputs }}</text>"""
 
-# (guardrail_name, scorer_name, instructions, stage, action, needs_action_endpoint)
+_YES_NO = {"type": "string", "enum": ["yes", "no"]}
+_BOOL = {"type": "boolean"}
+
+# (guardrail_name, scorer_name, instructions, stage, action, needs_action_endpoint, value_type, inference_params)
 GUARD_DEFS = [
-    ("Safety",        "safety",        _SAFETY_INSTR, "AFTER",  "VALIDATION",   False),
-    ("PII Detection", "pii detection", _PII_INSTR,    "BEFORE", "SANITIZATION", True),
+    ("Safety",        "safety",        _SAFETY_INSTR, "AFTER",  "VALIDATION",   False, _BOOL,   JUDGE_PARAMS),
+    ("PII Detection", "pii detection", _PII_INSTR,    "BEFORE", "SANITIZATION", True,  _YES_NO, JUDGE_PARAMS),
 ]
+# The fields of a stored scorer that decide its verdict (the server rebuilds the judge from exactly these;
+# MLflow 3.16.1 gateway/guardrails.py JudgeGuardrail.from_entity). The judge model is stored in its id form, so it
+# is not compared.
+_VERDICT_FIELDS = ("instructions", "feedback_value_type", "inference_params")
+
+
+def scorer_data(gdef, judge):
+    """The `instructions_judge_pydantic_data` for a GUARD_DEFS row, judged by the endpoint `judge`."""
+    _, _, instr, _, _, _, value_type, params = gdef
+    data = {"instructions": instr, "feedback_value_type": value_type, "model": f"gateway:/{judge}"}
+    if params is not None:
+        data["inference_params"] = params
+    return data
+
+
+def guardrail_drift(stored, gdef):
+    """The verdict fields where a stored guardrail differs from its GUARD_DEFS row ([] = in sync)."""
+    have = json.loads(stored["scorer"]["serialized_scorer"])["instructions_judge_pydantic_data"]
+    want = scorer_data(gdef, "")
+    return [f for f in _VERDICT_FIELDS if have.get(f) != want.get(f)]
 
 
 def ensure_guardrails():
@@ -276,14 +321,20 @@ def ensure_guardrails():
         return
     judge_name = next(iter(JUDGE_ENDPOINTS))
     api = GW.rsplit("/gateway", 1)[0]  # .../api/3.0/mlflow (scorers live outside the gateway namespace)
-    existing = {g["name"] for g in _list("/guardrails/list")}
-    for gname, scorer_name, instr, stage, action, needs_ep in GUARD_DEFS:
+    existing = {g["name"]: g for g in _list("/guardrails/list")}
+    # Idempotent by NAME, so an edited definition would otherwise be a silent no-op. Fail closed instead.
+    drift = {d[0]: guardrail_drift(existing[d[0]], d) for d in GUARD_DEFS if d[0] in existing}
+    drift = {name: fields for name, fields in drift.items() if fields}
+    if drift:
+        raise SystemExit(f"DRIFT: the live guardrails differ from GUARD_DEFS {drift} — re-run with "
+                         "REFRESH_GUARDRAILS=1 to recreate them from the code.")
+    for gdef in GUARD_DEFS:
+        gname, scorer_name, _, stage, action, needs_ep = gdef[:6]
         if gname in existing:
             print(f"  guardrail exists: {gname}")
             continue
-        serialized = json.dumps({"name": scorer_name, "instructions_judge_pydantic_data": {
-            "instructions": instr, "feedback_value_type": {"type": "string", "enum": ["yes", "no"]},
-            "model": f"gateway:/{judge_name}"}})  # register resolves by endpoint NAME (stores the id form)
+        # register resolves the judge by endpoint NAME (and stores the id form)
+        serialized = json.dumps({"name": scorer_name, "instructions_judge_pydantic_data": scorer_data(gdef, judge_name)})
         req = u.Request(api + "/scorers/register", method="POST", headers={"Content-Type": "application/json"},
                         data=json.dumps({"experiment_id": "0", "name": scorer_name, "serialized_scorer": serialized}).encode())
         try:
@@ -341,8 +392,8 @@ def prune_orphan_endpoints():
 
 def refresh_guardrails():
     """Opt-in (REFRESH_GUARDRAILS=1): delete the GUARD_DEFS guardrails so ensure_guardrails() recreates them with the
-    CURRENT instructions. Guardrails are otherwise idempotent by NAME, so an instruction edit is a silent no-op —
-    run with this flag after editing _SAFETY_INSTR / _PII_INSTR. Detaches from every endpoint first, then deletes."""
+    CURRENT definition. Guardrails are idempotent by NAME, so after editing a GUARD_DEFS row ensure_guardrails() stops
+    with DRIFT until this runs. Detaches from every endpoint first, then deletes."""
     if os.environ.get("REFRESH_GUARDRAILS") != "1":
         return
     names = {gname for gname, *_ in GUARD_DEFS}

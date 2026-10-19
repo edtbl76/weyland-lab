@@ -27,14 +27,14 @@ PREDICT_TIMEOUT = int(os.environ.get("GATEWAY_EVAL_TIMEOUT", "600"))
 # locked the desktop. A pause lets each swap settle. For safety, still prefer GATEWAY_EVAL_MODELS=<small subset>.
 PAUSE = float(os.environ.get("GATEWAY_EVAL_PAUSE", "3"))
 mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
-# The judges call `openai:/ollama-qwen25-7b` — route it through the gateway. No real key (the gateway holds them).
+# The judges call `openai:/ollama-qwen3-14b-judge` — route it through the gateway. No real key (the gateway holds them).
 os.environ["OPENAI_BASE_URL"] = GW
 os.environ["OPENAI_API_BASE"] = GW
 os.environ.setdefault("OPENAI_API_KEY", "gateway")
 
 EXP = os.environ.get("EVAL_ASSETS_EXPERIMENT", "gateway-eval")
 DATASET = os.environ.get("EVAL_DATASET_NAME", "weyland-gateway-eval")
-JUDGE_ENDPOINT = os.environ.get("GATEWAY_JUDGE_ENDPOINT", "ollama-qwen25-7b")  # excluded from eval (it's the judge)
+JUDGE_ENDPOINT = os.environ.get("GATEWAY_JUDGE_ENDPOINT", "ollama-qwen3-14b-judge")  # excluded from eval (it's the judge)
 
 _all = [e["name"] for e in json.loads(
     u.urlopen("http://localhost:5000/api/3.0/mlflow/gateway/endpoints/list", timeout=15).read())["endpoints"]]

@@ -977,8 +977,9 @@ metered API wasn't wanted; Claude-in-lab is instead **you driving Claude Code** 
 content check, no cost cap. **MLflow 3.14's built-in AI Gateway** (served by the tracking server itself —
 `mlflow.weyland.lab/#/gateway`; scripted via the `mlflow-lan` NodePort `:30500`, which has no forward-auth) closes
 that: one OpenAI-compat endpoint (`/gateway/mlflow/v1/chat/completions`, `model` = endpoint name, **no client key** —
-provider keys are server-side) fronting **17 endpoints** — the 6 local Ollama models + 9 hosted providers
-(OpenAI/Anthropic/Gemini/Mistral/Cohere/DeepSeek/Together/OpenRouter/xAI, native or via LiteLLM) + 2 local judges.
+provider keys are server-side) fronting **18 endpoints** — the 6 local Ollama models + 9 hosted providers
+(OpenAI/Anthropic/Gemini/Mistral/Cohere/DeepSeek/Together/OpenRouter/xAI, native or via LiteLLM) + 2 small local
+ex-judges + the one judge.
 Every call is **usage-tracked** (a trace per `gateway/<model>` experiment), **guardrailed**, and **budget-capped**.
 
 **Three gateways, three jobs** (they compose, they don't compete):
@@ -1002,12 +1003,16 @@ turn is the judge-in-critical-path trap. So: **agentic → LiteLLM · chat / RAG
 input) — attached to every endpoint except the judge, and they **fail closed** (a judge error blocks). That puts the
 judge in the *critical path*, making judge choice the load-bearing decision, and the lesson was earned: **Gemini's free
 tier (20 RPM) fails the whole gateway under light load** (429 → fail-closed → cascade); a **3b local judge
-false-blocks ~50% of benign traffic**; **`qwen2.5:7b` local is the sweet spot** — no quota, reliable, fast enough.
+false-blocks ~50% of benign traffic**; **`qwen2.5:7b`** was the judge until B215 (2026-10-18), when it was found
+blocking replies with redacted contact details. The cause was the prompt's polarity: MLflow frames every judge as
+"evaluating an AI agent", so asked "does it violate?" with `yes` = safe, judges answered `no` (no violation) — which
+the gateway reads as BLOCK. Safety now asks "Is this text safe?" as a **boolean**, and the judge is **`qwen3:14b`**
+(`ollama-qwen3-14b-judge`, thinking off) — the 7B kept blocking held-out redacted replies even with the new prompt.
 There is always exactly one terminal *unguarded* judge (guarding it recurses). **Budget** = a GLOBAL `$10/mo` REJECT
 cap: *your* limit, enforced before the paid provider is called (the answer to the Gemini-quota surprise), not a
 provider's unpredictable one.
 
-**Eval is a first-class consumer:** a registered **judge panel** (relevance/conciseness/honesty, `qwen2.5:7b`) + a
+**Eval is a first-class consumer:** a registered **judge panel** (relevance/conciseness/honesty, `qwen3:14b`) + a
 **golden dataset** live in the `gateway-eval` experiment, and `mlflow.genai.evaluate` runs each gateway model as one
 run → a B84-style leaderboard, native (gpt-oss:20b topped it, re-validating B4). The whole surface — endpoints,
 secrets, scorers, guardrails, budget — is **one self-healing script** (`scripts/register_gateway_endpoints.py`, keys

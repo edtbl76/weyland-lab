@@ -27,10 +27,11 @@ Rebuild the whole gateway from scratch (idempotent, self-healing):
 
 ## UAT — eyes-on
 
-1. **Endpoints** — `mlflow.weyland.lab/#/gateway` lists all 17; each has **Usage tracking** on.
-2. **Guardrails work** — run `scripts/verify_gateway_guardrails.py`: **benign PASS** on all 6 local models; **PII**
-   redacted-before-model (you can see `Contact [REDACTED]…` in the echo) or blocked — never leaked; **unsafe**
-   refused/blocked/safely-reframed. (Judge = `ollama-qwen25-7b`, local, no quota.)
+1. **Endpoints** — `mlflow.weyland.lab/#/gateway` lists all 18; each has **Usage tracking** on.
+2. **Guardrails work** — run `scripts/verify_gateway_guardrails.py` (exit 0, or 2 with a REVIEW reply to read):
+   **budget PASS**; **benign PASS** on all 7 local models; **PII** redacted before the model (you can see
+   `Contact [REDACTED]…` in the echo) — never leaked, never blocked; **unsafe** refused/blocked; **unsafe-echo**
+   (repeat a threat verbatim) **BLOCKED by `Safety`** on at least one model. (Judge = `ollama-qwen3-14b-judge`, local.)
 3. **Budget** — Gateway → **Budgets** shows the `$10 / 1mo, REJECT` GLOBAL cap + live spend.
 4. **Eval lane** — `eval_gateway_models.py` runs `mlflow.genai.evaluate` over the gateway; results land in each
    `gateway/<model>` experiment (MLflow → Evaluation tab).
@@ -45,7 +46,12 @@ The server and gateway moved 3.15.1 → **3.16.1** (GHSA-h7x2-h6g9-p789 / CVE-20
   `ANTHROPIC_MLFLOW_KEY` (compared in-process, never printed).
 - **Guardrails** — `python3 nodes/mother/lab/weyland-platform/scripts/verify_gateway_guardrails.py`: benign **PASS** on all 6
   local models; unsafe REFUSED/REVIEW; **pii BLOCK on 5 of 6** — the 400 is the *Safety* guard rejecting a reply whose
-  rationale says "does not violate policies". Fails safe (no PII leaks); filed as **B222** (EMA-310), not fixed in B215.
+  rationale says "does not violate policies". Fails safe (no PII leaks), but B215's "guardrails still work" was not met.
+- **Fixed in B215 (2026-10-18):** the cause was the judge prompt, not 3.16.1 — asked "does it violate?", the judge
+  answered `no` (no violation), which the gateway reads as BLOCK. Safety now asks "Is this text safe?" as a boolean,
+  and the judge moved `qwen2.5:7b` → `qwen3:14b` (the 7B still blocked held-out redacted replies). Re-run: **budget
+  PASS; benign + pii PASS on all 7 local models; unsafe-echo BLOCKED by Safety on 5 of 7** (the other two refused);
+  exit 2 for one REVIEW — deepseek-coder's soft refusal ("promote positive communication"), read and safe.
 - **Realm** (the gateway's main client) runs `mlflow 3.16.1` / `cryptography 50.0.2` (`git-d4cc9652`).
 
 ## Expected result
@@ -54,7 +60,7 @@ A provider-agnostic, guardrailed, budget-capped model gateway where a single `ch
 safety/PII-screened by a local judge, and cost-capped — all reproducible from `scripts/register_gateway_endpoints.py`.
 
 ## Caveats
-- **Guards fail closed** — a missing/erroring judge blocks traffic; the judge (`qwen2.5:7b`) must stay pulled on
+- **Guards fail closed** — a missing/erroring judge blocks traffic; the judge (`qwen3:14b`) must stay pulled on
   rogueone's Ollama. This is deliberate (fail-safe), but it's why judge robustness matters (see the runbook's
   judge-selection section — Gemini 20-RPM quota → local judge).
 - **`openai-gpt-5-mini` may 500** — that model isn't on the account's key; a provider issue, not the gateway.
