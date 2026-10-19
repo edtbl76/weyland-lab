@@ -62,6 +62,46 @@ runner now defers to a repo's own `sonar-project.properties` when present, suppl
 only for repos without one. Re-run after the fix → **`stud.io … EXECUTION SUCCESS`, rc=0** (walkthrough §2). A
 guard nobody has watched fail is not a guard; this one failed loud, we fixed it, and it's green.
 
+## Source-only Java, and the Sunday move (RUN 2026-10-19, B229 + B228)
+
+**The failure (negative case, observed live).** The 2026-10-18 `sonar-scan-repos` Job failed `BackoffLimitExceeded`:
+7 repos `EXECUTION SUCCESS`, freejack `EXECUTION FAILURE` with
+`AnalysisException: Your project contains .java files, please provide compiled classes with sonar.java.binaries`, and
+`ScheduledJobFailed` / `KubeJobFailed` / `ScheduledJobStale` firing. freejack holds 1,704 `.java`: 177 are its own
+lessons (no pom/Gradle, so no compiled classes) and 1,527 are vendored third-party code under `vendor/` (excluded).
+
+**The decision, tested.** The runner now points `sonar.java.binaries` at an empty directory for any repo with `.java`
+outside `node_modules`/`.git` whose own `sonar-project.properties` does not set it — source analyzed as-is:
+
+[rogueone]
+```
+cd /home/edwardmangini/IdeaProjects/weyland && docker run --rm -v "$PWD:/repo:ro" -w /repo --entrypoint sh bats/bats:latest -c 'apk add --no-cache python3 py3-yaml >/dev/null 2>&1; bats scripts/tests/sonar-scan-repos.bats'
+```
+7/7 ok — including a case that fails on any `find` call: the scanner image (`sonarsource/sonar-scanner-cli`, Amazon
+Linux 2023) has no `find`, so a find-based check would have silently skipped the setting while bats (which has find)
+stayed green. The check uses `ls -R` + `awk`, run in both images with identical results.
+
+**Live** (after the push; Argo applied it in ~60 s):
+
+[mother]
+```
+kubectl -n weyland create job sonar-scan-repos-smoke --from=cronjob/sonar-scan-repos
+```
+Output (run): all 8 repos `EXECUTION SUCCESS`, `=== sonar-scan-repos: all repos processed (rc=0) ===`; freejack ran
+`Sensor JavaSensor [java]` with only the expected `Dependencies/libraries were not provided` warning. SonarQube's own
+count for the freejack project: **177** `.java` files (java ncloc 2,825) — every lesson file, none of `vendor/`.
+`ScheduledJobStale` resolved; the two failed-Job alerts clear when that Job's 72 h TTL removes it.
+
+**The Sunday move (B228)** — the four weekly scans left the working day (Design Rule #5) for the NY clock:
+
+[mother]
+```
+kubectl -n weyland get cronjob sonar-scan sonar-scan-repos sonar-scan-gradle code-scan-suite -o custom-columns=NAME:.metadata.name,SCHEDULE:.spec.schedule,TZ:.spec.timeZone
+```
+Output (run): `sonar-scan 0 3 * * 0`, `sonar-scan-repos 15 3 * * 0`, `sonar-scan-gradle 30 3 * * 0`,
+`code-scan-suite 0 4 * * 0`, all `America/New_York` (were 12–15:00 `Etc/UTC` = 08–11:00 NY). The proof that they run
+there is the next Sunday's Job start times.
+
 ## UI walkthrough
 
 N/A — repo tooling + CronJobs, no UI surface. Outcomes surface on the existing pattern: per-repo SonarQube
