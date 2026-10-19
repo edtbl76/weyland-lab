@@ -29,6 +29,7 @@ after every successful push (found 2026-10-03: `machine-inventory-drift` and `ag
 | `agent-memory` | `agent-memory-watch.timer` (rogueone, B182) | every 15 min | **1200 s** (20 min) — fixed from 60 s 2026-10-03 | `KUMA_MEMORY_PUSH_URL` |
 | `emdash-conveyor` | `emdash-conveyor-watch.timer` (rogueone, B179) | daily 06:00 | **90000 s** (25 h) | `KUMA_CONVEYOR_PUSH_URL` |
 | `lan-nodeports` | `lan-nodeport-watch.timer` (rogueone, B219) | every 15 min | **1200 s** (20 min) | `KUMA_LAN_PUSH_URL` |
+| `gpu-driver-drift` | `gpu-driver-drift.timer` (rogueone, B226) | hourly | **4500 s** (75 min) | `KUMA_GPU_DRIFT_PUSH_URL` |
 
 **This table is checked nightly** (2026-10-13): `machine-inv-drift.sh` runs `scripts/kuma_push_check.py`, which reads
 every push monitor from Kuma's store (read-only) and turns `machine-inventory-drift` down on any interval that differs

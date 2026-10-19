@@ -1,0 +1,22 @@
+// B226 (2026-10-19) — rogueone: unattended-upgrades must never move the NVIDIA driver.
+// Install: /etc/apt/apt.conf.d/51weyland-hold-nvidia (runbook model-serving-ollama.md § NVIDIA driver).
+//
+// WHY: on 2026-10-09 unattended-upgrades upgraded the userspace driver 595.91.07 -> 595.99.02 while the loaded kernel
+// module stayed 595.91.07 until a reboot (2026-10-19) — nine days of silent drift. A driver update needs a reboot to
+// take effect, and in between a restarted Ollama loads the new libraries against the old module and can lose the GPU,
+// taking every local model — including the MLflow gateway's guardrail judge (fail-closed) — to CPU.
+//
+// rogueone boots ONE pinned kernel (GRUB_DEFAULT = 6.17.0-35) and its nvidia module is built by DKMS for it, so the
+// only way the module and the driver drift apart is a driver package moving without a reboot. Holding these packages
+// costs nothing the host runs: kernel security updates still install (other kernels, not booted), and every other
+// package still updates. Driver updates become deliberate: upgrade, reboot, check (scripts/gpu_driver_drift.py).
+//
+// Entries are prefixes (the same matching as 50unattended-upgrades' examples): "nvidia-" covers nvidia-driver-*,
+// nvidia-dkms-*, nvidia-utils-*, nvidia-kernel-common-*, nvidia-container-toolkit, …; the linux-modules-nvidia
+// metas would otherwise pull a newer nvidia-kernel-common through their `>=` dependency.
+Unattended-Upgrade::Package-Blacklist {
+    "nvidia-";
+    "libnvidia-";
+    "xserver-xorg-video-nvidia-";
+    "linux-modules-nvidia-";
+};

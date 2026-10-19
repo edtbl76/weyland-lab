@@ -1,0 +1,12 @@
+# B226 — check the GPU driver for drift every hour (cheap: one /proc read + one dpkg-query). The Kuma push monitor's
+# heartbeat interval is 4500 s (75 min), so a check that stops running alerts as well (dead-man's switch).
+[Unit]
+Description=GPU driver drift check every hour (B226)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

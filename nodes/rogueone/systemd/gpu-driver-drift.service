@@ -1,0 +1,19 @@
+# B226 — rogueone GPU driver drift: the loaded NVIDIA kernel module vs the installed driver package, pushed to an
+# Uptime-Kuma push monitor (KUMA_GPU_DRIFT_PUSH_URL in scripts/.env). USER unit: /proc and dpkg-query need no root.
+# Paired with the unattended-upgrades hold nodes/rogueone/apt/51weyland-hold-nvidia. See docs/runbooks/model-serving-ollama.md
+# § NVIDIA driver.
+#   Install:  cp nodes/rogueone/systemd/gpu-driver-drift.{service,timer} ~/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now gpu-driver-drift.timer
+#   Run now:  systemctl --user start gpu-driver-drift.service   ·   logs: journalctl --user -u gpu-driver-drift
+[Unit]
+Description=GPU driver drift — loaded NVIDIA module vs installed driver → Kuma (B226)
+
+[Service]
+Type=oneshot
+Nice=10
+# No EnvironmentFile on purpose: scripts/.env holds every lab secret and this unit needs ONE value. The check reads only
+# KUMA_GPU_DRIFT_PUSH_URL from that file itself (least privilege, as lan-nodeport-watch). Unset -> nothing is reported,
+# the Kuma heartbeat goes missing, and that alerts.
+ExecStart=/usr/bin/python3 /home/edwardmangini/IdeaProjects/weyland/scripts/gpu_driver_drift.py
+StandardOutput=journal
+StandardError=journal

@@ -161,6 +161,47 @@ printf 'FROM <model:tag>\nPARAMETER num_thread 8\n' > ~/Mf
 ollama create <model:tag> -f ~/Mf   # re-tags same name + the thread param; reuses blobs
 ```
 
+## NVIDIA driver — held back, updated on purpose (B226, 2026-10-19)
+
+**What happened:** on 2026-10-09 unattended-upgrades moved the userspace driver 595.91.07 → 595.99.02. The loaded
+kernel module stayed 595.91.07 until the next reboot (2026-10-19), so `nvidia-smi` failed with `Driver/library version
+mismatch` for nine days and nothing alerted. Ollama kept the GPU only because it had run since boot with the old
+libraries loaded; restarted in that window, it loads the new libraries against the old module and can lose CUDA, taking
+every local model — including the MLflow gateway's guardrail judge (fail-closed, in the critical path) — to CPU.
+
+**Why holding the packages is safe here:** rogueone boots ONE pinned kernel (`GRUB_DEFAULT` = 6.17.0-35) and its
+`nvidia` module is built by DKMS for that kernel (`/lib/modules/6.17.0-35-generic/updates/dkms/nvidia.ko.zst`), rebuilt
+whenever the driver package changes. So module and driver drift apart only when a driver package moves without a
+reboot. Kernel security updates still install (other kernels, not booted) and every other package still updates.
+
+**1. The hold** — `nodes/rogueone/apt/51weyland-hold-nvidia` puts `nvidia-`, `libnvidia-`, `xserver-xorg-video-nvidia-`
+and `linux-modules-nvidia-` on unattended-upgrades' `Package-Blacklist`. Install and verify:
+
+[rogueone]
+```
+sudo install -m 0644 /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/apt/51weyland-hold-nvidia /etc/apt/apt.conf.d/51weyland-hold-nvidia && sudo unattended-upgrade --dry-run --debug 2>&1 | grep -iE "blacklist" | head -5
+```
+PASS (observed 2026-10-19): `Initial blacklist: nvidia- libnvidia- xserver-xorg-video-nvidia- linux-modules-nvidia-`. (`apt-config -c <file> dump | grep Package-Blacklist` checks
+the file parses without root; it shows the four entries.)
+
+**2. The check** — `scripts/gpu_driver_drift.py` (pytest `scripts/tests/test_gpu_driver_drift.py`) compares the module
+version in `/proc/driver/nvidia/version` with the one installed (`ii`) `nvidia-driver-*` package. Exit 0 match · 1
+drift (reboot) · 2 could not check (no module, no or two installed drivers, unreadable output) — never read as a match.
+A user timer runs it hourly and pushes to the Kuma push monitor `gpu-driver-drift` ([uptime-kuma.md](uptime-kuma.md)
+table; env var `KUMA_GPU_DRIFT_PUSH_URL`). Install:
+
+[rogueone]
+```
+cp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/gpu-driver-drift.service /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/gpu-driver-drift.timer /home/edwardmangini/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now gpu-driver-drift.timer
+```
+Run it by hand: `python3 /home/edwardmangini/IdeaProjects/weyland/scripts/gpu_driver_drift.py --no-push`. Prove the
+alert path with the test seam (an old module line in a file): `GPU_DRIFT_MODULE_FILE=<file> python3 …/gpu_driver_drift.py`
+pushes `down`; the next plain run pushes `up`.
+
+**3. Updating the driver (on purpose):** `sudo apt upgrade` (the hold binds unattended-upgrades only), **reboot**, then
+run the check — exit 0 means the module the kernel loaded is the driver you installed. Until the reboot the check
+reports DRIFT, which is correct.
+
 ## Memory — keep one model resident
 
 **Symptom (2026-06-13, CT-102):** a multi-model batch (the B4 eval — 6 models in sequence)
