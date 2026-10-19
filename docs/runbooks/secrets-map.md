@@ -4,8 +4,9 @@ Every model-provider key the lab holds, by its variable name in the gitignored `
 that uses it, how it gets there, and how to rotate it. **Names only — never a value.** The mechanics of sealing and
 restoring live in [secrets.md](secrets.md); this page is the *who uses what*.
 
-Created 2026-10-17 after the lab's shared Anthropic key, exposed through OpenCode's old console, was used by someone
-else (~$60 in one day; the lab's own Anthropic spend over the prior 30 days was $0.0013). The rule since: **one key
+Created 2026-10-17 after the lab's Google, Anthropic and OpenAI keys were exposed through OpenCode's old web console
+and the shared Anthropic key was used by someone else (~$60 in one day; the lab's own Anthropic spend over the prior
+30 days was $0.0013). All three were rotated; the Google (Gemini) key's rotation was confirmed by the owner on 2026-10-19. The rule since: **one key
 per consumer**, so a leak means revoking one key and touching one system.
 
 ## Model-provider keys
@@ -18,7 +19,7 @@ per consumer**, so a leak means revoking one key and touching one system.
 | `ANTHROPIC_MLFLOW_KEY` | Anthropic · user-bound | **MLflow AI Gateway** | `register_gateway_endpoints.py` stores it in the MLflow database as gateway secret `anthropic` | § MLflow gateway |
 | `OPENAI_MLFLOW_KEY` | OpenAI · service account (project `weyland`, Restricted: Chat completions + Responses write) | **MLflow AI Gateway** | same, gateway secret `openai` | § MLflow gateway |
 | `ANTHROPIC_OPENCODE_WORKSPACE_KEY` | Anthropic · user-bound, its **own workspace** with a lower spend limit | **OpenCode only** (rogueone, interactive) | passed at launch as `ANTHROPIC_API_KEY` in an otherwise empty environment ([coding-agents.md](coding-agents.md) § Launch) — never sealed, never in a cluster | revoke + recreate in the Console, nothing else to update |
-| `OPENCODE_ZEN_API_KEY` | OpenCode Zen | **Bifrost** (`opencode-zen` provider) and **LiteLLM** (via Bifrost's secret) | sealed into `weyland/bifrost-provider-keys` by `seal_bifrost_keys.sh` | § Bifrost — *issued by OpenCode; regenerate after their exposure* |
+| `OPENCODE_ZEN_API_KEY` | OpenCode Zen | **Bifrost** (`opencode-zen` provider) and **LiteLLM** (via Bifrost's secret) | sealed into `weyland/bifrost-provider-keys` by `seal_bifrost_keys.sh` | § Bifrost — *issued by OpenCode; NOT part of the 2026-10-17 exposure (owner: only the Google, Anthropic and OpenAI keys were exposed from the web console), so not rotated* |
 
 Not provider keys, listed so nobody hunts for them: Open WebUI's `OPENAI_API_KEY` is the dummy `nemo-guardrails`
 (it talks to the guardrails service); the eval scripts set `OPENAI_API_KEY` to `gateway`/`ollama`; Codex uses a ChatGPT
