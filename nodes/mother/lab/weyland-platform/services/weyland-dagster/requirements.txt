@@ -5,7 +5,7 @@ aenum==3.1.17
 agate==1.9.1
 aiobotocore==3.8.0
 aiohappyeyeballs==2.7.1
-aiohttp==3.14.3
+aiohttp==3.14.5
 aioitertools==0.13.0
 aiosignal==1.4.0
 alembic==1.18.5
@@ -295,7 +295,7 @@ websocket-client==1.9.0
 websockets==16.1
 wrapt==2.2.2
 xxhash==3.8.1
-yarl==1.24.2
+yarl==1.25.1
 yfinance==1.7.0     # B113 Phase 4 — daily OHLCV market data (Yahoo); stooq CSV is now JS-PoW-walled
 zipp==4.1.0
 zstandard==0.25.0

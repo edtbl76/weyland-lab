@@ -3,7 +3,7 @@
 # Was an unpinned `pip install fastapi uvicorn nemoguardrails` that no source scanner could read
 # (scripts/check-dockerfile-installs.sh). Regenerate in python:3.11-slim: pip install <those> && pip freeze
 aiohappyeyeballs==2.7.1
-aiohttp==3.14.3
+aiohttp==3.14.5
 aiohttp-retry==2.9.1
 aiosignal==1.4.0
 annotated-doc==0.0.5

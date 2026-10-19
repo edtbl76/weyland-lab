@@ -5,7 +5,7 @@
 # unpinned) that no source scanner could read (scripts/check-dockerfile-installs.sh). Regenerate in python:3.12-slim.
 aiodns==3.6.1
 aiohappyeyeballs==2.7.1
-aiohttp==3.14.3
+aiohttp==3.14.5
 aiomultiprocess==0.9.1
 aiosignal==1.4.0
 annotated-types==0.8.0
