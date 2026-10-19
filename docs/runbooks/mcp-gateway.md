@@ -173,6 +173,15 @@ curl -sk -o /dev/null -w '%{http_code}\n' -X POST https://bifrost.weyland.lab/mc
 **B111** = adopt Bifrost's full agentic-gateway feature set (virtual keys, budgets, governance) — bake-off vs LiteLLM; that
 work also does the config-as-GitOps (init-seed `config.json` + SealedSecret'd virtual keys, since the repo is public).
 
+## Bifrost 2.3 — evaluated, upgrade ready (B212, 2026-10-19)
+
+Tested on throwaway instances (verdicts + evidence: [concepts/bifrost-2-3-evaluation.md](../concepts/bifrost-2-3-evaluation.md)).
+**2.3.1 does not cut off our private MCP targets:** the setup token counts as authentication, so clients registered
+with it get `require_public_target = 0` and keep reaching Agent_Memory and the compositor. Skip v2.3.0 (A2A goroutine
+leak). The Agent Gateway cannot proxy the Realm (A2A 0.3.0 cards; it takes A2A v1 only). Keep the ship's
+`rollout restart deploy/bifrost` step — 2.3's stranded-session recovery was not demonstrated. The upgrade itself is a
+separate change: manual backup → bump the digest pin → verify the MCP clients, the ship transaction and one LiteLLM call.
+
 ## Bifrost governance — budgets + key-sealing (B111 on v1.6.7; re-verified on v2.2.6, B202)
 
 **Per-provider budget caps** (`scripts/register_bifrost_governance.py`, idempotent). Budgets are on a

@@ -95,11 +95,13 @@ spec:
           # Pinned to the multi-arch INDEX digest of `latest` as of 2026-07-30 (not a per-arch manifest, so it still
           # resolves on any node arch — same rationale as LiteLLM). To bump: `docker buildx imagetools inspect
           # maximhq/bifrost:latest` on a box with docker → copy the top-level Digest → update below. Deliberate only.
-          # B202 (2026-10-09): v2.2.6 — the multi-arch OCI index (amd64 + arm64, `imagetools inspect maximhq/bifrost:v2.2.6`).
-          # Was v1.6.7 (sha256:bf220897…, `latest` @ 2026-07-30). Rollback = revert this line in git (selfHeal reverts a
+          # B231 (2026-10-19): v2.3.1 — the multi-arch OCI index (`imagetools inspect maximhq/bifrost:v2.3.1`), the exact
+          # image B212 tested on throwaway instances (docs/concepts/bifrost-2-3-evaluation.md: the setup token counts as
+          # auth, so private MCP targets keep working). Skip v2.3.0 (A2A goroutine leak). Was v2.2.6 (sha256:d0b4708a…,
+          # B202, 2026-10-09), before that v1.6.7 (sha256:bf220897…). Rollback = revert this line in git (selfHeal reverts a
           # `kubectl rollout undo`) + restore config.db from bifrost-backup if the v2 migration damaged it
           # (docs/runbooks/mcp-gateway.md § Bifrost backup + restore).
-          image: maximhq/bifrost@sha256:d0b4708ace1aa175766f94afa715fd9bba3a1b56c1dc2afff15a21edf3ae4e2a   # v2.2.6
+          image: maximhq/bifrost@sha256:fe323e244998e1a40b87be87f60d023746eae40dd69baae8f7f42728a5e16149   # v2.3.1
           envFrom:                       # B111 key-sealing: provider API keys as env, from the bifrost-provider-keys
             - secretRef:                 # SealedSecret. Each provider's key is set to `env.VAR` (register_bifrost_providers.py)
                 name: bifrost-provider-keys

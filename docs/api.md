@@ -111,7 +111,7 @@ Two Traefik routers on the one host (MCP clients can't browser-SSO, so the paths
 | `/` (UI) | **Keycloak** forward-auth, then the **setup token** once per browser session (v2.2.6+) | Bifrost admin — MCP catalog, virtual keys, observability |
 | `/mcp` | Bifrost virtual key (`x-bf-vk`) | aggregated MCP endpoint the coding agents point at |
 
-In-cluster (`bifrost.weyland.svc.cluster.local:8080`, Bifrost **v2.2.6** since 2026-10-09, B202):
+In-cluster (`bifrost.weyland.svc.cluster.local:8080`, Bifrost **v2.3.1** since 2026-10-19, B231 — v2.2.6 from 2026-10-09, B202):
 
 | Path | Auth | Callers |
 |---|---|---|
