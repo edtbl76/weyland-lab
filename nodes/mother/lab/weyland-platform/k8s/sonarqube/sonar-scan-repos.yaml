@@ -25,7 +25,7 @@ data:
     rc=0
     DEFAULT_EXCL='**/node_modules/**,**/.git/**,**/build/**,**/dist/**,**/.next/**,**/vendor/**,**/*.min.js'
     # Source-only Java (2026-10-19, B229): these repos have no Java build, so no compiled classes exist, and
-    # SonarQube's Java analyzer refuses to run without `sonar.java.binaries` — freejack's 1,704 lesson .java files
+    # SonarQube's Java analyzer refuses to run without `sonar.java.binaries` — freejack's 177 lesson .java files
     # failed the whole Job on 2026-10-18. Pointing it at an EMPTY directory = analyze the source as-is (cross-file type
     # rules lose some precision). A repo whose own sonar-project.properties sets the binaries keeps its own setting.
     NO_CLASSES=$(mktemp -d)

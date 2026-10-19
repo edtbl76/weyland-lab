@@ -3,8 +3,8 @@
 # pre-cloned repo is scanned with. It runs the REAL script out of the manifest against fake repos, with a stub
 # `sonar-scanner` that records its arguments, so the assertions are on the runner's per-repo decisions.
 #
-# Why the Java case exists (2026-10-19): freejack gained 1,704 source-only .java lesson files (no build, so no
-# compiled classes); SonarQube's Java analyzer refuses to run without `sonar.java.binaries`, so the whole freejack
+# Why the Java case exists (2026-10-19): freejack gained 177 source-only .java lesson files (no build, so no
+# compiled classes; its other 1,527 .java are vendored third-party code under vendor/, excluded by **/vendor/**); SonarQube's Java analyzer refuses to run without `sonar.java.binaries`, so the whole freejack
 # scan failed and with it the 2026-10-18 Job. Source-only analysis = point that setting at an empty directory.
 
 setup() {
