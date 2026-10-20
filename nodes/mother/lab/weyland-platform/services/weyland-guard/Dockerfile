@@ -7,10 +7,12 @@ FROM python:3.12-slim AS onnx-export
 # 2026-10-16: pinned (requirements-onnx-export.txt, today's resolution; torch from the PyTorch CPU index).
 COPY requirements-onnx-export.txt /tmp/requirements-onnx-export.txt
 RUN pip install --no-cache-dir -r /tmp/requirements-onnx-export.txt
-RUN python -c "from optimum.onnxruntime import ORTModelForSequenceClassification as M; from transformers import AutoTokenizer as T; \
-[(M.from_pretrained(n, export=True).save_pretrained(d), T.from_pretrained(n).save_pretrained(d)) \
- for n, d in [('cross-encoder/nli-deberta-v3-small', '/export/nli_onnx'), \
-              ('project-free-llama/Llama-Prompt-Guard-2-22M', '/export/prompt_guard_onnx')]]"
+# B216: export at the PINNED Hugging Face commits in onnx_models.json, then prove the export reproduces the deployed
+# model's recorded output (a mismatch fails this build, naming the model). onnx_export.py is byte-identical to
+# scripts/onnx_export.py (scripts/tests/onnx-export.bats). Runbook: docs/runbooks/onnx-models.md.
+COPY onnx_export.py onnx_models.json /tmp/onnx/
+ARG ONNX_EXPORT_RECORD=
+RUN python /tmp/onnx/onnx_export.py build /tmp/onnx/onnx_models.json
 
 # ── runtime ──────────────────────────────────────────────────────────────────────────────────────
 FROM python:3.12-slim

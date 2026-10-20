@@ -1,0 +1,32 @@
+{
+  "_comment": "B216 \u2014 the ONNX models this image exports, each pinned to a Hugging Face commit, with the fingerprint the export must reproduce (recorded 2026-10-20 from the DEPLOYED image with `onnx_export.py probe`). Read by onnx_export.py in the Dockerfile's export stage. Runbook: docs/runbooks/onnx-models.md.",
+  "probe": "Weyland pins every model it exports.",
+  "tolerance": 1e-06,
+  "models": [
+    {
+      "repo": "cross-encoder/nli-deberta-v3-small",
+      "revision": "fa2804872c3b4bd748f38c0185cc85775361e735",
+      "task": "text-classification",
+      "out": "/export/nli_onnx",
+      "expected": {
+        "logits": [
+          0.18978381156921387,
+          -1.0865075588226318,
+          1.4361482858657837
+        ]
+      }
+    },
+    {
+      "repo": "project-free-llama/Llama-Prompt-Guard-2-22M",
+      "revision": "98f241c60b7999ba67eb8603f548461b577b3bc9",
+      "task": "text-classification",
+      "out": "/export/prompt_guard_onnx",
+      "expected": {
+        "logits": [
+          -0.003631437197327614,
+          -7.324701309204102
+        ]
+      }
+    }
+  ]
+}

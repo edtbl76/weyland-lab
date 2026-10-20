@@ -1,0 +1,4 @@
+# B216: onnx_export.py is build-time tooling copied from scripts/ (tested there, scripts/tests/test_onnx_export.py),
+# not service code, so it is not counted against this service's coverage baseline.
+[run]
+omit = onnx_export.py

@@ -4,6 +4,10 @@ How to change the model behind the RAG (e.g. `bge-small` 384 → `bge-base` 768,
 **coordinated migration** — get one piece wrong and the RAG silently half-breaks. Written the hard way; every gotcha
 below cost real time.
 
+**Pinned exports (B216, 2026-10-20).** The ONNX exports of these models are pinned to a Hugging Face commit, and each
+image build proves it reproduces the recorded output. A swap therefore also means a new `revision` + `expected` in
+every exporting service's `onnx_models.json`: [onnx-models.md](onnx-models.md).
+
 ## The result that justified it (B74)
 
 `bge-small` (384) → `bge-base` (768) + the `embed_text` topic-prefix. Golden set, whole corpus, **every metric up, no

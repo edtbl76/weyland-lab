@@ -1,0 +1,45 @@
+{
+  "_comment": "B216 \u2014 the ONNX models this image exports, each pinned to a Hugging Face commit, with the fingerprint the export must reproduce (recorded 2026-10-20 from the DEPLOYED image with `onnx_export.py probe`). Read by onnx_export.py in the Dockerfile's export stage. Runbook: docs/runbooks/onnx-models.md.",
+  "probe": "Weyland pins every model it exports.",
+  "tolerance": 1e-06,
+  "models": [
+    {
+      "repo": "BAAI/bge-base-en-v1.5",
+      "revision": "a5beb1e3e68b9ab74eb54cfd186867f64f240e1a",
+      "task": "feature-extraction",
+      "out": "/export/bge_onnx_base",
+      "expected": {
+        "cls_head": [
+          -0.13630686700344086,
+          0.4971165359020233,
+          0.6085278987884521,
+          -0.31573212146759033,
+          0.07120387256145477,
+          0.06727323681116104,
+          -0.5086281299591064,
+          -0.535208523273468
+        ],
+        "cls_norm": 15.56993651335687
+      }
+    },
+    {
+      "repo": "BAAI/bge-small-en-v1.5",
+      "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+      "task": "feature-extraction",
+      "out": "/export/bge_onnx_small",
+      "expected": {
+        "cls_head": [
+          0.4002781808376312,
+          -0.01768292486667633,
+          0.1069287434220314,
+          -0.38749122619628906,
+          0.3263872265815735,
+          -0.4308362603187561,
+          -0.2638738751411438,
+          0.5407273769378662
+        ],
+        "cls_norm": 9.047953152892685
+      }
+    }
+  ]
+}
