@@ -130,7 +130,7 @@ Legend: **DONE** · **MISSING** · **PARTIAL** (exists but stale) · — not app
 | E1 | RAG (doc change → index → retrieve → eval) | DONE `flow-e2e-rag` | PARTIAL `rag-e2e.md` | DONE eval run/scores (per leg) |
 | E2 | Soda data-quality → DataHub Assertions | DONE `flow-e2e-soda` | PARTIAL `soda-dq.md` | — read-only + idempotent upserts |
 | E3 | Great Expectations profiling → DataHub Assertions + Data Docs (B77b) | DONE `flow-great-expectations` | DONE `great-expectations.md` | — on-demand `ge_validate_job`; read-only profiling |
-| E3 | Ranger column masking (masked vs unmasked) | DONE `flow-e2e-ranger` | PARTIAL `ranger-masking.md` | — read-only |
+| E3 | Ranger column masking (masked vs unmasked) | DONE `flow-e2e-ranger` | PARTIAL `ranger-masking.md` — CLI RUN live 2026-10-20 (B221, before and after the Ubuntu 24.04 image: mask identical; a temporary deny probe refused then restored); UI eyes-on UAT pending (B87) | — read-only (the probe user and policy removed) |
 | E4 | Governance (lineage + DQ + masking on one dataset) | DONE `flow-e2e-governance` | PARTIAL `governance-e2e.md` | — non-destructive |
 | E5 | DataHub maturity: contracts mesh-wide · siblings merge · stats-wide (B80) | DONE inline seq | DONE `datahub-maturity.md` | — read-only emit; per-twin contracts |
 | E5 | ML lifecycle (silver → Feast → Ray → MLflow → serve/consume) | DONE `flow-e2e-ml` | PARTIAL `ml-lifecycle-e2e.md` | DONE MLflow version/artifact (per leg) |

@@ -1,7 +1,7 @@
 # Demo — Ranger column masking (masked vs unmasked Trino query)
 
-> **Pending live end-to-end validation run.** The commands below are lifted from `runbooks/ranger.md`; this
-> demo-shaped walkthrough has **not** yet been executed straight through against live infra.
+> **CLI walkthrough RUN live 2026-10-20 (B221); the UI walkthrough's eyes-on UAT is still pending** (B87, the demo
+> sweep). See § RUN at the end.
 
 Prove an Apache Ranger **column-masking** policy with a single before/after: the **same** query on the **same**
 mart returns real values for one Trino user and `NULL` for another, because Trino's native Ranger plugin masks
@@ -91,3 +91,17 @@ To roll back Ranger enforcement entirely (revert to Trino's built-in access cont
 `access-control.properties` mount from `trino.yaml` and restart Trino — per
 [../runbooks/ranger.md](../runbooks/ranger.md). Do **not** delete the `analyst` user or the mask policy while the
 plugin is enabled unless you intend to change the governance posture.
+
+## RUN
+
+**2026-10-20, B221: before and after Ranger Admin moved to `ranger:2.6.0-ubuntu24-r1`** (the same Ranger 2.6.0 on
+Ubuntu 24.04 LTS):
+- **The CLI step above, on the old image:** `analyst` got `[['AK', 2011, None], ['AK', 2022, None], ['AK', 2019, None]]`;
+  `dbt` got `[['AK', 2011, 16.5], ['AK', 2022, 20.3], ['AK', 2019, 17.4]]`.
+- **The same step after the swap:** identical results, so masking is unchanged.
+- **The deny path, a temporary probe (owner-approved):** user `b221probe` was ALLOWED (770 rows) before any policy.
+  A deny policy on `mart_state_health_trends` made it `PERMISSION_DENIED: Access Denied` within 15 s, while `dbt` and
+  `analyst` kept access. Removing the policy and user (both 204) restored it within 30 s. The policy count went back
+  to 14 (only the mask policy; no deny items).
+- **UI walkthrough:** not run. The eyes-on UAT of the Ranger UI is still pending (B87).
+
