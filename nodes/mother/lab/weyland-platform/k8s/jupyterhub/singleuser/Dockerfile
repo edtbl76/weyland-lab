@@ -21,6 +21,12 @@ RUN apt-get update && apt-get upgrade -y --no-install-recommends \
 COPY requirements-lake.txt /tmp/requirements-lake.txt
 RUN pip install --no-cache-dir -r /tmp/requirements-lake.txt \
     && mkdir -p /opt/examples
+# 2026-10-20 (B225): nbclassic removed. It bundles `underscore` and `mathjax`, 2 HIGH with no fix in its newest release
+# (1.3.3), and nothing uses it: no package requires it, the hub's defaultUrl is /lab, and Notebook 7 serves /tree on its
+# own (notebook-shim, not nbclassic). The uninstall must also take its server-extension config, or every spawn would
+# try to load a missing extension, so the build fails if that file survives.
+RUN pip uninstall -y nbclassic \
+    && test ! -e /opt/conda/etc/jupyter/jupyter_server_config.d/nbclassic.json
 COPY notebooks/ /opt/examples/
 RUN chmod -R a+rX /opt/examples
 USER ${NB_UID}

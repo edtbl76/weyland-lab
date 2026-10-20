@@ -73,6 +73,13 @@ browser ──► jupyter.weyland.lab (Traefik ingress + weyland-wildcard-tls)
    Traefik `readTimeout` — see [[traefik-readtimeout-registry-push]].)
 4. **Push** `jupyterhub-values.yaml` + the Argo app → Argo deploys the chart.
 
+**`nbclassic` is removed from the image (v4, B225, 2026-10-20).** The scipy base installs it. It bundles `underscore`
+and `mathjax`, 2 HIGH with no fix in its newest release, and nothing here uses it: `defaultUrl` is `/lab`, and
+Notebook 7 serves `/tree` through `notebook-shim`. The Dockerfile uninstalls it, and the build fails if its server
+extension config (`jupyter_server_config.d/nbclassic.json`) survives, since a leftover config would make every spawn
+try to load a missing extension. Classic-UI bookmarks (nbclassic's `/tree?…` pages) stop working; Notebook 7's `/tree`
+does not.
+
 ---
 
 ## 3. Gotchas (all hit during bring-up — read before touching)
