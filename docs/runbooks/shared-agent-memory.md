@@ -40,7 +40,19 @@ cp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/basic-memory.
 **The two settings that protect the notes** (in the unit): `BASIC_MEMORY_DISABLE_PERMALINKS=true` and
 `BASIC_MEMORY_ENSURE_FRONTMATTER_ON_SYNC=false`. With Basic Memory's defaults the first index **rewrote 207 of 213
 notes** (added `permalink:`, re-wrapped descriptions, changed timestamp format, prepended frontmatter to `MEMORY.md`).
-Never start it against the notes without them. To bump the version: re-freeze the list in `python:3.12-slim`
+Never start it against the notes without them. **To apply a changed pin in the frozen list** (same Basic Memory
+version, e.g. aiohttp 3.14.3 → 3.14.5 on 2026-10-19), checksum the notes, re-install with `--reinstall` (without it
+uv reports the tool already installed and changes nothing), restart, run the check, and diff the checksums:
+```
+cd /home/edwardmangini/agent-memory/weyland && find . -name '*.md' -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/notes-before.sha
+```
+```
+~/.local/bin/uv tool install basic-memory==0.23.2 --python 3.12 --constraints /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/basic-memory/requirements.txt --prerelease=allow --reinstall && systemctl --user restart basic-memory.service
+```
+```
+cd /home/edwardmangini/IdeaProjects/weyland && ~/.local/bin/uv run -q --with mcp python scripts/check-shared-memory.py && cd /home/edwardmangini/agent-memory/weyland && sha256sum --quiet -c /tmp/notes-before.sha && echo "notes unchanged"
+```
+To bump the version: re-freeze the list in `python:3.12-slim`
 (`pip install basic-memory==<v> && pip freeze`), re-install, run the check, and diff the notes' checksums before/after.
 
 ## Firewall (Basic Memory has no auth)
