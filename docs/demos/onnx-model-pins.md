@@ -50,3 +50,10 @@ SHA, got 'main'`.
 - **The negative (step 3):** exit 1 with the `MISMATCH` line above.
 - **The record build arg:** `--build-arg ONNX_EXPORT_RECORD=1` printed the fingerprint JSON and did not fail.
 - **Tests:** `test_onnx_export.py` 28/28, `onnx-export.bats` 4/4.
+
+**Shipped and checked live — 2026-10-20:**
+- **CI #444** passed and the full SonarQube gate is OK. Duplication on new code is 0.28%; the four service copies are left out of duplication detection, after CI #443 failed at 4.17%.
+- **The ship (`git-514d5158`, PR #210):** every bumped workload is up with its health check passing (7), and 4 services answered a real request.
+- **weyland-agent:** `v11` (hand-tagged; the same digest as `v10`). It reports ready, and `/agent/ask` answered on the first attempt with 5 sources.
+- **Model bytes in the live pods:** guard `3f130181`/`682ac22f`, tool-server `e5f98ce7`, dagster `e5f98ce7`/`82e06739` — identical to the pre-pin deployment.
+- **weyland-guard:** ready with all 6 validators. A live injection query is classified `block` by `prompt_guard.injection` (shadow mode, so recorded and not enforced: the guard's existing posture).
