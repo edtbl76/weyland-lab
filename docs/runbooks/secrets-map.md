@@ -13,7 +13,7 @@ per consumer**, so a leak means revoking one key and touching one system.
 
 | Variable (`scripts/.env`) | Provider · owner type | Used by | How it gets there | Rotate |
 |---|---|---|---|---|
-| `ANTHROPIC_BIFROST_KEY` | Anthropic · user-bound | **Bifrost** | `seal_bifrost_keys.sh` seals it into SealedSecret `weyland/bifrost-provider-keys` as `ANTHROPIC_API_KEY`; Bifrost loads that secret as env (`envFrom`) and its provider refers to `env.ANTHROPIC_API_KEY` | § Bifrost |
+| `ANTHROPIC_BIFROST_KEY` | Anthropic · user-bound | **Bifrost** | `seal_bifrost_keys.sh` seals it into SealedSecret `weyland/bifrost-provider-keys` as `ANTHROPIC_API_KEY`; Bifrost loads that secret as env (`envFrom`) and its provider refers to `env.ANTHROPIC_API_KEY`. Also read (one key, `secretKeyRef`) by the `anthropic-model-watch` CronJob for the free `GET /v1/models` only, never printed (B223, `model-deprecations.md`), so a rotation is proven by that Job's next run | § Bifrost |
 | `OPENAI_BIFROST_KEY` | OpenAI · service account `weyland-bifrost` (project `weyland`, Restricted: List models read, Chat completions + Responses write) | **Bifrost** | same, sealed as `OPENAI_API_KEY` | § Bifrost |
 | `ANTHROPIC_LITELLM_KEY` | Anthropic · user-bound | **LiteLLM** | patched into SealedSecret `weyland/litellm-secrets` key `ANTHROPIC_API_KEY`; LiteLLM reads it as `LITELLM_ANTHROPIC_API_KEY` (`k8s/litellm/deployment.yaml`, used by `configmap.yaml`) | § LiteLLM |
 | `ANTHROPIC_MLFLOW_KEY` | Anthropic · user-bound | **MLflow AI Gateway** | `register_gateway_endpoints.py` stores it in the MLflow database as gateway secret `anthropic` | § MLflow gateway |

@@ -1,5 +1,6 @@
 # B211 (2026-10-14) — MLflow's front door (no auth: delete experiments, runs, models; PUT artifacts). Callers on 5000:
-# dagster-user-code, the operator, agent, Realm and tool-server (prompts, traces), ray-head, DataHub actions, JupyterHub
+# dagster-user-code, the operator, agent, Realm and tool-server (prompts, traces), ray-head, anthropic-model-watch
+# (B223, reads gateway model definitions), DataHub actions, JupyterHub
 # notebooks, Traefik (UI), and rogueone (192.168.1.230: the Ray worker + scripts via the mlflow-lan NodePort, which keeps the
 # client IP: externalTrafficPolicy Local). The NodePort now admits only rogueone, not the whole LAN.
 apiVersion: networking.k8s.io/v1
@@ -25,6 +26,8 @@ spec:
         matchLabels: {app: weyland-tool-server}
     - podSelector:
         matchLabels: {app: ray-head}
+    - podSelector:
+        matchLabels: {app: anthropic-model-watch}   # B223: reads the gateway's model definitions nightly
     - namespaceSelector:
         matchLabels: {kubernetes.io/metadata.name: data-mesh}
       podSelector:

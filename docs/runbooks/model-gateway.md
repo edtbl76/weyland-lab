@@ -6,6 +6,10 @@ primary model with a **server-side fallback chain** (the transparent failover Bi
 Enterprise adaptive load-balancer — see [mcp-gateway.md](mcp-gateway.md)). Plus a Dagster `model_catalog` asset
 that keeps a queryable lookup table of reachable models fresh every 6h.
 
+**Anthropic model IDs** in `k8s/litellm/configmap.yaml` are checked by the deprecated-model guard (B223): CI fails on a
+retired one, or one retiring within 30 days. When Anthropic emails a deprecation, follow
+[model-deprecations.md](model-deprecations.md).
+
 **Origin:** reframed from B26 (Hermes Claude brain). The Claude-subscription path was **declined** — using a
 Claude Pro/Max subscription via a proxy is a ToS gray area, and a metered Anthropic API key wasn't wanted.
 API-key providers (Gemini/OpenRouter free tiers) give strong models at $0 with no ToS issue, and stand up the

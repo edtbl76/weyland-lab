@@ -5,6 +5,10 @@ get **tracing, guardrails, and budgets** for free. Built on MLflow 3.14's built-
 tracking server). This replaced a short-lived standalone `mlflow gateway` pod (deprecated CLI) once we found the
 built-in one was available.
 
+**Anthropic model definitions** here are checked nightly by `anthropic-model-watch` (B223) against Anthropic's
+deprecations and `GET /v1/models`; a retired or retiring one fails the Job. Response to a deprecation email:
+[model-deprecations.md](model-deprecations.md).
+
 **One-line value:** `POST /gateway/mlflow/v1/chat/completions` with any endpoint name as `model` → usage-tracked,
 guardrailed, budget-capped, provider-agnostic. `openai:/…` / OpenAI SDK compatible.
 

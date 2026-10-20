@@ -159,6 +159,11 @@ steps:
       # code (kubectl port-forward, IntelliJ Forward Ports, the Python client's portforward). Prose that rejects it
       # passes; docs/backlog.md history is not scanned. Fail-closed 0/1/2 (scanning nothing is 2). python3 above.
       - bash scripts/check-no-port-forward.sh
+      # 2026-10-19 (B223) — no config or code may name an Anthropic model that is retired, or deprecated with its
+      # retirement inside 30 days (scripts/anthropic-models.json, from Anthropic's deprecations page; file:line +
+      # replacement on failure). Docs, history, tests and notebook outputs are not scanned. The running gateways are
+      # checked nightly by the anthropic-model-watch CronJob. Fail-closed 0/1/2. python3 above.
+      - bash scripts/check-model-deprecations.sh
 
   # ── 1b2. Port IaC coverage (B137) ───────────────────────────────────────────
   # SEPARATE from repo-guards because it is the only guard here that talks to a live API and needs
