@@ -51,7 +51,7 @@ amd64/x86_64, matching the cluster) + push + run:
 ```
 cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services
 docker build -t registry.weyland.lab/finance-trainer:v2 finance-trainer
-docker push registry.weyland.lab/finance-trainer:v2
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/finance-trainer:v2
 docker run --rm -v "$HOME/.kube/config":/app/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/finance-trainer:v2 --task both
 ```
 

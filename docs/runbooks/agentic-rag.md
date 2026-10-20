@@ -37,11 +37,15 @@ per `/agent/ask` in experiment **`agentic-rag`** at `mlflow.weyland.lab`. `MLFLO
   `kubectl -n weyland exec deploy/weyland-agent -- python -c "import mlflow; mlflow.set_tracking_uri('http://mlflow.weyland.svc.cluster.local:5000'); from mlflow import MlflowClient; e=MlflowClient().get_experiment_by_name('agentic-rag'); print(len(mlflow.search_traces(experiment_ids=[e.experiment_id])))"`
 
 ## Build & deploy (registry flow)
-- Build + push (**rogueone**): `docker build -t registry.weyland.lab/weyland-agent:vN <services/weyland-agent> && docker push registry.weyland.lab/weyland-agent:vN`
-- **Registry gotcha (see B101):** the manifest PUT to the MinIO-backed registry often doesn't finalize on the first
-  push → pod `ImagePullBackOff: not found`. Confirm `curl -sk https://registry.weyland.lab/v2/weyland-agent/tags/list`
-  shows `vN` (watch for the `vN: digest:` line on push), then bump the tag in `k8s/weyland-agent/deployment.yaml` and
-  `kubectl -n weyland rollout restart deploy/weyland-agent`.
+- Hand-tagged (not in `scripts/ci/images.tsv`), so `ship-images.sh` never rebuilds it: a pin change in
+  `services/weyland-agent/requirements.txt` needs this by hand. List the tags first and take the next FREE `vN`
+  (`curl -s https://registry.weyland.lab/v2/weyland-agent/tags/list`), then build + push (**rogueone**):
+  `docker build -t registry.weyland.lab/weyland-agent:vN /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-agent && bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/weyland-agent:vN`
+- **`registry.weyland.lab` is pull-only (B211):** a plain `docker push` to it fails `unknown: 404 page not found`.
+  `push-image.sh` pushes through `registry-push.weyland.lab` (basic auth, one-time `docker login`,
+  `write-surfaces.md` § Registry) and verifies the tag through the pull host, re-pushing if the manifest PUT didn't
+  finalize (B101). Then bump the tag in `k8s/weyland-agent/deployment.yaml` and let Argo roll it (git, not
+  `kubectl rollout`: `selfHeal` reverts live edits).
 - Manifests: `k8s/weyland-agent/{deployment,service,servicemonitor,ingress}.yaml`; Argo app in `subdir-apps.yaml`.
   **Meshed** (STRICT-mTLS pgvector + Neo4j Bolt via the existing `neo4j-bolt` DestinationRule). Memory **request kept
   low (512Mi)** — the node runs near its requested-memory ceiling; actual usage is bounded by the 2500Mi limit.

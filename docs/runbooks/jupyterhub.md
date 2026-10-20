@@ -59,15 +59,18 @@ browser ──► jupyter.weyland.lab (Traefik ingress + weyland-wildcard-tls)
      --from-literal=LAKEFS_ACCESS_KEY_ID="$K" --from-literal=LAKEFS_SECRET_ACCESS_KEY="$S"
    ```
    (These secrets are NOT in git — recreate on a fresh cluster.)
-3. **Custom singleuser image** — build on mother + push to the in-cluster registry (NOT ctr-import — see the prune
-   gotcha in §3). Rebuild = bump the tag in `jupyterhub-values.yaml` (`singleuser.image.tag`) and:
+3. **Custom singleuser image** — build on rogueone + push to the in-cluster registry (NOT ctr-import — see the prune
+   gotcha in §3). Rebuild = list the tags and take the next FREE one
+   (`curl -s https://registry.weyland.lab/v2/weyland-jupyter/tags/list`), bump the tag in `jupyterhub-values.yaml`
+   (`singleuser.image.tag`) and, on **rogueone**:
    ```
-   rsync -a --delete k8s/jupyterhub/singleuser/ emangini@mother:~/jupyter-singleuser/
-   docker build -t registry.weyland.lab/weyland-jupyter:<tag> ~/jupyter-singleuser/ && docker push registry.weyland.lab/weyland-jupyter:<tag>
+   docker build -t registry.weyland.lab/weyland-jupyter:<tag> /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/jupyterhub/singleuser && bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/weyland-jupyter:<tag>
    ```
-   (`pullPolicy: IfNotPresent`, no imagePullSecret — the node has registry access. If `docker push` 401s,
-   `docker login registry.weyland.lab` first; if a large layer 499s, that's the Traefik `readTimeout` — see
-   [[traefik-readtimeout-registry-push]].)
+   (`pullPolicy: IfNotPresent`, no imagePullSecret — the node has registry access. `registry.weyland.lab` is
+   pull-only since B211: a plain `docker push` to it fails `unknown: 404 page not found`; `push-image.sh` pushes
+   through `registry-push.weyland.lab` (one-time `docker login`, `write-surfaces.md` § Registry) and verifies the tag.
+   Mother's docker does not trust the registry CA, so don't build-and-push there. A large layer that 499s is the
+   Traefik `readTimeout` — see [[traefik-readtimeout-registry-push]].)
 4. **Push** `jupyterhub-values.yaml` + the Argo app → Argo deploys the chart.
 
 ---

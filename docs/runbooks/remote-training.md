@@ -179,8 +179,8 @@ to rogueone — it's already there. From the repo's `weyland-platform/` dir on r
 
 ```
 # [rogueone] build + push the new tag
-docker build -f services/ray-head/Dockerfile -t registry.weyland.lab/ray-head:vN services/genre-trainer
-docker push registry.weyland.lab/ray-head:vN
+docker build -f /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/ray-head/Dockerfile -t registry.weyland.lab/ray-head:vN /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/genre-trainer
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/ray-head:vN
 ```
 
 Then bump the tag in `k8s/ray/ray-head.yaml` (`vN`) and **push** — Argo rolls the head (mother's containerd pulls
