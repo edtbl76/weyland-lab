@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: linear-intake
+  namespace: monitoring
+spec:
+  encryptedData:
+    LINEAR_INTAKE_EMAIL: AgCJPEjPKpv/PGc+jQs0hbeaoj5qiGAevFPGBKRxMPlclogJyMBxJsJn4W/uynBJq9i+ifxiRjOu3KZ1dWcT69tS5v/tAA8QocK8w/oq8Q9YJBsVUk3bVImv3tzmyWsE24ZEH2hco8utjwFBLLNEodaI1hhqjLasEPtItmtFbDzQvLsFdVcdqgcv3/sjZZNIysbvJrJ9+UcU7RDWZXL9xzWFzxKWc0J17ga+qo4lOj9DyQ7uQJmSEAgKxw/ja0xYwaT1A2YEeVT36t9ZNuCCHFmRZNRez0pKF1SXMTXlQIimGc3jUK5dHQttYlX8oEKr45fuswDVoPLVZZfDcPqsV5u0zmi/0fpMPZQNt2PFQPCvSmvwioUCe36aAszm+D0FBxJZQ9r6szovWqFTXutxvS5FJoHQwapjg6jnzOqGX9s4qADA4osFppCgNXW1kfkxBpYC8CzgI0N3iVl+uba8XKtfs3b+7xx3t4/8nkHYZUEknDIJKaGzh2RApKBkvHZtaYU8Q1+GQV3s2uwUhc5i5V9Bi3BjknTmXkCn/n/QWnXcZeMEvw4xpN+l0v8TTu702eLLZ46yO+mp4n6lig7u0kkbPyVKo3fAgGJvO5c5aS8Mrv+87HQTD57nbAT9GjAuGrPQfx0fliynXMGxQFOOkPc05EhnFEMljdvoiPYzh5DjjH33aO0a/g5PBK2DI7gwW7E541tUFOvRbs4uPBhEWwrLZnq8IZNL9rBqiNICDiLx3nc5kiiax5Q=
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: linear-intake
+      namespace: monitoring
+    type: Opaque
