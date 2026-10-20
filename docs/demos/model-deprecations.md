@@ -43,9 +43,9 @@ Expect `… retires 2026-11-30 — 25 day(s) left; replacement claude-sonnet-5-5
 
 [mother]
 ```
-J=anthropic-model-watch-manual-$(date +%s); kubectl -n weyland create job --from=cronjob/anthropic-model-watch "$J" && kubectl -n weyland wait --for=jsonpath='{.status.conditions[0].status}'=True --timeout=180s job/"$J"; kubectl -n weyland get job "$J" -o jsonpath='{.status.conditions[0].type}{"\n"}' && kubectl -n weyland logs job/"$J" --tail=20
+J=anthropic-model-watch-manual-$(date +%s); kubectl -n weyland create job --from=cronjob/anthropic-model-watch "$J" && kubectl -n weyland wait --for=jsonpath='{.status.conditions[0].status}'=True --timeout=180s job/"$J"; kubectl -n weyland get job "$J" -o jsonpath='succeeded={.status.succeeded} failed={.status.failed}{"\n"}' && kubectl -n weyland logs job/"$J" --tail=20
 ```
-Expect `Complete`, then `OK   mlflow anthropic-claude-haiku-4-5-md: claude-haiku-4-5 -> claude-haiku-4-5-20251001
+Expect `succeeded=1 failed=`, then `OK   mlflow anthropic-claude-haiku-4-5-md: claude-haiku-4-5 -> claude-haiku-4-5-20251001
 active (not before 2026-10-15)`, then `1 Anthropic model reference(s) in the running gateways (MLflow + Bifrost; `*`
 names none); 14 model(s) offered by the API`.
 
@@ -71,4 +71,8 @@ names none); 14 model(s) offered by the API`.
   `GET /v1/models`. Result: `OK mlflow anthropic-claude-haiku-4-5-md: claude-haiku-4-5 -> claude-haiku-4-5-20251001
   active`; 14 models offered; exit 0.
 
-**In-cluster (step 4, after the push):** pending the push.
+**In-cluster, 2026-10-20 (after push `ec8c3856`):**
+- **CI #437:** green; its repo-guards log shows `model-deprecations: OK — 7 Anthropic model reference(s) in 1153 file(s)` (a clean checkout; the 1861 above includes untracked files).
+- **Argo:** created CronJob `anthropic-model-watch` and its ConfigMap (both files embedded), and the MLflow policy admitted the label.
+- **Step 4, Job `anthropic-model-watch-manual-1792468849`:** `succeeded=1 failed=`; `OK mlflow anthropic-claude-haiku-4-5-md: claude-haiku-4-5 -> claude-haiku-4-5-20251001 active (not before 2026-10-15)`; `1 Anthropic model reference(s) … 14 model(s) offered by the API`.
+- **A docs fix this run found:** the runbook's first command printed `.status.conditions[0].type`, which is `SuccessCriteriaMet` on this Kubernetes version, not `Complete`. Both docs now print the `succeeded` / `failed` counts.

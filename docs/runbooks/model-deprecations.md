@@ -51,9 +51,9 @@ proven itself on Anthropic.
 5. **Prove the running gateways are clean.** After the push and the Argo sync, run the live check on demand. Don't
    wait for 03:55:
    ```
-   [mother] J=anthropic-model-watch-manual-$(date +%s); kubectl -n weyland create job --from=cronjob/anthropic-model-watch "$J" && kubectl -n weyland wait --for=jsonpath='{.status.conditions[0].status}'=True --timeout=180s job/"$J"; kubectl -n weyland get job "$J" -o jsonpath='{.status.conditions[0].type}{"\n"}' && kubectl -n weyland logs job/"$J" --tail=20
+   [mother] J=anthropic-model-watch-manual-$(date +%s); kubectl -n weyland create job --from=cronjob/anthropic-model-watch "$J" && kubectl -n weyland wait --for=jsonpath='{.status.conditions[0].status}'=True --timeout=180s job/"$J"; kubectl -n weyland get job "$J" -o jsonpath='succeeded={.status.succeeded} failed={.status.failed}{"\n"}' && kubectl -n weyland logs job/"$J" --tail=20
    ```
-   Expect `Complete`, then one `OK` line per Anthropic model the gateways hold, then the summary line. `Failed`
+   Expect `succeeded=1 failed=`, then one `OK` line per Anthropic model the gateways hold, then the summary line. `failed=1`
    means read the `FAIL` or `CANNOT CHECK` lines (below).
 
 Bifrost's key and virtual keys allow `*` today (any model, none named), so its rows come from the live listing.
