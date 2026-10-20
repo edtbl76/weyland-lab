@@ -88,9 +88,10 @@ SECRETS=(
   data-mesh/timescaledb-secret
   data-mesh/trino-metrics-auth
   data-mesh/trino-secret
-  # --- monitoring (6) ---
+  # --- monitoring (7) ---
   monitoring/grafana-admin
   monitoring/grafana-oauth
+  monitoring/linear-intake            # B195 — the Linear team's create-by-email address (anyone holding it files issues); B184's fallback
   monitoring/loki-minio
   monitoring/pve-exporter-secret
   monitoring/watchdog-healthcheck

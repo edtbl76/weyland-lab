@@ -37,12 +37,14 @@ proven itself on Anthropic.
    change the model's `state` to `deprecated`, add `deprecated`, `retires` and `replacement` (dates as
    `YYYY-MM-DD`), add any new models, and set `checked` to today. Copy the page; never type the dates from the email.
 2. **Re-embed it into the CronJob** (the bats test fails CI until you do):
+   [rogueone]
    ```
-   [rogueone] bash /home/edwardmangini/IdeaProjects/weyland/scripts/embed-anthropic-model-watch.sh
+   bash /home/edwardmangini/IdeaProjects/weyland/scripts/embed-anthropic-model-watch.sh
    ```
 3. **Find every use in git:**
+   [rogueone]
    ```
-   [rogueone] bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-model-deprecations.sh
+   bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-model-deprecations.sh
    ```
    A retirement more than 30 days out prints `WARN path:line`. Inside 30 days it prints `FAIL`, and CI blocks the build.
 4. **Move each use to the replacement** the manifest names, in git. Git is the source of truth for the MLflow gateway's
@@ -51,7 +53,7 @@ proven itself on Anthropic.
 5. **Prove the running gateways are clean.** After the push and the Argo sync, run the live check on demand. Don't
    wait for 03:55:
    ```
-   [mother] J=anthropic-model-watch-manual-$(date +%s); kubectl -n weyland create job --from=cronjob/anthropic-model-watch "$J" && kubectl -n weyland wait --for=jsonpath='{.status.conditions[0].status}'=True --timeout=180s job/"$J"; kubectl -n weyland get job "$J" -o jsonpath='succeeded={.status.succeeded} failed={.status.failed}{"\n"}' && kubectl -n weyland logs job/"$J" --tail=20
+   J=anthropic-model-watch-manual-$(date +%s); kubectl -n weyland create job --from=cronjob/anthropic-model-watch "$J" && kubectl -n weyland wait --for=jsonpath='{.status.conditions[0].status}'=True --timeout=180s job/"$J"; kubectl -n weyland get job "$J" -o jsonpath='succeeded={.status.succeeded} failed={.status.failed}{"\n"}' && kubectl -n weyland logs job/"$J" --tail=20
    ```
    Expect `succeeded=1 failed=`, then one `OK` line per Anthropic model the gateways hold, then the summary line. `failed=1`
    means read the `FAIL` or `CANNOT CHECK` lines (below).

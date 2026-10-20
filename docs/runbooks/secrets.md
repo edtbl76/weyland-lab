@@ -34,10 +34,10 @@ kubectl get secret <name> -o yaml ──kubeseal──▶ SealedSecret CR (encry
 
 ## What is and isn't sealed
 
-**Sealed (71):** every credential we created imperatively — nothing else recreates them, so they must be in git.
+**Sealed (73):** every credential we created imperatively — nothing else recreates them, so they must be in git.
 The authoritative list is the `SECRETS=(…)` array in `scripts/seal-secrets.sh` — this count trails it, so when the
 two disagree the array wins (it read 53 here against 54 in the array before B135 added the 55th, and 55 against 68
-when B194 added `weyland/linear-backup-secret`, the 69th, on 2026-09-26; B174 added `weyland/typesafe-api`, the 70th, on 2026-10-07; B202 added `weyland/bifrost-setup-token`, the 71st, on 2026-10-08).
+when B194 added `weyland/linear-backup-secret`, the 69th, on 2026-09-26; B174 added `weyland/typesafe-api`, the 70th, on 2026-10-07; B202 added `weyland/bifrost-setup-token`, the 71st, on 2026-10-08; the count then read 71 against 72 in the array until B195 added `monitoring/linear-intake`, the 73rd, on 2026-10-20).
 
 **Deliberately NOT sealed** (do not add these):
 - **Chart/operator-generated** secrets — their chart/operator recreates them on install, so they're already
@@ -179,3 +179,34 @@ as **B148**.
 
 Create it imperatively, add its `ns/name` to the `SECRETS=(…)` allow-list in `scripts/seal-secrets.sh`, then
 `--seal` → rsync → push. It'll be adopted on the next Argo sync.
+
+## Linear intake email — `monitoring/linear-intake` (B195)
+
+The Linear team's **create-issues-by-email** address (Linear → team settings → General → Create issues by email). It
+is a **capability address**: anyone who has it can file issues with no authentication, and this repo is public. So it
+lives in the gitignored `scripts/.env` as `LINEAR_INTAKE_EMAIL` and nowhere else in the tree, and its cluster copy is
+sealed. No consumer reads it yet; it is the alert → Linear fallback B184 will wire in (out of scope here).
+
+Create and seal (the owner runs these: a credential write). Step 1 refuses an empty value:
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ -n "${LINEAR_INTAKE_EMAIL:-}" ] && kubectl -n monitoring create secret generic linear-intake --from-literal=LINEAR_INTAKE_EMAIL="$LINEAR_INTAKE_EMAIL" --dry-run=client -o yaml | kubectl -n monitoring apply -f -
+```
+[rogueone]
+```
+kubectl -n monitoring annotate secret linear-intake sealedsecrets.bitnami.com/managed=true --overwrite && kubectl -n monitoring get secret linear-intake -o yaml | kubeseal --format yaml > /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/monitoring__linear-intake.yaml
+```
+Verify the STORED value equals `.env` (not `DATA 1`; an empty or truncated value is accepted silently), and that the
+address appears nowhere in the tree. Neither command prints the value:
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ "$(kubectl -n monitoring get secret linear-intake -o jsonpath='{.data.LINEAR_INTAKE_EMAIL}')" = "$(printf %s "$LINEAR_INTAKE_EMAIL" | base64 -w0)" ] && echo "stored value matches .env" || echo "MISMATCH"; grep -rlF --exclude=.env -- "$LINEAR_INTAKE_EMAIL" /home/edwardmangini/IdeaProjects/weyland || echo "address not in the tree"
+```
+Then commit the sealed file only. Once Argo shows the `sealed-secrets-manifests` app Synced, the live Secret's
+`ownerReferences[0].kind` is `SealedSecret`.
+
+**Rotate** (the address leaked, or someone files spam): in Linear's team settings, regenerate the create-by-email
+address (the old one stops working). Put the new value in `scripts/.env`, re-run the three commands above, and commit
+the re-sealed `monitoring__linear-intake.yaml`. Then update whatever B184 wired to send there.

@@ -41,7 +41,7 @@ Expect `… retires 2026-11-30 — 25 day(s) left; replacement claude-sonnet-5-5
 
 **4. The live check, on demand, against the running gateways.**
 
-[mother]
+
 ```
 J=anthropic-model-watch-manual-$(date +%s); kubectl -n weyland create job --from=cronjob/anthropic-model-watch "$J" && kubectl -n weyland wait --for=jsonpath='{.status.conditions[0].status}'=True --timeout=180s job/"$J"; kubectl -n weyland get job "$J" -o jsonpath='succeeded={.status.succeeded} failed={.status.failed}{"\n"}' && kubectl -n weyland logs job/"$J" --tail=20
 ```
