@@ -744,7 +744,7 @@ Two more planes were already standing before B1.6 and complete the picture: **Po
 pod-hardening baseline, Gatekeeper is custom org policy) and **Keycloak SSO / forward-auth** (identity at the edge,
 §10). L5 layers authz-and-quality *on top of* identity.
 
-**Slice A — Ranger (data-plane authz).** `mr3project/ranger:2.6.0` (Admin on `weyland-postgres`), driving Trino
+**Slice A — Ranger (data-plane authz).** Ranger Admin 2.6.0 (`ranger:2.6.0-ubuntu24-r1`: the mr3project tree rebased on Ubuntu 24.04 + Temurin 8, B221; Admin on `weyland-postgres`), driving Trino
 468's **native** `access-control.name=ranger` plugin — every query is authorized per-catalog/schema/column against
 Ranger policies. The engine runs **default-deny**, which is the whole point (a data lake that's open-by-default
 isn't governed) but is also its sharpest edge: enabling the plugin **locked out every existing client** (dbt,

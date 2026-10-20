@@ -16,7 +16,9 @@
 
 ## Architecture
 
-Ranger Admin (JVM/Tomcat, image `mr3project/ranger:2.6.0` + python3) with policy DB in **weyland-postgres**
+Ranger Admin 2.6.0 (JVM/Tomcat; image `registry.weyland.lab/ranger:2.6.0-ubuntu24-r1` since B221: the Ranger tree
+from `mr3project/ranger:2.6.0` on Ubuntu 24.04 LTS + Temurin Java 8 + Python 3.12, see `services/ranger/Dockerfile`)
+with policy DB in **weyland-postgres**
 (`ranger` DB, role `rangeradmin`). Trino 468 has a **native** Ranger access control plugin
 (`access-control.name=ranger`) that pulls policies from Ranger Admin every 30s and enforces them on every query.
 Meshed (istio) so it reaches STRICT-mTLS Postgres.
@@ -33,14 +35,14 @@ Meshed (istio) so it reaches STRICT-mTLS Postgres.
    ```
 2. **Build + push the image** (on **rogueone**). B92 moved this off the local `ctr`-import onto the registry — a
    pruned local-only image left Ranger unable to restart at all (`Init:ImagePullBackOff`, nothing to pull from):
-   **Take the next FREE tag — never rebuild one that exists.** The deployed image is `2.6.0-py3-r2` (B220) and
-   `2.6.0-py3` is its rollback; a push silently overwrites an existing tag. List them first:
+   **Take the next FREE tag — never rebuild one that exists.** The deployed image is `2.6.0-ubuntu24-r1` (B221) and
+   `2.6.0-py3-r2` (Debian 11, B220) is its rollback; a push silently overwrites an existing tag. List them first:
    ```
    curl -s https://registry.weyland.lab/v2/ranger/tags/list
    ```
-   then build the next one (here `r3`) from the platform dir and point `ranger.yaml` at it (both `image:` lines):
+   then build the next one (here `ubuntu24-r2`) from the platform dir and point `ranger.yaml` at it (both `image:` lines):
    ```
-   cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform && docker build -t registry.weyland.lab/ranger:2.6.0-py3-r3 services/ranger && bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/ranger:2.6.0-py3-r3
+   cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform && docker build -t registry.weyland.lab/ranger:2.6.0-ubuntu24-r2 services/ranger && bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/ranger:2.6.0-ubuntu24-r2
    ```
    `scripts/build-push-images.sh` builds ranger only when `RANGER_TAG` names that next tag.
 3. **Deploy** (on **mother**):
@@ -83,11 +85,18 @@ kubectl apply -f ~/ranger.yaml && kubectl -n data-mesh rollout restart deploy/ra
 
 ## The gotcha gauntlet (why the manifests look the way they do)
 
-- **Image config contract (mr3project/ranger:2.6.0):** `install.properties` mounts as the **`/opt/mr3-run/ranger/key/`
+- **Image config contract (the mr3project/ranger:2.6.0 tree, kept as-is by B221's rebase):** `install.properties` mounts as the **`/opt/mr3-run/ranger/key/`
   dir** (NOT `ranger-admin/`); the image also needs a **`/opt/mr3-run/ranger/conf/`** dir (krb5.conf, log4j,
   `ranger-admin-site.xml.append`) it doesn't ship — both are ConfigMaps.
-- **python3:** base ships only python2.7; Ranger 2.6 `db_setup.py` is python3 → baked into the image
-  (`services/ranger/Dockerfile`). Postgres JDBC is already bundled (`/opt/mr3-run/lib/postgresql-42.3.2.jar`).
+- **The image (B221, 2026-10-20):** the Ranger 2.6.0 tree is copied UNCHANGED out of `mr3project/ranger:2.6.0` (Debian
+  11, end of life) onto Ubuntu 24.04 LTS with Temurin Java 8 (install.properties requires 1.8) and Python 3.12
+  (`db_setup.py` is python3, stdlib only). Every input is pinned by digest. The bundled Solr (unused: `audit_store` is
+  empty) and MSSQL driver are dropped; Postgres JDBC is `postgresql-42.7.14.jar` (checksum-verified at build), which
+  `SQL_CONNECTOR_JAR` names. `PYTHONWARNINGS=ignore::SyntaxWarning` silences ~200 per-boot warnings Python 3.12+ prints
+  for `db_setup.py`'s old string escapes (they contain "[E]"/"error", which log alerts match). Trivy: 0 HIGH/CRITICAL
+  OS findings; the 266 left are Ranger 2.6.0's own bundled jars, which only an Apache release can fix, and even
+  `apache/ranger:2.9.0` carries 251. Ubuntu, not Debian 13: `debian:trixie-slim` itself showed 43 unfixed HIGH.
+  **Roll back** = `2.6.0-py3-r2` on both `image:` lines AND `SQL_CONNECTOR_JAR` back to `postgresql-42.3.2.jar`.
 - **`ranger-admin-site.xml.append` is load-bearing:** `start-ranger.sh` deletes the original `</configuration>`
   and splices this file in, so it MUST set `ranger.service.host` (else Tomcat "Host name is required") AND re-close
   `</configuration>`. Keep the YAML block-scalar indentation consistent.

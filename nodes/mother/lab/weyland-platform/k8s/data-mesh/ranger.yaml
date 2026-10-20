@@ -13,7 +13,7 @@ data:
   install.properties: |
     PYTHON_COMMAND_INVOKER=python3
     DB_FLAVOR=POSTGRES
-    SQL_CONNECTOR_JAR=/opt/mr3-run/lib/postgresql-42.3.2.jar
+    SQL_CONNECTOR_JAR=/opt/mr3-run/lib/postgresql-42.7.14.jar
     db_root_user=rangeradmin
     db_root_password=@@DB_ROOT_PASSWORD@@
     db_host=weyland-postgres.weyland.svc.cluster.local
@@ -194,7 +194,7 @@ spec:
         # repo). The ConfigMap mount is read-only, so render here — copy the template + sed each @@TOKEN@@ into the
         # writable emptyDir the main container mounts as key/.
         - name: render-install-props
-          image: registry.weyland.lab/ranger:2.6.0-py3-r2
+          image: registry.weyland.lab/ranger:2.6.0-ubuntu24-r1
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args:
@@ -209,9 +209,11 @@ spec:
             - { name: key-template, mountPath: /template }
       containers:
         - name: ranger-admin
-          # r2 (2026-10-17, B220): rebuilt with apt on archive.debian.org (Debian 11 is EOL; the old build 404'd) +
-          # apt-get upgrade — 84 fewer HIGH/CRITICAL. Still Debian 11: the real fix is B221. Roll back = 2.6.0-py3.
-          image: registry.weyland.lab/ranger:2.6.0-py3-r2   # baked = mr3project/ranger:2.6.0 + python3 (services/ranger/Dockerfile)
+          # ubuntu24-r1 (2026-10-20, B221): the same Ranger 2.6.0 tree on Ubuntu 24.04 LTS + Temurin Java 8u504 +
+          # Python 3.12 + pgjdbc 42.7.14, Solr dropped — 0 HIGH/CRITICAL OS findings (was 178 frozen on Debian 11); the
+          # 266 left are Ranger's own bundled jars. Roll back = 2.6.0-py3-r2 here AND in render-install-props, and
+          # SQL_CONNECTOR_JAR back to postgresql-42.3.2.jar (the old image has only that driver).
+          image: registry.weyland.lab/ranger:2.6.0-ubuntu24-r1   # services/ranger/Dockerfile
           imagePullPolicy: IfNotPresent            # local ctr-imported image (same pattern as the dagster image)
           command: ["/bin/bash", "-c"]
           args:
