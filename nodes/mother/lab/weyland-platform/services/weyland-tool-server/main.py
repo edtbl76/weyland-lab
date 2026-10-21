@@ -150,6 +150,13 @@ _GUARD_PATHS = {Hook.INPUT: "/guard/input", Hook.OUTPUT: "/guard/output", Hook.A
 GUARD_FAILURES = Counter("tool_server_guard_failures_total",
                          "Guard calls that got no usable answer, by hook and cause (content fails open, act fails closed)",
                          ["hook", "cause"])
+# Export every hook x cause series at 0 from start-up (2026-10-21, DoD re-audit). GuardCallsFailing alerts on
+# increase(...[10m]) > 0, and a labelled series that only appears with its first failure starts AT 1, so increase()
+# sees nothing and the first failure — the one that matters on the act hook — would never page.
+GUARD_FAILURE_CAUSES = ("timeout", "connection", "bad_response")
+for _hook in _GUARD_PATHS:
+    for _cause in GUARD_FAILURE_CAUSES:
+        GUARD_FAILURES.labels(_hook.value, _cause)
 
 
 def _actor(x_forwarded_consumer: str | None = Header(default=None)) -> str | None:

@@ -1,0 +1,60 @@
+# promtool unit tests for the tool-server's GuardCallsFailing alerts (B207 DoD re-audit, 2026-10-21). The act-hook
+# rule is `increase(...[10m]) > 0`: it can only see a failure on a series that ALREADY EXISTED at 0. The re-audit found
+# live /metrics exporting no series at all, so the first act failure would have created its series at 1 and never paged.
+# main.py now exports every hook x cause series at 0 from start-up; these cases pin both sides of that. Run by
+# scripts/tests/alert-rules.bats (CI).
+rule_files:
+- rules.yaml
+evaluation_interval: 1m
+tests:
+- name: 'GuardCallsFailing (act): a series exported at 0 pages critical on its FIRST failure'
+  interval: 1m
+  input_series:
+  - series: tool_server_guard_failures_total{job="weyland-tool-server",hook="act",cause="timeout"}
+    values: 0x10 1x10
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: GuardCallsFailing
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        cause: timeout
+      # Both rules are named GuardCallsFailing, so the harness's by-name annotation lookup holds the CONTENT rule's
+      # text; the act rule's description is stated here.
+      exp_annotations:
+        summary: 'The tool-server could not get an act verdict (timeout): acts are being refused'
+        description: "weyland-tool-server's guard calls on the ACT hook got no usable answer, so it refused the act (fail closed, B207). cause=bad_response with weyland-guard healthy usually means the mesh denied the tool-server's identity (k8s/istio/authz-guard-act.yaml, ServiceAccount weyland-tool-server). Check: kubectl -n weyland logs deploy/weyland-tool-server | grep '\\[guard\\]'"
+- name: 'GuardCallsFailing (act): a series that first appears AT 1 never pages (why main.py pre-creates them)'
+  interval: 1m
+  input_series:
+  - series: tool_server_guard_failures_total{job="weyland-tool-server",hook="act",cause="timeout"}
+    values: _x10 1x10
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: GuardCallsFailing
+    exp_alerts: []
+- name: 'GuardCallsFailing (act): no failures is silent'
+  interval: 1m
+  input_series:
+  - series: tool_server_guard_failures_total{job="weyland-tool-server",hook="act",cause="timeout"}
+    values: 0x20
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: GuardCallsFailing
+    exp_alerts: []
+- name: 'GuardCallsFailing (content): input failures for 10m warn, naming the hook and cause'
+  interval: 1m
+  input_series:
+  - series: tool_server_guard_failures_total{job="weyland-tool-server",hook="input",cause="connection"}
+    values: 0x5 1+1x30
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: GuardCallsFailing
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        hook: input
+        cause: connection
+      exp_annotations:
+        summary: 'The tool-server is answering unguarded: input guard calls failing (connection)'
+        description: "weyland-tool-server's input guard calls got no usable answer for 10m, so answers went out unguarded (content fails open). Check weyland-guard: kubectl -n weyland rollout status deploy/weyland-guard"

@@ -125,6 +125,31 @@ cp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/emdash-convey
 
 Expected: `emdash-conveyor-watch: exit 0 — last run started N h ago`, and the Kuma monitor turns green.
 
+## Start at login — XDG autostart (B179 DoD re-audit, 2026-10-21)
+
+The conveyor runs only while Emdash is open, and nothing started it after a reboot: rogueone rebooted 2026-10-19 09:28,
+no run fired for two nights, and the watch above went **down** on 10-20 06:00. The fix is an XDG autostart entry that
+starts Emdash 30 s into every login of the owner's desktop session. The source of record is
+`nodes/rogueone/autostart/emdash.desktop`; `placement.yaml` tracks the installed copy as a `host_config` row, so a
+missing or edited copy shows up in the placement-coverage check. Install or reinstall it:
+
+[rogueone]
+```
+cp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/autostart/emdash.desktop /home/edwardmangini/.config/autostart/emdash.desktop && desktop-file-validate /home/edwardmangini/.config/autostart/emdash.desktop && cmp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/autostart/emdash.desktop /home/edwardmangini/.config/autostart/emdash.desktop && echo installed
+```
+
+Expected: `installed`, with no validator output. **After a reboot** (or the first install), confirm Emdash is up; if
+it is not, launch it from the desktop menu. A missed 04:00 slot then runs seconds after the launch:
+
+[rogueone]
+```
+pgrep -fa emdash-x86_64 | head -3
+```
+
+**If the AppImage is replaced** (a new Emdash version gets a new file name from AppImageLauncher), update `Exec=` and
+`TryExec=` in the source file and reinstall. `TryExec` points at the old file, so a stale entry is silently skipped at
+login rather than failing loudly; the watch above is what catches it.
+
 ## Emdash automation settings
 
 An automation lives in two places:

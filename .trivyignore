@@ -63,18 +63,6 @@ KSV-0109
 # documenting intent, NOT as suppression.
 KSV-0017
 
-# ---- B81 DoD close-out accepted (2026-09-02) ----
-# CVE-2026-71211 — mlflow: SSRF via unvalidated AI Gateway secret (information disclosure), HIGH. NO UPSTREAM FIX:
-# trivy reports fixed=None; the latest release 3.15.2 (2026-08-26) does not address it (release notes carry no
-# security/SSRF/gateway entry), so there is nothing to bump to. Flagged on services/genre-trainer/requirements.txt,
-# which is a mlflow CLIENT (tracking/logging only) — it never runs the AI Gateway server, so the vulnerable code
-# path is not reachable from this component. The AI Gateway itself runs on the mlflow SERVER (`mlflow[gateway]`,
-# /gateway/mlflow/…, k8s/mlflow/mlflow.yaml) whose only un-authenticated surface is the LAN NodePort :30500 — a
-# deliberate, documented exposure on a $0 LAN-only single-node homelab (same posture that accepted the prior
-# gateway SSRF window). Compensating: LAN-only, no external ingress, single tenant. REVISIT + bump both client
-# and server the moment mlflow ships a patched release (as 3.14->3.15.1 cleared CVE-2026-64849).
-CVE-2026-71211
-
 # ---- 2026-10-02 DoD scan triage (golden-path fixtures, no upstream fix) ----
 # Three npm advisories published Sep 3-18 against packages whose LATEST release is still the last affected version
 # (checked 2026-10-02: braces 3.0.3, http-cache-semantics 4.2.0, node-forge 1.4.0 are each `npm view` latest and each

@@ -67,6 +67,10 @@ PY
   promtool_test operator-decide.test.yaml weyland-operator/prometheusrule.yaml
 }
 
+@test "the act guard alert pages on the FIRST failure of a pre-created series, and not on one born at 1 (promtool test rules)" {
+  promtool_test guard-failures.test.yaml weyland-tool-server.yaml
+}
+
 @test "the two spend alerts partition paid egress without double-counting (promtool test rules)" {
   promtool_test spend.test.yaml litellm/prometheusrule.yaml bifrost/prometheusrule.yaml
 }

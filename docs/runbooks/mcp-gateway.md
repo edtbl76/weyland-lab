@@ -181,7 +181,7 @@ with it get `require_public_target = 0` and keep reaching Agent_Memory and the c
 leak). The Agent Gateway cannot proxy the Realm (A2A 0.3.0 cards; it takes A2A v1 only). **Upgraded 2026-10-19 (B231)**, and 2.3.1 **does recover a stranded MCP session by itself**: a Basic Memory restart
 that left 2.2.6 failing (`Missing session ID`, ~10 h after the morning reboot) reconnected on 2.3.1 within 20 s with no
 Bifrost restart. Keep the ship's `rollout restart deploy/bifrost` step until one compositor rollout confirms the fleet
-path too. Rollback: revert the digest pin in git and restore backup `20261019T190603Z` (§ Bifrost backup + restore).
+path too. Rollback: revert the digest pin in git and restore backup `20261019T190603Z` (§ Bifrost backup + restore). It is **pinned outside the rotation** at `/backup/bifrost-pinned/20261019T190603Z` on PVC `bifrost-backup` (copied 2026-10-21, SHA-256 equal to the original, integrity ok); the copy in `/backup/bifrost/` ages out with the 7-day rotation.
 
 ## Bifrost governance — budgets + key-sealing (B111 on v1.6.7; re-verified on v2.2.6, B202)
 
@@ -368,7 +368,7 @@ inference auth on for the first admin, and B202 chose the token (owner, 2026-10-
 
 ## Bifrost backup + restore — `bifrost-backup` (B202 Closing Gaps, 2026-10-08)
 
-Until 2026-10-08 Bifrost's `config.db` had NO backup, though it holds the 22 provider keys, the 4 virtual keys and their
+Until 2026-10-08 Bifrost's `config.db` had NO backup, though it holds the 22 provider keys, the 6 virtual keys and their
 governance (budgets, model configs, pricing), 10 MCP clients and their OAuth configs, the Prompt Repository (~280) and
 the Skills Repository (~589). The register scripts rebuild only part of that. `k8s/bifrost/bifrost-backup.yaml`
 (deployed by the `bifrost` Argo app) runs a CronJob at **23:55 NY**: `scripts/sqlite_backup.py --db config.db --require
@@ -384,7 +384,7 @@ Run one now (and **before any Bifrost upgrade**):
 ```
 kubectl -n weyland create job --from=cronjob/bifrost-backup bifrost-backup-manual-$(date +%s)
 ```
-Expect `sqlite-backup OK (config.db): /backup/bifrost/<ts> — counts={'config_providers': 22, 'governance_virtual_keys': 4, 'prompts': …, 'skills': …, 'config_mcp_clients': 10, 'prompt_versions': …} files=['config.db']`.
+Expect `sqlite-backup OK (config.db): /backup/bifrost/<ts> — counts={'config_providers': 22, 'governance_virtual_keys': 6, 'prompts': …, 'skills': …, 'config_mcp_clients': 10, 'prompt_versions': …} files=['config.db']`.
 
 **Restore drill (non-destructive)** — opens the newest backup in a throwaway pod (copied to `/tmp`, never written back)
 and prints integrity, the manifest counts and the same tables' counts read from the copy:
@@ -395,6 +395,12 @@ Pass = `integrity ok` and the counts matching the manifest. Record the date in `
 pod's log: `kubectl run -i --rm` lost the output of this fast-exiting pod (2026-10-08). **First drill 2026-10-08** on
 `20261008T200346Z`: integrity ok; providers 22, virtual keys 4, MCP clients 10, prompts 280, skills 589, all matching the
 manifest.
+
+**Pinned backups (kept outside the rotation).** `sqlite_backup.py --keep 7` prunes everything in `/backup/bifrost/`, so a
+backup that must outlive a week (an upgrade's rollback point) is copied to `/backup/bifrost-pinned/<ts>` on the same PVC,
+which the rotation never reads. Pinned now: `20261019T190603Z`, the Bifrost 2.2.6 state before the 2.3.1 upgrade
+(B231). Delete a pin when its upgrade is no longer a rollback candidate. To restore from a pin, use its path in the
+destructive restore below.
 
 **Restore (destructive).** Argo selfHeal reverts a scale-down, so pause the `bifrost` app first:
 `argocd app set bifrost --sync-policy none --grpc-web` → `kubectl -n weyland scale deploy/bifrost --replicas=0` → a

@@ -1,0 +1,14 @@
+[Desktop Entry]
+# B179 software-factory conveyor (2026-10-21, DoD re-audit): Emdash runs the `agent-ready-nightly` automation only while
+# the app is open, and nothing started it after a reboot — rogueone rebooted 2026-10-19 09:28, the conveyor went down,
+# and `emdash-conveyor-watch` failed on 10-20 06:00 with no run in 26 h. This XDG autostart entry starts it at every
+# login of the owner's desktop session. Installed to ~/.config/autostart/emdash.desktop (runbook software-factory.md);
+# tracked as a host_config row in placement.yaml so drift is caught. Exec/flags match the AppImageLauncher menu entry.
+Type=Application
+Name=Emdash
+Comment=Software-factory conveyor (agent-ready-nightly, B179); started at login
+Exec=/home/edwardmangini/Applications/emdash-x86_64_8287683f3c1e9ea3c7de9f556bb0ce0e.AppImage --no-sandbox
+TryExec=/home/edwardmangini/Applications/emdash-x86_64_8287683f3c1e9ea3c7de9f556bb0ce0e.AppImage
+Terminal=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=30

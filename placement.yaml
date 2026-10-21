@@ -51,7 +51,7 @@ host_os_units:
      dpkg-db-backup.timer, e2scrub_all.timer, e2scrub_reap.service, earlyoom.service, fstrim.timer,
      fwupd-refresh.timer, fwupd.service, gdm.service, 'getty@.service', gnome-remote-desktop.service,
      gpu-manager.service, grub-common.service, grub-initrd-fallback.service, kdump-tools.service,
-     kerneloops.service, keyboard-setup.service, kmod-static-nodes.service, libvirt-guests.service,
+     kerneloops.service, keyboard-setup.service, kmod-static-nodes.service, ldconfig.service, libvirt-guests.service,
      libvirtd.service, logrotate.timer, lvm2-monitor.service, man-db.timer, ModemManager.service, motd-news.timer,
      networkd-dispatcher.service, NetworkManager-dispatcher.service, NetworkManager-wait-online.service,
      NetworkManager.service, nvidia-cdi-refresh.service, nvidia-hibernate.service, nvidia-persistenced.service,
@@ -66,12 +66,12 @@ host_os_units:
      sysstat-summary.timer, sysstat.service, 'systemd-backlight@backlight:nvidia_0.service',
      'systemd-backlight@leds:tpacpi::kbd_backlight.service', systemd-binfmt.service,
      'systemd-fsck@dev-disk-by\x2duuid-EA48\x2d6AE6.service', systemd-hostnamed.service,
-     systemd-journal-flush.service, systemd-journald.service, systemd-logind.service, systemd-machined.service,
+     systemd-journal-catalog-update.service, systemd-journal-flush.service, systemd-journald.service, systemd-logind.service, systemd-machined.service,
      systemd-modules-load.service, systemd-oomd.service, systemd-pstore.service, systemd-random-seed.service,
-     systemd-remount-fs.service, systemd-resolved.service, systemd-sysctl.service, systemd-timesyncd.service,
+     systemd-remount-fs.service, systemd-resolved.service, systemd-sysctl.service, systemd-sysusers.service, systemd-timesyncd.service,
      systemd-tmpfiles-clean.timer, systemd-tmpfiles-setup-dev-early.service, systemd-tmpfiles-setup-dev.service,
      systemd-tmpfiles-setup.service, systemd-udev-trigger.service, systemd-udevd.service,
-     systemd-update-utmp.service, systemd-user-sessions.service, thermald.service, ua-reboot-cmds.service,
+     systemd-update-done.service, systemd-update-utmp.service, systemd-user-sessions.service, thermald.service, ua-reboot-cmds.service,
      ua-timer.timer, ubuntu-advantage.service, udisks2.service, ufw.service, unattended-upgrades.service,
      update-notifier-download.timer, update-notifier-motd.timer, upower.service, 'user-runtime-dir@1000.service',
      'user@1000.service', virtlockd.service, virtlogd.service, wpa_supplicant.service]
@@ -241,6 +241,7 @@ workloads:
   - {id: "k8s:woodpecker/CronJob/woodpecker-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:weyland/CronJob/bifrost-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:weyland/CronJob/bifrost-mcp-watchdog", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/anthropic-model-watch", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:woodpecker/Deployment/buildkitd", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
   - {id: "k8s:woodpecker/StatefulSet/woodpecker-agent", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
   - {id: "k8s:woodpecker/StatefulSet/woodpecker-server", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
@@ -329,4 +330,5 @@ host_config:
   - {id: "file:rogueone/etc/default/prometheus-node-exporter", host: "rogueone", path: "/etc/default/prometheus-node-exporter", source: "nodes/rogueone/systemd/prometheus-node-exporter.default", owner: "B198"}
   - {id: "file:rogueone/etc/apparmor.d/bwrap", host: "rogueone", path: "/etc/apparmor.d/bwrap", source: "nodes/rogueone/apparmor/bwrap", why: "lets Codex's bubblewrap sandbox create user namespaces (coding-agents runbook)"}
   - {id: "file:rogueone/etc/apt/apt.conf.d/51weyland-hold-nvidia", host: "rogueone", path: "/etc/apt/apt.conf.d/51weyland-hold-nvidia", source: "nodes/rogueone/apt/51weyland-hold-nvidia", owner: "B226", why: "unattended-upgrades must never move the NVIDIA driver without a reboot (2026-10-09 drift)"}
+  - {id: "file:rogueone/home/edwardmangini/.config/autostart/emdash.desktop", host: "rogueone", path: "/home/edwardmangini/.config/autostart/emdash.desktop", source: "nodes/rogueone/autostart/emdash.desktop", owner: "B179", why: "starts Emdash (the agent-ready-nightly conveyor) at login; without it a reboot silently stops the conveyor (down 2026-10-19 to 10-21)"}
   - {id: "file:whisper/root/whisper-shim/shim.py", host: "whisper", path: "/root/whisper-shim/shim.py", source: "nodes/weyland/whisper/shim.py", why: "the OpenAI-compatible /v1 shim whisper-shim.service runs"}

@@ -163,6 +163,16 @@ def test_a_mesh_denial_is_counted_as_a_bad_response(monkeypatch):
     assert _failures("act", "bad_response") == before + 1
 
 
+@pytest.mark.parametrize("hook", ["input", "output", "act"])
+@pytest.mark.parametrize("cause", ["timeout", "connection", "bad_response"])
+def test_every_hook_and_cause_series_exists_before_any_failure(hook, cause):
+    # The GuardCallsFailing alert is `increase(...[10m]) > 0`. A labelled series that does not exist until the first
+    # failure appears already AT 1, and increase() over a series with no earlier sample is 0, so that first failure
+    # never alerts (found by the 2026-10-21 DoD re-audit: live /metrics had no series at all). Every combination
+    # must therefore be exported from start-up.
+    assert REGISTRY.get_sample_value("tool_server_guard_failures_total", {"hook": hook, "cause": cause}) is not None
+
+
 def test_an_answered_guard_counts_no_failure(monkeypatch):
     monkeypatch.setattr(main.httpx, "post", lambda *a, **k: _Resp({"decision": "allow"}))
     before = _failures("input", "connection") + _failures("input", "timeout") + _failures("input", "bad_response")
