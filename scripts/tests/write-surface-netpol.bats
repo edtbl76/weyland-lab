@@ -366,6 +366,22 @@ pinned() {   # pinned <file> <policy> <port> <expected sources...>
     "ns=weyland,app=dagster-user-code" "ns=monitoring,app.kubernetes.io/name=prometheus" "ns=monitoring,app=api-drift"
 }
 
+@test "the Trino no-auth proxy tells Trino its own address, so nextUri polls come back through it" {
+  # Trino builds every nextUri from the request (http-server.process-forwarded=true). The proxy keeps Host = Trino (Envoy
+  # routes on it), so without X-Forwarded-Host every poll pointed at trino.data-mesh.svc directly, which B211's front door
+  # refuses for Cube and Lightdash: each query started, never polled, and timed out after 10 min (found 2026-10-21).
+  run python3 - "$P/lightdash/trino-noauth-proxy.yaml" <<'PY'
+import sys, yaml
+(cm,) = [d for d in yaml.safe_load_all(open(sys.argv[1])) if d and d.get("kind") == "ConfigMap"]
+conf = cm["data"]["nginx.conf"]
+assert "proxy_set_header X-Forwarded-Host trino-noauth.data-mesh.svc.cluster.local:8080;" in conf, "no X-Forwarded-Host"
+assert "proxy_set_header X-Forwarded-Proto http;" in conf, "no X-Forwarded-Proto"
+assert "proxy_set_header Host" not in conf, "Host must stay the proxy_pass target (Envoy routes on it)"
+print("ok")
+PY
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
 @test "the pinning helper is not a rubber stamp: a missing caller fails" {
   run pinned glitchtip/netpol-valkey.yaml glitchtip-valkey-glitchtip-only 6379 app=glitchtip-web
   [ "$status" -ne 0 ]
