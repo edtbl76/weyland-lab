@@ -885,7 +885,6 @@ data:
       - {id: "k8s:weyland/Deployment/litellm", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/llama-guard", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/mlflow", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-      - {id: "k8s:weyland/Deployment/mlflow-gateway", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/nemo-guardrails", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/neo4j", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
       - {id: "k8s:weyland/Deployment/neo4j-mcp", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
