@@ -1,13 +1,14 @@
 # Demo — DoD Pillar 5 reconciliation (backlog ↔ Linear)
 
 The pillar that had no checker, and the checker it has now. **Executed 2026-08-26** (DONE); the guard has
-grown from 2 checks to **eight (A–H)** since — most recently **check H** (every project in exactly one
+grown from 2 checks to **ten (A–J)** since — most recently **checks I and J** (2026-10-21: reverse status drift
+with a 24 h grace, and unticked acceptance boxes on Done issues; see § "Checks I and J" below), before them **check H** (every project in exactly one
 initiative) and **initiative-driven scope** (2026-09-24; see § "Check H" below), after **check G**
 (repo↔Linear-project parity, 2026-09-23).
 
 - **Gate:** [definition-of-done.md](../definition-of-done.md) § 5
 - **Flow:** [diagrams/flow-linear-sync.md](../diagrams/flow-linear-sync.md)
-- **Guard:** `scripts/check-linear-sync.sh` · **Tests:** `scripts/tests/linear-sync.bats` (53 cases)
+- **Guard:** `scripts/check-linear-sync.sh` · **Tests:** `scripts/tests/linear-sync.bats` (72 cases)
 - **Exit codes:** `0` clean · `1` drift · `2` the guard could not do its job (no key, Linear unreachable/timeout,
   non-200, unparseable/empty response). Both 1 and 2 block — a Linear outage fails the pipeline (fail-closed).
 - **CI:** `.woodpecker.yml` step `linear-sync`, **blocking**. Its own step rather than folded into
@@ -166,6 +167,32 @@ cd /tmp && printf '### B1 — x — **DONE**\nLinear: EMA-1.\n' > hb.md \
 
 Expected: `LIVE PROJECTS IN NO INITIATIVE` naming `Orphan Project`, and **`EXIT=1`**. A missing or EMPTY
 `Lab & Systems` initiative is **`EXIT=2`** — an empty scope would check nothing and report OK.
+
+## Checks I and J — both directions, and the acceptance boxes (added 2026-10-21)
+
+The DoD re-audit found two gaps check A could not see: B205 Done in Linear but LOW in the backlog for 11 days (A only
+asks "does DONE imply closed?"), and 102 unticked acceptance boxes across 20 Done issues, each closed by a comment
+that claimed the criteria. **I** fails a backlog entry with an explicit open marker whose issue has been terminal for
+more than 24 h. **J** fails a weyland issue closed as Done from 2026-10-21 on that has a `- [ ]` under
+`## Acceptance criteria`; earlier ones print as a `NOTE` every run. Run it:
+
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-linear-sync.sh; echo "EXIT=$?"
+```
+
+**RUN 2026-10-21** (after the fixes below): `OK - 237 backlog item(s) reconciled with Linear (status both ways +
+priority + coverage + acceptance boxes)`, `EXIT=0`, and `NOTE - 22 issue(s) closed before 2026-10-21 still carry
+unticked acceptance boxes` naming each (EMA-232 … EMA-314). EMA-294 is not in it: its 9 boxes were ticked against
+evidence the same day.
+
+**What check I's first live run found:** 20 flags, and only 3 were real. B205 had been implemented on 10-10 by the
+conveyor's run 3 (`4521d9c1`) with its marker never updated; B111 and B212 were done, but their entries led with the
+old tier (`**HIGH (↑ …). DONE 2026-10-19.**`). The other 17 were the parser, never exposed while A only acted on
+"done": a tier before the marker (`HIGH · DONE`), a `### B10` heading whose status sits on the line below
+(`**MERGED with B16 …**`), `DECLINE` missing from the vocabulary, and items with no status word at all. The parser now
+reads all four, and an item it cannot read is `unknown`, which I never flags. `FOLDED INTO` is neutral: B54/B109 are
+folded and closed in Linear, while B112/B114 are folded and still open as their parent's sub-issues, so it is neither
+done nor open.
 
 ## What it found on its own first runs
 

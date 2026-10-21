@@ -68,7 +68,7 @@ sequenceDiagram
 
 ## The checks
 
-Eight now (A–H); the highest-signal are drawn — status (A), project (B), repo↔project parity (G) and
+Ten now (A–J); the highest-signal are drawn — status (A), project (B), repo↔project parity (G) and
 project↔initiative membership (H). Priority drift (C), missing-from-Linear (D), orphan-in-Linear (E) and
 unnumbered (F) run the same way and are listed in the guard header. E and F apply only inside the
 **weyland scope** — the projects of the `Lab & Systems` initiative, read live (2026-09-24; it replaced a
@@ -103,8 +103,11 @@ flowchart TD
     style I fill:#ffe8cc,stroke:#cc8800
 ```
 
-**One-way on purpose.** DONE implies closed; the converse is not asserted — an issue closed in Linear
-while the backlog entry is still open is a normal mid-flight state, not drift.
+**Both directions (since 2026-10-21).** A: DONE implies closed. I: closed in Linear for more than 24 h implies an
+explicit DONE in the backlog. It was one-way on the reasoning that a close is mid-flight; that holds for hours, and
+B205 sat Done in Linear and LOW in the backlog for 11 days. Only an explicit open marker counts: a status the parser
+cannot find is `unknown`, and `FOLDED INTO` is neutral (the parent bucket carries it). **J:** a weyland issue closed
+as Done has no unticked box under `## Acceptance criteria` (enforced from 2026-10-21; earlier ones print as a NOTE).
 
 **Exit 1 and exit 2 are never conflated.** A missing `LINEAR_API_KEY` must not read as a clean backlog.
 That substitution — absence standing for success — is the defect this whole family of guards exists for.

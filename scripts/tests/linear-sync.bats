@@ -166,6 +166,65 @@ MD
   [[ "$output" == *"EMA-107"*"done"* ]]
 }
 
+# Parser fixes found by check I's first live run (2026-10-21): check A only ever acted on "done", so an item misread
+# as OPEN never mattered. Check I acts on "open", so every misread became a false finding.
+
+@test "backlog_refs: a tier written BEFORE the done marker ('HIGH · DONE') is done" {
+  lib_source
+  cat > "$STUB_DIR/b.md" <<'MD'
+- **B206** — **grkit** — **HIGH · DONE 2026-10-15 (2026-10-13, Linear EMA-293)** — slice 1 DONE.
+MD
+  run backlog_refs "$STUB_DIR/b.md"
+  [[ "$output" == *"EMA-293"*"done"* ]]
+}
+
+@test "backlog_refs: 'DECLINE' is terminal; 'FOLDED INTO' is neither (its status lives in the parent)" {
+  # A folded item is a thread of its parent bucket: some are closed in Linear (B54, B109), others stay open as the
+  # parent's sub-issues (B112 under B60, B114 under B39). Reading it as done flagged B112/B114 under check A; reading
+  # it as open flagged B54/B109 under check I. It is neither.
+  lib_source
+  cat > "$STUB_DIR/b.md" <<'MD'
+- **B54** — **OTel** — **FOLDED INTO B49 (2026-08-05)** — thread (b). Linear EMA-43.
+4. **B24** — Evaluate nerdctl — **EVALUATED 2026-06-15 → DECLINE.** Keep docker. Linear EMA-137.
+MD
+  run backlog_refs "$STUB_DIR/b.md"
+  [[ "$output" == *"EMA-43"$'\t'"unknown"* ]]
+  [[ "$output" == *"EMA-137"$'\t'"done"* ]]
+}
+
+@test "backlog_refs: a ### heading with no status takes it from the first line below it" {
+  lib_source
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B10 — Model registry
+
+**MERGED with B16 — see B16 for MLflow detail.** Linear: EMA-130.
+MD
+  run backlog_refs "$STUB_DIR/b.md"
+  [[ "$output" == *"EMA-130"$'\t'"done"* ]]
+}
+
+@test "backlog_refs: an item with NO status word anywhere is 'unknown', never 'open'" {
+  lib_source
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B99 — 2026-07-21 outage
+
+**Root-caused AND fix-verified 2026-07-22 by a live A/B test.** Linear: EMA-90.
+MD
+  run backlog_refs "$STUB_DIR/b.md"
+  [[ "$output" == *"EMA-90"$'\t'"unknown"* ]]
+}
+
+@test "I: an item whose backlog status is UNKNOWN is not flagged (only an explicit open marker is)" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B99 — 2026-07-21 outage
+
+**Root-caused AND fix-verified 2026-07-22.** Linear: EMA-90.
+MD
+  printf '{"EMA-90":{"stateType":"completed","state":"Done","project":"Weyland Lab","title":"B99 — outage","priority":2,"closedAt":"2026-07-22T00:00:00Z"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" LINEAR_SYNC_NOW=2026-10-21T12:00:00Z run bash "$GUARD"
+  [ "$status" -eq 0 ]
+}
+
 @test "backlog_refs on a file with NO refs is FATAL, not an empty pass" {
   lib_source
   printf '# nothing here\n' > "$STUB_DIR/empty.md"
@@ -204,9 +263,8 @@ MD
   [[ "$output" == *"EMA-199"* ]]
 }
 
-@test "A: backlog OPEN + Linear open is fine — this is not a two-way sync" {
-  # The guard asserts DONE implies closed. It deliberately does NOT assert the converse: an issue
-  # closed in Linear while the backlog entry is still open is a normal mid-flight state.
+@test "A: backlog OPEN + Linear open is fine" {
+  # Both open is agreement. The converse drift (closed in Linear, open in the backlog) is check I below.
   cat > "$STUB_DIR/b.md" <<'MD'
 ### B134 — cpu requests — **HIGH (2026-08-20)**
 Linear: EMA-195.
@@ -760,4 +818,97 @@ _page() { # _page <file> <hasNextPage true|false> <endCursor> <identifiers...>
 
 @test "snapshot: the live query includes archived issues" {
   grep -q 'includeArchived: true' "$GUARD"
+}
+
+# --- I. reverse status drift: closed in Linear, still open in the backlog (2026-10-21) ------------------------------
+# Check A was deliberately one-way ("closed in Linear, open in the backlog is a normal mid-flight state"). It is — for
+# hours. B205 sat that way for days and passed every run. So the converse now fails once the close is older than 24 h.
+# LINEAR_SYNC_NOW pins the clock.
+
+_i_case() { # _i_case <stateType> <state> <closedAt>
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B205 — something — **HIGH (2026-10-10)**
+Linear: EMA-300.
+MD
+  printf '{"EMA-300":{"stateType":"%s","state":"%s","project":"Weyland Lab","title":"B205 — something","priority":2,"closedAt":"%s"}}' \
+    "$1" "$2" "$3" > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" LINEAR_SYNC_NOW=2026-10-21T12:00:00Z run bash "$GUARD"
+}
+
+@test "I: Linear Done for 3 days while the backlog is still open FAILS and names both ids — the B205 drift" {
+  _i_case completed Done 2026-10-18T12:00:00Z
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"LINEAR SAYS CLOSED, BACKLOG SAYS OPEN"* ]]
+  [[ "$output" == *"B205"* && "$output" == *"EMA-300"* ]]
+}
+
+@test "I: Linear Canceled for 3 days while the backlog is still open also FAILS" {
+  _i_case canceled Canceled 2026-10-18T12:00:00Z
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"LINEAR SAYS CLOSED, BACKLOG SAYS OPEN"* ]]
+}
+
+@test "I: a close younger than 24 h is mid-flight, not drift" {
+  _i_case completed Done 2026-10-21T02:00:00Z
+  [ "$status" -eq 0 ]
+}
+
+@test "I: a terminal issue with NO close time fails closed (treated as old, flagged)" {
+  _i_case completed Done ""
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"B205"* ]]
+}
+
+# --- J. acceptance boxes: a Done issue must have every acceptance box ticked (2026-10-21) ----------------------------
+# The DoD re-audit found 102 unticked boxes across 20 Done issues: the closing comment claimed the criteria while the
+# boxes said otherwise. Enforced for issues closed on or after the rule's adoption (LINEAR_AC_CUTOFF, default
+# 2026-10-21); earlier ones are REPORTED (the audit backlog), never silently passed.
+
+_j_case() { # _j_case <stateType> <closedAt> <unticked> <project>
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B240 — thing — **DONE (2026-10-21)**
+Linear: EMA-330.
+MD
+  printf '{"EMA-330":{"stateType":"%s","state":"x","project":"%s","title":"B240 — thing","priority":2,"closedAt":"%s","unticked":%s}}' \
+    "$1" "$4" "$2" "$3" > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" LINEAR_SYNC_NOW=2026-10-23T12:00:00Z run bash "$GUARD"
+}
+
+@test "J: a Done issue closed after the cutoff with unticked acceptance boxes FAILS, naming the issue and the count" {
+  _j_case completed 2026-10-22T09:00:00Z 2 "Weyland Lab"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"DONE WITH UNTICKED ACCEPTANCE BOXES"* ]]
+  [[ "$output" == *"EMA-330"* && "$output" == *"2 unticked"* ]]
+}
+
+@test "J: a Done issue with every box ticked passes" {
+  _j_case completed 2026-10-22T09:00:00Z 0 "Weyland Lab"
+  [ "$status" -eq 0 ]
+}
+
+@test "J: a Done issue closed BEFORE the cutoff is reported, not failed" {
+  _j_case completed 2026-10-10T09:00:00Z 3 "Weyland Lab"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"1 issue(s) closed before"* && "$output" == *"3 unticked"* ]]
+}
+
+@test "J: a CANCELED issue is not held to its acceptance boxes" {
+  _j_case canceled 2026-10-22T09:00:00Z 4 "Weyland Lab"
+  [ "$status" -eq 0 ]
+}
+
+@test "J: an issue outside the weyland scope is not checked" {
+  _j_case completed 2026-10-22T09:00:00Z 4 "Stud.IO"
+  [ "$status" -eq 0 ]
+}
+
+@test "snapshot: counts unticked boxes ONLY under '## Acceptance criteria', and carries the close time" {
+  local desc='## Scope\n\n- [ ] not a criterion\n\n## Acceptance criteria\n\n- [ ] one\n- [X] two\n* [ ] three\n- [x] four\n\n## Out of scope\n\n- [ ] not a criterion either'
+  printf '{"data":{"team":{"issues":{"pageInfo":{"hasNextPage":false,"endCursor":"c1"},"nodes":[{"identifier":"EMA-9","title":"B1 — t","priority":3,"state":{"type":"completed","name":"Done"},"project":{"name":"Weyland Lab"},"completedAt":"2026-10-22T01:00:00.000Z","canceledAt":null,"description":"%s"}]}}}}' \
+    "$desc" > "$STUB_DIR/p1.json"
+  LINEAR_SYNC_LIB=1 source "$GUARD"
+  LINEAR_API_KEY=test-not-a-key LINEAR_ENV_FILE=/nonexistent LINEAR_PAGE_FILES="$STUB_DIR/p1.json" run linear_snapshot
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"unticked": 2'* ]]
+  [[ "$output" == *'"closedAt": "2026-10-22T01:00:00.000Z"'* ]]
 }

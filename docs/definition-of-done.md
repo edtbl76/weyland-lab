@@ -91,6 +91,16 @@ capability is **NOT done** until ALL nine pillars hold. "Ran once" ≠ done.
 ## 5. Close-out / tracking (the unit isn't done until the tracker says so)
 
 - **Linear** — flip the tracked issue (`EMA-*`) to Done with a completion comment (what shipped, gotchas, links).
+- **Tick every acceptance box against its evidence (2026-10-21).** A closing comment that claims the criteria is
+  not a ticked criterion: the DoD re-audit found 102 unticked boxes across 20 Done issues. Each `- [ ]` under
+  `## Acceptance criteria` is ticked with its evidence beside it. A criterion met differently than written is
+  **amended** to say what was done and why, then ticked (EMA-294 criterion 6 is the example); one not met keeps the
+  issue open. `check-linear-sync.sh` check J fails a Done issue closed from 2026-10-21 on with an unticked box. Linear
+  stores a tick as `[X]`; read it back over GraphQL, since the MCP response can be stale.
+- **Both directions agree.** Check A fails a backlog DONE whose issue is open. Check I (2026-10-21) fails the converse:
+  an issue terminal in Linear for more than 24 h while its backlog entry still carries an open marker. That is how
+  B205 sat Done in Linear and LOW in the backlog for 11 days. Lead a closed entry's status with `DONE`
+  (`**DONE 2026-10-19 · HIGH …**`): the first status word is the one that counts.
 - **backlog.md** — flip the item to DONE with a substantial summary (backlog = ordered source; Linear = status).
 - **Memory** — capture any durable, non-obvious lesson.
 - **VERIFY IT — `bash scripts/check-linear-sync.sh`. Do not hand-tick this pillar.**
@@ -128,8 +138,8 @@ capability is **NOT done** until ALL nine pillars hold. "Ran once" ≠ done.
 > not just the ~45 with an inline `Linear EMA-##` ref), joining by the **B/U-number in the Linear title**
 > (the inline ref is only a fallback for numberless titles like B156→EMA-213). Six checks:
 >
-> - **STATUS drift — a backlog entry marked DONE whose Linear issue is not terminal.** One-way on purpose
->   — an issue closed in Linear while the backlog entry is still open is a normal mid-flight state.
+> - **STATUS drift — a backlog entry marked DONE whose Linear issue is not terminal.** One-way until 2026-10-21;
+>   its converse is now check I (closed in Linear for more than 24 h while the backlog still says open).
 > - **A project-less OPEN issue.** This team runs multiple products (Weyland Lab, Stud.IO, …) and project
 >   is the only thing separating them, so a project-less issue is invisible to *both* filtered views.
 > - **PRIORITY drift — a backlog HIGH/MEDIUM/LOW tag that disagrees with the Linear priority** (Linear is

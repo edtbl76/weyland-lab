@@ -17,15 +17,14 @@
 # titled "Audit data mesh ..."). Number-primary matching also makes narrated SIBLING/SUPERSEDED refs
 # (B66 names its EMA-56 sibling; B155 names the EMA-136 it supersedes) harmless — they are not the key.
 #
-# EIGHT CHECKS, all mechanically detectable. "WEYLAND SCOPE" (checks E/F) = the projects of the Linear
+# TEN CHECKS, all mechanically detectable. "WEYLAND SCOPE" (checks E/F) = the projects of the Linear
 # initiative $LINEAR_SCOPE_INITIATIVE (default "Lab & Systems") — the projects whose work docs/backlog.md
 # governs. It is read LIVE from Linear (B119 initiatives, 2026-09-24), replacing a hard-coded denylist of
 # "other products" that silently treated every new project (Algopedia, freejack, ...) as weyland. Adding a
 # project to that initiative is the ONE act that puts it in scope. No/empty scope initiative = exit 2.
 #
 #   A. STATUS drift — a backlog entry marked DONE that names a Linear issue NOT in a terminal state.
-#      Deliberately ONE-WAY: an issue closed in Linear while the backlog entry is still open is a
-#      normal mid-flight state, not drift.
+#      Its converse is check I (it was deliberately one-way until 2026-10-21; see I for why that changed).
 #   B. PROJECT-less OPEN issue. This team runs multiple products (Weyland Lab, Stud.IO, ...) and project
 #      is what separates them — an unassigned open issue is invisible to every filtered view. Found
 #      EMA-186 and EMA-172 that way.
@@ -57,6 +56,15 @@
 #   H. PROJECT<->INITIATIVE — every live (non-canceled) project sits in EXACTLY one initiative. Initiatives
 #      drive scope, so a project in NO initiative is in no one's scope (it could quietly hold weyland work)
 #      and one in TWO is ambiguous. Runs with check G.
+#   I. REVERSE status drift (2026-10-21) — a backlog entry with an explicit OPEN marker whose Linear issue has been
+#      terminal for more than 24 h. A just-closed issue is mid-flight (the backlog edit rides the same push); days
+#      are not: B205 sat Done-in-Linear / LOW-in-backlog for 11 days and passed every run. Only an EXPLICIT open
+#      marker counts: an item whose status the parser cannot find is 'unknown', and 'FOLDED INTO' is neutral (its
+#      status lives in the parent bucket), so neither is ever read as open.
+#   J. ACCEPTANCE BOXES (2026-10-21) — a weyland-scope issue closed as DONE has no unticked `- [ ]` box under its
+#      `## Acceptance criteria`. The DoD re-audit found 102 unticked boxes across 20 Done issues, each closed by a
+#      comment claiming the criteria. Enforced for issues closed on/after LINEAR_AC_CUTOFF (default 2026-10-21);
+#      earlier ones print as a NOTE on every run until they are worked off. Canceled work is not held to them.
 #
 #   usage: scripts/check-linear-sync.sh [--list]
 #          --list   print every item's verdict (status/project/tier/linpri + Linear-only orphans +
@@ -69,7 +77,10 @@
 #
 # For testing (and offline runs) point these at fixtures instead — they skip the API entirely:
 #
-#   LINEAR_SNAPSHOT_JSON  {"EMA-207": {"stateType": "...", "state": "...", "project": "..."|null}}
+#   LINEAR_SNAPSHOT_JSON  {"EMA-207": {"stateType": "...", "state": "...", "project": "..."|null,
+#                          "closedAt": "<ISO>"|null, "unticked": <int>}}  (closedAt/unticked: checks I and J)
+#   LINEAR_SYNC_NOW       pins "now" for check I's 24 h grace (tests); default the real clock
+#   LINEAR_AC_CUTOFF      check J enforces issues closed on/after this ISO time; default 2026-10-21T00:00:00Z
 #   LINEAR_PROJECTS_JSON  ["Weyland Lab", "Algopedia", ...] — the live project NAMES for check G. When
 #                         UNSET in snapshot mode, check G is not exercised (so the A-F fixtures need no
 #                         projects/repos stub); live mode always queries projects and always runs G.
@@ -141,13 +152,27 @@ REF = re.compile(r"(?:Linear:?\s*|\[Linear\s+)(EMA-\d+)")
 # vocabulary is the item's own status. Priority words must be in the same alternation: without them
 # the scan skips straight past `MEDIUM` and finds the first stray `DONE` further along.
 TERMINAL_WORDS = ("DONE", "CLOSED", "RETIRED", "MOOT", "SOLVED", "MERGED",
-                  "WON'T DO", "MITIGATED", "DROPPED", "SUPERSEDED")
+                  "WON'T DO", "MITIGATED", "DROPPED", "SUPERSEDED", "DECLINED", "DECLINE")
 OPEN_WORDS     = ("HIGH", "MEDIUM", "LOW", "IN PROGRESS", "PAUSED", "DEFERRED")
-STATUS = re.compile(r"\b(" + "|".join(re.escape(w) for w in TERMINAL_WORDS + OPEN_WORDS) + r")\b")
+# A folded item's status lives in its PARENT bucket: some are closed in Linear, others stay open as the parent's
+# sub-issues. It stops the scan (so a later word is not misread as its status) but is neither done nor open.
+NEUTRAL_WORDS  = ("FOLDED INTO",)
+STATUS = re.compile(r"\b(" + "|".join(re.escape(w) for w in TERMINAL_WORDS + OPEN_WORDS + NEUTRAL_WORDS) + r")\b")
 
-def is_done(line):
+# A tier written straight before the done marker (`**HIGH · DONE 2026-10-15**`) is the closed item's old tier, not
+# an open status. Only an ADJACENT marker counts: `MEDIUM (deprioritized). ... scorecards DONE` stays open.
+TIER_THEN_DONE = re.compile(r"[\s*]*[·|/,][\s*]*(" + "|".join(re.escape(w) for w in TERMINAL_WORDS) + r")\b")
+
+def status_of(line):
+    """'done' | 'open' | None (no status word). None is never read as open: check I acts on 'open' (2026-10-21)."""
     m = STATUS.search(line)
-    return bool(m) and m.group(1) in TERMINAL_WORDS
+    if not m or m.group(1) in NEUTRAL_WORDS:
+        return None
+    if m.group(1) in TERMINAL_WORDS:
+        return "done"
+    if m.group(1) in ("HIGH", "MEDIUM", "LOW") and TIER_THEN_DONE.match(line[m.end():]):
+        return "done"
+    return "open"
 
 # THE FILE HAS TWO REGIONS AND BOTH CARRY REFERENCES.
 #
@@ -171,29 +196,33 @@ def tier_of(line):
     m = TIER.search(line)
     return m.group(1) if m else ""
 
-rows, cur, done, tier, seen = [], None, False, "", set()
+rows, cur, st, tier, seen, pending = [], None, "unknown", "", set(), False
 items, reffed = {}, set()   # every item number seen (first-seen status/tier wins) · numbers that emitted a ref
 
-def register(num, done_flag, tier_val):
+def register(num, status, tier_val):
     # First occurrence wins: the top ordered list (region 1) precedes the ### detail sections, and
     # CLAUDE.md calls the ordered list the source of truth — so the list's status/tier is authoritative.
-    items.setdefault(num, ('done' if done_flag else 'open', tier_val))
+    # The one exception: an 'unknown' (no status word yet) is replaced by the first status found.
+    prev = items.get(num)
+    if prev is None or (prev[0] == "unknown" and status != "unknown"):
+        items[num] = (status, tier_val or (prev[1] if prev else ""))
 
-def add(num, done_flag, tier_val, line):   # param renamed: `is_done` shadowed the function above
+def add(num, status, tier_val, line):
     for ref in REF.findall(line):
         key = (num, ref)
         if key in seen:
             return
         seen.add(key)
         reffed.add(num)
-        rows.append(f"{num}\t{ref}\t{'done' if done_flag else 'open'}\t{tier_val}")
+        rows.append(f"{num}\t{ref}\t{status}\t{tier_val}")
 
 for line in lines:
     li = LIST_ITEM.match(line)
     if li:
         # Self-contained: judge status + tier from THIS line, and do not disturb the section cursor.
-        register(li.group(1), is_done(line), tier_of(line))
-        add(li.group(1), is_done(line), tier_of(line), line)
+        li_st = status_of(line) or "unknown"
+        register(li.group(1), li_st, tier_of(line))
+        add(li.group(1), li_st, tier_of(line), line)
         continue
 
     h = re.match(r'^### ((?:B|U)[\d.]+)\b(.*)$', line)
@@ -201,14 +230,21 @@ for line in lines:
         if "(original" in line:
             cur = None                      # inside a collapsed duplicate: ignore its refs
             continue
-        cur, done, tier = h.group(1), is_done(line), tier_of(line)
-        register(cur, done, tier)
+        cur, st, tier = h.group(1), status_of(line), tier_of(line)
+        # Older sections put the status on the first line BELOW the heading (`**MERGED with B16 ...**`).
+        pending = st is None
+        st = st or "unknown"
+        register(cur, st, tier)
         # DO NOT `continue` HERE. The `[Linear EMA-46]` form appears INSIDE the heading itself
         # (`— **DONE 2026-08-18 [Linear EMA-46].**`), so skipping to the next line drops every
         # reference written that way — silently, and the dropped half looks like the passing half.
     if cur is None:
         continue
-    add(cur, done, tier, line)
+    if pending and line.strip() and not h:
+        pending = False
+        st = status_of(line) or "unknown"
+        register(cur, st, tier)
+    add(cur, st, tier, line)
 
 # Emit a ref-LESS row for every item that never produced a `Linear: EMA-##` ref, so FULL COVERAGE
 # reconciliation (match-by-B-number against the Linear title) sees it too — this is how an item with
@@ -297,12 +333,24 @@ linear_snapshot() {
   # archiving) would read as "Linear does not know this issue". LINEAR_PAGE_FILES (comma-separated saved
   # responses) replaces the HTTP call in tests, exactly as LINEAR_SNAPSHOT_JSON replaces the whole fetch.
   LINEAR_TEAM="$LINEAR_TEAM" python3 - <<'PY'
-import json, os, sys, urllib.error, urllib.request
+import json, os, re, sys, urllib.error, urllib.request
 
 QUERY = ("query($team: String!, $after: String) { team(id: $team) { issues(first: 250, after: $after, "
          "includeArchived: true) { pageInfo { hasNextPage endCursor } nodes { identifier title priority "
-         "state { type name } project { name } } } } }")
+         "state { type name } project { name } completedAt canceledAt description } } } }")
 files = [f for f in os.environ.get("LINEAR_PAGE_FILES", "").split(",") if f]
+BOX_OPEN = re.compile(r"^\s*[-*]\s+\[ \]")
+
+
+def unticked(description):
+    """Unticked boxes under '## Acceptance criteria' only (check J) — a box elsewhere is not a criterion."""
+    count, inside = 0, False
+    for line in (description or "").split("\n"):
+        if line.startswith("## "):
+            inside = line[3:].strip().lower().startswith("acceptance criteria")
+        elif inside and BOX_OPEN.match(line):
+            count += 1
+    return count
 
 
 def fatal(msg):
@@ -345,6 +393,8 @@ while True:
             "project":   (n.get("project") or {}).get("name") if n.get("project") else None,
             "priority":  n.get("priority"),   # Linear int: 0 None · 1 Urgent · 2 High · 3 Medium · 4 Low
             "title":     n.get("title"),      # to derive the B/U/SEC item-number for full-coverage matching
+            "closedAt":  n.get("completedAt") or n.get("canceledAt"),   # checks I (24 h grace) and J (cutoff)
+            "unticked":  unticked(n.get("description")),                # check J; the text itself is not kept
         }
     info = issues.get("pageInfo") or {}
     if not info.get("hasNextPage"):
@@ -577,8 +627,28 @@ if check_g:
         elif len(where) > 1:
             h_multi.append((p, sorted(where)))
 
+import os as _os
 import re as _re
+from datetime import datetime as _dt, timedelta as _td, timezone as _tz
 TERMINAL = {"completed", "canceled", "duplicate"}
+
+
+def _when(ts):
+    """An ISO timestamp as an aware datetime; None when absent or unreadable (callers fail closed on None)."""
+    try:
+        return _dt.fromisoformat(ts.replace("Z", "+00:00")) if ts else None
+    except ValueError:
+        return None
+
+
+NOW = _when(_os.environ.get("LINEAR_SYNC_NOW")) or _dt.now(_tz.utc)
+# CHECK I grace: a close younger than this is mid-flight (the backlog edit is in the same, not-yet-pushed change).
+CLOSE_GRACE = _td(hours=24)
+# CHECK J is enforced for issues closed on or after the rule's adoption; earlier ones are reported, not failed.
+AC_CUTOFF = _when(_os.environ.get("LINEAR_AC_CUTOFF", "2026-10-21T00:00:00Z"))
+if AC_CUTOFF is None:
+    print("FATAL: LINEAR_AC_CUTOFF is not an ISO timestamp.", file=sys.stderr)
+    raise SystemExit(2)
 # Linear priority int -> the backlog's tier vocabulary. 0 (None) / 1 (Urgent) are not backlog tiers,
 # so an item at those priorities is not tier-compared (no false drift against an unmapped priority).
 PRIORITY_TIER = {2: "HIGH", 3: "MEDIUM", 4: "LOW"}
@@ -615,6 +685,7 @@ backlog_nums = set(by_num)
 # not flag an issue the backlog already references by id.
 referenced = {r for rec in by_num.values() for r in rec["refs"]}
 drift, missing, orphan, tierdrift, nolinear, orphan_num, unnumbered = [], [], [], [], [], [], []
+reverse, boxes, boxes_before = [], [], []
 for bnum, rec in by_num.items():
     status, tier, brefs = rec["status"], rec["tier"], rec["refs"]
     # PRIMARY join = the B/U number in the Linear title (immune to narrated sibling refs). FALLBACK =
@@ -640,6 +711,13 @@ for bnum, rec in by_num.items():
               f"tier={tier or '-':7s} linpri={lin_tier or '-'}")
     if status == "done" and st not in TERMINAL:
         drift.append((bnum, ema, row.get("state")))
+    # CHECK I — the converse of A. Closed in Linear while the backlog says open is mid-flight for hours, not days
+    # (B205 sat that way and passed every run). A terminal issue with no close time fails closed: it counts as old.
+    # Only an EXPLICIT open marker is drift; an item whose status the parser could not find ('unknown') is not.
+    if status == "open" and st in TERMINAL:
+        closed = _when(row.get("closedAt"))
+        if closed is None or NOW - closed > CLOSE_GRACE:
+            reverse.append((bnum, ema, row.get("state"), (row.get("closedAt") or "no close time")[:10]))
     # PRIORITY DRIFT — the class that slipped past this guard twice (B134, B87): it checked status,
     # never priority. Only for OPEN items that DECLARE a tier, and only when Linear's priority maps to
     # a backlog tier — so an item with no stated tier, or at Urgent/None, is never falsely flagged.
@@ -658,6 +736,13 @@ for ema, row in sorted(snap.items()):
     # so this requires a project; only weyland-scope projects count (other products keep their own backlog).
     if proj and proj in scope and n is None and ema not in referenced:
         unnumbered.append((ema, row.get("state"), proj))
+    # CHECK J — a weyland issue closed as DONE has every acceptance box ticked. The 2026-10-21 DoD re-audit found
+    # 102 unticked boxes across 20 Done issues, each closed by a comment claiming the criteria. A criterion met
+    # differently is amended and ticked, never left open. Canceled work is not held to its criteria.
+    if stt == "completed" and proj in scope and (row.get("unticked") or 0) > 0:
+        closed = _when(row.get("closedAt"))
+        rec = (ema, n or "-", row["unticked"], (row.get("closedAt") or "no close time")[:10])
+        (boxes_before if closed is not None and closed < AC_CUTOFF else boxes).append(rec)
     if stt in TERMINAL:
         continue
     if not proj:
@@ -732,6 +817,20 @@ if drift:
     for b, e, s in drift:
         print(f"  {b:8s} {e:9s} is still '{s}' in Linear", file=sys.stderr)
     fail = True
+if reverse:
+    print("", file=sys.stderr)
+    print("LINEAR SAYS CLOSED, BACKLOG SAYS OPEN (closed more than 24 h ago — the B205 drift):", file=sys.stderr)
+    for b, e, s, c in reverse:
+        print(f"  {b:8s} {e:9s} is '{s}' in Linear since {c} — mark the backlog entry, or reopen the issue",
+              file=sys.stderr)
+    fail = True
+if boxes:
+    print("", file=sys.stderr)
+    print("DONE WITH UNTICKED ACCEPTANCE BOXES (a closing comment is not a ticked criterion):", file=sys.stderr)
+    for e, n, k, c in boxes:
+        print(f"  {n:8s} {e:9s} {k} unticked, closed {c} — tick each against its evidence, or amend a criterion "
+              f"met differently and tick it", file=sys.stderr)
+    fail = True
 if tierdrift:
     print("", file=sys.stderr)
     print("PRIORITY DRIFT — backlog tier != Linear priority (Linear is the tier source of truth):", file=sys.stderr)
@@ -778,11 +877,17 @@ if h_multi:
         print(f"  {p:42s} in {' + '.join(where)}", file=sys.stderr)
     fail = True
 
+if boxes_before:
+    # Reported on every run (pass or fail) so the pre-rule backlog stays visible until it is worked off.
+    print(f"NOTE - {len(boxes_before)} issue(s) closed before {AC_CUTOFF.date()} still carry unticked acceptance "
+          f"boxes (the DoD re-audit backlog, not enforced): "
+          + ", ".join(f"{e} ({n}, {k} unticked)" for e, n, k, _ in boxes_before))
 if fail:
     print("", file=sys.stderr)
     print("DoD Pillar 5 is the one pillar with no automatic check; this is that check.", file=sys.stderr)
     raise SystemExit(1)
-print(f"OK - {len(backlog_nums)} backlog item(s) reconciled with Linear (status + priority + coverage), "
+print(f"OK - {len(backlog_nums)} backlog item(s) reconciled with Linear (status both ways + priority + coverage "
+      f"+ acceptance boxes), "
       f"no project-less open issues, no orphans"
       + f", weyland scope = '{SCOPE_INITIATIVE}' ({len(scope)} project(s))"
       + (f"; {sum(1 for r in repo_rows if (r[2] if len(r) > 2 else '1') == '1')} active repo(s) mapped 1:1 "
