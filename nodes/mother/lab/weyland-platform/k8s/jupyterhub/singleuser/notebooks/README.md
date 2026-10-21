@@ -13,6 +13,24 @@ an offline fallback. **Do scratch/experimental work elsewhere in your home** (e.
 2 Gi home PVC persists that across spawns, but anything you edit *inside* `~/notebooks` is replaced on
 the next spawn.
 
+## Parked stores — wake them before you run against them
+
+Some data-mesh stores are **parked by default** to keep mother's memory free (B199): **Cassandra**, **MongoDB** and
+**CockroachDB** run at `replicas: 0`, committed to git. In this library only `22_query_tier2_native` reaches them.
+Its parked sections print `PARKED (or down)` with the exact wake command and skip, so the rest of the notebook still
+runs. To use a parked store, wake it **on rogueone** (it is a git change, so it cannot run from a notebook):
+
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh status          # what is parked now
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake cassandra  # then push the file it names
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wait cassandra  # blocks until Ready
+```
+
+Then re-run the section. **Park it again when you are done** (`... park cassandra`, push, `... wait cassandra`): the
+node runs near its memory ceiling. The Port "Scale data-mesh store" button and a live `kubectl scale` do not stick,
+because Argo reverts them within ~3 minutes; git is the only switch. Runbook: `docs/runbooks/node-capacity.md`
+§ *Parked stores*.
+
 ## The library
 
 ### Formats — per-format deep dives
@@ -39,7 +57,7 @@ notebook explains where it sits relative to the other.
 |---|---|---|
 | `20_query_trino_federation.ipynb` | **Trino** (federated SQL) | catalog/schema discovery; a real cross-catalog join — lakehouse eval scores (`iceberg.eval`) ⋈ operational eval results (`postgresql.public`) in one query; predicate + column pushdown via `EXPLAIN`. Read-only |
 | `21_query_duckdb_gizmosql.ipynb` | **DuckDB** two ways | **embedded** DuckDB over lakeFS Parquet (httpfs, window fns, projection pushdown) + true zero-copy Arrow interop (polars↔arrow↔duckdb, identical buffer address); **served** via GizmoSQL Arrow Flight SQL (ADBC) over the persisted silver base tables (USDA relational JOINs). Read-only |
-| `22_query_tier2_native.ipynb` | **6 Tier-2 stores**, native clients | one native client per engine — ClickHouse (`clickhouse-connect`, columnar OLAP) · Cassandra (`cassandra-driver`, wide-column) · MongoDB (`pymongo`, document) · CockroachDB (`psycopg`, distributed SQL) · TimescaleDB (`psycopg`, hypertable/time-series) · MySQL (`PyMySQL`, relational OLTP) — each with a real read on hydrated data + its niche. Read-only |
+| `22_query_tier2_native.ipynb` | **6 Tier-2 stores**, native clients (3 parked by default, see above) | one native client per engine — ClickHouse (`clickhouse-connect`, columnar OLAP) · Cassandra (`cassandra-driver`, wide-column) · MongoDB (`pymongo`, document) · CockroachDB (`psycopg`, distributed SQL) · TimescaleDB (`psycopg`, hypertable/time-series) · MySQL (`PyMySQL`, relational OLTP) — each with a real read on hydrated data + its niche. Read-only |
 
 Only three Trino catalogs are wired here — **`iceberg`** (Nessie/Iceberg lakehouse on MinIO), **`postgresql`**
 (the operational eval/operator DB), and **`system`**. The Tier-2 stores (ClickHouse/Cassandra/Mongo/Cockroach/

@@ -163,6 +163,14 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   `grpc+tcp://gizmosql.data-mesh.svc:31337`, plaintext (Istio mTLS covers the hop). **Served half needs creds:**
   the singleuser pod gets `GIZMOSQL_USERNAME`/`GIZMOSQL_PASSWORD` from SealedSecret `jupyterhub/gizmosql-creds`
   (mirrors data-mesh `gizmosql-secret`); the embedded half needs no creds beyond `LAKEFS_*`.
+- **`22_query_tier2_native` and the PARKED stores (B225, 2026-10-20).** Cassandra, MongoDB and CockroachDB are parked
+  by default (B199). Their sections now probe the store first, at the protocol level: CQL connect, Mongo `ping`, SQL
+  connect, never bare TCP, because the pod's sidecar accepts TCP to a meshed store even with nothing behind it. A
+  parked store prints `PARKED (or down)` with the exact `scripts/store-park.sh wake|wait|park` commands and is
+  skipped, so the notebook runs clean (headless exit 0) with them parked. Wake one on rogueone before running it
+  against that store (`node-capacity.md` § Parked stores); park it again after. The always-on stores (ClickHouse,
+  TimescaleDB, MySQL) are not wrapped, so an outage there still fails. **In the § 5 UAT, a PARKED line for these
+  three is the expected result, not a failure.**
 - **`22_query_tier2_native` (2026-09-01, validated live, headless-execute clean) — completes the query wave:** the
   six Tier-2 stores by NATIVE client (they are NOT Trino connectors) — ClickHouse (`clickhouse-connect`) · Cassandra
   (`cassandra-driver`) · MongoDB (`pymongo`) · CockroachDB (`psycopg`, insecure dev mode) · TimescaleDB (`psycopg`,
