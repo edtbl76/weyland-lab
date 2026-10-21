@@ -530,8 +530,9 @@ soda_quality_schedule = ScheduleDefinition(
 # refreshed and the "which model is defensible?" answer aged out. ONE job, in order: question-gen, the RAG × models
 # matrix, then the 3-judge scoring pass over its results (eval_scores deps on eval_run_matrix).
 #
-# WEEKLY, on SATURDAY — the one genuinely quiet day: Sunday already carries dbt (06:00), sonar (08:00),
-# scan-suite (09:00) and the image prune (11:00), and every day carries the 02:17 ingestion. Scoring used to be a
+# WEEKLY, on SATURDAY — chosen when Sunday's working day carried sonar (08:00) and the scan-suite (09:00); since B228
+# (2026-10-19) those run 03:00-04:00 NY Sunday and the prune moved to 00:15, so Sunday's mid-day is free, but Sunday's
+# pre-dawn now holds the scans, so the eval stays here. Every day carries the 02:17 ingestion. Scoring used to be a
 # second schedule two hours later, trusting the matrix to finish in two hours; when it didn't, the judges scored the
 # wrong run and fought the matrix for the GPU (removed 2026-09-29).
 #

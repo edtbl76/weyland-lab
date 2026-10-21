@@ -1,4 +1,5 @@
-# Apache Ranger Admin (L5 — data-plane authz for Trino). Prebuilt image mr3project/ranger:2.6.0.
+# Apache Ranger Admin (L5 — data-plane authz for Trino). Image registry.weyland.lab/ranger:2.6.0-ubuntu24-r1 (B221,
+# 2026-10-20): the mr3project/ranger:2.6.0 Ranger tree copied unchanged onto Ubuntu 24.04 (services/ranger/Dockerfile).
 # Policy DB = weyland-postgres (ns weyland) DB `ranger`, role `rangeradmin` (pre-created).
 # Meshed (istio sidecar) so it can reach STRICT-mTLS Postgres. Audit deferred (audit_store empty) — Slice A
 # refinement wires the shared ES later. UI on :6080; ingress added after we validate it in-cluster.
@@ -219,7 +220,7 @@ spec:
           args:
             - |
               set -e
-              # python3 is baked into the image now (Ranger 2.6 setup needs it; base ships only python2.7). Just strip
+              # Python 3.12 is baked into the image (Ubuntu 24.04 base since B221; Ranger 2.6 setup needs it). Just strip
               # the unconditional MySQL-connector wget (we're on Postgres + LAN; dev.mysql.com would hang) and run.
               sed -i '/wget https:\/\/dev.mysql.com/,+2d' /opt/mr3-run/ranger/start-ranger.sh
               exec /opt/mr3-run/ranger/start-ranger.sh

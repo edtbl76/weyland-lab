@@ -39,14 +39,17 @@ sequenceDiagram
 - **Port** — `https://app.port.io` (EU org `org_KyCTEN4PVUv1D3TM`); self-service action **"Scale data-mesh store"** (`port_action.scale_data_mesh_store`, `tofu/port/actions.tf`).
 - **port-agent** — ns `port-agent`, `STREAMER_NAME: POLLING`, `PORT_API_BASE_URL: https://api.port.io` (EU), **Organization** creds in Secret `port-agent-creds`.
 - **store-scaler** — `services/store-scaler/`, receiver `http://store-scaler.data-mesh.svc.cluster.local/scale`, body `{store, action}`; least-priv SA, sidecar disabled (plain HTTP).
-- **Scalable stores** (all `Deployment`, replicas 1, `Recreate`): `cockroachdb`, `mongodb`, `mysql`, `gizmosql`.
+- **Scalable stores** (all `Deployment`, `Recreate`): `mysql` and `gizmosql` at replicas 1; **`cockroachdb` and `mongodb`
+  are parked at replicas 0 in git since B199 (2026-10-01)**, so for them the effect is reversed: a Port **wake** sets
+  replicas 1 and Argo `selfHeal` puts it back to 0 within ~3 min. Wake a parked store with `scripts/store-park.sh wake
+  <store>` (it edits git) instead; B232 redesigns this path.
 - **Argo CD** — `https://argocd.weyland.lab` (the `data-mesh` app has `selfHeal: true` — relevant to the sleep half).
 - `kubectl` runs on **mother** (`emangini@mother`).
 
 ## UI walkthrough
 
 1. Open `https://app.port.io` (EU org) → **Self-service** → the **"Scale data-mesh store"** action.
-2. Pick a **store** (e.g. `gizmosql`) and **action = wake**; run it. The port-agent claims the run on its next poll (~10s latency, not instant).
+2. Pick a **store** that is not parked (e.g. `gizmosql`) and **action = wake**; run it. The port-agent claims the run on its next poll (~10s latency, not instant).
 3. Watch the deployment scale to `replicas: 1` (verify below). First connection to the woken store fails for ~10–30 s until the pod is Ready, then a retry connects.
 4. (Optional) run **action = sleep** — it returns HTTP 200 and scales to `replicas: 0`, but **the sleep is PARKED**: the `data-mesh` Argo app's `selfHeal` reverts `replicas: 0` back to `1` within ~3 min (Scaler and Argo fight; Argo wins). The execution plumbing is the deliverable; sleep-stickiness needs an `ignoreDifferences` carve-out on `/spec/replicas` (not yet applied).
 
@@ -83,13 +86,14 @@ kubectl -n port-agent logs deploy/port-agent --tail=30
 
 - After a **wake**: the target deployment goes to `replicas: 1`, the pod becomes Ready, store-scaler logs a 200, and the store is queryable.
 - After a **sleep**: store-scaler returns 200 and sets `replicas: 0`, but Argo `selfHeal` restores `replicas: 1` within ~3 min (expected — sleep is parked).
+- For `cockroachdb` / `mongodb` (parked in git, B199) the reverse holds: a **wake** is reverted to `replicas: 0` within ~3 min.
 - port-agent logs show `PollingStreamer` and successful `claim-pending` against `api.port.io` (a 403 there would mean US-URL or Personal-creds misconfig).
 
 ## Cleanup / teardown
 
 The scaler only **patches replica counts** — it creates no data, so there is nothing to delete.
 
-To return the stores to their steady state, either let Argo `selfHeal` restore the manifest replicas (it does this automatically within ~3 min for any store left at `0`), or explicitly wake anything you slept:
+To return the stores to their steady state, either let Argo `selfHeal` restore the manifest replicas (within ~3 min: `1` for mysql and gizmosql, `0` for the parked cockroachdb and mongodb), or explicitly wake anything you slept:
 ```
 kubectl -n data-mesh scale deploy/gizmosql --replicas=1
 ```

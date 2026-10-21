@@ -13,6 +13,8 @@ Wants=network-online.target
 User=edwardmangini
 WorkingDirectory=/home/edwardmangini/rag-embed
 Environment=EMBED_MODEL=BAAI/bge-base-en-v1.5
+# B216 re-audit (2026-10-21): the revision the query side pins (services/*/onnx_models.json); app.py also defaults to it.
+Environment=EMBED_MODEL_REVISION=a5beb1e3e68b9ab74eb54cfd186867f64f240e1a
 Environment=EMBED_DEVICE=cpu
 Environment=EMBED_BATCH_SIZE=64
 ExecStart=/home/edwardmangini/rag-embed/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8900

@@ -224,11 +224,11 @@
         <div class="row"><span class="nm"><i class="cdot"></i>Postgres + pgvector</span><div><div class="rl">RAG spine + eval tables</div><span class="ex">rag_chunks 768-dim vectors (bge-base) + eval_leaderboard</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>MusicBrainz Postgres</span><div><div class="rl">native relational graph</div><span class="ex">most-prolific artists by recording count via artist_credit</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>MySQL</span><div><div class="rl">relational health store (6 DBs)</div><span class="ex">SELECT TimeDim, NumericValue FROM who_gho WHERE SpatialDim='USA'</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>CockroachDB</span><div><div class="rl">distributed SQL</div><span class="ex">SELECT genhlth, count(*) FROM brfss GROUP BY genhlth</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>CockroachDB</span><div><div class="rl">distributed SQL · parked by default (B199)</div><span class="ex">SELECT genhlth, count(*) FROM brfss GROUP BY genhlth</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>ClickHouse</span><div><div class="rl">columnar OLAP</div><span class="ex">JOIN usda food × food_nutrient on fdc_id</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>TimescaleDB</span><div><div class="rl">time-series hypertables</div><span class="ex">guardrail_verdicts_ts decisions per validator, last 7 days</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>MongoDB</span><div><div class="rl">document store</div><span class="ex">aggregate open_food_facts by countries_en (4.5M docs)</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>Cassandra</span><div><div class="rl">wide-column store</div><span class="ex">SELECT numericvalue FROM who_gho_life_expectancy WHERE spatialdim='USA'</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>MongoDB</span><div><div class="rl">document store · parked by default (B199)</div><span class="ex">aggregate open_food_facts by countries_en (4.5M docs)</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>Cassandra</span><div><div class="rl">wide-column store · parked by default (B199)</div><span class="ex">SELECT numericvalue FROM who_gho_life_expectancy WHERE spatialdim='USA'</span></div></div>
       </div>
 
       <div class="grp-l">Vector · graph · search</div>

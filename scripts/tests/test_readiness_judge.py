@@ -1,7 +1,9 @@
-"""Tests for issue_readiness.py — the lab's own issue-readiness scorer (B190, replaces SpecBot).
+"""Tests for readiness_judge.py — the RESEARCH HARNESS for the LLM readiness judge B190 built and then dropped
+(2026-10-06). The check that replaced SpecBot in production is scripts/issue_readiness.py (rules only, tested in
+test_issue_readiness.py); this file keeps the dropped judge re-testable, as docs/concepts/issue-readiness.md requires.
 
 SpecBot (a third-party cloud judge, 25 analyses/month) scored issues on 8 dimensions; its total is the plain mean of
-the 8, rounded (EMA-240: 51 / 70 / 75, reproduced below). The lab's scorer keeps that shape and adds what SpecBot
+the 8, rounded (EMA-240: 51 / 70 / 75, reproduced below). The judge kept that shape and added what SpecBot
 could not give: deterministic section checks BEFORE any model call, a native-priority rule instead of a hidden
 estimate penalty, and fail-closed behavior — a judge that is down or answers garbage is exit 2, never a score.
 

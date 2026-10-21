@@ -89,3 +89,35 @@ call_for() { grep "^$1 " "$CALLS"; }
   # Observed 2026-10-19: `command -v find` fails in sonarsource/sonar-scanner-cli:latest (Amazon Linux 2023).
   ! grep -vE '^[[:space:]]*#' "$T/sonar-all.sh" | grep -nE '(^|[^_[:alnum:]])find[[:space:]]'
 }
+
+# B229 DoD re-audit (2026-10-21): a repo the init container failed to clone was simply absent from /src, so the loop
+# never saw it and the Job went green with that repo unscanned. The init container now records each failure in
+# /src/.clone-failed and the runner fails on it, naming the repo, while still scanning the rest.
+
+@test "a repo that failed to clone fails the job by name, and the cloned ones are still scanned" {
+  mkdir -p "$T/src/alpha"
+  printf 'private-repo\n' > "$T/src/.clone-failed"
+  run sh "$T/sonar-all.sh"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"not scanned (clone failed): private-repo"* ]]
+  call_for alpha >/dev/null || { echo "alpha was never scanned"; return 1; }
+}
+
+@test "no clone-failed marker and every scan passing is exit 0" {
+  mkdir -p "$T/src/alpha"
+  run sh "$T/sonar-all.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"clone failed"* ]]
+}
+
+@test "the init container records a failed clone in the marker the runner reads" {
+  python3 - "$MANIFEST" <<'PY'
+import sys, yaml
+for d in yaml.safe_load_all(open(sys.argv[1])):
+    if d and d.get("kind") == "CronJob":
+        init = d["spec"]["jobTemplate"]["spec"]["template"]["spec"]["initContainers"][0]
+        script = init["command"][-1]
+        assert ">> /src/.clone-failed" in script, "the clone loop does not record failures in /src/.clone-failed"
+        print("ok")
+PY
+}

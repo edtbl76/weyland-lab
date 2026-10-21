@@ -1,9 +1,11 @@
-# B138 — multi-repo SonarQube for the NON-Java active repos (Python/JS/TS/MDX). Source-level analysis, one
+# B138 — multi-repo SonarQube for the active repos with no build step (Python/JS/TS/MDX, and source-only Java since
+# B229 — freejack's lesson .java files). Source-level analysis, one
 # Sonar project per repo. SEPARATE from:
 #   - sonar-scan (weyland-lab) — the flagship monorepo with its own deep Flink/Maven bytecode build; unchanged.
 #   - ServiceTransformation — Gradle multi-module, needs `./gradlew classes` (a different pipeline); follow-on.
 # The self-hosted vuln suite (code-scan-suite) already covers ALL 8 repos for SECURITY; this adds Sonar's
-# code-QUALITY metrics for the six that scan cleanly at source level (no compile step, so no per-repo build).
+# code-QUALITY metrics for the eight that scan at source level (SONAR_REPOS below; no compile step, so no per-repo
+# build). A repo that fails to clone is listed in /src/.clone-failed and fails the Job by name (B229 re-audit).
 #
 # An alpine/git initContainer clones each repo into /src/<repo> (with the pr-lifecycle Contents:read token, so
 # it reaches the private freejack/startme-curator); the scanner container then loops those checkouts. Cloning
@@ -23,6 +25,12 @@ data:
     : "${SONAR_HOST_URL:?}"
     : "${SONAR_TOKEN:?}"
     rc=0
+    # A repo the init container failed to clone is absent from /src, so the loop below would never see it and the Job
+    # would go green with it unscanned (B229 re-audit, 2026-10-21). The init container lists each failure here.
+    if [ -s "${SONAR_SRC:-/src}/.clone-failed" ]; then
+      echo "!! not scanned (clone failed): $(tr '\n' ' ' < "${SONAR_SRC:-/src}/.clone-failed")" >&2
+      rc=1
+    fi
     DEFAULT_EXCL='**/node_modules/**,**/.git/**,**/build/**,**/dist/**,**/.next/**,**/vendor/**,**/*.min.js'
     # Source-only Java (2026-10-19, B229): these repos have no Java build, so no compiled classes exist, and
     # SonarQube's Java analyzer refuses to run without `sonar.java.binaries` — freejack's 177 lesson .java files
@@ -98,7 +106,7 @@ spec:
                     echo "cloning edtbl76/${repo}"
                     git clone --quiet --depth 1 \
                       "https://oauth2:${GITHUB_TOKEN}@github.com/edtbl76/${repo}.git" "/src/${repo}" \
-                      || echo "!! clone failed for ${repo}" >&2
+                      || { echo "!! clone failed for ${repo}" >&2; echo "${repo}" >> /src/.clone-failed; }
                   done
                   # The scanner container runs NON-ROOT but the clone ran as root; make /src writable so
                   # sonar-scanner can create each repo's .scannerwork working dir (else AccessDeniedException).

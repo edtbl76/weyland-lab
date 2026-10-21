@@ -312,6 +312,60 @@ pinned() {   # pinned <file> <policy> <port> <expected sources...>
     app.kubernetes.io/name=datahub-gms "job-name In datahub-system-update|datahub-system-update-nonblk"
 }
 
+# B211 DoD re-audit (2026-10-21): these eleven front doors were covered only by the generic sidecar-metrics test above,
+# which checks the Prometheus rule, never the callers. Each is now pinned to its exact caller set.
+
+@test "APISIX's etcd admits only APISIX and its dashboard, on 2379" {
+  pinned apisix-etcd.yaml weyland-apisix-etcd-apisix-only 2379 app=weyland-apisix app=weyland-apisix-dashboard
+}
+
+@test "the Feast server admits only Traefik and dagster-user-code, on 6566" {
+  pinned data-mesh/netpol-feast-server.yaml feast-server-front-door-only 6566 \
+    "ns=kube-system,app.kubernetes.io/name=traefik" "ns=weyland,app=dagster-user-code"
+}
+
+@test "the Flink jobmanager admits the operator and Traefik on 8081, its own pods on RPC/blob, Prometheus on 9249" {
+  pinned data-mesh/netpol-flink-jobmanager.yaml weyland-flink-jobmanager-front-door-only 8081 \
+    app.kubernetes.io/name=flink-kubernetes-operator "ns=kube-system,app.kubernetes.io/name=traefik"
+  pinned data-mesh/netpol-flink-jobmanager.yaml weyland-flink-jobmanager-front-door-only 6123 app=weyland-flink
+  pinned data-mesh/netpol-flink-jobmanager.yaml weyland-flink-jobmanager-front-door-only 9249 \
+    "ns=monitoring,app.kubernetes.io/name=prometheus"
+}
+
+@test "Nessie admits only its six catalog clients, on 19120" {
+  pinned data-mesh/netpol-nessie.yaml nessie-front-door-only 19120 \
+    app=trino "ns=weyland,app=dagster-user-code" app.kubernetes.io/name=acryl-datahub-actions app=weyland-flink \
+    "ns=jupyterhub,component=singleuser-server" "ns=kube-system,app.kubernetes.io/name=traefik"
+}
+
+@test "the Trino no-auth proxy admits only its seven BI and notebook callers, on 8080" {
+  pinned lightdash/trino-noauth-proxy.yaml trino-noauth-proxy-front-door-only 8080 \
+    app=cube app.kubernetes.io/name=lightdash app=superset "ns=weyland,app=dagster-user-code" \
+    "ns=weyland,app=trino-mcp" "ns=weyland,app=datahub-coverage" "ns=jupyterhub,component=singleuser-server"
+}
+
+@test "the MCP compositors admit only the MCP gateway (and Bifrost, for the fleet one), on 8000" {
+  pinned mcp-servers/netpol-compositors.yaml weyland-mcp-compositor-front-door-only 8000 app=weyland-mcp-gateway app=bifrost
+  pinned mcp-servers/netpol-compositors.yaml weyland-mcp-compositor-memory-front-door-only 8000 app=weyland-mcp-gateway
+}
+
+@test "MLflow admits only its eleven listed callers (and rogueone's mlflow-lan NodePort), on 5000" {
+  pinned mlflow/netpol.yaml mlflow-front-door-only 5000 \
+    "ns=weyland,app=dagster-user-code" app=weyland-operator app=weyland-agent app=realm-of-agents app=weyland-tool-server \
+    app=ray-head app=anthropic-model-watch "ns=data-mesh,app.kubernetes.io/name=acryl-datahub-actions" \
+    "ns=jupyterhub,component=singleuser-server" "ns=kube-system,app.kubernetes.io/name=traefik" ip=192.168.1.230/32
+}
+
+@test "OpenSearch Dashboards and promptfoo admit only Traefik (their forward-auth'd UIs)" {
+  pinned opensearch/netpol.yaml opensearch-dashboards-front-door-only 5601 "ns=kube-system,app.kubernetes.io/name=traefik"
+  pinned promptfoo/netpol.yaml promptfoo-front-door-only 3000 "ns=kube-system,app.kubernetes.io/name=traefik"
+}
+
+@test "the operator admits only dagster-user-code, Prometheus and the api-drift job, on 8080" {
+  pinned weyland-operator/netpol.yaml weyland-operator-front-door-only 8080 \
+    "ns=weyland,app=dagster-user-code" "ns=monitoring,app.kubernetes.io/name=prometheus" "ns=monitoring,app=api-drift"
+}
+
 @test "the pinning helper is not a rubber stamp: a missing caller fails" {
   run pinned glitchtip/netpol-valkey.yaml glitchtip-valkey-glitchtip-only 6379 app=glitchtip-web
   [ "$status" -ne 0 ]

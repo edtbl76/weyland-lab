@@ -23,4 +23,22 @@ sequenceDiagram
     Note over AP,LF: linkage is created at fetch time, so the SoT (Bifrost) is decoupled from where the linkage lives (Langfuse)
 ```
 
-Demo: [demos/prompt-federation.md](../demos/prompt-federation.md).
+## The registrars' decisions (B204)
+
+Git is the source of what the lab authored; `register_bifrost_prompts.py` and `register_bifrost_skills.py` reconcile it
+into Bifrost. Each item takes exactly one branch, and any failed read or write makes the run exit 1.
+
+```mermaid
+flowchart TD
+    G["item in git (prompt or skill)"] --> R{"read it from Bifrost<br/>(GET by id — the list's bodies are empty)"}
+    R -- "read fails / 401" --> F["FAILED — run exits 1, nothing written"]
+    R -- absent --> C["CREATE — POST at the base version"]
+    R -- "equal to git" --> U["UNCHANGED — no write"]
+    R -- "differs from git" --> K{"prompt: is the latest version this registrar's?"}
+    K -- "no (a Langfuse / UI edit)" --> X["CONFLICT — reported, never overwritten"]
+    K -- "yes, or it is a skill" --> P["UPDATE — new version (skill: PUT, patch above latest_version, 1.1.0 to 1.1.1)"]
+    P -- "409 / 5xx / non-semver latest" --> F
+```
+
+Demo: [demos/bifrost.md](../demos/bifrost.md) § The registrars publish what changed. The federation demo:
+[demos/prompt-federation.md](../demos/prompt-federation.md).

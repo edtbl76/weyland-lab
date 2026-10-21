@@ -64,7 +64,8 @@ Materialize `datasets_finance_edgar_land` (force it — freshness-gated) → tra
 1. **Land** `group:datasets_finance` (force) → `datasets_finance_edgar_land` fetches ~50 mega-caps' company-facts +
    submissions (User-Agent required) → **20,741 fact rows** (`company_financials`) + `company_meta` +
    **1,144** `company_filings` (10-K/10-Q). Foreign filers (ASML/BABA) yield 0 us-gaap facts — expected.
-2. **Stores + mart:** `group:datasets_finance_stores` (ClickHouse + CockroachDB + MySQL + MongoDB — each 20,741
+2. **Stores + mart:** (CockroachDB and MongoDB are **parked by default since B199**: first `bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake cockroachdb`
+   and `wake mongodb`, push, `store-park.sh wait all`; park them again afterwards.) `group:datasets_finance_stores` (ClickHouse + CockroachDB + MySQL + MongoDB — each 20,741
    facts / 49 dims; MySQL dbs self-provision, Mongo dates encode as timestamps) + `mart_company_financials` (dbt).
 3. **Graph:** `datasets_finance_neo4j_load` → `(:Company)-[:IN_INDUSTRY]->(:SIC)` + `(:Company)-[:FILED]->(:Filing)`.
 4. **Catalog:** `datahub_catalog_emit_job` → DataHub **Company Financials** product.
@@ -109,7 +110,7 @@ Daily price bars for the same ~50 mega-caps, the archetypal time-series slice.
    → `price_daily` (ticker, date, OHLC, adj_close, volume). Foreign symbols yfinance can't resolve are skipped.
 2. **Silver + gold + stores:** `group:datasets_finance` writes `price_daily` silver/Iceberg; then
    `group:datasets_finance_stores` fans out — **Timescale** hypertable on `date` + **ClickHouse** + **Cassandra**
-   (partitioned by ticker).
+   (partitioned by ticker; Cassandra is **parked by default since B199** — `bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake cassandra`, push, wait first).
 3. **dbt mart:** `mart_price_daily` — one row per ticker: latest close, daily return, 30-day volatility (daily +
    annualized), 52-week high/low, pct off the high.
 4. **Catalog:** `datahub_catalog_emit_job` → DataHub **Market Prices** product.
@@ -117,7 +118,7 @@ Daily price bars for the same ~50 mega-caps, the archetypal time-series slice.
 **Eyes-on UAT:**
 - **Trino:** `SELECT ticker, latest_close, round(volatility_30d_annualized,3) AS vol, round(pct_off_52w_high,3) FROM iceberg.dbt.mart_price_daily ORDER BY vol DESC` — the most volatile names on top.
 - **TimescaleDB:** `SELECT ticker, count(*) FROM price_daily GROUP BY 1 ORDER BY 1` — full history per ticker. See [query/timescaledb.md](../query/timescaledb.md).
-- **Cassandra:** one ticker's bars by partition — see [query/cassandra.md](../query/cassandra.md).
+- **Cassandra** (wake it first; parked by default since B199): one ticker's bars by partition — see [query/cassandra.md](../query/cassandra.md).
 - **Lightdash/Superset:** the `mart_price_daily` charts (latest close, annualized volatility per ticker). **Cube:** the `price_daily` cube.
 
 ## Phase 5 — the ML lane (Feast → Ray → MLflow)

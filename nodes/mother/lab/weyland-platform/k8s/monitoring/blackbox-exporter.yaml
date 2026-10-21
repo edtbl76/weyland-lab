@@ -145,7 +145,8 @@ spec:
         - https://woodpecker.weyland.lab
       # --- Intentionally NOT probed (on-demand / not always-up — probing would false-page) ---
       # • flink (JobManager/session cluster — up only when running jobs; flink-history IS probed).
-      # • rogueone GPU on-demand services (vllm / sglang / llama-guard-8b) — brought up per run.
+      # • rogueone GPU on-demand services (vllm / sglang / llama-guard-8b, and Clef-flash :8004 for the B174 decision-
+      #   model comparison) — brought up per run.
       # ollama.weyland.lab is a DNS ALIAS to rogueone (192.168.1.230), NOT an HTTPS ingress — Ollama serves HTTP
       # on :11434, so an https:// probe gets 000 (nothing on :443). Valid hosts.md DNS entry, just not a probe
       # target. The 1:1 rule = every HTTPS INGRESS in hosts.md, EXCEPT the on-demand hosts listed above.

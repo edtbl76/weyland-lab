@@ -34,7 +34,7 @@ model {
 
   // ---- rogueone: external laptop, always on (the operator's interface — owner, 2026-10-03) ----
   rogueone = node "rogueone" "RTX 5000 Ada laptop (.230) — GPU inference + training edge. Always on (the operator's interface)." {
-    ollama = component "Ollama" "LLM serving — ollama.weyland.lab :11434 (moved here B79)"
+    ollama = component "Ollama" "LLM serving — ollama.weyland.lab :11434 (moved here B79). No auth of its own: ufw on rogueone admits only mother (192.168.1.243) and the local docker bridge to :11434 (B211), so every k3s pod reaches it through mother."
     vllm = component "vLLM" "On-demand GPU bench :8001/v1 — Qwen2.5-7B-AWQ, continuous batching (B111)"
     sglang = component "SGLang" "On-demand GPU bench :8002/v1 — Llama-3.2-1B, RadixAttention prefix caching (B111)"
     clefFlash = component "Clef-flash" "On-demand decision model :8004 (B174) — Cloudflare's Apache-2.0 9B, Jev-compatible POST /v1/systemone; 4-bit ~8.5 GB, so never beside the operator's qwen (scripts/clef-flash.sh)"
@@ -76,7 +76,7 @@ model {
         neo = store "Neo4j" "Graph + vector (GraphRAG) — AIDLC + music graph"
         neodash = component "NeoDash" "Neo4j dashboard / viz"
         ragIndex = component "rag-index consumers" "5 stream consumers — replay rag.chunks into each store"
-        realmOfAgents = component "Realm of Agents" "B17 A2A — 24 corpus-backed specialists in 5 Norse-named groups (Valhalla/Vanaheim/Midgard/the Well) in one multiplexed pod. Gná dispatches; leads act on their own tools or delegate to members and reconcile. Runs on Claude Haiku (REALM_MODEL override via LiteLLM). Tools via the Bifrost VK; every hop MLflow-traced. Reached by the Operator over A2A (delegate_to_realm). Front door realm.weyland.lab — A2A JSON-RPC /a2a binding + the Realm Console (live trace UI via /route/stream SSE); debugged with the A2A Inspector."
+        realmOfAgents = component "Realm of Agents" "B17 A2A — realm.weyland.lab behind Keycloak forward-auth and a six-caller NetworkPolicy since B209; its Bifrost tools come from the read-only agents-read VK. 24 corpus-backed specialists in 5 Norse-named groups (Valhalla/Vanaheim/Midgard/the Well) in one multiplexed pod. Gná dispatches; leads act on their own tools or delegate to members and reconcile. Runs on Claude Haiku (REALM_MODEL override via LiteLLM). Tools via the Bifrost VK; every hop MLflow-traced. Reached by the Operator over A2A (delegate_to_realm). Front door realm.weyland.lab — A2A JSON-RPC /a2a binding + the Realm Console (live trace UI via /route/stream SSE); debugged with the A2A Inspector."
         weylandAgent = component "Weyland Agent" "B70 Part 3 — agentic RAG: a LangGraph loop (retrieve→grade→reflect/re-retrieve→generate, max_attempts=2) + 4 custom LlamaIndex retrievers over the vector backends + MLflow Traces (agentic-rag experiment). Guards via weyland-guard (fail-open); in-process bge query embedding; Ollama gen. The LangGraph viability spike for the Operator (B66). agent.weyland.lab"
         a2aInspector = component "A2A Inspector" "B17 debug UI (inspector.weyland.lab, Keycloak SSO). Validates the Realm's Agent Cards and chats through Gná — protocol-level. Adopted over a2a-ui / LangGraph Studio / Agent Chat UI in a bake-off; Argo-managed."
         kokoro = component "Kokoro TTS" "B111 self-hosted OpenAI-compatible TTS (/v1/audio/speech), $0/no-quota — the media-lane primary (image=Runware, video=Runway; ElevenLabs deferred — free tier blocks library voices via API). Fronted by Bifrost as a custom provider (kokoro/kokoro) + a wl-tts LiteLLM route. kokoro.weyland.lab web UI."
@@ -97,7 +97,7 @@ model {
         query = zone "Query / BI / semantic" {
           trino = component "Trino" "Federation SQL — iceberg (native Nessie) + postgresql; NodePort 30808 (rogueone only — no authenticator, B218)"
           gizmosql = component "GizmoSQL" "DuckDB over Arrow Flight SQL — persisted silver"
-          superset = component "Superset" "BI/SQL exploration over Trino + stores"
+          superset = component "Superset" "BI/SQL exploration over Trino + stores. Its Celery worker is parked by default (B199)."
           lightdash = component "Lightdash" "dbt-native BI over the marts"
           cube = component "Cube" "Semantic / metrics layer (SQL/REST/GraphQL)"
           dbtDocs = component "dbt Core + docs" "dbt-trino builds 7 Iceberg marts"
@@ -114,10 +114,10 @@ model {
 
         stores = zone "Tier-2 stores" {
           clickhouse = store "ClickHouse" "Columnar OLAP — native s3() ingest"
-          cassandra = store "Cassandra" "Wide-column — lastfm ~17M rows"
-          cockroach = store "CockroachDB" "Distributed SQL — brfss / nhis"
+          cassandra = store "Cassandra" "Wide-column — lastfm ~17M rows. PARKED by default (replicas 0, B199): wake with scripts/store-park.sh."
+          cockroach = store "CockroachDB" "Distributed SQL — brfss / nhis. PARKED by default (replicas 0, B199): wake with scripts/store-park.sh."
           mysql = store "MySQL" "Health datasets — 6 DBs / 32 tables; NodePort 30306; UNMESHED since B219 (server-first protocol: a PERMISSIVE sidecar swallowed the greeting)"
-          mongodb = store "MongoDB" "Document store — who_gho, OFF, aidlc-kb"
+          mongodb = store "MongoDB" "Document store — who_gho, OFF, aidlc-kb. PARKED by default (replicas 0, B199): wake with scripts/store-park.sh."
           timescale = store "TimescaleDB" "Time-series hypertables"
           opensearch = store "OpenSearch" "Search — RAG BM25 index target; NodePort 30920 (rogueone only — security plugin off, B218)"
           musicbrainz = store "MusicBrainz Postgres" "Full mbdump — CDC source; NodePort 30544 (password, B218)"
@@ -159,7 +159,8 @@ model {
           mcpFleet = component "MCP server fleet (6)" "Read-only MCP servers over lab subsystems (grafana / trino / k8s / postgres / neo4j / datahub) — one protocol for agents to query the platform"
           mcpCompositor = component "weyland-mcp-compositor" "FastMCP proxy — aggregates the 6 fleet servers + the tool-server RAG (context) + the shared agent memory (READ-ONLY, B182) into one endpoint: 8 upstreams, 102 namespaced tools (2026-10-04). Gateway routes /mcp-fleet here; Bifrost weyland_fleet reads it too. NetworkPolicy: only the gateway + Bifrost may connect (2026-10-05)"
           mcpCompositorMemory = component "weyland-mcp-compositor-memory" "B182 (2026-10-04) — the same compositor image mounting ONLY the shared agent memory: its 7 read tools (writes hidden + refused), semantic search, invented filters dropped. The gateway routes /mcp-memory here — for Open WebUI's per-user recall"
-          bifrost = gateway "Bifrost" "Agent-edge MCP front door (maximhq/bifrost, B111) — closes the MCP-gateway deliverable. The coding-agents VK aggregates the compositor fleet (102 read tools, 2026-10-04) + Context7/Linear/GitHub/Perplexity/Playwright/HuggingFace) into one /mcp for Claude Code + Codex + OpenCode. Also a Prompt Repository (241) + Skills Repository (583) served as a Claude Code/Codex plugin marketplace (git-served, /api/skills/serve open). Provider egress + per-VK budgets + sealed keys. v2.3.1 since 2026-10-19 (B231; v2.2.6 from 2026-10-09, B202): /api behind the setup token, a virtual key required on inference, /metrics whitelisted. State: config.db (SQLite) on a local-path PVC, backed up nightly by bifrost-backup (23:55, drilled). VK→MCP scoping via the governance API (B203); bifrost-mcp-watchdog (03:50) alerts on any MCP client not healthy; anthropic-model-watch (03:55, B223) fails on a retired/retiring Anthropic model in its or the MLflow Gateway's config."
+          bifrost = gateway "Bifrost" "Agent-edge MCP front door (maximhq/bifrost, B111) — closes the MCP-gateway deliverable. The coding-agents VK aggregates the compositor read fleet + Context7/Linear/GitHub/Perplexity/Playwright/HuggingFace) into one /mcp for Claude Code + Codex + OpenCode. Also a Prompt Repository + Skills Repository (live counts: the nightly bifrost-backup log line) served as a Claude Code/Codex plugin marketplace (git-served, /api/skills/serve open). Provider egress + per-VK budgets + sealed keys. v2.3.1 since 2026-10-19 (B231; v2.2.6 from 2026-10-09, B202): /api behind the setup token, a virtual key required on inference, /metrics whitelisted. State: config.db (SQLite) on a local-path PVC, backed up nightly by bifrost-backup (23:55, drilled). VK→MCP scoping via the governance API (B203); bifrost-mcp-watchdog (03:50) alerts on any MCP client not healthy; anthropic-model-watch (03:55, B223) fails on a retired/retiring Anthropic model in its or the MLflow Gateway's config."
+          bifrostMcpWatchdog = component "Bifrost MCP watchdog" "B203 CronJob bifrost-mcp-watchdog (ns weyland, 03:50 NY daily). Reads every Bifrost MCP client (GET /api/mcp/clients, setup token) and posts BifrostMCPClientUnhealthy to Alertmanager for any client not healthy; exit 2 when the list cannot be read (no token, non-200), never a clean report. DRILL_CLIENT=<name> drills the Telegram path."
         }
 
         obs = zone "Observability" {
@@ -175,7 +176,7 @@ model {
           kiali = component "Kiali" "Mesh observability UI"
           smCoverage = component "ServiceMonitor coverage" "B148 CronJob (ns monitoring, 02:45 NY, unmeshed, read-only SA). Reconciles every live ServiceMonitor across three planes - intended (.spec.replicas, trustworthy because Argo selfHeal), actual (.status.readyReplicas), observed (Prometheus scrape-pool targets). Exists because data-mesh/trino exported zero metrics for 59 days behind an unlabelled Service and no affirmative check could see it"
           placementCoverage = component "Placement coverage" "B198 CronJob (ns monitoring, 03:40 NY, unmeshed, Prometheus-only). Reconciles placement.yaml — where every workload runs, what it holds, whether it can move, its Strix Halo target — against kube-state-metrics workloads, node-exporter systemd units (rogueone, last 24h) and pve-exporter guests. Byte-identical embedded script + inventory (scripts/embed-placement.sh + placement.bats)"
-          apiDrift = component "API drift" "B155 CronJob (ns monitoring, 03:20 NY, unmeshed, no RBAC - HTTP only). The runtime half of API lifecycle governance: fetches each catalogued API's LIVE spec (FastAPI /openapi.json on the .svc FQDNs + the realm A2A card) and diffs it against the committed contract snapshot (docs/api/specs/) with the breaking-change engine (api_spec_diff.py). Catches a deployed API that drifted from its governed contract - a route removed, a field dropped, a new required field - without the catalog + snapshot + version being updated. Unreachable sources are skipped (not drift); a breaking diff fails the Job. PR-time governance is check-api-lifecycle.sh over apis.yaml"
+          apiDrift = component "API drift" "B155 CronJob (ns monitoring, 03:20 NY, unmeshed, no RBAC - HTTP only). The runtime half of API lifecycle governance: fetches each catalogued API's LIVE spec (FastAPI /openapi.json on the .svc FQDNs + the realm A2A card) and diffs it against the committed contract snapshot (docs/api/specs/) with the breaking-change engine (api_spec_diff.py). Catches a deployed API that drifted from its governed contract - a route removed, a field dropped, a new required field - without the catalog + snapshot + version being updated. Unreachable sources are skipped (not drift); a breaking diff fails the Job; since B208 an ADDITIVE diff is named and posted to Alertmanager as a warning ApiContractStale (an alert that cannot be sent is exit 2). PR-time governance is check-api-lifecycle.sh over apis.yaml"
         }
 
         platform = zone "Delivery + governance" {
@@ -186,7 +187,7 @@ model {
           keda = component "KEDA" "RETIRED 2026-08-22 — autoscaling / run-mode engine; installed 62 days, never used. Kept in the model only until the next diagram sweep confirms nothing references it"
           shipLoop = component "Ship loop" "B135 — scripts/ship-images.sh on rogueone: merges the CI tag-bump PR under three gates (same-repo, CI-authored, tags-only diff), syncs only the affected Argo apps, then verifies EVERY bumped image is live on a probe-backed workload (FR1.5 + SMOKE). Closes the four manual steps B57a left"
           deliveryWatchdogs = component "Delivery watchdogs" "B131/B135/B144 — three CronJobs in ns weyland (the fourth watchdog, B148 servicemonitor-coverage, sits in ns monitoring under Observability — different namespace, different concern). Two WATCH: pr-staleness-check (open PRs past their age budget) + cron-freshness-check (is the Woodpecker nightly-images cron enabled, next_exec fresh — it is not a k8s object, so no metric can see it), both POSTing synthetic alerts to Alertmanager. One ACTS: port-pr-reconcile DELETES Port githubPullRequest entities whose PR has closed — the Ocean integration fetches only OPEN PRs and never deletes, so stale entities accumulate and inflate the DORA scorecards"
-          sonarqube = component "SonarQube" "Code quality + SAST — weekly scan across ALL active repos (B138: weyland-lab deep Flink/Maven + sonar-scan-repos for the 6 source-level repos + sonar-scan-gradle for ServiceTransformation) -> Port code_quality"
+          sonarqube = component "SonarQube" "Code quality + SAST — weekly scan across ALL active repos (B138: weyland-lab deep Flink/Maven + sonar-scan-repos for the 8 source-level repos (source-only Java since B229) + sonar-scan-gradle for ServiceTransformation) -> Port code_quality"
           scanSuite = component "Code scan suite" "Weekly 22-tool scan (code-maat hotspots among them) -> Port security_scan / code_hotspot; Code Health dashboard. Roster declared in quality-tools.yaml, drift-guarded against scan.py"
           buildLanes = component "Per-language build lanes" "B88. Six TEST lanes across nine languages (run-lang-tests.sh) + three SCAN lanes (run-lang-scan.sh), each in a pinned image. Replaced a single hardcoded pytest step that named ONE service by path, so any suite added elsewhere was never executed and sat green by absence. Every lane ships a hello-world fixture so a language with no production code yet still runs a real test; --self-check runs each fixture's deliberately-failing test to prove the runner propagates failure. Exit 1 = a real project failed, exit 2 = the lane could not run"
           supplyChain = component "Supply chain" "B88 Phase 3. Per pushed image: syft SBOM (CycloneDX + SPDX), cosign signature, SLSA provenance attestation, trivy licence scan. Runs after a successful push and never fails the build - an unsigned image is a gap, not a broken build - but is never silent either. Before this, every supply-chain concept existed in the repo as knowledge and nowhere as implementation"
@@ -203,7 +204,7 @@ model {
           minio = store "MinIO" "S3 object storage (8TB) — warehouse/lakefs/mlflow/registry/..."
           filestash = component "Filestash" "MinIO browser UI"
           istiod = component "istiod" "Istio mesh control plane (PERMISSIVE; Postgres STRICT)"
-          registry = component "Container registry" "MinIO-backed OCI registry (LAN)"
+          registry = component "Container registry" "MinIO-backed OCI registry. Split by B211: registry.weyland.lab is PULL-only (Traefik routes GET/HEAD), registry-push.weyland.lab takes pushes over HTTPS with basic auth (registry-push-auth); the pod admits only Traefik and registry-ui."
           registryUi = component "Registry UI" "Registry browser"
           headlamp = component "Headlamp" "Kubernetes UI"
           docsSite = component "docs-site" "MkDocs Material docs + Tools launchpad"
@@ -257,9 +258,12 @@ model {
   weyland.mother.ai.operator -> weyland.mother.ai.realmOfAgents "delegate_to_realm — A2A hand-off (POST /route); Gná routes to the best specialist"
   weyland.mother.ai.a2aInspector -> weyland.mother.ai.realmOfAgents "validates Agent Cards + chats through Gná (protocol debug UI)"
   weyland.mother.ai.realmOfAgents -> weyland.mother.ai.litellm "brains — every agent on Claude Haiku (wl-agentic lane)"
-  weyland.mother.ai.realmOfAgents -> weyland.mother.ops.edge.bifrost "tools — the coding-agents VK MCP surface (grafana/trino/neo4j/datahub/context7/perplexity/…)"
+  weyland.mother.ai.realmOfAgents -> weyland.mother.ops.edge.bifrost "tools — the agents-read VK MCP surface (read-only tools only, B209; grafana/trino/neo4j/datahub/context7/perplexity/…)"
   weyland.mother.ai.litellm -> weyland.mother.ops.edge.bifrost "hosted-lane LLM egress (2026-08-01) — LiteLLM→Bifrost→provider (anthropic/groq/opencode-zen/gemini/xai); Bifrost records provider cost/tokens/latency + per-VK (realm-llm). Local ollama lanes stay direct."
-  rogueone.codingAgents -> weyland.mother.ops.edge.bifrost "MCP tools via /mcp (coding-agents VK, 232 tools) + install skills from the marketplace"
+  rogueone.codingAgents -> weyland.mother.ops.edge.bifrost "MCP tools via /mcp (coding-agents VK) + install skills from the marketplace"
+  weyland.mother.ops.edge.bifrostMcpWatchdog -> weyland.mother.ops.edge.bifrost "reads MCP client health (GET /api/mcp/clients, setup token)"
+  weyland.mother.ops.edge.bifrostMcpWatchdog -> weyland.mother.ops.obs.grafana "posts BifrostMCPClientUnhealthy alerts to Alertmanager"
+  weyland.mother.ops.obs.apiDrift -> weyland.mother.ops.obs.grafana "posts ApiContractStale (warning) to Alertmanager on additive drift (B208)"
   rogueone.emdash -> rogueone.claudeCode "runs agent-ready-nightly (04:00) in a fresh worktree, auto-approve"
   rogueone.emdash -> linear "the agent picks the oldest agent-ready issue (Linear MCP)"
   rogueone.claudeCode -> weyland.mother.ops.edge.bifrost "MCP tools + skill marketplace (/api/skills/serve)"
@@ -388,7 +392,8 @@ model {
   weyland.mother.ops.platform.deliveryWatchdogs -> weyland.mother.ops.platform.woodpecker "cron enabled? next_exec in the future? (API — no metric exists)"
   weyland.mother.ops.platform.deliveryWatchdogs -> github "open PRs across the six active repos vs their age budgets"
   weyland.mother.ops.platform.deliveryWatchdogs -> weyland.mother.ops.obs.grafana "synthetic alerts -> Alertmanager v2 -> Telegram"
-  weyland.mother.ops.platform.buildkitd -> weyland.mother.ops.infra.registry "push git-<sha> tag"
+  weyland.mother.ops.platform.buildkitd -> weyland.mother.ops.infra.registry "push git-<sha> tag via registry-push.weyland.lab (basic auth, B211)"
+  weyland.mother.ops.platform.scanSuite -> weyland.mother.ops.infra.registry "pulls the 23 deployed images to scan them (trivy-images, B213; a failed pull is broken, never zero)"
   weyland.mother.mesh.ml.mlflow -> weyland.mother.ops.infra.minio "artifact store"
   weyland.mother.mesh.ml.aiGateway -> rogueone.ollama "local models (8) + guard/eval judge qwen3:14b /v1 (thinking off)"
   weyland.mother.mesh.ml.aiGateway -> weyland.mother.ai.litellm "LiteLLM-routed hosted providers"

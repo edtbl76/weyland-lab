@@ -14,6 +14,10 @@ everything is **outbound**: each scanner POSTs findings to Port's `code-quality`
 - **`sonar-scan`** (Sun **03:00 NY**, B228) — clone → Maven-compile the Flink modules → `sonar-scanner-cli` against the
   in-cluster SonarQube (`sonarqube.weyland.svc:9000`); SonarQube's **native webhook** POSTs the quality gate →
   **`code_quality`** blueprint (one entity: `weyland-lab`).
+- **`sonar-scan-repos`** (Sun **03:15 NY**, B138/B229) — an `alpine/git` initContainer clones the eight active repos
+  with no build step (`SONAR_REPOS`); the scanner then runs one SonarQube project per checkout, with source-only Java
+  (an empty `sonar.java.binaries`) for a repo holding `.java` files and no build. A failed clone or a failed scan fails
+  the Job, named; the rest are still scanned (diagram below).
 
 See [../runbooks/code-quality.md](../runbooks/code-quality.md) and [../schedules.md](../schedules.md).
 
@@ -67,6 +71,54 @@ sequenceDiagram
     Note over BP,Dash: Code Health assembles it all
     BP->>Dash: 3 number cards (Σ critical/high/medium) + Quality Gate table + Top Hotspots table
 ```
+
+## sonar-scan-repos: what each repo gets, and when the Job fails (B229)
+
+```mermaid
+flowchart TD
+    I["initContainer: git clone each repo in SONAR_REPOS"] -->|clone fails| M["append the repo to /src/.clone-failed"]
+    I -->|cloned| S["/src/repo"]
+    M --> R{"runner: /src/.clone-failed non-empty?"}
+    S --> R
+    R -->|yes| F1["print: not scanned (clone failed): repo, rc=1"]
+    R -->|no| L["for each /src/repo"]
+    F1 --> L
+    L --> P{"repo has its own sonar-project.properties?"}
+    P -->|yes| O["defer to it (projectKey/baseDir/host/token only)"]
+    P -->|no| D["-Dsonar.sources=. + default exclusions"]
+    O --> J{".java files, no sonar.java.binaries?"}
+    D --> J
+    J -->|yes| E["-Dsonar.java.binaries=empty dir (source-only Java)"]
+    J -->|no| X["no Java setting"]
+    E --> SC["sonar-scanner"]
+    X --> SC
+    SC -->|fails| F2["print: sonar-scanner failed for repo, rc=1, next repo"]
+    SC -->|ok| N["next repo"]
+    N --> Z["exit rc: 0 only when every repo cloned and scanned"]
+    F2 --> Z
+```
+
+Tests: `scripts/tests/sonar-scan-repos.bats` runs the real script out of the manifest against fake repos.
+
+## The shell-in-manifests guard: 0 / 1 / 2 (B230)
+
+`scripts/check-configmap-shellcheck.sh` (CI `shellcheck` step) lints the shell that lives inside manifests, which the
+`scripts/**` glob never sees.
+
+```mermaid
+flowchart TD
+    A{"shellcheck on PATH and the k8s dir exists?"} -->|no| C2["exit 2: CANNOT CHECK"]
+    A -->|yes| X{"extract every ConfigMap .sh key + every inline sh -c script"}
+    X -->|"a manifest does not parse / the extractor fails"| C2
+    X -->|"zero scripts found"| C2
+    X -->|"N scripts"| S["shellcheck --severity=warning each"]
+    S -->|"shellcheck exits 2+ (could not run)"| C2
+    S -->|"any exits 1"| C1["exit 1: each finding named manifest:key or manifest:Kind/name/container"]
+    S -->|"all exit 0"| C0["exit 0: OK, N scripts (ConfigMap keys + inline)"]
+```
+
+Tests: `scripts/tests/configmap-shellcheck.bats` (12). Demo: [demos/code-quality-e2e.md](../demos/code-quality-e2e.md)
+§ Shell scripts inside ConfigMaps.
 
 **Gotcha — `202` ≠ entity created.** The ingest URL returns `202` on *queue-acceptance*; the async mapping can
 still silently drop the payload. Two ways it did here: the `security_scan.tool` property was a **string enum**

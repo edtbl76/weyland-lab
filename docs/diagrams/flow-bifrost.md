@@ -1,8 +1,8 @@
 # Flow: Bifrost — agent MCP edge (B17+B19 / B111)
 
-Bifrost (`bifrost.weyland.lab`) is the coding-agent front door: one `coding-agents` virtual key exposes a 232-tool
-MCP surface (the 95-tool read fleet via the FastMCP compositor + external MCPs), a 241-prompt repository, and a
-583-skill plugin marketplace — the same VK across Claude Code, Codex, and OpenCode.
+Bifrost (`bifrost.weyland.lab`) is the coding-agent front door: one `coding-agents` virtual key exposes the
+MCP surface (the read fleet via the FastMCP compositor + external MCPs), the prompt repository, and the
+skill plugin marketplace (live counts: the nightly `bifrost-backup` log line, `runbooks/mcp-gateway.md`) — the same VK across Claude Code, Codex, and OpenCode.
 
 ```mermaid
 sequenceDiagram
@@ -18,7 +18,7 @@ sequenceDiagram
     F-->>C: tool results
     C-->>B: aggregated results
     B-->>A: tools/list (232) then tools/call
-    Note over A,B: same VK also serves the 241-prompt repo and the 583-skill plugin marketplace (git-served)
+    Note over A,B: same VK also serves the prompt repo and the skill plugin marketplace (git-served)
 ```
 
 ## Who authenticates how (since v2.2.6, B202 — 2026-10-09; unchanged on v2.3.1, B231)

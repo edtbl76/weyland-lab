@@ -1,10 +1,11 @@
 # Genre-classifier trainer image. Built + pushed to the MinIO-backed registry (registry.weyland.lab), then
 # pulled + run ephemerally on rogueone (docker run --rm). Self-contained: given only a mounted kubeconfig it
-# fetches its own creds (ensure_creds) AND opens its own port-forwards to the cluster (entrypoint.sh) — so the
-# run needs no host port-forwards, no --network host, and no secrets on the command line.
+# fetches its own creds (ensure_creds) and reaches the cluster at the LAN NodePorts of mlflow/minio/lakefs
+# (entrypoint.sh; NodePorts only since B218, the lab never port-forwards) — so the run needs no --network host and no
+# secrets on the command line.
 FROM python:3.11-slim
 
-# kubectl → the in-container port-forwards (entrypoint.sh); bash → its /dev/tcp readiness checks.
+# kubectl → reading the creds Secrets (entrypoint.sh); bash → its /dev/tcp NodePort readiness checks.
 RUN apt-get update && apt-get install -y --no-install-recommends curl bash ca-certificates \
     && curl -fsSL https://dl.k8s.io/release/v1.30.5/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl \
     && chmod +x /usr/local/bin/kubectl \

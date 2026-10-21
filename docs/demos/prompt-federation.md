@@ -24,7 +24,7 @@ lives (Langfuse). That's the whole trick.
 
 | Store | Role | Prompt shape |
 |---|---|---|
-| **Bifrost** | **Source of truth** — author/manage here (269 prompts, incl. the app prompts in `app-integrated`) | chat messages, `{{var}}` |
+| **Bifrost** | **Source of truth** — author/manage here (~280 on 2026-10-21, incl. the app prompts in `app-integrated`; the live count is the nightly `bifrost-backup` log line) | chat messages, `{{var}}` |
 | **Langfuse** | **Runtime fetch + linkage** — apps `get_prompt` here; traces link the version | chat, `{{var}}` |
 | **MLflow** | **Catalog mirror** — kept in step for MLflow-native workflows | string template, `{var}` |
 

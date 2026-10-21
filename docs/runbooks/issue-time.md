@@ -4,7 +4,9 @@ How long did an issue take? The owner rarely touches an issue by hand — the ag
 **agent time**: the Claude Code session logs on rogueone, attributed to the issue the session was working on, joined
 with Linear's own dates for **lead time** and **cycle time**. **Lane 2** (2026-10-15) adds the owner's own time per
 issue from two sources: **ActivityWatch** (automatic: the Linear tab or window in front of you) and **Clockify** (a
-manual timer button on every Linear issue, for when you want an explicit count). See § Owner time.
+manual timer button on every Linear issue, for when you want an explicit count). See § Owner time. Lane 1 attributes
+per harness from the session logs, so it does not need Bifrost 2.3's per-app metrics label (B212: that label stayed
+`app=""` in testing and was not verified; [concepts/bifrost-2-3-evaluation.md](../concepts/bifrost-2-3-evaluation.md)).
 
 | Piece | Where |
 |---|---|

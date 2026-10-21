@@ -14,7 +14,7 @@ then wires the apps to fetch at runtime so each trace carries its prompt version
 
 ## Source of truth
 
-**Bifrost Prompt Repository is the SSOT.** ~269 prompts, authored/managed there (UI, or the git-committed
+**Bifrost Prompt Repository is the SSOT.** ~280 prompts (2026-10-21; live count: the nightly `bifrost-backup` log line), authored/managed there (UI, or the git-committed
 `register_bifrost_prompts.py` for the durable set; app prompts live in the `app-integrated` folder). Bifrost is
 model-agnostic — `{{var}}` mustache variables, auto-extracted. A prompt exists in the federation only if it exists in
 Bifrost.
@@ -50,7 +50,7 @@ tool.
 
 ```mermaid
 flowchart LR
-  BF["Bifrost Prompt Repo — SSOT (~269)"]
+  BF["Bifrost Prompt Repo — SSOT"]
   DG["Dagster sync_prompts.py<br/>(registrations asset)"]
   LF["Langfuse Prompts<br/>(runtime fetch + linkage)"]
   ML["MLflow Registry<br/>(catalog mirror)"]

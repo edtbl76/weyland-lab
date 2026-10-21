@@ -39,7 +39,7 @@ sequenceDiagram
 
 ## Prerequisites
 
-- **feast-server REST** — `https://feast.weyland.lab` (LAN, no auth — it's an API); `/docs` is auto Swagger. In-cluster `feast-server.data-mesh.svc:6566`.
+- **feast-server REST** — `https://feast.weyland.lab` (behind Keycloak forward-auth since B211, 2026-10-14; sign in through the browser); `/docs` is auto Swagger. In-cluster `feast-server.data-mesh.svc:6566`, admitted only to Traefik and dagster-user-code (NetworkPolicy `feast-server-front-door-only`), so CLI calls run inside `deploy/dagster-user-code`.
 - **feast-ui** — `https://feast-ui.weyland.lab` (Keycloak forward-auth; registry browser — feature views / entities / services).
 - **SDK** — `FeatureStore(repo_path="/app/feast_repo")` inside `deploy/dagster-user-code` (ns `weyland`) — has feast + the repo.
 - Stores: registry + offline = Postgres `feast` DB; online = **Valkey** (`valkey.data-mesh.svc:6379`).
@@ -47,22 +47,29 @@ sequenceDiagram
 
 ## UI walkthrough
 
-1. Open `https://feast.weyland.lab/docs` (Swagger) — the interactive API for `feast serve`.
+1. Open `https://feast.weyland.lab/docs` (Swagger), the interactive API for `feast serve`. Since B211 it sits behind
+   Keycloak forward-auth: expect the Keycloak sign-in first, then Swagger loads.
 2. Try `POST /get-online-features` from Swagger with body:
    `{"features":["state_health_risk:diabetes_pct","state_health_risk:asthma_pct"],"entities":{"state":["CA","NY"]}}`.
 3. Open `https://feast-ui.weyland.lab` (Keycloak) — browse the two feature views, their entities (`track`, `state`), and the feature services (`recommender_v1`, `health_v1`).
 
 ## CLI walkthrough
 
-[mother] Online serving over REST (latest value by entity key, from Valkey):
+Online serving over REST (latest value by entity key, from Valkey). Run inside `dagster-user-code`: since B211 the
+server admits only Traefik (forward-auth'd) and dagster-user-code, so a LAN `curl` to `feast.weyland.lab` gets the
+Keycloak redirect instead:
 ```
-curl -sk https://feast.weyland.lab/get-online-features -H 'Content-Type: application/json' -d '{"features":["state_health_risk:diabetes_pct","state_health_risk:asthma_pct","state_health_risk:copd_pct"],"entities":{"state":["CA","NY","TX"]}}'
+kubectl -n weyland exec deploy/dagster-user-code -- python -c "import json,urllib.request; r=urllib.request.Request('http://feast-server.data-mesh.svc:6566/get-online-features',data=json.dumps({'features':['state_health_risk:diabetes_pct','state_health_risk:asthma_pct','state_health_risk:copd_pct'],'entities':{'state':['CA','NY','TX']}}).encode(),headers={'Content-Type':'application/json'}); d=json.load(urllib.request.urlopen(r,timeout=30)); print(d['metadata']['feature_names']); [print(x['values'],x['statuses']) for x in d['results']]"
 ```
 
-[mother] Online serving by a **feature service** bundle instead of listing features:
+Online serving by a **feature service** bundle instead of listing features:
 ```
-curl -sk https://feast.weyland.lab/get-online-features -H 'Content-Type: application/json' -d '{"feature_service":"health_v1","entities":{"state":["CA","FL"]}}'
+kubectl -n weyland exec deploy/dagster-user-code -- python -c "import json,urllib.request; r=urllib.request.Request('http://feast-server.data-mesh.svc:6566/get-online-features',data=json.dumps({'feature_service':'health_v1','entities':{'state':['CA','FL']}}).encode(),headers={'Content-Type':'application/json'}); d=json.load(urllib.request.urlopen(r,timeout=30)); print(d['metadata']['feature_names']); [print(x['values']) for x in d['results']]"
 ```
+**RUN 2026-10-21** (in-cluster, CA/TX and CA/FL): the listed features came back `PRESENT` for every state (CA diabetes
+12.6, asthma 11.15, copd 4.0); `health_v1` returned state, asthma, diabetes, depression and copd (CA depression 17.8).
+**Refused from outside (the front door):** `curl -sk -o /dev/null -w '%{http_code}' https://feast.weyland.lab/docs` →
+`307` to Keycloak (2026-10-21).
 
 [mother] Point-in-time historical retrieval via the SDK (each row joined as of its own timestamp — CA-2013 ≠ CA-2019):
 ```

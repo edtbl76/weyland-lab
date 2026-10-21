@@ -8,6 +8,9 @@
 # ranger is version-pinned (not tag-following) and intentionally omitted — build via build-push-images.sh with RANGER_TAG.
 # genre-trainer and finance-trainer (rogueone trainers, run by hand with `docker run`, deployed nowhere) are hand-tagged
 # vN and intentionally omitted — build on the next free tag per runbooks/remote-training.md / finance-trainer.md.
+# clef-flash (B174, rogueone's on-demand decision-model server, nodes/rogueone/services/gpu-inference/clef-flash/) is
+# built locally by `docker compose up --build` from scripts/clef-flash.sh at each start and pushed nowhere — deployed
+# nowhere in k8s — so it is intentionally omitted too (runbooks/decision-models.md § Compare Clef-flash).
 # weyland-jupyter (JupyterHub singleuser, B81) is tag-pinned (registry.weyland.lab/weyland-jupyter:vN, pullPolicy
 # IfNotPresent) and built MANUALLY (bump the tag in k8s/jupyterhub/jupyterhub-values.yaml, then docker build/push)
 # — the notebook library is git-synced not baked, so the image changes only on a dep/toolkit bump. Intentionally

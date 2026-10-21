@@ -55,8 +55,9 @@ and record the result (the gate exists to surface the gaps a single successful r
   `datasets.<db>` parquet silver) wired into the hourly `datahub_catalog_emit_job`.
 - ~ **5 Monitored** — Loki **`WeylandDatasetHydrationFailure`** rule → Alertmanager → Telegram (catches even
   a single swallowed per-table failure). Store-*up* monitoring via Uptime Kuma is blocked by Kuma's LAN-DNS
-  (can't resolve `*.svc.cluster.local`, see [[kuma-lan-dns-monitors]]); MySQL is always-on + meshed, so a
-  proper up-monitor = a Prometheus `mysqld-exporter` (deferred — noted, not silently skipped).
+  (can't resolve `*.svc.cluster.local`, see [[kuma-lan-dns-monitors]]); MySQL is always-on and **unmeshed since B219** (it is
+  server-first, and a sidecar swallowed its greeting), so a proper up-monitor = a Prometheus `mysqld-exporter` (deferred —
+  noted, not silently skipped).
 - ✅ **6 Documented** — this runbook + arch.md §7 + hosts.md/api.md + `flow-datasets-lakehouse.md`.
 - ▢ **7 Pushed** — pending (code + `k8s/loki/loki-rules-configmap.yaml`).
 
@@ -101,7 +102,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 - **Targets (grid `MongoDB=Y`):** `who_gho` (nested JSON) + `open_food_facts` (doc per product). **Plus aidlc-kb**
   (the methodology corpus — NOT a grid dataset; added because scanning it BY FRONTMATTER is a real consumer
   that the vector RAG (semantic) and Neo4j (relationships) don't serve).
-- **Deploy:** always-on `mongo:8` (`mongodb.data-mesh.svc:27017`, `k8s/data-mesh/mongodb.yaml`), user
+- **Deploy:** **parked by default** (`replicas: 0` since B199, 2026-10-01; wake with `scripts/store-park.sh wake <store>` before a hydrate) `mongo:8` (`mongodb.data-mesh.svc:27017`, `k8s/data-mesh/mongodb.yaml`), user
   `weyland`/dev-pw, **authSource `admin`** (root user lives there — omitting it is the classic auth trap).
 - **Loaders:** two paths →
   - `datasets_health_mongodb_load` (the `mongo_allow` arm) — silver parquet → collection per file in db
@@ -125,7 +126,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   + demonstrates the store + pg-wire + the built-in Admin UI; geo-partitioning is aspirational (not a data
   mismatch, the data fits).
 - **Deploy:** single-node `cockroachdb/cockroach:v24.2.4` **insecure** (`start-single-node --insecure` — no
-  TLS/auth, LAN + in-cluster only), always-on (`cockroachdb.data-mesh.svc:26257` SQL, `:8080` UI). Admin UI at
+  TLS/auth, LAN + in-cluster only), **parked by default** (`replicas: 0` since B199, 2026-10-01; wake with `scripts/store-park.sh wake <store>` before a hydrate) (`cockroachdb.data-mesh.svc:26257` SQL, `:8080` UI). Admin UI at
   **`cockroachdb.weyland.lab`** behind Keycloak forward-auth (the insecure UI has no login of its own, so
   forward-auth IS the gate). `k8s/data-mesh/cockroachdb.yaml`.
 - **Loader:** `datasets_health_cockroachdb_load` (`cockroach_allow={brfss, nhis}`) — DB per dataset, table per
@@ -152,7 +153,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   has DNS when the pod is Ready — loading during a restart → `UnresolvableContactPoints: {}`; wait for `1/1`.
 - **Cataloged:** DataHub native `cassandra` source (no auth; profiling table-level but **lastfm excluded** via
   `profile_pattern.deny` — a Cassandra `COUNT` is a full-partition scan). Weekly Sun 04:15 ([../schedules.md](../schedules.md)).
-- **Gate:** Loaded ✅ · Runnable ✅ · Always-on ✅ · Monitored ✅ (`CassandraDown`) · Cataloged ✅ · Documented ✅ · Pushed ▢.
+- **Gate:** Loaded ✅ · Runnable ✅ · Always-on ▢ (**parked by default since B199**; wake first) · Monitored ✅ (`CassandraDown`) · Cataloged ✅ · Documented ✅ · Pushed ▢.
 
 ## ClickHouse (store #10 — columnar OLAP, 2026-07-02)
 
@@ -307,9 +308,9 @@ The three vector backends now have both a quality gate and a dashboard:
 | **LanceDB** | ✅ embedded | ✅ **done** | embedded/Lance-native vectors on lakeFS (same 9 sets + **open_food_facts 200,000, B78**); in-process query, `emit_lancedb`, Lance Data Viewer UI + event-sync sensor |
 | **Feast** | ✅ data-mesh | ✅ **done** | feature store — online (Valkey) + point-in-time (Postgres); 2 views (spotify audio / brfss prevalence); feast-server REST at feast.weyland.lab + Swagger |
 | ClickHouse | ✅ always-on | ✅ **done** | music: fma_tracks, uci, musicbrainz-subset, lp_musiccaps, audioset · health: usda, open_food_facts (native s3() ingest) |
-| Cassandra | ✅ always-on | ✅ **done** | music: uci, lastfm (~17M, by user_id) · health: big_five, who_gho |
-| CockroachDB | ✅ always-on | ✅ **done** | brfss (6 tables, ~3M rows) + nhis — db per dataset, pg-wire |
-| MongoDB | ✅ always-on | ✅ **done** | who_gho (8 collections) + open_food_facts (4.5M docs) + aidlc-kb (511 frontmatter docs) |
+| Cassandra | ▢ parked (B199) — wake first | ✅ **done** | music: uci, lastfm (~17M, by user_id) · health: big_five, who_gho |
+| CockroachDB | ▢ parked (B199) — wake first | ✅ **done** | brfss (6 tables, ~3M rows) + nhis — db per dataset, pg-wire |
+| MongoDB | ▢ parked (B199) — wake first | ✅ **done** | who_gho (8 collections) + open_food_facts (4.5M docs) + aidlc-kb (511 frontmatter docs) |
 | Feast | ▢ deploy first | ▢ | feature store (audio/health features) |
 
 Each new store = a `<store>_allow` field on `DomainConfig` + a writer arm in `loaders.py` + (if not

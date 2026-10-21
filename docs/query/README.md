@@ -10,9 +10,9 @@ syntax demos.
 | dbt marts | [dbt-marts.md](dbt-marts.md) | the 14 tested marts (`iceberg.dbt.mart_*`, incl. `mart_macro_indicators` and the 3 Linear marts) — the curated, source-of-truth analytics tables |
 | GizmoSQL / DuckDB | [gizmosql.md](gizmosql.md) | embedded OLAP over persisted DuckDB tables via Arrow Flight SQL (music + health + finance datasets) |
 | ClickHouse | [clickhouse.md](clickhouse.md) | OLAP — usda (food/nutrients), OFF, fma, uci, musicbrainz-subset, audioset, fred_macro |
-| Cassandra | [cassandra.md](cassandra.md) | wide-column — who_gho, big_five, lastfm, uci (partition-key queries) |
-| CockroachDB | [cockroachdb.md](cockroachdb.md) | distributed SQL — brfss, nhis |
-| MongoDB | [mongodb.md](mongodb.md) | documents — who_gho, open_food_facts, aidlc-kb |
+| Cassandra | [cassandra.md](cassandra.md) | **parked by default (B199): wake first** — wide-column — who_gho, big_five, lastfm, uci (partition-key queries) |
+| CockroachDB | [cockroachdb.md](cockroachdb.md) | **parked by default (B199): wake first** — distributed SQL — brfss, nhis |
+| MongoDB | [mongodb.md](mongodb.md) | **parked by default (B199): wake first** — documents — who_gho, open_food_facts, aidlc-kb |
 | MySQL | [mysql.md](mysql.md) | 6 health DBs — nhanes, big_five, who_gho, cdc, brfss, nhis |
 | TimescaleDB | [timescaledb.md](timescaledb.md) | hypertables — platform metrics + who_gho + fred_macro time series |
 | weyland Postgres | [postgres.md](postgres.md) | general platform PG — RAG corpus (pgvector) + LLM-eval harness (`weyland` DB), Feast offline sources (`feast` DB) |
@@ -30,7 +30,8 @@ syntax demos.
 **Connecting:** each store's access (svc / ingress / NodePort / creds) is in its runbook and
 [../hosts.md](../hosts.md). From rogueone (IntelliJ/DataGrip, scripts) use the store's `-lan` NodePort on
 `192.168.1.243` — the lab never port-forwards — or in-pod via
-`kubectl -n data-mesh exec deploy/<store> -- <client>`.
+`kubectl -n data-mesh exec deploy/<store> -- <client>`. **Cassandra, MongoDB and CockroachDB are parked (`replicas: 0`) by default** (B199): wake one with
+`bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake <store>`, push, `store-park.sh wait <store>`, and park it again when done.
 
 **Schemas drift** — datasets get reloaded and columns can change. When a query references a column that isn't
 there, introspect first (each file opens with a "list tables/columns" query) and adapt. Treat these as

@@ -156,7 +156,7 @@ the DB URI alone defaults tracking to `file:///mlruns` and errors.)
 ## The persistent Ray cluster (head + edge worker)
 
 **Head — always-on, on mother.** `k8s/ray/ray-head.yaml`: a plain-Ray Deployment (image
-`registry.weyland.lab/ray-head`, built from `services/ray-head/` = `rayproject/ray:2.37.0-py311` + the trainer
+`registry.weyland.lab/ray-head`, built from `services/ray-head/` = `rayproject/ray:2.56.0-py311` (B214; `services/ray-head/Dockerfile`) + the trainer
 deps + `train_genre.py` baked at `/home/ray/`). `hostNetwork: true` so an **external** worker can reach the GCS on
 mother's real IP; `--num-cpus=0` makes the head a **coordinator only** (the driver runs here, trials schedule onto
 workers). Dashboard/Jobs API on `:8265`; GCS `:6379`. The dashboard is at `ray.weyland.lab` (Keycloak forward-auth);
@@ -209,10 +209,14 @@ systemctl status ray-worker --no-pager     # verify it joined
 A native Ray worker **must exactly match the head** or the cluster fails in opaque ways (Ray version handshake,
 then pyarrow/numpy pickle/serialization ABI mismatches, then the boto3 upload). The trail we hit:
 
+**The table is the Ray 2.37-era trail** (the failures, and the versions that cured them then). The rule it teaches
+still holds: the worker venv is the head's pip freeze. **Measured 2026-10-21** in `~/ray-worker`: ray 2.56.0, Python
+3.11.14, pyarrow 19.0.1, numpy 1.26.4, pandas 2.3.3, mlflow 3.16.1, boto3 1.29.7.
+
 | Layer | Requirement | Failure if mismatched |
 |---|---|---|
 | Python | **3.11.14** today (patch-exact, via `pyenv`; was 3.11.9 at Ray 2.37) | Ray rejects the worker on version mismatch |
-| Ray | `ray[tune]==2.37.0` (not `ray[default]`) | `fsspec` / `ray.tune` ImportError |
+| Ray | `ray[tune]==2.37.0` then (not `ray[default]`); 2.56.0 since B214 | `fsspec` / `ray.tune` ImportError |
 | Serialization | `pyarrow==14.0.2`, `numpy==1.26.4`, `pandas==1.5.3`, `scikit-learn`, `mlflow==2.18.0` | `LocalFileSystem._reconstruct` / numpy ABI errors mid-sweep |
 | S3 client | `boto3==1.26.76`, `botocore==1.29.165`, `s3transfer==0.6.2` | `UnboundLocalError` in botocore `serialize.py` on artifact upload |
 

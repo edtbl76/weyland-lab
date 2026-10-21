@@ -49,6 +49,14 @@ Expect `succeeded=1 failed=`, then `OK   mlflow anthropic-claude-haiku-4-5-md: c
 active (not before 2026-10-15)`, then `1 Anthropic model reference(s) in the running gateways (MLflow + Bifrost; `*`
 names none); 14 model(s) offered by the API`.
 
+**4b. The live check FAILS on a retired model** (the negative, live — a one-off Job with a manifest copy that marks
+Claude Haiku 4.5 retired, mounted over `MODEL_MANIFEST`; it is deleted as soon as it fails, so no `KubeJobFailed`):
+```
+T=$(mktemp -d) && python3 -c "import json,sys;d=json.load(open('/home/edwardmangini/IdeaProjects/weyland/scripts/anthropic-models.json'));[r.clear() or r.update(id='claude-haiku-4-5-20251001',state='retired',deprecated='2026-08-01',retires='2026-10-01',replacement='claude-haiku-5-0') for r in d['models'] if r['id']=='claude-haiku-4-5-20251001'];json.dump(d,open(sys.argv[1],'w'))" "$T/m.json" && kubectl -n weyland create configmap model-watch-neg --from-file=anthropic-models.json="$T/m.json" && kubectl -n weyland create job model-watch-neg --from=cronjob/anthropic-model-watch --dry-run=client -o json | python3 -c "import json,sys;j=json.load(sys.stdin);s=j['spec'];s['backoffLimit']=0;p=s['template']['spec'];c=p['containers'][0];c['env']=[e for e in c['env'] if e['name']!='MODEL_MANIFEST']+[{'name':'MODEL_MANIFEST','value':'/opt/neg/anthropic-models.json'}];c['volumeMounts']=c.get('volumeMounts',[])+[{'name':'neg','mountPath':'/opt/neg','readOnly':True}];p['volumes']=p.get('volumes',[])+[{'name':'neg','configMap':{'name':'model-watch-neg'}}];print(json.dumps(j))" | kubectl create -f - && kubectl -n weyland wait --for=condition=failed job/model-watch-neg --timeout=180s; kubectl -n weyland logs job/model-watch-neg --tail=5; kubectl -n weyland delete job model-watch-neg; kubectl -n weyland delete configmap model-watch-neg; rm -r "$T"
+```
+Expect `FAIL mlflow anthropic-claude-haiku-4-5-md: claude-haiku-4-5 -> claude-haiku-4-5-20251001 retired 2026-10-01;
+replacement claude-haiku-5-0` and the container's exit **1**. **RUN 2026-10-21:** exactly that, exit 1.
+
 ## UI walkthrough
 
 - **Woodpecker** — `https://woodpecker.weyland.lab/repos/2`: open the latest pipeline, step
@@ -58,7 +66,8 @@ names none); 14 model(s) offered by the API`.
   `anthropic-model-watch` and ConfigMap `anthropic-model-watch-logic`, both Synced and Healthy. After step 4, the
   manual Job appears under the CronJob with a completed pod.
 - **Grafana alert rules** — `https://grafana.weyland.lab/alerting/list`, search `ScheduledJobFailed`. **UAT:** the
-  rule's query names `anthropic-model-watch` in its `job_name` regex, and it is Normal, not Firing.
+  rule's query names `anthropic-model-watch` in its `job_name` regex, and no `anthropic-model-watch` instance of it is
+  firing (the rule as a whole may be Firing for some other job; filter its instances by `job_name`).
 
 ## RUN
 

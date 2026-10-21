@@ -100,7 +100,7 @@ kubectl -n weyland get cronjob sonar-scan sonar-scan-repos sonar-scan-gradle cod
 ```
 Output (run): `sonar-scan 0 3 * * 0`, `sonar-scan-repos 15 3 * * 0`, `sonar-scan-gradle 30 3 * * 0`,
 `code-scan-suite 0 4 * * 0`, all `America/New_York` (were 12–15:00 `Etc/UTC` = 08–11:00 NY). The proof that they run
-there is the next Sunday's Job start times.
+is this live spec, the one the cluster applied; no scheduled Sunday is waited on (DoD Pillar 5).
 
 ## UI walkthrough
 

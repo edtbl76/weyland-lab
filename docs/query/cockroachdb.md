@@ -1,5 +1,11 @@
 # CockroachDB — query cookbook
 
+> **Parked by default (B199).** `cockroachdb` runs at `replicas: 0` to spare mother's RAM, so while it is parked the `cockroachdb` pod (and its Admin UI) does not exist and the connect steps below fail. Wake it, push the change, wait, and park it again when done (runbook `node-capacity.md` § Parked stores; `/home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh status` shows each store):
+> ```
+> bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake cockroachdb
+> ```
+> Push, then `bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wait cockroachdb` (blocks until it is Ready). Afterwards: `bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh park cockroachdb`, and push.
+
 **Connect:** pg-wire, insecure (user `root`, no password). Admin UI at `cockroachdb.weyland.lab` (Keycloak).
 IntelliJ/DataGrip → CockroachDB (or PostgreSQL) driver, at the `cockroachdb-lan` NodePort `192.168.1.243:30257`, `sslmode=disable`.
 In-pod: `kubectl -n data-mesh exec -it deploy/cockroachdb -- cockroach sql --insecure`.

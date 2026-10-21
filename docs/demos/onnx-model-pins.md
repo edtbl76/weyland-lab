@@ -12,10 +12,10 @@ the CLI walkthrough is the whole demo. Flow: [flow-onnx-model-pins](../diagrams/
 
 [rogueone]
 ```
-docker run --rm -v /home/edwardmangini/IdeaProjects/weyland/scripts/onnx_export.py:/x/onnx_export.py:ro --entrypoint python registry.weyland.lab/weyland-agent:v10 /x/onnx_export.py probe /app/bge_onnx feature-extraction "Weyland pins every model it exports."
+docker run --rm -v /home/edwardmangini/IdeaProjects/weyland/scripts/onnx_export.py:/x/onnx_export.py:ro --entrypoint python registry.weyland.lab/weyland-agent:v11 /x/onnx_export.py probe /app/bge_onnx feature-extraction "Weyland pins every model it exports."
 ```
 Expect `{"cls_head": [-0.13630686700344086, 0.4971165359020233, …], "cls_norm": 15.569936513356879}`. That is the
-`expected` block in `services/weyland-agent/onnx_models.json`.
+`expected` block in `services/weyland-agent/onnx_models.json`. RUN 2026-10-21 against the deployed `v11`: the same `cls_head` and `cls_norm` 15.5699…
 
 **2. Build the export stage: it exports at the pinned commit and checks.**
 

@@ -261,13 +261,13 @@ attach runtime-registered clients ("failed to get MCP client: not found"). Retir
 
 **Restore-from-scratch (order matters):**
 1. apply `bifrost.yaml` (initContainer stages the runtime)
-1a. `kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < scripts/register_bifrost_client_config.py`  (the owned `client_config`: `/metrics` public under the setup lock, CORS origins, inference auth — § Bifrost setup token)
-2. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_mcp_clients.py`  (create clients)
-3. `kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < scripts/register_bifrost_vk_mcp.py`  (scope VKs — applies live, no restart since B203)
+1a. `kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_client_config.py`  (the owned `client_config`: `/metrics` public under the setup lock, CORS origins, inference auth — § Bifrost setup token)
+2. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_mcp_clients.py`  (create clients)
+3. `kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_vk_mcp.py`  (scope VKs — applies live, no restart since B203)
 4. (no step — the restart the old `attach_bifrost_vk_mcp.py` needed is gone)
 5. re-authorize Hugging_Face + Linear in the UI (OAuth grant is interactive).
-6. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_prompts.py`  (Prompt Repository — 89 prompts / 10 folders)
-7. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < scripts/register_bifrost_skills.py`  (Skills Repository — 20 lab/generic Agent Skills)
+6. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts/register_bifrost_prompts.py`  (Prompt Repository; its last line is the count — 2026-10-21: `101 prompts across 12 folders`, all unchanged)
+7. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts/register_bifrost_skills.py`  (Skills Repository, lab/generic Agent Skills; 2026-10-21: `0 created, 0 updated, 25 unchanged, 0 failed. 25 skills total.`)
 8. ~~`python3 scripts/register_aidlc_skills.py | …`~~ — ⛔ **RETIRED (B133, 2026-08-20). Do not run.** It read the
    Method rule tree (`.methodaidlc/.method-rule-details/`), which the AIDLC-v2 migration removed, so it now exits
    without emitting a loader. Its 52 AIDLC stage/ritual/extension procedures **remain registered** in Bifrost from
@@ -275,9 +275,9 @@ attach runtime-registered clients ("failed to get MCP client: not found"). Retir
    to restore the Method source (`~/methodaidlc-retired/` or `~/IdeaProjects/method-aidlc`) or re-derive the
    procedures from the v2 stage files in `.claude/aidlc-common/stages/`. See
    [aidlc-workflow.md](aidlc-workflow.md#accepted-gaps).
-9. `python3 scripts/register_aidlc_kb_skills.py | kubectl -n weyland exec -i deploy/weyland-guard -- python -`  (511 knowledge-base entries: 395 engineering-knowledge + 60 consulting-tools + 56 industry-vertical)
+9. `python3 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_aidlc_kb_skills.py | kubectl -n weyland exec -i deploy/weyland-guard -- python -`  (511 knowledge-base entries: 395 engineering-knowledge + 60 consulting-tools + 56 industry-vertical)
 
-**Skills Repository (B111 2026-08-01):** 20 Agent Skills (Anthropic-style: frontmatter cols + `skill_md_body`) codified in
+**Skills Repository (B111 2026-08-01):** the lab's Agent Skills (25 on 2026-10-21; Anthropic-style: frontmatter cols + `skill_md_body`) codified in
 **`scripts/register_bifrost_skills.py`** (idempotent; B204: a skill whose description / body / category changed in git
 gets a new version via `PUT /api/skills/{id}`, one patch above `latest_version`; an equal one is untouched) — lab-ops skills from our runbooks (deploy-via-argo, dagster-redeploy,
 bifrost-restore, diagnose-pod-oom, k8s-rwo-recreate, wake-sleep-store, swap-embedding-model, run-eval-suite, use-model-gateway,
@@ -287,7 +287,7 @@ plugin marketplace (`/api/skills/serve/claude-code/.claude-plugin/marketplace.js
 storage**: they 404 ("marketplace routes disabled … object storage to be configured") until Bifrost has MinIO wired as its
 object store. `download.zip` works from the DB regardless. TODO: wire Bifrost object storage to activate agent-installable skills.
 
-**Prompt Repository (B111 2026-08-01):** 89 model-agnostic, reusable prompts across 10 folders (system-prompts, coding,
+**Prompt Repository (B111 2026-08-01):** model-agnostic, reusable prompts (`register_bifrost_prompts.py`'s own: 101 across 12 folders on 2026-10-21; the repository's total, ~280, includes the other registrars') (system-prompts, coding,
 rag-retrieval, data-analytics, eval-judge, agentic-operator, search-web, guardrails-safety, content-ops, meta-prompt-eng)
 codified in **`scripts/register_bifrost_prompts.py`** (idempotent, source of truth). **Since 2026-10-10 an edit in git reaches Bifrost:** a prompt whose git messages differ from its live latest version gets a new version — but only when that latest version is the registrar's own (`commit_message` `lane: …`); a version written by anyone else (prompt federation's `reconciled-from-<source>:…` for a native Langfuse / MLflow edit, a UI edit) is reported as a CONFLICT and never overwritten. Summary line: `N created, U updated, S unchanged, C conflict, F failed`. To make git win after a native edit, apply the edit to git, or remove the native version in the UI. Suggested `wl-*` lane per prompt is
 in each version's `commit_message`; provider/model left empty so any caller picks the lane. API: `POST /api/prompt-repo/
@@ -340,7 +340,7 @@ dashboard auth" stays off by decision (the setup token, B202, 2026-10-08), so "I
 | Piece | Where |
 |---|---|
 | The token | `BIFROST_SETUP_TOKEN` in `scripts/.env` (64 chars, generated 2026-10-08), sealed as `weyland/bifrost-setup-token` |
-| Bifrost | env `BIFROST_SETUP_TOKEN` on the `bifrost` container (`k8s/bifrost/bifrost.yaml`, with the v2.2.6 pin) |
+| Bifrost | env `BIFROST_SETUP_TOKEN` on the `bifrost` container (`k8s/bifrost/bifrost.yaml`, with the v2.3.1 digest pin since B231) |
 | Callers | env `BIFROST_SETUP_TOKEN` on `dagster-user-code` (registrations, `sync_prompts.py`), `realm-of-agents` (live role-prompt reads) and `weyland-guard` (the pod the register scripts are piped into); each sends `X-Bifrost-Setup-Token` when the variable is set |
 | Guard | `scripts/tests/test_bifrost_setup_token.py` finds every Python file that calls a Bifrost `/api` path and fails if one does not send the header |
 
@@ -396,7 +396,9 @@ and prints integrity, the manifest counts and the same tables' counts read from 
 kubectl -n weyland run bifrost-restore-drill --restart=Never --image=python:3.12-alpine --overrides='{"metadata":{"labels":{"sidecar.istio.io/inject":"false"}},"spec":{"automountServiceAccountToken":false,"securityContext":{"runAsUser":10001,"runAsGroup":10001,"runAsNonRoot":true},"containers":[{"name":"drill","image":"python:3.12-alpine","command":["python3","-c","import glob,json,os,shutil,sqlite3; d=sorted(glob.glob(\"/backup/bifrost/2*\"))[-1]; m=json.load(open(d+\"/manifest.json\")); shutil.copy(d+\"/config.db\",\"/tmp/r.db\"); c=sqlite3.connect(\"/tmp/r.db\"); q=lambda s: c.execute(s).fetchone()[0]; print(\"backup\",os.path.basename(d),\"integrity\",q(\"pragma integrity_check\"),\"manifest\",m[\"counts\"]); print(\"live-shape counts:\",{t:q(\"select count(*) from \"+t) for t in [\"config_providers\",\"governance_virtual_keys\",\"config_mcp_clients\",\"prompts\",\"skills\"]})"],"volumeMounts":[{"name":"b","mountPath":"/backup","readOnly":true}]}],"volumes":[{"name":"b","persistentVolumeClaim":{"claimName":"bifrost-backup"}}]}}' >/dev/null && kubectl -n weyland wait --for=jsonpath='{.status.phase}'=Succeeded pod/bifrost-restore-drill --timeout=180s >/dev/null; kubectl -n weyland logs bifrost-restore-drill; kubectl -n weyland delete pod bifrost-restore-drill
 ```
 Pass = `integrity ok` and the counts matching the manifest. Record the date in `docs/dr.md`. It runs detached and reads the
-pod's log: `kubectl run -i --rm` lost the output of this fast-exiting pod (2026-10-08). **First drill 2026-10-08** on
+pod's log: `kubectl run -i --rm` lost the output of this fast-exiting pod (2026-10-08). **Latest drill 2026-10-21** on
+the post-2.3.1 backup `20261021T035501Z`: integrity ok; providers 22, virtual keys 6, MCP clients 10, prompts 280,
+skills 589, all matching the manifest. **First drill 2026-10-08** on
 `20261008T200346Z`: integrity ok; providers 22, virtual keys 4, MCP clients 10, prompts 280, skills 589, all matching the
 manifest.
 

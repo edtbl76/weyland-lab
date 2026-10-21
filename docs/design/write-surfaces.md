@@ -92,7 +92,9 @@ for a surface called zero times in 30 days.
 - **Ingress:** the standard `weyland-traefik-forward-auth@kubernetescrd` middleware on the **whole host**. Browser-only
   forward-auth would be cosmetic (`/route` and `/a2a` would stay open on the LAN). The cost: external A2A clients and
   discovery from outside the cluster get a 302 to Keycloak. Today the only external caller is blackbox, which already
-  accepts 302.
+  accepts 302. **Bifrost 2.3's Agent Gateway as the Realm's front door instead: DON'T ADOPT (now)** — Bifrost refuses the
+  Realm's card (no strict A2A v1 fields); verdict and the re-test procedure in
+  [concepts/bifrost-2-3-evaluation.md](../concepts/bifrost-2-3-evaluation.md) (B212).
 - **In-cluster NetworkPolicy:** admit the operator, `dagster-user-code` (TXN + registrations), the a2a-inspector,
   `api-drift` (ns `monitoring`), Prometheus (its ServiceMonitor) and Traefik. **Built:** the a2a-inspector relayed to
   `/a2a` for any caller, so it got its own policy too (Traefik only), or it would have been a way around this one.

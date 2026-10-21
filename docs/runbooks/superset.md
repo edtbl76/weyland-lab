@@ -4,6 +4,10 @@
 
 **Auth:** Keycloak OIDC (`superset` client, `weyland` realm). Fallback local admin: `admin` / `weyland_dev_password` (break-glass only). `emangini` gets Admin role on first OIDC login (`AUTH_USER_REGISTRATION_ROLE=Admin`).
 
+**Celery worker parked by default (B199, 2026-10-01):** `superset-worker` runs at `replicas: 0`. Nothing needs it today
+(no async queries or reports are configured, `superset-values.yaml`); wake it with `scripts/store-park.sh wake
+superset-worker` before turning either on.
+
 **Cache / Celery:** shared Valkey (`valkey.data-mesh.svc:6379`, `k8s/data-mesh/valkey.yaml`) — BSD Redis fork, no persistence, ephemeral cache only.
 
 **Metadata DB:** lab Postgres (`weyland-postgres.weyland.svc:5432`, db `superset`, user `superset`).

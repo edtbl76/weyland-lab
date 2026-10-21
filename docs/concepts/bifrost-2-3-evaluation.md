@@ -1,7 +1,8 @@
 # Bifrost 2.3 evaluation (B212, 2026-10-19)
 
-Production runs Bifrost **v2.2.6** (B202, digest-pinned in `k8s/bifrost/bifrost.yaml`, dashboard auth off by decision,
-the admin API behind the setup token). v2.3.0 shipped 2026-10-13 and **v2.3.1 on 2026-10-19**; this is what they mean
+Production ran Bifrost **v2.2.6** when this was written (B202, digest-pinned in `k8s/bifrost/bifrost.yaml`, dashboard
+auth off by decision, the admin API behind the setup token); it has run **v2.3.1** since 2026-10-19 (B231, the upgrade
+this evaluation recommended). v2.3.0 shipped 2026-10-13 and **v2.3.1 on 2026-10-19**; this is what they mean
 for the lab, decided from tests on throwaway instances, not from the release notes alone.
 
 **Version tested: v2.3.1.** v2.3.0 is ruled out on its own: its A2A push relay leaks one goroutine every 3 s (~1,200/h,
@@ -14,6 +15,15 @@ directory, a fresh random setup token, dashboard auth off (the lab's setting), n
 Restoring the production `config.db` was attempted first and refused by the session's permissions: the backup holds
 the provider keys in the clear and would have left the cluster. Production was only READ (two config reads through
 `kubectl exec` with the pod's own token, values not printed). Scripts kept in the job scratch dir, not the repo.
+
+**Re-test on a later 2.3.x** (rebuilt and RUN 2026-10-21 on the v2.3.1 digest; the original scripts were not kept). A
+throwaway instance with its own scratch data and a fresh setup token, no production state, nothing leaves rogueone:
+```
+D=$(mktemp -d) && T=$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))') && docker run -d --rm --name bifrost-eval -p 127.0.0.1:18080:8080 -e BIFROST_SETUP_TOKEN="$T" -v "$D":/app/data maximhq/bifrost@sha256:fe323e244998e1a40b87be87f60d023746eae40dd69baae8f7f42728a5e16149 && sleep 10; curl -s http://127.0.0.1:18080/api/version; for h in "" "X-Bifrost-Setup-Token: wrong" "X-Bifrost-Setup-Token: $T"; do curl -s -o /dev/null -w '%{http_code} ' ${h:+-H "$h"} http://127.0.0.1:18080/api/governance/virtual-keys; done; echo
+```
+Expect `"v2.3.1"` and `401 403 200` (the setup lock). Swap the digest for the version under test, then repeat the tests
+in the verdicts below against `127.0.0.1:18080`. Remove it with `docker rm -f bifrost-eval`; `$D` holds only the
+scratch `config.db`.
 
 ## Verdicts
 

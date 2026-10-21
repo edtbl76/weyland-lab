@@ -1,5 +1,11 @@
 # MongoDB — query cookbook
 
+> **Parked by default (B199).** `mongodb` runs at `replicas: 0` to spare mother's RAM, so while it is parked the `mongodb` pod does not exist and the connect steps below fail. Wake it, push the change, wait, and park it again when done (runbook `node-capacity.md` § Parked stores; `/home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh status` shows each store):
+> ```
+> bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake mongodb
+> ```
+> Push, then `bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wait mongodb` (blocks until it is Ready). Afterwards: `bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh park mongodb`, and push.
+
 **Connect:** `mongodb.data-mesh.svc:27017`, authSource `admin` (user `weyland` / dev password). IntelliJ →
 MongoDB driver at the `mongodb-lan` NodePort `192.168.1.243:30017`. In-pod:
 `kubectl -n data-mesh exec -it deploy/mongodb -- mongosh -u weyland -p <pw> --authenticationDatabase admin`.

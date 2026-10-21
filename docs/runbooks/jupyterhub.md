@@ -305,7 +305,7 @@ Storage (needs `lakefs-creds`, `iceberg-s3-creds`):
 Query:
 - [ ] `20_query_trino_federation` — the `iceberg.eval ⋈ postgresql` join returns rows.
 - [ ] `21_query_duckdb_gizmosql` — **MESHED-STORE CHECK**: the GizmoSQL (served) half connects over mTLS; embedded DuckDB over lakeFS works.
-- [ ] `22_query_tier2_native` — **MESHED-STORE CHECK**: every unparked store returns data (needs `tier2-creds`); ClickHouse, MongoDB and TimescaleDB are the meshed ones, MySQL is unmeshed since B219. **Run it per store** — JupyterLab's Run All stops at the first error, so a parked store (Cassandra/CockroachDB/MongoDB, replicas 0) hides every cell after it (UAT 2026-10-18).
+- [ ] `22_query_tier2_native` — **MESHED-STORE CHECK**: every unparked store returns data (needs `tier2-creds`); ClickHouse, MongoDB, TimescaleDB and CockroachDB are the meshed ones, Cassandra and MySQL are unmeshed (MySQL since B219). **Run All works** (since B225, 2026-10-20): a parked store (Cassandra/CockroachDB/MongoDB, replicas 0) prints `PARKED` with its wake/wait/park commands and its cells are skipped instead of erroring; expect three `PARKED` lines unless you woke one.
 
 Vector/graph (Qdrant/Weaviate open; `33` needs `neo4j-creds`):
 - [ ] `30_vector_qdrant` — `weyland_chunks` search (768-dim, ~8300 pts).

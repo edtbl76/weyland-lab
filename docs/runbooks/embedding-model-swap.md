@@ -31,7 +31,7 @@ from the tool-server) and its miss = a broken agentic RAG, exactly like a wrong-
 | Path | Embedder | Where | Change |
 |---|---|---|---|
 | **KB** (`aidlc-kb/`) | Dagster `SentenceTransformerResource` → `OnnxEmbedder` (CPU, mother; U13) | `weyland_pipeline/resources/sentence_transformer.py` (`model_name`) + `resources/onnx_embedder.py` (`ONNX_MODEL_DIRS`) + the Dockerfile **builder-stage ONNX export** | edit + rebuild user-code image |
-| **docs/code** | **rogueone CPU service** `rag-embed` (`:8900`) | `services/rag-embed/rag-embed.service` (`EMBED_MODEL` env) | flip env + `systemctl restart` (no rebuild — model auto-downloads). **Still `sentence-transformers`** (U13 left it alone while it ran on the GPU; CPU since 2026-09-27, so an ONNX move is now possible) |
+| **docs/code** | **rogueone CPU service** `rag-embed` (`:8900`) | `services/rag-embed/rag-embed.service` (`EMBED_MODEL` + `EMBED_MODEL_REVISION` env; `app.py` `PINNED`) | flip both + `systemctl restart` (no rebuild; the model downloads at that revision). Since 2026-10-21 (B216 re-audit) it loads at a **pinned 40-hex revision** and refuses a model with no pin. **Still `sentence-transformers`** (U13 left it alone while it ran on the GPU; CPU since 2026-09-27, so an ONNX move is now possible) |
 | **Query — tool-server** | in-process `OnnxBge` (raw ONNX Runtime; U13) | `weyland-tool-server/main.py` (`MODEL_NAME`) + the Dockerfile **builder-stage ONNX export** | edit + rebuild tool-server image |
 | **Query — weyland-agent** (B70 agentic RAG) | in-process `OnnxBge` (raw ONNX Runtime; U13 — byte-identical class to tool-server, guarded by `scripts/check-onnx-sync.sh`) | `weyland-agent/retrievers.py` (`MODEL_NAME`) + the Dockerfile **builder-stage ONNX export** | edit + rebuild weyland-agent image (**not** in `images.tsv` — build + push it manually) |
 | *(the 5 `rag-index` consumers)* | **none — they only WRITE the pre-computed vector** | `services/rag-index/` | no model change; just need the target collections at the new dim |
@@ -65,7 +65,8 @@ topic **`rag.chunks`** → **5 always-on `rag-index-*` consumers** → the backe
 1. **Code:** bump `model_name` (Dagster resource) + `ONNX_MODEL_DIRS` (`onnx_embedder.py`), `MODEL_NAME` (tool-server
    **and** agent), `DIMS` (qdrant_write), the **Dockerfile builder-stage ONNX export** commands (tool-server / agent /
    user-code — the model name goes in the `optimum`/`ORTModel…` export line; **U13 — it is a baked ONNX export now, NOT
-   a HuggingFace auto-download**), and `EMBED_MODEL` in `rag-embed.service`.
+   a HuggingFace auto-download**), and `EMBED_MODEL` **plus `EMBED_MODEL_REVISION`** in `rag-embed.service` (and the `PINNED` map in `rag-embed/app.py`), at the
+   same 40-hex revision as the `onnx_models.json` files — the indexer and the query side must embed with the same commit.
 2. **rogueone rag-embed → new model FIRST** (systemd drop-in `Environment=EMBED_MODEL=…` + `daemon-reload` + `restart`),
    then `curl :8900/embed` and assert the returned vector length is the new dim. **Do this before producing anything.**
 3. **Build + push** the user-code + tool-server images (`TAG=vN scripts/build-push-images.sh`), bump the 3 manifests

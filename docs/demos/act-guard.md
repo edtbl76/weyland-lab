@@ -104,6 +104,15 @@ Observed: `OK — 61 deployed service(s): 40 take writes, each with a policy, a 
 21 read-only.` The 11 gaps are B211's, printed every run. Negative case: `scripts/tests/write-surfaces.bats` shows an
 undeclared `writes`, an open surface and a gap with no backlog item each failing with exit 1, named.
 
+**Observed failing against the real tree (RUN 2026-10-21):** the real registry with one open writer appended (a copy;
+the repo is untouched):
+```
+A=/home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/applications.yaml; T=$(mktemp); sed '/^excluded:/i\  - {key: demo-open-writer, deployed: true, writes: true, metrics: false, ingress: false, name: Demo Open Writer, group: ai-serving}' "$A" > "$T"; REGISTRY_FILE="$T" bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-write-surfaces.sh; echo "exit=$?"; rm -f "$T"
+```
+`WRITE SURFACES WITHOUT A FRONT DOOR: demo-open-writer: takes writes and has no front door — add a
+NetworkPolicy/AuthorizationPolicy selecting app=demo-open-writer, a front_door: reason, or a tracked accepted_gap`,
+`exit=1`. The unmodified run is `OK — 61 deployed service(s): 40 take writes … (0 gap(s)); 21 read-only.`
+
 **Not shown live: the Telegram sender check and the sweep's redaction.** A stranger's "yes" needs a second Telegram
 account in an allowed group, and a redaction needs a secret in a firing alert's logs. Both are pinned by tests:
 `services/weyland-operator/tests/test_ingress.py` (8 cases: a stranger in an allowed group, a missing sender, an anonymous
@@ -190,3 +199,8 @@ exists at 0. Three proofs:
 
 Steps 1, 2 and 5 to 9 create nothing (step 7's `/route` writes only its MLflow and Langfuse traces). Step 3 writes two `guardrail_verdicts` rows per run (above) and launches nothing; they are
 the audit trail, kept on purpose, not test data to remove. Step 4 is read-only.
+
+Steps 10 to 14 (B211) create nothing either: 10 and 11 are reads and protocol probes over fresh connections (a Kafka
+`ApiVersions`, a Redis `PING`, an HTTP `GET`, a Trino `SHOW SCHEMAS`); 12 is a `GET`, an unauthenticated `POST` the
+route refuses, and a `401`; 13 is one read-only operator question; 14 reads the repo. The step-9 negative case writes
+one temp copy of `applications.yaml`, deleted by the same command. Nothing to tear down.

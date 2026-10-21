@@ -36,7 +36,7 @@ sequenceDiagram
     KC-->>Hub: token → user authenticated (allow_all)
 
     Note over Hub,Pod: 3. KubeSpawner spawns the singleuser pod
-    Hub->>Reg: pull registry.weyland.lab/weyland-jupyter (the tag in jupyterhub-values.yaml, v3 since B220)<br/>(pullPolicy: IfNotPresent)
+    Hub->>Reg: pull registry.weyland.lab/weyland-jupyter (the tag in jupyterhub-values.yaml, v4 since B225)<br/>(pullPolicy: IfNotPresent)
     Reg-->>Hub: image
     Hub->>Pod: spawn pod, extraLabels sidecar.istio.io/inject:"true"
     Note over Pod: istio-proxy sidecar injected → mesh-joined
@@ -50,7 +50,11 @@ sequenceDiagram
     Note over Pod,Mesh: 5. A notebook runs and queries the live mesh
     SS-->>Pod: injected creds (lakefs/iceberg/gizmosql/tier2/<br/>neo4j/cube/mlplat/litellm/datahub)
     Op->>Pod: Run All Cells
-    Pod->>Mesh: meshed stores over mTLS via the sidecar<br/>(GizmoSQL, ClickHouse, TimescaleDB, Cube)
+    Pod->>Mesh: meshed stores over mTLS via the sidecar<br/>(GizmoSQL, ClickHouse, TimescaleDB, MongoDB, CockroachDB, Cube)
+    alt a store parked by default (Cassandra, CockroachDB, MongoDB at replicas 0, B199)
+        Mesh-->>Pod: no answer (no pod behind the service)
+        Pod-->>Op: PARKED, with the wake / wait / park commands, and its cells are skipped (nb 22, B225)
+    end
     Pod->>Mesh: unmeshed stores plaintext<br/>(Trino, lakeFS, Qdrant, Neo4j, Redpanda, ...)
     Mesh-->>Pod: rows / vectors / features / traces
     Pod-->>Op: results in the notebook
@@ -63,7 +67,8 @@ reading a real slice of the live mesh:
 
 - **Storage** — lakeFS (git-for-data) · Nessie/Iceberg (table versioning) on MinIO.
 - **Query** — Trino (federated SQL, unmeshed) · DuckDB embedded + **GizmoSQL** served over Arrow Flight SQL (meshed) ·
-  the six Tier-2 native clients (ClickHouse/Cassandra/MongoDB/CockroachDB/TimescaleDB/MySQL — ClickHouse, MongoDB and TimescaleDB are meshed; MySQL is not, since B219).
+  the six Tier-2 native clients (ClickHouse/Cassandra/MongoDB/CockroachDB/TimescaleDB/MySQL — ClickHouse, MongoDB, TimescaleDB and CockroachDB are meshed; Cassandra and MySQL are not, MySQL since B219. Cassandra,
+  CockroachDB and MongoDB are parked by default (B199): notebook 22 prints `PARKED` and skips them until woken).
 - **Vector / graph** — Qdrant · Weaviate · LanceDB (lakeFS-backed) · Neo4j (bolt).
 - **Transform / semantic** — the 7 dbt marts via Trino · **Cube** SQL API (meshed).
 - **Feature / ML** — Feast (Valkey online + Postgres point-in-time) · MLflow (tracking + registry).

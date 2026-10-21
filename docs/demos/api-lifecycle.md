@@ -68,7 +68,19 @@ Negative/edge cases RUN: an operation removed on the live spec → **BREAKING DR
 fix: re-capture, bump MAJOR, migrate); an unreachable source → **SKIP** (not drift, listed); a missing
 snapshot → **exit 2**. In-cluster it fetches every API's `.svc` `/openapi.json` + the realm A2A card.
 
-**Tests + wiring:** `api-spec-diff.bats` **10** · `api-lifecycle.bats` **14** · `api-drift.bats` **6**
+**5. The additive path reaches Telegram (B208) — RUN 2026-10-21.** Tonight's job read 6 APIs identical
+(`kubectl -n monitoring logs job/api-drift-29876120` → `OK — no breaking drift: 6 identical, 0 additive drift, 0 skipped
+(unreachable).`), so there was no live additive drift to alert on. The delivery path is proven with a DRILL carrying the
+job's own labels (`alertname=ApiContractStale`, `severity=warning`, `namespace=monitoring`, `source=api-drift`) plus
+`drill=true`, expiring in 2 minutes:
+```
+kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import json,datetime as dt,urllib.request; n=dt.datetime.now(dt.timezone.utc); a=[{'labels':{'alertname':'ApiContractStale','severity':'warning','namespace':'monitoring','api':'drill','source':'api-drift','drill':'true'},'annotations':{'summary':'DRILL — ApiContractStale (delivery test; nothing is wrong)'},'startsAt':n.isoformat(),'endsAt':(n+dt.timedelta(minutes=2)).isoformat()}]; print(urllib.request.urlopen(urllib.request.Request('http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts',data=json.dumps(a).encode(),headers={'content-type':'application/json'},method='POST'),timeout=10).status)"
+```
+Observed: `200`; `alertmanager_notifications_total{integration="telegram"}` 13,920 → 13,921 at 19:14:40Z, failed 17 → 17.
+The exit-2 case (an additive drift whose alert cannot be sent) is `api-drift.bats` "an alert that can't be sent is exit
+2"; live it needs real additive drift, which tonight had none of.
+
+**Tests + wiring:** `api-spec-diff.bats` **10** · `api-lifecycle.bats` **14** · `api-drift.bats` **11** (was 6; B208 added the additive-alert cases)
 (incl. the embedded-ConfigMap byte-identity) · `api-contract-lock.bats` **6** (generator refusal + guard
 LOCK). shellcheck 0. `check-api-lifecycle.sh` in `repo-guards`;
 `api-drift` CronJob at 03:20 (freshness-budgeted, ScheduledJobFailed→Telegram). Contract snapshots

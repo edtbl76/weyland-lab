@@ -49,6 +49,10 @@ capability is **NOT done** until ALL nine pillars hold. "Ran once" ≠ done.
     DoD audit (B228).
   - **Prove a timer change now, not at its next tick** — the applied spec plus one on-demand run from the same
     definition (Pillar 5: never wait on a scheduled run).
+  - **A change to what a timer DOES re-runs all of these, not only the duration** (2026-10-21). B213 made the weekly
+    scan-suite ~25 minutes longer and its DoD re-checked the freshness budget, but not the off-hours or one-clock rules
+    the same job was already breaking; B228 caught that three days later. Changing a job's runtime, weight or
+    dependencies counts as changing its timer.
 - **Runbook** — `docs/runbooks/<x>.md` with the real operational commands.
 - **Query cookbook** — `docs/query/<x>.md` if the workflow adds a queryable surface.
 - **platform-map** — `docs/platform-map.html` (+ `docs/data-mesh-map.html`) refreshed for any component add / remove /
@@ -239,8 +243,9 @@ manifest** runs the relevant scan and **triages the result before "done":**
   `kubectl -n weyland create job scan-suite-adhoc --from=cronjob/code-scan-suite`) — and, for changes SonarQube covers,
   `sonar-scan`. Both feed Port `security_scan` / `code_quality` (the **Code Health** dashboard). It's also a weekly
   CronJob (B69); this pillar is the **per-batch** gate on top of that safety net, not a substitute for it.
-- **Shell inside a manifest is shell too** (B230, 2026-10-19). CI lints `scripts/**` AND every ConfigMap `*.sh` key
-  (`scripts/check-configmap-shellcheck.sh`, in the CI `shellcheck` step). Run both before handoff — the exact CI
+- **Shell inside a manifest is shell too** (B230, 2026-10-19). CI lints `scripts/**` AND every ConfigMap `*.sh` key and every inline
+  `sh -c '<script>'` in a container's command/args (since 2026-10-21) (`scripts/check-configmap-shellcheck.sh`, in the CI
+  `shellcheck` step). Run both before handoff — the exact CI
   command plus the ConfigMap guard (`docker run --rm -v "$PWD:/repo:ro" -w /repo --entrypoint sh
   koalaman/shellcheck-alpine:stable -c 'apk add --no-cache python3 py3-yaml bash >/dev/null; bash scripts/check-configmap-shellcheck.sh'`).
   A script that runs in another image must also be checked IN that image for the tools it calls (B229: the
@@ -432,7 +437,7 @@ in the LikeC4 model or `tools.md`, and that was never written down. So:
 | **4 Cleanup** | Say where it writes. Prefer writing **outside the repo** entirely over gitignoring output. |
 | **5 Tracking** | Unchanged. `scripts/check-linear-sync.sh`. |
 | **6 Ops** | Not N/A — **restated**: say explicitly whether it runs **by hand at close-out, in CI, or on a timer, and why**. Each has a real trade: a by-hand guard only runs when someone remembers; a CI guard needs whatever credentials it reads; a CronJob needs a schedules row + freshness budget + failure rule. Record the choice, not just the outcome. |
-| **7 Scan** | `shellcheck --severity=warning` (on `scripts/**` and, via `check-configmap-shellcheck.sh`, on every ConfigMap `*.sh`) and a `bats` suite. All are CI steps. |
+| **7 Scan** | `shellcheck --severity=warning` (on `scripts/**` and, via `check-configmap-shellcheck.sh`, on every ConfigMap `*.sh` and inline `sh -c` script) and a `bats` suite. All are CI steps. |
 | **8 Cascade** | Unchanged, and usually the only one doing real work on a tooling change. |
 | **9 DR** | **N/A** when the tool holds no state; say so in one line. A tool that writes state (a snapshot, a cache worth keeping) gets a dr.md row. |
 

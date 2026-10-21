@@ -11,6 +11,8 @@ sequenceDiagram
     participant PGD as Dagster runs table
     participant DW as datahub-ingestion-watchdog (CronJob, daily 05:55)
     participant GMS as DataHub GMS GraphQL
+    participant AD as api-drift (CronJob, daily 03:20)
+    participant BW as bifrost-mcp-watchdog (CronJob, daily 03:50)
     participant AM as Alertmanager
     participant Tg as Telegram (operator DM)
     participant HC as External heartbeat (dead-man's-switch)
@@ -21,13 +23,20 @@ sequenceDiagram
     WD->>AM: POST /api/v2/alerts (DagsterJobFailed / DagsterJobStale / DagsterJobNeverRan)
     DW->>GMS: listIngestionSources + last 20 runs per source
     DW->>AM: POST /api/v2/alerts (DataHubIngestionFailed / DataHubIngestionStale / DataHubIngestionNeverRan)
+    AD->>AM: POST /api/v2/alerts (ApiContractStale, warning — additive drift, B208)
+    BW->>AM: POST /api/v2/alerts (BifrostMCPClientUnhealthy — B203)
     AM->>AM: group + dedupe + route
     AM->>Tg: notification
     AM->>HC: Watchdog (always-firing) — silence here means the ALERT PATH is dead
     Note over Pr,AM: mesh metrics (Envoy) flow here too via the B8 PodMonitor
 ```
 
-**Two non-Prometheus paths on this diagram, both deliberate:**
+**The non-Prometheus paths on this diagram, all deliberate:**
+- **`api-drift`** (B155/B208, daily 03:20 NY) posts a `warning` `ApiContractStale` for an ADDITIVE drift between a
+  live API spec and its committed snapshot (breaking drift fails the Job instead, so `ScheduledJobFailed` pages); an
+  alert it cannot send is exit 2. Runbook: [api-lifecycle.md](../runbooks/api-lifecycle.md).
+- **`bifrost-mcp-watchdog`** (B203, daily 03:50 NY) posts `BifrostMCPClientUnhealthy` per MCP client not healthy;
+  it cannot read the client list → exit 2. Runbook: [mcp-gateway.md](../runbooks/mcp-gateway.md).
 
 - **`dagster-freshness-check` posts directly to Alertmanager** rather than exposing metrics for Prometheus to
   scrape. Dagster run state lives in Postgres, not in a metrics endpoint, and the native `run_status_sensor` is

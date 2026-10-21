@@ -96,16 +96,26 @@ guard, in CI's own image:
 ```
 cd /home/edwardmangini/IdeaProjects/weyland && docker run --rm -v "$PWD:/repo:ro" -w /repo --entrypoint sh koalaman/shellcheck-alpine:stable -c 'apk add --no-cache python3 py3-yaml bash >/dev/null; bash scripts/check-configmap-shellcheck.sh'
 ```
-Output (run): `OK — 13 ConfigMap shell script(s) under weyland-platform/k8s pass shellcheck --severity=warning.`, exit 0.
+Output (RUN 2026-10-21, after the B230 re-audit widened it to inline `sh -c` scripts): `OK — 50 shell script(s) (13
+ConfigMap key(s), 37 inline sh -c) under weyland-platform/k8s pass shellcheck --severity=warning.`, exit 0. (2026-10-19:
+13 ConfigMap scripts only.)
 
-**Negative case** — a scratch copy of the k8s tree with a bare `cd $dir` planted in the `sonar-scan-repos` runner,
-checked with `CM_SHELLCHECK_K8S_DIR=<copy>/k8s`:
+**Negative case, runnable** — a scratch copy of the k8s tree with a bare `cd $dir` planted in the `sonar-scan-repos`
+runner (the repo is untouched):
+
+[rogueone]
 ```
-sonarqube/sonar-scan-repos.yaml:sonar-all.sh:23:3: warning: Use 'cd ... || exit' or 'cd ... || return' in case cd fails. [SC2164]
-CONFIGMAP SHELLCHECK: 1 of 13 ConfigMap shell script(s) have findings at --severity=warning.
+cd /home/edwardmangini/IdeaProjects/weyland && docker run --rm -v "$PWD:/repo:ro" -w /repo --entrypoint sh koalaman/shellcheck-alpine:stable -c 'apk add --no-cache python3 py3-yaml bash >/dev/null; T=$(mktemp -d); cp -r nodes/mother/lab/weyland-platform/k8s "$T/k8s"; sed -i "s|^    rc=0\$|    rc=0\n    cd \$dir|" "$T/k8s/sonarqube/sonar-scan-repos.yaml"; CM_SHELLCHECK_K8S_DIR="$T/k8s" bash scripts/check-configmap-shellcheck.sh; echo "exit=$?"; rm -rf "$T"'
 ```
-exit 1, the finding named by manifest and data key. The fail-closed cases (no k8s dir, an unparseable manifest, zero
-scripts, no shellcheck → exit 2) are in `scripts/tests/configmap-shellcheck.bats` (8 cases).
+Output (RUN 2026-10-21):
+```
+sonarqube/sonar-scan-repos.yaml:sonar-all.sh:8:1: warning: Use 'cd ... || exit' or 'cd ... || return' in case cd fails. [SC2164]
+CONFIGMAP SHELLCHECK: 1 of 50 shell script(s) have findings at --severity=warning.
+exit=1
+```
+The finding is named by manifest and data key (an inline script is named `<manifest>:<Kind>/<name>/<container>`). The
+fail-closed cases (no k8s dir, an unparseable manifest, the extractor failing, zero scripts, no shellcheck, shellcheck
+itself erroring → exit 2) are in `scripts/tests/configmap-shellcheck.bats` (12 cases).
 
 ## Expected result
 

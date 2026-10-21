@@ -902,6 +902,17 @@ MD
   [ "$status" -eq 0 ]
 }
 
+@test "snapshot: a bold-paragraph '**Acceptance criteria (pass/fail).**' section counts too, and ends at the next bold section" {
+  # EMA-287 marks its section this way, not with a ## heading, so check J first missed its 5 unticked boxes.
+  local desc='**Scope.**\n\n- [ ] not a criterion\n\n**Acceptance criteria (pass/fail).**\n\n- [ ] one\n- [ ] two\n- [X] three\n\n**Edge cases.**\n\n- [ ] not a criterion either'
+  printf '{"data":{"team":{"issues":{"pageInfo":{"hasNextPage":false,"endCursor":"c1"},"nodes":[{"identifier":"EMA-9","title":"B1 — t","priority":3,"state":{"type":"completed","name":"Done"},"project":{"name":"Weyland Lab"},"completedAt":"2026-10-22T01:00:00.000Z","canceledAt":null,"description":"%s"}]}}}}' \
+    "$desc" > "$STUB_DIR/p1.json"
+  LINEAR_SYNC_LIB=1 source "$GUARD"
+  LINEAR_API_KEY=test-not-a-key LINEAR_ENV_FILE=/nonexistent LINEAR_PAGE_FILES="$STUB_DIR/p1.json" run linear_snapshot
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"unticked": 2'* ]]
+}
+
 @test "snapshot: counts unticked boxes ONLY under '## Acceptance criteria', and carries the close time" {
   local desc='## Scope\n\n- [ ] not a criterion\n\n## Acceptance criteria\n\n- [ ] one\n- [X] two\n* [ ] three\n- [x] four\n\n## Out of scope\n\n- [ ] not a criterion either'
   printf '{"data":{"team":{"issues":{"pageInfo":{"hasNextPage":false,"endCursor":"c1"},"nodes":[{"identifier":"EMA-9","title":"B1 — t","priority":3,"state":{"type":"completed","name":"Done"},"project":{"name":"Weyland Lab"},"completedAt":"2026-10-22T01:00:00.000Z","canceledAt":null,"description":"%s"}]}}}}' \

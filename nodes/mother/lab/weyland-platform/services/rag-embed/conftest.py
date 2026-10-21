@@ -25,8 +25,11 @@ class _Vecs:
 
 
 class _FakeModel:
+    built_with = {}   # the args the app built its model with (the revision pin is asserted on these)
+
     def __init__(self, *a, **k):
-        """No state needed — the fake model only reports a fixed embedding dimension."""
+        """Records how it was built; otherwise only reports a fixed embedding dimension."""
+        _FakeModel.built_with = {"args": a, **k}
 
     def get_sentence_embedding_dimension(self):
         return _DIM

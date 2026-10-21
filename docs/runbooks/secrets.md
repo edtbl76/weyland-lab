@@ -210,3 +210,8 @@ Then commit the sealed file only. Once Argo shows the `sealed-secrets-manifests`
 **Rotate** (the address leaked, or someone files spam): in Linear's team settings, regenerate the create-by-email
 address (the old one stops working). Put the new value in `scripts/.env`, re-run the three commands above, and commit
 the re-sealed `monitoring__linear-intake.yaml`. Then update whatever B184 wired to send there.
+
+**Rebuild (DR):** the sealed copy restores with the controller key like every other sealed secret (§ Restore on a
+fresh cluster). If the controller key AND `scripts/.env` are both lost, nothing is lost that matters: the address is
+reproducible by regenerating it in Linear (the Rotate steps above). Treat a screenshot or paste of the address as a
+leak and rotate.

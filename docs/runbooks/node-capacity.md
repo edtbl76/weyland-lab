@@ -131,6 +131,16 @@ not usage). Open: `LiteLLMEgressEnabled` / `BifrostSpendObserved` page every 4h 
 | CockroachDB | ~1.3 GB | `k8s/data-mesh/cockroachdb.yaml` |
 | Superset Celery worker | ~2.1 GB | `k8s/superset/superset-values.yaml` → `supersetWorker.replicas.replicaCount` |
 
+**What reaches a parked store, and what happens** (checked 2026-10-21, B199 re-audit):
+- **Dagster hydrates are on-demand only.** No schedule or sensor targets a `*_hydrate_job` (the nightly
+  `*_land_schedule`s land data in the lake, not the stores). So a hydrate meets a parked store only when someone runs it,
+  and the assets have no parked-store handling: that store's step fails on the connection. Wake the store first
+  (`scripts/store-park.sh wake <store>`, push, `wait`), and park it again after.
+- **Notebook 22** prints `PARKED` with the wake/wait/park commands and skips that store's cells (B225).
+- **The query cookbooks, runbooks and demos** that name these stores carry a "parked by default: wake first" note
+  (2026-10-21); a Port "wake" of CockroachDB or MongoDB is reverted to 0 by `selfHeal` (B232 redesigns that path).
+- **DataHub ingestion** for the three is PAUSED while parked (the watchdog lists them as `PARKED`).
+
 **ClickHouse is NOT parked** — Langfuse uses it as its live trace store (`k8s/langfuse/langfuse.yaml`).
 
 **Wake one** (e.g. to run a hydrate job or a notebook against it) — the script edits the one line in git; you push:

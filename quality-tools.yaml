@@ -14,7 +14,8 @@
 #   category   secrets | sast | sca | iac | k8s | dockerfile | lint | vuln | hotspots | http-headers | quality-gate | managed | ai-code-review
 #   languages  which languages/targets it covers ([any] = language-agnostic)
 #   engine     what it runs
-#   install    binary | pip | go-install | jar | server | builtin | saas
+#   install    binary | pip | go-install | go-build | jar | server | builtin | saas   (go-build = cloned at a release, its
+#              advisory-carrying modules bumped with `go get`, then `go build` — services/scan-suite/Dockerfile, B220)
 #   runner     scan-suite | sonarqube | deepsource | codescene | github-app | cli-gateway | ide   (HOW it executes)
 #   enabled    true = active now; false = inventoried, wiring tracked in `wired_by`
 #   config     repo path of its config, if any
@@ -22,20 +23,20 @@
 
 tools:
   # ---- scan-suite runner: the code-scan-suite CronJob (services/scan-suite/scan.py) ----
-  - {id: gitleaks,       category: secrets,     languages: [any],                 engine: gitleaks,     install: binary,     runner: scan-suite, enabled: true,  notes: "committed-secret detection; honors .gitignore (see secret-files for the gap it leaves)"}
+  - {id: gitleaks,       category: secrets,     languages: [any],                 engine: gitleaks,     install: go-build,     runner: scan-suite, enabled: true,  notes: "committed-secret detection; honors .gitignore (see secret-files for the gap it leaves)"}
   - {id: secret-files,   category: secrets,     languages: [any],                 engine: "git check-ignore --no-index", install: builtin, runner: scan-suite, enabled: true, notes: "B97 — tracked AND gitignored files = a secret hidden after commit; gitleaks skips these"}
   - {id: detect-secrets, category: secrets,     languages: [any],                 engine: detect-secrets, install: pip,      runner: scan-suite, enabled: true,  notes: "3rd secrets engine (Yelp); excludes sealed-secrets ciphertext; a .secrets.baseline is the follow-up to quiet the shared-dev-password FPs"}
   - {id: semgrep,        category: sast,        languages: [multi],               engine: semgrep,      install: pip,        runner: scan-suite, enabled: true,  notes: "rule-based SAST; excludes sealed-secrets/"}
   - {id: bandit,         category: sast,        languages: [python],              engine: bandit,       install: pip,        runner: scan-suite, enabled: true,  notes: "Python SAST"}
-  - {id: gosec,          category: sast,        languages: [go],                  engine: gosec,        install: go-install, runner: scan-suite, enabled: true,  notes: "Go SAST; per go.mod module; no-op on 0-Go repos"}
+  - {id: gosec,          category: sast,        languages: [go],                  engine: gosec,        install: go-build, runner: scan-suite, enabled: true,  notes: "Go SAST; per go.mod module; no-op on 0-Go repos"}
   - {id: ruff,           category: lint,        languages: [python],              engine: ruff,         install: pip,        runner: scan-suite, enabled: true,  notes: "Python lint+format — weyland's 2029 .py had no linter; a ruff.toml can tune the ruleset later"}
   - {id: staticcheck,    category: lint,        languages: [go],                  engine: staticcheck,  install: go-install, runner: scan-suite, enabled: true,  notes: "Go static analysis; per go.mod module"}
   - {id: go-vet,         category: lint,        languages: [go],                  engine: "go vet",     install: builtin,    runner: scan-suite, enabled: true,  notes: "ships with the Go toolchain; per go.mod module"}
-  - {id: osv-scanner,    category: sca,         languages: [any],                 engine: osv-scanner,  install: binary,     runner: scan-suite, enabled: true,  notes: "dependency CVEs (OSV feed) across manifests"}
+  - {id: osv-scanner,    category: sca,         languages: [any],                 engine: osv-scanner,  install: go-install,     runner: scan-suite, enabled: true,  notes: "dependency CVEs (OSV feed) across manifests"}
   - {id: pip-audit,      category: sca,         languages: [python],              engine: pip-audit,    install: pip,        runner: scan-suite, enabled: true,  notes: "Python dep CVEs (PyPI advisory DB) — 2nd engine next to osv; per requirements*.txt"}
-  - {id: govulncheck,    category: sca,         languages: [go],                  engine: govulncheck,  install: go-install, runner: scan-suite, enabled: true,  notes: "Go dep+stdlib vulns (call-graph aware); per go.mod module"}
+  - {id: govulncheck,    category: sca,         languages: [go],                  engine: govulncheck,  install: go-build, runner: scan-suite, enabled: true,  notes: "Go dep+stdlib vulns (call-graph aware); per go.mod module"}
   - {id: checkov,        category: iac,         languages: [terraform, yaml, k8s], engine: checkov,     install: pip,        runner: scan-suite, enabled: true,  notes: "IaC misconfig"}
-  - {id: kubescape,      category: k8s,         languages: [k8s],                 engine: kubescape,    install: binary,     runner: scan-suite, enabled: true,  notes: "k8s security posture (scoreFactor → severity band)"}
+  - {id: kubescape,      category: k8s,         languages: [k8s],                 engine: kubescape,    install: go-build,     runner: scan-suite, enabled: true,  notes: "k8s security posture (scoreFactor → severity band)"}
   - {id: hadolint,       category: dockerfile,  languages: [docker],              engine: hadolint,     install: binary,     runner: scan-suite, enabled: true,  notes: "Dockerfile lint"}
   - {id: shellcheck,     category: lint,        languages: [shell],               engine: shellcheck,   install: binary,     runner: scan-suite, enabled: true,  notes: "shell-script lint"}
   - {id: trivy,          category: vuln,        languages: [any],                 engine: trivy,        install: binary,     runner: scan-suite, enabled: true,  config: .trivyignore, notes: "vuln + misconfig + secret; --offline-scan; honors .trivyignore"}
@@ -51,7 +52,7 @@ tools:
   # same pattern as the B88 test lanes — via scripts/run-lang-scan.sh. Small tools that fit the
   # existing image (mypy, shfmt) stay on runner: scan-suite.
   - {id: mypy,           category: lint,        languages: [python],                    engine: mypy,          install: pip,        runner: scan-suite, enabled: true,  notes: "B88 — static type check; ruff covers style/lint but NOT types. Fits the existing image (pip, no toolchain)"}
-  - {id: shfmt,          category: lint,        languages: [shell],                     engine: shfmt,         install: binary,     runner: scan-suite, enabled: true,  notes: "B88 — shell formatter/diff check; shellcheck finds bugs, shfmt finds inconsistency. Single static binary"}
+  - {id: shfmt,          category: lint,        languages: [shell],                     engine: shfmt,         install: go-install,     runner: scan-suite, enabled: true,  notes: "B88 — shell formatter/diff check; shellcheck finds bugs, shfmt finds inconsistency. Single static binary"}
 
   - {id: clippy,         category: lint,        languages: [rust],                      engine: "cargo clippy", install: rustup,    runner: lang-scan,  enabled: true,  notes: "B88 — Rust had ZERO registry entries before this. The canonical Rust linter; ships with the toolchain"}
   - {id: rustfmt,        category: lint,        languages: [rust],                      engine: "cargo fmt --check", install: rustup, runner: lang-scan, enabled: true,  notes: "B88 — formatting drift as a check, not a rewrite"}

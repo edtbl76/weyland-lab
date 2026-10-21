@@ -340,14 +340,18 @@ QUERY = ("query($team: String!, $after: String) { team(id: $team) { issues(first
          "state { type name } project { name } completedAt canceledAt description } } } }")
 files = [f for f in os.environ.get("LINEAR_PAGE_FILES", "").split(",") if f]
 BOX_OPEN = re.compile(r"^\s*[-*]\s+\[ \]")
+# A section opens at a `## Heading` or at a bold-only paragraph (`**Acceptance criteria (pass/fail).**`, as EMA-287
+# writes it — check J's first cut saw only the heading form and missed its 5 unticked boxes).
+SECTION = re.compile(r"^(?:##\s+(?P<h>.+)|\*\*(?P<b>[^*]+)\*\*[.:]?\s*)$")
 
 
 def unticked(description):
-    """Unticked boxes under '## Acceptance criteria' only (check J) — a box elsewhere is not a criterion."""
+    """Unticked boxes under the Acceptance criteria section only (check J) — a box elsewhere is not a criterion."""
     count, inside = 0, False
     for line in (description or "").split("\n"):
-        if line.startswith("## "):
-            inside = line[3:].strip().lower().startswith("acceptance criteria")
+        m = SECTION.match(line.strip())
+        if m:
+            inside = (m.group("h") or m.group("b")).strip().lower().startswith("acceptance criteria")
         elif inside and BOX_OPEN.match(line):
             count += 1
     return count

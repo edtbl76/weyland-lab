@@ -47,9 +47,9 @@ build scan-suite                "services/scan-suite"
 build guardrails-structure      "services/guardrails-structure"   # B115 Structure layer (guardrails-ai isolated)
 build nemo-guardrails           "services/nemo-guardrails"        # B115 Dialog layer (NeMo Guardrails isolated)
 
-# ranger is VERSION-PINNED (mr3project base tag), not TAG-following — built only when RANGER_TAG names the NEXT FREE
+# ranger is VERSION-PINNED (Ranger 2.6.0 copied from the mr3project/ranger:2.6.0 tree onto Ubuntu 24.04, B221), not TAG-following — built only when RANGER_TAG names the NEXT FREE
 # tag (B92: was a local ctr-import, moved to the registry). Never a fixed tag here: this line used to rebuild
-# `2.6.0-py3` — the ROLLBACK image since B220 moved the deployment to `2.6.0-py3-r2` — and a push silently overwrites
+# `2.6.0-py3` — a rollback image since B220 (deployed now: `2.6.0-ubuntu24-r1`, B221; rollback: `2.6.0-py3-r2`) — and a push silently overwrites
 # an existing tag (2026-10-19 DoD audit). List first: curl -s https://registry.weyland.lab/v2/ranger/tags/list
 if [ -n "${RANGER_TAG:-}" ]; then
   echo "==== ranger:$RANGER_TAG (version-pinned) ===="; docker build -t "$REG/ranger:$RANGER_TAG" services/ranger; bash "$SCRIPT_DIR/push-image.sh" "$REG/ranger:$RANGER_TAG"
