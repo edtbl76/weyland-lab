@@ -170,7 +170,12 @@ nightly queue needs Emdash running on rogueone; otherwise it runs whenever the a
 deadline (measured 2026-10-21):** the scheduler holds ONE pending slot (`automation_runs.status = scheduled`). Launched
 after its `deadline_at`, that slot is marked `skipped`, the slots that fell while the app was down are never created, and
 the next run is the next future 04:00. So after two nights down, a launch runs nothing until the following morning;
-check that the scheduler is armed (a `scheduled` row) rather than waiting for a catch-up. Read-only:
+check that the scheduler is armed (a `scheduled` row), and **prove the conveyor now with a manual run** instead of
+waiting: in Emdash, **Automations → `agent-ready-nightly` → Runs tab → the ▶ icon at the right of the tab row**
+(tooltip "Run now"; greyed out with a reason when it cannot run). It records `triggerKind: manual` with no deadline,
+and `systemctl --user start emdash-conveyor-watch.service` then reports `exit 0`. If the window is closed, Emdash is
+still in the tray; launching the AppImage again raises the running instance (it does not start a second one).
+Read-only:
 `python3 -c "import sqlite3,os;c=sqlite3.connect('file:'+os.path.expanduser('~/.config/emdash/emdash4-automations.db')+'?mode=ro',uri=True);print(c.execute(\"select seq,status,datetime(scheduled_at/1000,'unixepoch') from automation_runs order by seq desc limit 3\").fetchall())"`.
 The launch log line `Failed to deploy an automation definition … no git remotes` is harmless: Emdash's `project_remotes`
 is empty, so it cannot RE-deploy the template, but the compiled deployment (which names `origin`) keeps running — it has
