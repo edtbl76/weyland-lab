@@ -38,6 +38,10 @@ _CHAT_ID = os.getenv("INCIDENT_CHAT_ID", "") or next(
     iter([s.strip() for s in os.getenv("TELEGRAM_ALLOWED_USERS", "").split(",") if s.strip()]), "")
 
 _SWEEPS = Counter("operator_incident_sweeps_total", "Incident sweeps by outcome", ["outcome"])
+# Export every outcome at 0 from start-up. The alerts use increase(), which cannot see a series born at 1, so a series
+# created by its first .inc() never paged on the first deferral or error after a restart (B207 cascade, 2026-10-21).
+for _outcome in ("ok", "deferred", "error", "digest_dropped", "digest_blocked"):
+    _SWEEPS.labels(_outcome)
 _NOTIFIED = Counter("operator_incidents_notified_total", "Incidents enriched + notified")
 
 # Alerts that fire BY DESIGN (not incidents), so the digest stays real-signal-only. `severity="none"` is always skipped

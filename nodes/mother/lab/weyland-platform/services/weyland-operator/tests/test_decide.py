@@ -12,6 +12,7 @@ import httpx
 import pytest
 
 import decide
+from test_incidents import fresh_series
 
 TOOLS = [("k8s_pods_list", "List all the Kubernetes pods\n   in the cluster"), ("status", "Lab health")]
 
@@ -149,3 +150,21 @@ def test_enabled_only_when_switched_on(monkeypatch):
     assert not decide.enabled()
     monkeypatch.setattr(decide, "SHADOW", True)
     assert decide.enabled()
+
+
+# --- every shadow series exists at 0 before the first call (B207 cascade, 2026-10-21) ---------------------------------
+# OperatorDecideShadowFailing and OperatorDecideSpendObserved use increase(): a series created by its first .inc() is
+# born at 1 (or n tokens), which increase() cannot see, so the first error after a restart never paged and the first
+# call's tokens were never counted. Read in a fresh interpreter (test_incidents.fresh_series): in this process the
+# shadow tests above already created some of these series.
+
+@pytest.mark.parametrize("outcome,confident", [("error", "false")] + [
+    (o, c) for o in ("agree", "disagree", "no_baseline") for c in ("true", "false")])
+def test_every_shadow_series_exists_at_import(outcome, confident):
+    labels = {"backend": decide.backend_of(decide.MODEL), "outcome": outcome, "confident": confident}
+    assert labels in fresh_series("decide", "operator_decide_shadow_total")
+
+
+def test_the_token_series_exists_at_import():
+    labels = {"backend": decide.backend_of(decide.MODEL)}
+    assert labels in fresh_series("decide", "operator_decide_input_tokens_total")

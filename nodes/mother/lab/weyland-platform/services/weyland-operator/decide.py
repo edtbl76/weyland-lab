@@ -37,12 +37,27 @@ _SECONDS = Histogram("operator_decide_seconds", "Decision-model call latency", [
                      buckets=(0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15))
 
 
+def _export_series_at_zero() -> None:
+    """Export every label set shadow() can emit, at 0, from start-up. The alerts use increase(), which cannot see a
+    series born at 1 (or at n tokens), so the first error after a restart never paged and the first call's tokens were
+    never counted (B207 cascade, 2026-10-21)."""
+    backend = backend_of(MODEL)
+    _TOKENS.labels(backend)
+    _SHADOW.labels(backend, "error", "false")
+    for result in ("agree", "disagree", "no_baseline"):
+        for confident in ("true", "false"):
+            _SHADOW.labels(backend, result, confident)
+
+
 def enabled() -> bool:
     return SHADOW
 
 
 def backend_of(model: str) -> str:
     return "clef" if "clef" in model.lower() else "jev"
+
+
+_export_series_at_zero()
 
 
 def first_tool_called(msgs: list) -> str | None:

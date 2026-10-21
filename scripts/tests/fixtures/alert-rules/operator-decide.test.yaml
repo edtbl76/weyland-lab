@@ -35,6 +35,33 @@ tests:
   - eval_time: 2h30m
     alertname: OperatorDecideShadowFailing
     exp_alerts: []
+# B207 cascade (2026-10-21): decide.py now exports every shadow series at 0 from start-up. Before, a series was created
+# by its first .inc(), born at 1, which increase() cannot see — so after a restart the FIRST success was invisible to the
+# `unless` side and an error run with a success in it paged as "only errors". These two cases pin both sides.
+- name: 'OperatorDecideShadowFailing: errors plus one success on a pre-created series are silent'
+  interval: 10m
+  input_series:
+  - series: operator_decide_shadow_total{backend="jev",outcome="error",confident="false"}
+    values: 0+1x18
+  - series: operator_decide_shadow_total{backend="jev",outcome="agree",confident="true"}
+    values: 0x2 1x15
+  alert_rule_test:
+  - eval_time: 1h20m
+    alertname: OperatorDecideShadowFailing
+    exp_alerts: []
+- name: 'OperatorDecideShadowFailing: the same success on a series born at 1 is invisible (why decide.py pre-creates)'
+  interval: 10m
+  input_series:
+  - series: operator_decide_shadow_total{backend="jev",outcome="error",confident="false"}
+    values: 0+1x18
+  - series: operator_decide_shadow_total{backend="jev",outcome="agree",confident="true"}
+    values: _x3 1x15
+  alert_rule_test:
+  - eval_time: 1h20m
+    alertname: OperatorDecideShadowFailing
+    exp_alerts:
+    - exp_labels:
+        severity: warning
 - name: 'OperatorDecideSpendObserved: 30M tokens in a day (~$1.26) fires'
   interval: 1h
   input_series:

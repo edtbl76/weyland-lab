@@ -6,6 +6,10 @@ investigation prompt that never asks the agent to act. Those decisions are the p
 async Prometheus/agent/Telegram round-trips (stubbed siblings) are validated live.
 """
 import asyncio
+import json
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -240,3 +244,22 @@ def test_safe_digest_drops_the_message_when_redaction_fails(monkeypatch):
 
 def test_safe_digest_returns_the_redacted_text():
     assert incidents._safe_digest("key ghp_" + "A" * 36) == "key [REDACTED]"
+
+
+# --- every sweep outcome series exists at 0 before the first sweep (B207 cascade, 2026-10-21) ------------------------
+# WeylandOperatorSweepDeferred is `increase(...{outcome="deferred"}[30m]) > 0`: a series created by its first .inc() is
+# born at 1, which increase() cannot see, so the first deferral after a restart never paged. Read in a FRESH interpreter
+# that only imported the module: in this process, earlier tests' sweeps would already have created some series.
+
+def fresh_series(module, metric):
+    """The label sets `metric` exports right after `import module`, nothing else run."""
+    code = (f"import json, conftest, {module}; from prometheus_client import REGISTRY; "
+            f"print(json.dumps([s.labels for m in REGISTRY.collect() for s in m.samples if s.name == '{metric}']))")
+    out = subprocess.run([sys.executable, "-c", code], cwd=os.path.dirname(os.path.dirname(__file__)),
+                         capture_output=True, text=True, check=True).stdout
+    return json.loads(out)
+
+
+@pytest.mark.parametrize("outcome", ["ok", "deferred", "error", "digest_dropped", "digest_blocked"])
+def test_every_sweep_outcome_series_exists_at_import(outcome):
+    assert {"outcome": outcome} in fresh_series("incidents", "operator_incident_sweeps_total")
