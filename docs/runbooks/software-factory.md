@@ -139,7 +139,8 @@ cp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/autostart/emdash.desk
 ```
 
 Expected: `installed`, with no validator output. **After a reboot** (or the first install), confirm Emdash is up; if
-it is not, launch it from the desktop menu. A missed 04:00 slot then runs seconds after the launch:
+it is not, launch it from the desktop menu. A missed 04:00 slot runs seconds after the launch only while it is within
+its 24 h deadline (§ Emdash automation settings, Scheduling):
 
 [rogueone]
 ```
@@ -165,7 +166,15 @@ without it (`expected string, received undefined`). No-push is `null`.
 
 **Scheduling, measured 2026-10-12:** a run cannot fire while Emdash is closed. Its scheduler lives in the app, with no
 daemon, unit, timer or cron. A missed run keeps a 24 h deadline and starts by itself seconds after the next launch. So the
-nightly queue needs Emdash running on rogueone; otherwise it runs whenever the app is next opened. Emdash ignores SIGTERM
+nightly queue needs Emdash running on rogueone; otherwise it runs whenever the app is next opened. **Only within that
+deadline (measured 2026-10-21):** the scheduler holds ONE pending slot (`automation_runs.status = scheduled`). Launched
+after its `deadline_at`, that slot is marked `skipped`, the slots that fell while the app was down are never created, and
+the next run is the next future 04:00. So after two nights down, a launch runs nothing until the following morning;
+check that the scheduler is armed (a `scheduled` row) rather than waiting for a catch-up. Read-only:
+`python3 -c "import sqlite3,os;c=sqlite3.connect('file:'+os.path.expanduser('~/.config/emdash/emdash4-automations.db')+'?mode=ro',uri=True);print(c.execute(\"select seq,status,datetime(scheduled_at/1000,'unixepoch') from automation_runs order by seq desc limit 3\").fetchall())"`.
+The launch log line `Failed to deploy an automation definition … no git remotes` is harmless: Emdash's `project_remotes`
+is empty, so it cannot RE-deploy the template, but the compiled deployment (which names `origin`) keeps running — it has
+logged that on every launch since 2026-10-12 and every night ran. Emdash ignores SIGTERM
 (it stays in the tray); a run's `done` status means dispatched, not finished, so grade from its transcript.
 
 ## Recording a run

@@ -251,9 +251,15 @@ bash /home/edwardmangini/IdeaProjects/weyland/scripts/embed-placement.sh && bash
 ```
 **Run the live check now** instead of waiting for 03:40:
 
-[mother]
 ```
 kubectl -n monitoring create job placement-coverage-now --from=cronjob/placement-coverage && kubectl -n monitoring wait --for=condition=complete job/placement-coverage-now --timeout=300s; kubectl -n monitoring logs job/placement-coverage-now; kubectl -n monitoring delete job placement-coverage-now
+```
+A pass clears Argo's Degraded, but each earlier failed nightly Job keeps `ScheduledJobFailed` / `KubeJobFailed` firing
+until its 72 h TTL. Once the fix is pushed and the run above prints `live check clean`, delete them (alerts resolve
+within a minute; done 2026-10-21 for the anthropic-model-watch + rogueone-units failures):
+```
+kubectl -n monitoring get jobs | grep placement-coverage | grep Failed
+kubectl -n monitoring delete job <failed-job>...
 ```
 **Run the host check now** (every host; exit 1 names each finding, 2 = a host could not be read):
 
