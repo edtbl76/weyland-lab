@@ -1,6 +1,7 @@
 # B211 (2026-10-14) — Trino's front door. It has no authenticator, so X-Trino-User is self-asserted and Ranger can be
 # bypassed by claiming a privileged user; limiting WHO can connect is the control until a password authenticator lands.
-# Callers on 8080: the no-auth proxy, dagster-user-code (dbt, marts), DataHub actions, dbt-docs, Superset, Traefik (UI),
+# Callers on 8080: the no-auth proxy, dagster-user-code (dbt, marts), DataHub actions, dbt-docs, Superset, JupyterHub
+# singleuser servers (notebooks 20/40, since 2026-10-21), Traefik (UI),
 # Prometheus (/metrics), and rogueone (192.168.1.230: DataGrip via the trino-lan NodePort, query-lan.yaml, which keeps
 # the client IP — externalTrafficPolicy Local; 2026-10-17). The NodePort admits only rogueone, not the whole LAN.
 apiVersion: networking.k8s.io/v1
@@ -35,6 +36,13 @@ spec:
         matchLabels: {kubernetes.io/metadata.name: monitoring}
       podSelector:
         matchLabels: {app.kubernetes.io/name: prometheus}
+    # JupyterHub singleuser servers (notebooks 20 and 40 query Trino directly; admitted 2026-10-21 after the DoD re-audit's
+    # notebook batch got 503 from this policy, which had refused them since B211, 2026-10-14). Selected by label, not IP:
+    # a server's pod IP changes on every spawn. Same selector as MLflow's and Nessie's front doors.
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: jupyterhub}
+      podSelector:
+        matchLabels: {component: singleuser-server}
     - ipBlock: {cidr: 192.168.1.230/32}
     ports:
     - {protocol: TCP, port: 8080}

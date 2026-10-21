@@ -294,7 +294,7 @@ pinned() {   # pinned <file> <policy> <port> <expected sources...>
     app=trino-noauth-proxy app.kubernetes.io/name=acryl-datahub-actions app=superset \
     ns=weyland,app=dagster-user-code ns=weyland,app=dbt-docs \
     ns=kube-system,app.kubernetes.io/name=traefik ns=monitoring,app.kubernetes.io/name=prometheus \
-    ip=192.168.1.230/32
+    ns=jupyterhub,component=singleuser-server ip=192.168.1.230/32
 }
 
 @test "the RAG OpenSearch admits only its writers, the dashboards and rogueone (the opensearch-lan NodePort)" {
