@@ -155,6 +155,27 @@ Kubernetes namespaces"), and `operator_brain_selected_total{brain="local"}` coun
 door or a tracked gap (0 gap(s)); 21 read-only.` Ollama, on rogueone, counts as a front door: ufw admits only mother and
 the local Docker bridge on 11434.
 
+## GuardCallsFailing: the alert can fire and reaches Telegram (run 2026-10-21)
+
+The DoD re-audit found live `/metrics` exporting no `tool_server_guard_failures_total` series, so the first act failure
+would have created its series at 1, which `increase()` never sees. Since `git-5fdadd70` every hook × cause series
+exists at 0. Three proofs:
+
+1. **The rule fires on the first failure** (CI, every build): `scripts/tests/fixtures/alert-rules/guard-failures.test.yaml`
+   via `scripts/tests/alert-rules.bats`. A series at 0 that goes to 1 pages critical. The same failure on a series born
+   at 1 stays silent, which is the bug this fix closes.
+2. **The series exist live:**
+   ```
+   curl -s 'http://192.168.1.243:30909/api/v1/query' --data-urlencode 'query=count(tool_server_guard_failures_total)'
+   ```
+   Expected `9` (3 hooks × 3 causes), all at 0 while the guard is healthy.
+3. **Delivery drill** (labelled `drill=true`, expires in 2 min; the alert's real labels, so it routes like the page):
+   ```
+   kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import json,datetime as dt,urllib.request; n=dt.datetime.now(dt.timezone.utc); a=[{'labels':{'alertname':'GuardCallsFailing','severity':'critical','hook':'act','cause':'timeout','job':'weyland-tool-server','namespace':'weyland','drill':'true'},'annotations':{'summary':'DRILL — GuardCallsFailing act (delivery test; nothing is wrong)'},'startsAt':n.isoformat(),'endsAt':(n+dt.timedelta(minutes=2)).isoformat()}]; print(urllib.request.urlopen(urllib.request.Request('http://monitoring-kube-prometheus-alertmanager.monitoring.svc.cluster.local:9093/api/v2/alerts',data=json.dumps(a).encode(),headers={'content-type':'application/json'},method='POST'),timeout=10).status)"
+   ```
+   Pass = `200`, then `alertmanager_notifications_total{integration="telegram"}` +1 and `…_failed_total` unchanged.
+   **Run 2026-10-21 16:44 UTC:** `200`; 13,915 → 13,916 at 16:45:48, failed 17 → 17.
+
 ## UI walkthrough
 
 1. **Grafana → Dashboards → App Services** (`https://grafana.weyland.lab/d/app-services`), last row **weyland-tool-server —

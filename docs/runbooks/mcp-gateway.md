@@ -125,7 +125,11 @@ plaintext caller with no principal** — is denied at L7 before the app runs; re
 **Exact-path rules and encoded slashes (B207, 2026-10-14).** The DENY matches the raw path, and Istio does not decode
 `%2F`, but uvicorn does: `GET /pipeline%2Ftrigger` from a non-gateway pod reached FastAPI (a `405`, not `403 RBAC`).
 Both the tool-server and weyland-guard now refuse any path containing `%2F`/`%5C` with `400` before routing. Mesh-wide
-`pathNormalization` would fix this class for every service, but it touches all 83 apps, so it's parked in B209.
+`pathNormalization` would fix this class for every service, but it touches all 83 apps. **Accepted risk (recorded
+2026-10-21, B207 DoD re-audit):** this was first noted as "parked in B209", but B209 closed without taking it, so the
+mesh still matches raw paths. The refusal lives in the two apps only. That covers every act path, which the
+`/guard/act` identity rule also protects. Any NEW service that relies on an exact-path Istio rule must refuse encoded
+separators itself, or this decision is reopened.
 
 **The guard's own act route is tool-server-only (B207).** `/guard/act` takes the actor from the request body, so any pod
 reaching it could impersonate an actor or burn its rate cap. `k8s/istio/authz-guard-act.yaml` denies `/guard/act` to every

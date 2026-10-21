@@ -25,7 +25,7 @@ Legend: **DONE** · **MISSING** · **PARTIAL** (exists but stale) · — not app
 | 11 | dbt build → marts | DONE | DONE `dbt.md` | DONE iceberg.dbt.* |
 | 12 | Store wake/sleep scaler | DONE `flow-store-scaler` | DONE `store-scaler.md` | — replicas only |
 | 13 | DataHub catalog emit | DONE (authored) | DONE `catalog-emit.md` | DONE DataHub entities |
-| 14 | Pipeline trigger (Dagster) | DONE `flow-pipeline-trigger` | DONE `pipeline-trigger.md` | — |
+| 14 | Pipeline trigger (Dagster) (on-demand trigger is a guarded ACT since B207, 2026-10-14: gateway identity only, actor allowlisted by `policy.gate`; the old direct `curl` is refused by the mesh, see #97) | DONE `flow-pipeline-trigger` (guard + fail-closed branches added 2026-10-21) | DONE `pipeline-trigger.md` (corrected 2026-10-14 for B207) | — |
 | **ML / eval** | | | | |
 | 15 | Eval harness | DONE `flow-eval` | DONE `eval.md` | DONE eval runs (validated live runs 7-10, 2026-07-21 — golden set + depth sweep) |
 | 16 | Eval scoring (LLM-judge) | DONE `flow-eval-scoring` | DONE `eval-scoring.md` | DONE scores |
