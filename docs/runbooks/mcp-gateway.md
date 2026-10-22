@@ -184,8 +184,9 @@ Tested on throwaway instances (verdicts + evidence: [concepts/bifrost-2-3-evalua
 with it get `require_public_target = 0` and keep reaching Agent_Memory and the compositor. Skip v2.3.0 (A2A goroutine
 leak). The Agent Gateway cannot proxy the Realm (A2A 0.3.0 cards; it takes A2A v1 only). **Upgraded 2026-10-19 (B231)**, and 2.3.1 **does recover a stranded MCP session by itself**: a Basic Memory restart
 that left 2.2.6 failing (`Missing session ID`, ~10 h after the morning reboot) reconnected on 2.3.1 within 20 s with no
-Bifrost restart. Keep the ship's `rollout restart deploy/bifrost` step until one compositor rollout confirms the fleet
-path too. Rollback: revert the digest pin in git and restore backup `20261019T190603Z` (§ Bifrost backup + restore). It is **pinned outside the rotation** at `/backup/bifrost-pinned/20261019T190603Z` on PVC `bifrost-backup` (copied 2026-10-21, SHA-256 equal to the original, integrity ok); the copy in `/backup/bifrost/` ages out with the 7-day rotation.
+Bifrost restart. A compositor rollout confirmed the fleet path too (2026-10-22: both compositors restarted, Bifrost left running on its
+10-19 pod, `bifrost-fleet-txn.py` → `TXN_OK`), so a compositor ship no longer needs a Bifrost restart; the restart below
+stays only as the fix if the transaction ever fails. Rollback: revert the digest pin in git and restore backup `20261019T190603Z` (§ Bifrost backup + restore). It is **pinned outside the rotation** at `/backup/bifrost-pinned/20261019T190603Z` on PVC `bifrost-backup` (copied 2026-10-21, SHA-256 equal to the original, integrity ok); the copy in `/backup/bifrost/` ages out with the 7-day rotation.
 
 ## Bifrost governance — budgets + key-sealing (B111 on v1.6.7; re-verified on v2.2.6, B202)
 
