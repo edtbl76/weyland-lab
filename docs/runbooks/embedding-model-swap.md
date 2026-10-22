@@ -80,6 +80,22 @@ topic **`rag.chunks`** → **5 always-on `rag-index-*` consumers** → the backe
 7. **REINDEX** pgvector, verify `SELECT count(DISTINCT document_id) FROM rag_chunks` ≈ full corpus, then run the golden
    eval (`/evals/run` → `/evals/score` → the conceptual/lexical split query — see eval-harness.md).
 
+## rag-embed: pick up a dependency bump (2026-10-22)
+
+rogueone's `rag-embed` runs from a copy of `services/rag-embed/` in `~/rag-embed/` with its own venv, so a lockfile change
+in git (an advisory bump such as certifi 2026.10.19) reaches it only by hand. Copy the code (never the venv), install the
+frozen set, restart, then check the health line (the model loads in ~20 s):
+
+[rogueone]
+```
+rsync -a --exclude venv --exclude __pycache__ /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/rag-embed/ /home/edwardmangini/rag-embed/ && /home/edwardmangini/rag-embed/venv/bin/pip install -q -r /home/edwardmangini/rag-embed/requirements.txt && sudo systemctl restart rag-embed
+```
+[rogueone]
+```
+curl -s http://127.0.0.1:8900/health && /home/edwardmangini/rag-embed/venv/bin/pip show certifi | grep Version
+```
+Expect the health JSON with the pinned `revision`, and the lockfile's certifi version.
+
 ## Scars (the mistakes that cost hours — don't repeat)
 
 - **`rag_stream_produce` gates on `rag_manifest`, NOT `rag_documents.content_hash`.** Forcing `rag_documents` re-embeds
