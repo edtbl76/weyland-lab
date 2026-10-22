@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: ollama-proxy-token
+  namespace: weyland
+spec:
+  encryptedData:
+    token: AgACTUfHPS07DTT3n6xhn7yPBz5AulMj4SCtkRQ2Qnt6ImyZRZfLe88iJGYvph5CAjae4dA0K96uF/DGawrTEtFUBEXWkYYDiRLL21rI3htBoOaWnaOwVxYEG4w8DTzBx2YX+LnLyo66DiL5ufX437lEgZ+blLoffXCOdb9qYuJbgnUe5Q2FaaWilo0AlJvglVpUkL2wSim7I5JkVxT9GwH1Rok9U9bns7+bHiwCdimLW8GcsnimMHr+6QDTLREQzPBmuh44SB5ST2n11j4jtbOskSwH1+jodPTQuXbqmL//kbRFUH+f/e8OPamzH9ZssRgJMdLxsyZ8ag3EEG7ESeHxrZCaVWqU2UkwDRcljn8bPYzz1oenHKJffyGlj0AgUpWdVHNjHeq1pHgQWw22fn7INT/k1mdMyiJ3uYnpxrBeN7s8N8wwUgmFaTgLMr+IMIJc+cH8yS/mBkseshQwjowhXGEEUr7TQVoOk1/DepPxNk6YzF+gHbGj2leRP51vjipSeUcZ30MYMXXFzjbe6ndoPFvf+LyDGuK2IridiqkXPM93mi+GuuIJv8Tnj6oU3ewAmItxKYh8fsExuDg1W7w/aQX7uf0/J1praTAqwBSGDVGFEQdqTCoC8NyObbWiCmuUXURS0GxgpVjDVJrd6haWA3VbEbmz0vmZESNAoggwYKh/VHpbcRXGs9nvBAO2DrBpIuBQJ8wCDnpMD/zoXtdZ3auekjN5Ef15f1vY4+avnwi0rPJjafQkhn4kuR83/FYKAd/EYq4JN951WVxINixm
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: ollama-proxy-token
+      namespace: weyland
+    type: Opaque
