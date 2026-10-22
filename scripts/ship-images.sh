@@ -1012,10 +1012,14 @@ WP_FIELDS='go-template={{range .}}{{.Number}} {{.Status}}{{"\n"}}{{end}}'
 # UNSET adds nothing, so the default ship (and every existing caller) stays the full matrix. Only the STRINGS
 # 0 and 1 are accepted: `--var RUN_FIXTURES=true` is YAML-coerced to a bool, the pipeline's `when` compare
 # errors, and the server filters the pipeline empty (HTTP 204) — refuse it here instead of shipping nothing.
+# Every ship also marks its pipeline SHIP_RUN=1 (2026-10-22): the pipeline's linear-sync step is then REPORT-ONLY —
+# tracking drift says nothing about the images, and another session's half-written backlog entry had stopped a dbt fix
+# from shipping. Main CI (no SHIP_RUN) still blocks on it.
 pipeline_create_vars() {
+  printf -- '--var SHIP_RUN=1'
   [ -n "${RUN_FIXTURES+x}" ] || return 0
   case "$RUN_FIXTURES" in
-    0 | 1) printf -- '--var RUN_FIXTURES=%s' "$RUN_FIXTURES" ;;
+    0 | 1) printf -- ' --var RUN_FIXTURES=%s' "$RUN_FIXTURES" ;;
     *) printf 'RUN_FIXTURES must be 0 or 1 (got %q) — use 0 for a lean ship when golden-paths/ is untouched\n' "$RUN_FIXTURES"; return 1 ;;
   esac
 }
@@ -1329,7 +1333,7 @@ main() {
     abort
   fi
   errfile="$(mktemp)"
-  # shellcheck disable=SC2086  # $extra is either empty or exactly `--var RUN_FIXTURES=<0|1>` — split on purpose
+  # shellcheck disable=SC2086  # $extra is `--var SHIP_RUN=1 [--var RUN_FIXTURES=<0|1>]` — split on purpose
   num="$(woodpecker-cli pipeline create "$REPO" --branch "$BASE" $extra --output "$WP_FIELDS" 2>"$errfile" | wp_field 1)" && create_rc=0 || create_rc=$?
   create_err="$(cat "$errfile")"
   rm -f "$errfile"

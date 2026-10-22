@@ -153,6 +153,12 @@ RUN_FIXTURES="$(bash /home/edwardmangini/IdeaProjects/weyland/scripts/ci/select-
 RUN_FIXTURES=0 bash /home/edwardmangini/IdeaProjects/weyland/scripts/ship-images.sh
 ```
 
+**Every ship marks its pipeline `SHIP_RUN=1`** (2026-10-22), which makes that pipeline's `linear-sync` step
+REPORT-ONLY: a tracking finding (or a Linear outage) is printed as `REPORT-ONLY in a ship run - linear-sync exit N` and
+does not stop the deploy. It says nothing about the images, and an issue another session had filed but not yet written
+into `backlog.md` had stopped a dbt fix from shipping. Every other run (push, the lean manual run, cron) still blocks on
+it, so fix the drift on main.
+
 `RUN_FIXTURES=0` skips the ~46 fixture-language lanes and the all-paths golden smoke; every production lane
 (test-python/shell/java, scan-java, the integration lanes, sonar-gate, build, kubeconform, deploy-handoff) still
 runs. Unset = the full matrix, as before. Anything but `0`/`1` aborts at FR1.3 before a pipeline is created (a
