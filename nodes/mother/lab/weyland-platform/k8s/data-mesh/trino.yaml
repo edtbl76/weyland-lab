@@ -91,6 +91,13 @@ spec:
             - { name: http, containerPort: 8080 }
           envFrom:
             - secretRef: { name: trino-secret }
+          env:
+            # 2026-10-21: the container's working set creeps ~0.4 GiB/day after each restart (1.2 → 4.4 GiB over a week,
+            # Prometheus), all outside the 4G heap, until the Sunday dbt build tips it over the 8Gi limit (OOMKilled
+            # 10-11 and 10-18). glibc gives every busy thread its own malloc arena and rarely returns them; capping the
+            # arenas is the standard fix for that JVM native-memory growth. An EXPERIMENT: if the daily climb does not
+            # flatten (runbooks/trino.md § Memory creep), the next suspect is the Ranger plugin's native/Truffle memory.
+            - { name: MALLOC_ARENA_MAX, value: "2" }
           readinessProbe:
             httpGet: { path: /v1/info, port: 8080 }
             initialDelaySeconds: 20

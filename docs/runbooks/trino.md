@@ -73,6 +73,26 @@ Superset / dbt / the B73 "use the data" work all ride on it. Manifest: `k8s/data
 kubectl get --raw "/api/v1/namespaces/monitoring/pods/prometheus-monitoring-kube-prometheus-prometheus-0:9090/proxy/api/v1/query?query=count(%7B__name__%3D~%22trino_.%2B%22%7D)"
 ```
 
+## Memory creep and the Sunday OOM (2026-10-21)
+
+**What happened:** `weyland_dbt_job` failed on Sunday 10-11 and 10-18 with every test erroring at once, because Trino was
+OOM-killed (`137`) at its 8Gi limit one minute into the 06:00 build. dbt was only the last straw: the container's working
+set climbs **~0.4 GiB a day** after each restart (1.2 → 4.4 GiB over a week), all outside the 4G heap, so a week-old
+Trino had no room for the build's peak. Measured 2026-10-21: a full `dbt build --threads 1` took 37 s and added ~1.9 GiB
+(3.4 → 5.3 GiB).
+
+**Fixed / under test:** dbt runs at `threads: 1` (`services/weyland-dagster/dbt/profiles.yml`), and the Trino container
+sets `MALLOC_ARENA_MAX=2` (glibc's per-thread arenas are a common cause of JVM native growth). The second is an
+experiment. Check the daily climb, 6-hourly, over the last week:
+```
+python3 -c "import json,urllib.request,urllib.parse,time;u='http://192.168.1.243:30909/api/v1/query_range?'+urllib.parse.urlencode({'query':'max(container_memory_working_set_bytes{namespace=\"data-mesh\",pod=~\"trino-.*\",container=\"trino\"})','start':time.time()-7*86400,'end':time.time(),'step':'6h'});[print(time.strftime('%m-%d %H:%MZ',time.gmtime(float(t))),round(float(v)/2**30,2)) for t,v in json.load(urllib.request.urlopen(u))['data']['result'][0]['values']]"
+```
+**Pass:** after a few days the working set stays roughly flat (well under ~0.4 GiB/day) between restarts. **Fail:** it
+still climbs at the old rate. Then the next suspect is the Ranger plugin's native/GraalVM-Truffle memory (see the
+`limits:` comment in `k8s/data-mesh/trino.yaml`, 2026-07-20), not the heap. Never raise `-Xmx` for this: the heap is not
+what overflows. Restart count and last reason: `kubectl -n data-mesh get pod -l app=trino -o
+jsonpath='{.items[0].status.containerStatuses[?(@.name=="trino")].lastState.terminated}'`.
+
 ## DataHub
 DataHub `trino` ingestion source (`k8s/data-mesh/datahub-ingestion/trino.recipe.yaml`) catalogs the
 `iceberg` catalog's tables as `trino`-platform datasets with **sibling + upstream lineage to the iceberg
