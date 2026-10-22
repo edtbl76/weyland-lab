@@ -1,6 +1,6 @@
 # B211 (2026-10-14) — the shared Valkey's front door (no auth). Callers (14 days of istio traffic): dagster-user-code,
 # feast-server (the online store), langfuse-web/-worker, sourcebot, superset and superset-worker (scaled to 0 today,
-# admitted for when it scales up), and rogueone (192.168.1.230: DataGrip via the valkey-lan NodePort, query-lan.yaml,
+# admitted for when it scales up), the JupyterHub singleuser servers (notebook 50, since 2026-10-21), and rogueone (192.168.1.230: DataGrip via the valkey-lan NodePort, query-lan.yaml,
 # externalTrafficPolicy Local; 2026-10-17 — rogueone only, not the whole LAN). Meshed, so Prometheus is admitted on the
 # sidecar's metrics ports too.
 apiVersion: networking.k8s.io/v1
@@ -34,6 +34,13 @@ spec:
         matchLabels: {app: superset}
     - podSelector:
         matchLabels: {app: superset-worker}
+    # JupyterHub singleuser servers (notebook 50 reads Feast's online store here; admitted 2026-10-21 after the DoD
+    # re-audit's notebook batch got a connection reset). By label, not IP. Valkey has no auth and a NetworkPolicy cannot
+    # make this read-only: the servers sit behind Keycloak (the owner only). Accepted by the owner, 2026-10-21.
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: jupyterhub}
+      podSelector:
+        matchLabels: {component: singleuser-server}
     - ipBlock: {cidr: 192.168.1.230/32}
     ports:
     - {protocol: TCP, port: 6379}

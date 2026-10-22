@@ -279,11 +279,11 @@ pinned() {   # pinned <file> <policy> <port> <expected sources...>
   pinned data-mesh/netpol-redpanda.yaml redpanda-front-door-only 9644 app=redpanda app=redpanda-console
 }
 
-@test "the shared Valkey admits only its seven clients, rogueone's NodePort (and Prometheus on the sidecar)" {
+@test "the shared Valkey admits only its seven clients, the JupyterHub servers, rogueone's NodePort (and Prometheus on the sidecar)" {
   pinned data-mesh/netpol-valkey.yaml valkey-front-door-only 6379 \
     app=feast-server app=superset app=superset-worker \
     ns=weyland,app=dagster-user-code ns=weyland,app=langfuse-web ns=weyland,app=langfuse-worker ns=weyland,app=sourcebot \
-    ip=192.168.1.230/32
+    ns=jupyterhub,component=singleuser-server ip=192.168.1.230/32
   pinned data-mesh/netpol-valkey.yaml valkey-front-door-only 15020 ns=monitoring,app.kubernetes.io/name=prometheus
 }
 
