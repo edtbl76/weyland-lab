@@ -128,8 +128,8 @@ guardrails-structure, nemo-guardrails, promptfoo and LangChain's `ChatOpenAI` al
 reached Ollama (its own **404** for the missing model) with it. nemo-guardrails refuses to load its config when the env
 var is unset, so a missing secret fails loudly.
 
-**Roll it out, in this order.** Steps 1 to 4 change nothing for callers (Ollama still answers anyone on the LAN side and
-ignores the header), so the token is in every caller before step 6 makes it required.
+**Roll it out, in this order.** Steps 1 to 5 change nothing for callers (Ollama still answers anyone on the LAN side and
+ignores the header), so the token is in every caller before step 7 makes it required.
 
 1. The token, generated into `scripts/.env` (never typed, never printed):
 
@@ -165,13 +165,21 @@ ignores the header), so the token is in every caller before step 6 makes it requ
    ```
    sudo install -d -m 0700 /etc/ollama-proxy-secret && set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && printf '"Bearer %s" 1;\n' "$OLLAMA_PROXY_TOKEN" | sudo tee /etc/ollama-proxy-secret/token.map >/dev/null && sudo chmod 0600 /etc/ollama-proxy-secret/token.map
    ```
-6. The flip (seconds without Ollama on the LAN): Ollama to loopback, then the proxy onto the freed address.
+6. Pre-flight: nginx must accept the config with the REAL token map (the first flip, 2026-10-22, failed here: the
+   71-character key overflowed nginx's default map hash bucket, which a short test token never showed). Expect
+   `syntax is ok` and `test is successful`:
+
+   [rogueone]
+   ```
+   sudo docker run --rm -v /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama-proxy/nginx.conf:/etc/nginx/nginx.conf:ro -v /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama-proxy:/etc/ollama-proxy:ro -v /etc/ollama-proxy-secret/token.map:/run/secrets/ollama-proxy-token.map:ro nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 nginx -t
+   ```
+7. The flip (seconds without Ollama on the LAN): Ollama to loopback, then the proxy onto the freed address.
 
    [rogueone]
    ```
    sudo install -m 0644 /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/ollama-host.conf /etc/systemd/system/ollama.service.d/override.conf && sudo install -m 0644 /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/ollama-proxy.service /etc/systemd/system/ollama-proxy.service && sudo systemctl daemon-reload && sudo systemctl restart ollama && sudo systemctl enable --now ollama-proxy
    ```
-7. Check: a pod with no token is refused, the callers are served, the firewall is in place.
+8. Check: a pod with no token is refused, the callers are served, the firewall is in place.
    ```
    kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import httpx; print(httpx.get('http://192.168.1.230:11434/api/tags', timeout=10).status_code)"
    ```

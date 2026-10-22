@@ -53,3 +53,9 @@ setup() {
 @test "the proxy image is pinned by digest" {
   grep -Eq '^Environment=NGINX_IMAGE=nginx@sha256:[0-9a-f]{64}$' "$U/ollama-proxy.service"
 }
+
+@test "the map hash bucket fits the real token key (\`Bearer \` + 64 hex = 71 chars; the default 64 kept nginx from starting)" {
+  run grep -Eo 'map_hash_bucket_size [0-9]+;' "$D/nginx.conf"
+  [ "$status" -eq 0 ] || { echo "no map_hash_bucket_size"; return 1; }
+  [ "$(echo "$output" | grep -Eo '[0-9]+')" -ge 128 ] || { echo "$output"; return 1; }
+}

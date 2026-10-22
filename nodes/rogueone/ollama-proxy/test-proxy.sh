@@ -5,7 +5,9 @@
 # in that container's network namespace, exactly as on rogueone (Ollama on loopback, the proxy in front). A client in
 # another container is a "remote" caller, the role every cluster pod plays (their traffic reaches rogueone from mother).
 # The test swaps only the three site files: it listens on 0.0.0.0:8080, treats 127.0.0.1 as the only local source,
-# and uses a throwaway token. The real token never enters this script.
+# and uses a throwaway token OF THE REAL SHAPE (64 hex characters, as `openssl rand -hex 32` makes it). The real token
+# never enters this script. 2026-10-22: the first cut used "test-token", which fits nginx's default 64-byte map hash
+# bucket; the real 71-character map key does not, so nginx refused to start at the live flip while this test was green.
 #
 #   usage: nodes/rogueone/ollama-proxy/test-proxy.sh        (needs docker; pulls ollama, nginx and curl images once)
 # EXIT: 0 every case passed · 1 a case failed, named · 2 could not run (no docker, a container that never came up).
@@ -29,7 +31,9 @@ mkdir -p "$T/site"
 cp "$HERE/upstream.conf" "$T/site/upstream.conf"
 printf 'listen 0.0.0.0:8080;\n' > "$T/site/listen.conf"
 printf '127.0.0.1 1;\n' > "$T/site/local-sources.conf"
-printf '"Bearer test-token" 1;\n' > "$T/token.map"
+TOKEN="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
+[ "${#TOKEN}" -eq 64 ] || { echo "CANNOT RUN: could not make a 64-hex test token" >&2; exit 2; }
+printf '"Bearer %s" 1;\n' "$TOKEN" > "$T/token.map"
 
 docker network create "$ID" >/dev/null
 docker run -d --name "$ID-ollama" --network "$ID" -e OLLAMA_HOST=127.0.0.1:11434 "$OLLAMA_IMAGE" >/dev/null
@@ -55,10 +59,10 @@ check() {  # check <name> <expected code> <actual code>
 }
 check "remote, no token → refused"                401 "$(remote "http://$ip:8080/api/version")"
 check "remote, wrong token → refused"             401 "$(remote -H 'Authorization: Bearer nope' "http://$ip:8080/api/version")"
-check "remote, token → served"                    200 "$(remote -H 'Authorization: Bearer test-token' "http://$ip:8080/api/version")"
-check "remote, token, OpenAI /v1/models → served" 200 "$(remote -H 'Authorization: Bearer test-token' "http://$ip:8080/v1/models")"
-check "remote, token, /api/pull → forbidden"      403 "$(remote -H 'Authorization: Bearer test-token' -X POST -d '{"model":"x"}' "http://$ip:8080/api/pull")"
-check "remote, token, /api/delete → forbidden"    403 "$(remote -H 'Authorization: Bearer test-token' -X DELETE -d '{"model":"x"}' "http://$ip:8080/api/delete")"
+check "remote, token → served"                    200 "$(remote -H "Authorization: Bearer $TOKEN" "http://$ip:8080/api/version")"
+check "remote, token, OpenAI /v1/models → served" 200 "$(remote -H "Authorization: Bearer $TOKEN" "http://$ip:8080/v1/models")"
+check "remote, token, /api/pull → forbidden"      403 "$(remote -H "Authorization: Bearer $TOKEN" -X POST -d '{"model":"x"}' "http://$ip:8080/api/pull")"
+check "remote, token, /api/delete → forbidden"    403 "$(remote -H "Authorization: Bearer $TOKEN" -X DELETE -d '{"model":"x"}' "http://$ip:8080/api/delete")"
 check "remote, no token, /api/pull → forbidden"   403 "$(remote -X POST -d '{"model":"x"}' "http://$ip:8080/api/pull")"
 check "local, no token → served"                  200 "$(local_ http://127.0.0.1:8080/api/version)"
 # Ollama's own answer (404 model not found) proves a local management call reaches it rather than the proxy's 403.
