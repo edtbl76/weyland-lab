@@ -14,7 +14,7 @@ backoff==2.2.1
 beartype==0.23.1
 cachetools==7.2.2
 caio==0.12.9
-certifi==2026.7.22
+certifi==2026.10.19
 cffi==2.1.1
 charset-normalizer==3.5.2
 click==8.5.0

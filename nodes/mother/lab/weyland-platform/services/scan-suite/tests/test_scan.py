@@ -6,6 +6,7 @@ read — a real past bug), Port shows silently-wrong posture numbers. These test
 and assert the REAL counts, plus the payload builder — no tool executed, no network.
 """
 import json
+import os
 
 
 # ── payload builder + primitives ──────────────────────────────────────────────────────────────────
@@ -55,6 +56,32 @@ def test_kubescape_reads_resources_severity_counters(scan, captured_posts, monke
         "criticalSeverity": 2, "highSeverity": 5, "mediumSeverity": 9, "lowSeverity": 1}}})
     scan.kubescape()
     assert captured_posts[-1] == ("kubescape", {"critical": 2, "high": 5, "medium": 9, "low": 1})
+
+
+def test_kubescape_runs_with_the_accepted_exceptions_file(scan, captured_posts, monkeypatch):
+    calls = []
+    monkeypatch.setattr(scan, "sh", lambda cmd, *a, **k: calls.append(cmd))
+    monkeypatch.setattr(scan, "load", lambda p: {"summaryDetails": {}})
+    scan.kubescape()
+    cmd = calls[-1]
+    assert cmd[cmd.index("--exceptions") + 1] == scan.KUBESCAPE_EXCEPTIONS
+
+
+def test_kubescape_exceptions_accept_only_c0236_as_alert_only():
+    """The accept is one control, never blanket suppression: adding a control here needs its own dated reason."""
+    path =os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "kubescape-exceptions.json")
+    policies = json.load(open(path, encoding="utf-8"))
+    assert [c["controlID"] for p in policies for c in p["posturePolicies"]] == ["C-0236"]
+    assert all(p["actions"] == ["alertOnly"] and p["policyType"] == "postureExceptionPolicy" for p in policies)
+
+
+def test_kubescape_prints_the_accepted_count_on_its_own_line(scan, captured_posts, monkeypatch, capsys):
+    monkeypatch.setattr(scan, "load", lambda p: {"summaryDetails": {
+        "resourcesSeverityCounters": {"highSeverity": 5},
+        "controls": {"C-0236": {"subStatusCounters": {"ignoredResources": 123}}}}})
+    scan.kubescape()
+    assert "C-0236 accepted: 123 workload(s)" in capsys.readouterr().out
+    assert captured_posts[-1] == ("kubescape", {"critical": 0, "high": 5, "medium": 0, "low": 0})
 
 
 def test_bandit_maps_issue_severity_and_defaults_low(scan, captured_posts, monkeypatch):

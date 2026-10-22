@@ -1,7 +1,7 @@
 # weyland-agent bge-export BUILDER stage — torch + optimum + transformers, only to export the bge ONNX model; none
 # of it ships. Frozen 2026-10-16 from a fresh build of that stage (today's resolutions). torch: PyTorch CPU index.
 --extra-index-url https://download.pytorch.org/whl/cpu
-certifi==2026.7.22
+certifi==2026.10.19
 charset-normalizer==3.5.2
 filelock==3.32.3
 flatbuffers==25.12.19

@@ -1,9 +1,9 @@
 """The free-only request mode (2026-10-12).
 
 Every Realm brain is the Haiku-backed `wl-agentic` lane, so an AUTOMATIC caller (the ship-images Realm transaction)
-must be able to run the whole Realm — Gná's routing, the agent graph, its tools — on a FREE brain instead: `wl-judge`
-(local qwen2.5:7b on rogueone) with LiteLLM's fallbacks DISABLED, because `wl-judge`'s chain reaches `wl-default`, whose
-own chain ends at the paid `wl-agentic`. The mode is a ContextVar set per request (budget.free_only), so it follows the
+must be able to run the whole Realm — Gná's routing, the agent graph, its tools — on a FREE brain instead: `wl-local`
+(the operator's resident qwen2.5:7b on rogueone, B222 2026-10-22; it was `wl-judge` until that lane moved to qwen3:14b)
+with LiteLLM's fallbacks DISABLED, so "free" never depends on a fallback chain staying free. The mode is a ContextVar set per request (budget.free_only), so it follows the
 async call into nested agents and never leaks into a person's next request. Graphs are cached per (agent, mode), so a
 free run never reuses a paid graph and vice versa.
 """
@@ -55,8 +55,8 @@ def test_free_only_uses_the_free_local_lane_with_fallbacks_disabled():
     llm = _llm()
     with budget.free_only():
         b = llm.brain("wl-coding")
-        assert llm.effective_model("wl-coding") == "wl-judge"
-    assert b.kwargs["model"] == "wl-judge"
+        assert llm.effective_model("wl-coding") == "wl-local"
+    assert b.kwargs["model"] == "wl-local"
     assert b.kwargs["extra_body"] == {"disable_fallbacks": True}
 
 

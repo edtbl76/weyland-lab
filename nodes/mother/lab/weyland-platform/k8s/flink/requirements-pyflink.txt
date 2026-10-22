@@ -7,7 +7,7 @@ apache-beam==2.48.0
 apache-flink==1.20.1
 apache-flink-libraries==1.20.1
 avro-python3==1.10.2
-certifi==2026.7.22
+certifi==2026.10.19
 charset-normalizer==3.5.1
 cloudpickle==2.2.1
 crcmod==1.7

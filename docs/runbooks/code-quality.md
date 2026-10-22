@@ -41,6 +41,15 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   file + package/rule/CVE, never on a line number. **Exit 0** nothing new · **1** new findings, listed (fix, or accept
   a phantom with a documented reason) · **2** a report missing or unreadable in either run (not "nothing new").
   B211's DoD run (2026-10-15, `2026-10-14T19-18-00Z` → `2026-10-15T04-17-42Z`): 0 new in every tool.
+- **Kubescape C-0236 is accepted (2026-10-22, owner "yes").** "Verify image signature" checks each image against cosign
+  public keys set in kubescape's controls-config. None are set, so every workload fails it by construction: the
+  `2026-10-21T19-06-15Z` suite showed 123 new C-0236 findings with nothing in the repo changed. Our own key would pass
+  only `registry.weyland.lab` images, never the upstream ones. Verification is B88 decision 2 instead: `cosign verify`
+  in CI, Gatekeeper's registry-prefix constraint at admission, an in-cluster verifier left as a separate decision.
+  `services/scan-suite/kubescape-exceptions.json` (one control, `alertOnly`; `tests/test_scan.py` pins that) keeps the
+  control evaluated but out of the posture counts, and the log prints its size every run:
+  `~ kubescape: C-0236 accepted: N workload(s) …`. The first run with it shows C-0236 as **gone** in `scan-diff.py`.
+  Accepting another control needs its own dated reason here and in that file.
 - **The deployed images too** (2026-10-16, `trivy-images`): the source scanners never read a Dockerfile's
   `pip install` line, and 14 Dockerfiles install 103 packages that way (tool-server's `mcp` 1.28.1 sat in one through
   GHSA-84m7-p3x7-pcfv). So the suite also scans every `registry.weyland.lab` image a manifest under `k8s/` deploys (the
@@ -322,6 +331,19 @@ versions B214 had accepted because they break the build (pyflink past apache-bea
 setuptools 83, transformers 5 in the export stages), and they would recur every week. Each of those directories now
 carries an `ignore` rule (`dependency-name` + the breaking `versions` range) with the same reason; GitHub documents that
 `ignore` applies to security updates too. Lift the rule with the acceptance.
+
+**Every Dependabot `ignore` is backed by a live acceptance (2026-10-22).** An `ignore` silences security updates for that
+package in that directory, and nothing expires it; the `osv-scanner.toml` accept behind it is scoped to one version and
+has an `effectiveUntil`. `scripts/check-dependabot-ignores.sh` (`repo-guards`) ties them together. Each ignore must be
+backed by a `[[PackageOverrides]]` entry at the version the directory pins, or by an `[[IgnoredVulns]]` (advisory-id)
+accept whose reason names the package and the directory. The pin must still be below the ignored range. It fails with
+`UNBACKED`, `DEAD` (the pin already moved past the cap) or `NOT PINNED`, and exits 2 when it cannot read a config or a
+range. A compatibility cap with no advisory needs no ignore, because Dependabot here opens security updates only.
+```
+[rogueone] bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dependabot-ignores.sh
+```
+Expect `OK — 11 Dependabot ignore(s), each backed by a live osv-scanner.toml accept at the pinned version.`
+(2026-10-22). When you lift a cap: bump the pin, delete the accept and the ignore in the same change.
 
 **Remediating a newly visible advisory: the rules B214 learned (2026-10-16).**
 - **Read every advisory's range, not the highest fix.** A range can end in `last_affected` with no fix: mlflow 3.15.0

@@ -3,7 +3,7 @@
 # these are today's resolutions, pinned from now on). Was three unpinned `pip install` lines.
 # torch comes from the PyTorch CPU index (the +cpu build; the CUDA wheel is ~7 GB).
 --extra-index-url https://download.pytorch.org/whl/cpu
-certifi==2026.7.22
+certifi==2026.10.19
 charset-normalizer==3.5.2
 filelock==3.32.3
 flatbuffers==25.12.19

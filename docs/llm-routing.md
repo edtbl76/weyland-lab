@@ -41,7 +41,8 @@ flowchart LR
 
   %% Retrieval, eval, search
   wrag(["wl-rag"]):::alias --> wrag1["ollama · gpt-oss:20b (local)"]:::free --> wrag2["groq · gpt-oss-120b"]:::free --> wrag3["gemini · 2.5-flash"]:::free
-  wjdg(["wl-judge"]):::alias --> wjdg1["ollama · qwen2.5:7b-operator (local)"]:::free --> wjdg2["groq · gpt-oss-120b"]:::free --> wjdg3["gemini · 2.5-flash"]:::free
+  wjdg(["wl-judge"]):::alias --> wjdg1["ollama · qwen3:14b (local)"]:::free --> wjdg2["groq · gpt-oss-120b"]:::free --> wjdg3["gemini · 2.5-flash"]:::free
+  wloc(["wl-local"]):::alias --> wloc1["ollama · qwen2.5:7b-operator (local, no fallback)"]:::free
   wjos(["wl-judge-oss"]):::alias --> wjos1["ollama · gpt-oss:20b-judge (local, no fallback)"]:::free
   wsch(["wl-search"]):::alias --> wsch1["perplexity · sonar (web)"]:::funded --> wsch2["xai · grok-4.5 (web)"]:::funded --> wsch3["groq · gpt-oss-120b"]:::free
 

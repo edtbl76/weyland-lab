@@ -131,3 +131,11 @@ ecosystem = "PyPI"
 vulnerability.ignore = true
 effectiveUntil = 2027-01-16
 reason = "BUILD STAGES ONLY: the four ONNX export stages (weyland-dagster, weyland-tool-server, weyland-agent bge-export; weyland-guard onnx-export). They run once at build time to export fixed public models (BAAI bge-base/bge-small, the guard's two DeBERTa classifiers) and only the .onnx + tokenizer.json reach the runtime image; transformers is never shipped. The advisories (GHSA-29pf-2h5f-8g72, GHSA-69w3-r845-3855, GHSA-fgcw-684q-jj6r, GHSA-x9r9-c232-4q39, GHSA-xrqw-3rrv-vx5w) concern malicious model files, trust_remote_code and Trainer; the stages never set trust_remote_code and never train. Every fix is in transformers 5.x, and a new exporter risks a byte-different ONNX graph, which would force re-embedding every vector store (U13 relies on byte-equivalence). Gap noted, not fixed here: the stages do not pin a model revision. Accepted 2026-10-16 (B214)."
+
+[[PackageOverrides]]
+name = "pillow"
+version = "12.3.0"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-22
+reason = "nemo-guardrails and rogueone's basic-memory only (the 28 advisories published 2026-10-20/21, all fixed in 13.0.0: TIFF/JPEG/GIF/PDF/EPS decoder and encoder memory bugs, decompression-bomb gaps, the Ghostscript argument injection). Both are held at 12.3.0 by fastembed, which caps pillow<13 in every release including the latest (0.9.0, checked 2026-10-22); every other lockfile moved to 13.0.0. The guardrails service runs text rails only: no code in it opens an image, and fastembed is used for text embeddings. Basic Memory opens an image only when asked to read one, and the shared store holds Markdown notes only. So no untrusted image bytes reach Pillow in either. Lift when a fastembed release allows pillow 13. Accepted 2026-10-22 (B214 leftovers)."

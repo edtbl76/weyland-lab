@@ -16,7 +16,8 @@ operator's `delegate_to_realm` does); `realm.weyland.lab` asks for a Keycloak lo
 by a NetworkPolicy. The CLI steps below run inside the Realm pod on `localhost`, which the policy doesn't affect.
 
 **Free-only requests (2026-10-12):** `POST /route` with `"allow_paid": false` runs the whole dispatch on the free local
-`wl-judge` lane (qwen2.5:7b on rogueone) with LiteLLM fallbacks off, so an automatic caller spends nothing. The
+`wl-local` lane (qwen2.5:7b on rogueone; `wl-judge` until B222 moved that lane to qwen3:14b, 2026-10-22) with LiteLLM
+fallbacks off, so an automatic caller spends nothing. The
 ship-images Realm transaction uses it: a code-review question with a planted bug (`return a - b`) routed to huginn and
 answered in about 2 s on the free lane (observed 2026-10-12).
 

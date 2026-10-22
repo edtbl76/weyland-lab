@@ -2,7 +2,7 @@
 # none of it ships. Frozen 2026-10-16 from a fresh build of that stage (no deployed copy exists, so these are
 # today's resolutions, pinned from now on). torch from the PyTorch CPU index.
 --extra-index-url https://download.pytorch.org/whl/cpu
-certifi==2026.7.22
+certifi==2026.10.19
 charset-normalizer==3.5.2
 filelock==3.32.3
 flatbuffers==25.12.19

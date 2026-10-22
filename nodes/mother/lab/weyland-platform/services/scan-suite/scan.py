@@ -154,8 +154,19 @@ def checkov():
     post("checkov", c)
 
 
+# ACCEPTED CONTROL (2026-10-22, owner "yes"). C-0236 "Verify image signature" checks each image's cosign signature
+# against public keys configured in kubescape's controls-config. None are configured, so EVERY workload fails it by
+# construction: the 2026-10-21 suite showed 123 new findings with nothing in this repo changing. Configuring our key would
+# pass only our own registry images, never the upstream ones (Postgres, Keycloak, Trino...). Real verification is the
+# B88 decision 2 split: cosign verify in CI before deploy, Gatekeeper's registry-prefix constraint at admission (it cannot
+# call cosign), and an in-cluster verifier recorded as a separate decision. `alertOnly` keeps the control evaluated and
+# its count printed below; it only leaves the posture total. One control only — tests/test_scan.py pins that.
+KUBESCAPE_EXCEPTIONS = os.environ.get("KUBESCAPE_EXCEPTIONS", "/usr/local/share/scan-suite/kubescape-exceptions.json")
+
+
 def kubescape():
-    sh(["kubescape", "scan", SRC, "--format", "json", "--output", f"{OUT}/kubescape.json"])
+    sh(["kubescape", "scan", SRC, "--exceptions", KUBESCAPE_EXCEPTIONS,
+        "--format", "json", "--output", f"{OUT}/kubescape.json"])
     d = load(f"{OUT}/kubescape.json") or {}
     sd = d.get("summaryDetails") or {}
     c = z()
@@ -186,6 +197,10 @@ def kubescape():
         print(f"  ~ kubescape: {rc.get('failedResources', 0)} distinct failing resources of "
               f"{rc.get('failedResources', 0) + rc.get('passedResources', 0)} scanned "
               f"({len(sd.get('controls') or {})} controls in today's policy set)", flush=True)
+    accepted = (((sd.get("controls") or {}).get("C-0236") or {}).get("subStatusCounters") or {}).get("ignoredResources")
+    if accepted is not None:
+        print(f"  ~ kubescape: C-0236 accepted: {accepted} workload(s) with no signature from a configured key "
+              "(out of the counts; see KUBESCAPE_EXCEPTIONS)", flush=True)
     post("kubescape", c)
 
 

@@ -1,6 +1,6 @@
 # Frozen from the running weyland-mcp-gateway:v4 image (2026-10-04); PyJWT + cryptography raised (see requirements.in).
 anyio==4.14.2
-certifi==2026.7.22
+certifi==2026.10.19
 cffi==2.1.0
 click==8.4.2
 cryptography==50.0.0

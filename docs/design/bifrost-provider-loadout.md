@@ -75,7 +75,8 @@ IS expressible as a normal routing rule (CEL var confirmed) but wasn't trigger-t
 | `wl-agentic` | anthropic/claude-haiku-4-5 | reliable cheap tool-calling |
 | `wl-rag` | ollama/gpt-oss:20b | free local (private) |
 | `wl-reason` | ollama/qwen3:30b-a3b | free local reasoning |
-| `wl-judge` | ollama/qwen2.5:7b | free local judge (the current one) |
+| `wl-judge` | ollama/qwen3:14b | free local judge (qwen2.5:7b until B222, 2026-10-22) |
+| `wl-local` | ollama/qwen2.5:7b-operator | the Realm's free-only brain, no fallback (B222) |
 | `wl-search` | perplexity/sonar | ONLY web-search provider |
 | `wl-big-oss` | openrouter/minimax/minimax-m3 | big frontier OSS via aggregator |
 

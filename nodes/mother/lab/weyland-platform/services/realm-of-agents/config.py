@@ -20,9 +20,10 @@ LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "180"))
 # or ="claude-haiku" to pin to raw Haiku with no fallback.
 REALM_MODEL = os.getenv("REALM_MODEL", "wl-agentic")
 # Free-only requests (budget.free_only — automatic callers such as the ship-images transaction) think with this FREE
-# lane instead: wl-judge = the operator's local qwen2.5:7b build on rogueone, already resident. Observed 2026-10-12:
-# Gná routes a code-review question to huginn and answers in ~2s on it.
-REALM_FREE_MODEL = os.getenv("REALM_FREE_MODEL", "wl-judge")
+# lane instead: wl-local = the operator's local qwen2.5:7b build on rogueone, already resident. Observed 2026-10-12:
+# Gná routes a code-review question to huginn and answers in ~2s on it. (It was wl-judge until B222, 2026-10-22, moved
+# that lane to qwen3:14b: a 14B second model would push the operator's qwen to CPU on rogueone's 16 GB GPU.)
+REALM_FREE_MODEL = os.getenv("REALM_FREE_MODEL", "wl-local")
 
 # --- Tools: the Bifrost VK MCP surface ---------------------------------------------------------------------------
 # CoreDNS forwards *.weyland.lab to LAN DNS, so the pod can resolve the ingress host directly.

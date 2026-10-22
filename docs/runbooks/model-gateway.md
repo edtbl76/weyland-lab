@@ -1,7 +1,7 @@
 # Model Gateway (LiteLLM) + Model Catalog — runbook
 
 **What:** a LAN **LiteLLM** proxy on mother/k3s that (1) fronts hosted-model providers behind one
-OpenAI-compatible endpoint, and (2) is the platform's **use-case router (B111)** — 9 `wl-*` aliases, each a
+OpenAI-compatible endpoint, and (2) is the platform's **use-case router (B111)** — 12 `wl-*` aliases, each a
 primary model with a **server-side fallback chain** (the transparent failover Bifrost OSS gates behind its
 Enterprise adaptive load-balancer — see [mcp-gateway.md](mcp-gateway.md)). Plus a Dagster `model_catalog` asset
 that keeps a queryable lookup table of reachable models fresh every 6h.
@@ -65,7 +65,9 @@ Clients send a **use-case alias** as the `model` and LiteLLM routes it to a prim
 | `wl-default` / `wl-speed` | groq `gpt-oss-120b` (free) | → gemini-flash → anthropic *(speed: → cerebras → gemini)* |
 | `wl-coding` | opencode-zen `kimi-k3` (funded, tools) | → anthropic → deepseek → groq |
 | `wl-agentic` | anthropic `claude-haiku-4.5` (tools) | → openai → cerebras → gemini |
-| `wl-rag` / `wl-judge` | ollama local (`gpt-oss:20b` / `qwen2.5:7b-operator` — qwen2.5:7b with a 32K window, so a long judge prompt is not silently truncated) | → groq → gemini |
+| `wl-rag` | ollama local `gpt-oss:20b` | → groq → gemini |
+| `wl-judge` | ollama local `qwen3:14b` (B222, 2026-10-22: the judge the MLflow gateway's held-out tests passed; was `qwen2.5:7b-operator`, which failed them). 4096-token window, so keep a judge prompt under ~16K chars | → groq → gemini |
+| `wl-local` | ollama local `qwen2.5:7b-operator` (the operator's resident 32K build): the Realm's free-only brain (B222) | none: no fallback, so it never spends |
 | `wl-reason` | ollama `qwen3:30b-a3b` (local) | → deepseek-reasoner → groq |
 | `wl-search` | perplexity `sonar` (web) | → xai grok |
 | `wl-big-oss` | openrouter `minimax-m3` | → groq |
@@ -97,8 +99,9 @@ sequenceDiagram
 
 **Add / change a route.** Edit `model_list` (a primary) or `router_settings.fallbacks` (a chain) in
 `configmap.yaml`, then **push → Argo sync** (LiteLLM is Argo-managed with `selfHeal:true`, so a direct `kubectl apply`
-gets **reverted** — it must go through git). The deployment change or a `kubectl rollout restart deploy/litellm` reloads
-the config.
+gets **reverted** — it must go through git). LiteLLM reads the config only at start, so in the same change bump the
+pod-template annotation `weyland.lab/litellm-config-rev` in `deployment.yaml` (2026-10-22): Argo then rolls the pod
+itself and no hand `kubectl rollout restart deploy/litellm` is needed.
 
 **Demo / verify** (from inside the pod, using its own master key — never printed):
 ```

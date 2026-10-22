@@ -65,7 +65,7 @@ Langfuse. Discovery/lineage can ride on top via DataHub data products (`golden s
 
 - **`wl-judge-oss`** → `ollama_chat/gpt-oss:20b` (free local) — the production/codified judge for the cheap criteria.
 - **`claude-haiku`** → Anthropic Haiku — the quality lane (groundedness, golden-set dataset runs).
-- (`wl-judge` = qwen2.5:7b stays as the pre-existing general judge alias.)
+- (`wl-judge` stays the general judge alias: qwen2.5:7b until B222 moved it to qwen3:14b, 2026-10-22.)
 
 ## SSRF gotcha (UI evaluators only)
 

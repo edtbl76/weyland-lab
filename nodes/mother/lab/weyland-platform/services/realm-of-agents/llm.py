@@ -21,8 +21,8 @@ def effective_model(lane: str) -> str:
 def brain(lane: str) -> ChatOpenAI:
     # REALM_MODEL (default the Haiku-backed wl-agentic lane) overrides the per-agent lane so the whole Realm runs on
     # one fast, reliable hosted brain — no rogueone cold-start hangs. Falls back to the per-agent lane if cleared.
-    # A free-only request gets the free lane with LiteLLM fallbacks OFF: wl-judge's chain reaches wl-default, whose
-    # own chain ends at the paid wl-agentic, so "free" holds only if no fallback runs.
+    # A free-only request gets the free lane (wl-local) with LiteLLM fallbacks OFF, so "free" never depends on a
+    # fallback chain staying free (wl-judge's chain, the free lane until B222, reached the paid wl-agentic).
     return _client(effective_model(lane), is_free_only())
 
 

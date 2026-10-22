@@ -67,6 +67,7 @@ COPY --from=gotools /usr/local/go /usr/local/go
 COPY --from=gotools /out/ /usr/local/bin/
 
 COPY scan.py /usr/local/bin/scan.py
+COPY kubescape-exceptions.json /usr/local/share/scan-suite/kubescape-exceptions.json
 RUN useradd -u 10001 -m scan
 USER scan
 ENTRYPOINT ["python3", "/usr/local/bin/scan.py"]

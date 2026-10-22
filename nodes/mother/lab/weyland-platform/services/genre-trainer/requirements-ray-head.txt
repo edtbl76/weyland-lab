@@ -32,7 +32,7 @@ mlflow==3.16.1   # B214: 3.15.0 fixed 5 advisories but not the AI Gateway SSRF (
 mlflow-skinny==3.16.1
 mlflow-tracing==3.16.1
 narwhals==2.24.0
-pillow==12.3.0
+pillow==13.0.0
 prettytable==3.18.0
 pycryptodome==3.23.0
 scikit-learn==1.9.0

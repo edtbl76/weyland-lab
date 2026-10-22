@@ -15,6 +15,10 @@ spec:
     metadata:
       labels:
         app: litellm
+      annotations:
+        # LiteLLM reads configmap.yaml only at start. Bump this with a config change so Argo rolls the pod itself
+        # (no hand `rollout restart`). 2026-10-22: B222 wl-judge -> qwen3:14b, new wl-local lane.
+        weyland.lab/litellm-config-rev: "2026-10-22-b222-wl-local"
     spec:
       containers:
         - name: litellm

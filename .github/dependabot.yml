@@ -129,6 +129,10 @@ updates:
       security-and-patches:
         applies-to: security-updates
         patterns: ["*"]
+    # 2026-10-22: mirrors osv-scanner.toml — no installable fix here; re-proposing it only breaks the build.
+    ignore:
+      - dependency-name: "pillow"   # fastembed (every release through 0.9.0) caps pillow<13; text rails only
+        versions: [">=13.0.0"]
 
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/services/rag-embed"
@@ -246,6 +250,10 @@ updates:
       security-and-patches:
         applies-to: security-updates
         patterns: ["*"]
+    # 2026-10-22: mirrors osv-scanner.toml — no installable fix here; re-proposing it only breaks the build.
+    ignore:
+      - dependency-name: "pillow"   # fastembed (every release through 0.9.0) caps pillow<13; the store holds Markdown only
+        versions: [">=13.0.0"]
 
   - package-ecosystem: "pip"
     directory: "/nodes/rogueone/services/gpu-inference/clef-flash"

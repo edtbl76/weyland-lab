@@ -157,6 +157,30 @@ CANNOT CHECK: /tmp/tmp.XXXXXXXXXX/.github/dependabot.yml does not exist
 exit 2
 ```
 
+**Every Dependabot ignore has a live reason behind it** (2026-10-22). An ignore blocks security updates for one package
+in one directory and never expires, so the guard checks each one against `osv-scanner.toml` and the directory's pin:
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dependabot-ignores.sh
+```
+```
+OK — 11 Dependabot ignore(s), each backed by a live osv-scanner.toml accept at the pinned version.
+```
+
+Negative case (RUN 2026-10-22), in a scratch tree: an ignore whose pin already moved past the cap, with no accept behind it.
+
+[rogueone]
+```
+T=$(mktemp -d) && mkdir -p $T/.github $T/svc/a && printf 'pillow==13.0.0\n' > $T/svc/a/requirements.txt && printf 'version: 2\nupdates:\n  - package-ecosystem: "pip"\n    directory: "/svc/a"\n    ignore:\n      - dependency-name: "pillow"\n        versions: [">=13.0.0"]\n' > $T/.github/dependabot.yml && : > $T/osv-scanner.toml && DEPENDABOT_ROOT=$T bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dependabot-ignores.sh; echo "exit $?"
+```
+```
+DEAD: svc/a ignores pillow >=13.0.0 but pins 13.0.0 — the cap is lifted, delete the ignore
+UNBACKED: svc/a ignores pillow (pinned 13.0.0) with no osv-scanner.toml accept — add a [[PackageOverrides]] for pillow 13.0.0 with the reason, or delete the ignore
+2 defect(s) in 1 Dependabot ignore(s): an ignore with no live reason blocks security updates silently.
+exit 1
+```
+
 **A version-scoped accept suppresses only that version.** Two directories, protobuf 4.25.9 (overridden) and 4.23.4 (not),
 scanned with the suite's own osv-scanner 1.9.1: only 4.23.4 is reported, with its 4 advisories. That is why
 `osv-scanner.toml` uses `[[PackageOverrides]]` with `name` + `version` for pins that have no installable fix, and
