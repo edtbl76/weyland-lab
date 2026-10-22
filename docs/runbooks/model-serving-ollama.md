@@ -154,11 +154,17 @@ ignores the header), so the token is in every caller before step 7 makes it requ
    `ollama-local` secret in place from `OLLAMA_PROXY_TOKEN`), and Open WebUI (Admin Panel → Settings → Connections →
    Ollama API → the connection's settings → Key: the `OLLAMA_PROXY_TOKEN` value). Open WebUI keeps connection settings in
    its database, so an env var would be ignored.
+   Uptime Kuma's HTTP monitor on Ollama also calls from mother: edit it in Kuma → **Headers** →
+   `{"Authorization": "Bearer <the OLLAMA_PROXY_TOKEN value>"}`, so it keeps proving Ollama answers behind the door (the
+   first rollout missed it; its probe of `/` turned to 401).
 
    [rogueone]
    ```
-   python3 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_gateway_endpoints.py
+   GATEWAY_ROTATE_SECRETS=ollama-local python3 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_gateway_endpoints.py
    ```
+   Expect `rotated secret ollama-local (id …, value not shown)`. Without `GATEWAY_ROTATE_SECRETS` the script only
+   CREATES secrets, so an existing `ollama-local` keeps the old value silently (the first rollout, 2026-10-22: every
+   gateway call that reached Ollama, including the guard judge, failed with the proxy's HTML 401 after the flip).
 5. rogueone's copy of the token, for the proxy:
 
    [rogueone]
@@ -167,11 +173,13 @@ ignores the header), so the token is in every caller before step 7 makes it requ
    ```
 6. Pre-flight: nginx must accept the config with the REAL token map (the first flip, 2026-10-22, failed here: the
    71-character key overflowed nginx's default map hash bucket, which a short test token never showed). Expect
-   `syntax is ok` and `test is successful`:
+   `syntax is ok` and `test is successful`. `nginx -t` also binds the listen addresses, and inside a plain container
+   `192.168.1.230` does not exist (`bind() ... (99: Address not available)`), so the check swaps in a throwaway listen
+   file: it tests the config and the real token map, not the bind (the flip's own start does that):
 
    [rogueone]
    ```
-   sudo docker run --rm -v /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama-proxy/nginx.conf:/etc/nginx/nginx.conf:ro -v /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama-proxy:/etc/ollama-proxy:ro -v /etc/ollama-proxy-secret/token.map:/run/secrets/ollama-proxy-token.map:ro nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 nginx -t
+   printf 'listen 8080;\n' > /tmp/ollama-proxy-listen-check.conf && sudo docker run --rm -v /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama-proxy/nginx.conf:/etc/nginx/nginx.conf:ro -v /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama-proxy:/etc/ollama-proxy:ro -v /tmp/ollama-proxy-listen-check.conf:/etc/ollama-proxy/listen.conf:ro -v /etc/ollama-proxy-secret/token.map:/run/secrets/ollama-proxy-token.map:ro nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 nginx -t
    ```
 7. The flip (seconds without Ollama on the LAN): Ollama to loopback, then the proxy onto the freed address.
 
