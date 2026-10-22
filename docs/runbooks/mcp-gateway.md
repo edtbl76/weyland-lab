@@ -188,7 +188,21 @@ Bifrost restart. A compositor rollout confirmed the fleet path too (2026-10-22: 
 10-19 pod, `bifrost-fleet-txn.py` → `TXN_OK`), so a compositor ship no longer needs a Bifrost restart; the restart below
 stays only as the fix if the transaction ever fails. Rollback: revert the digest pin in git and restore backup `20261019T190603Z` (§ Bifrost backup + restore). It is **pinned outside the rotation** at `/backup/bifrost-pinned/20261019T190603Z` on PVC `bifrost-backup` (copied 2026-10-21, SHA-256 equal to the original, integrity ok); the copy in `/backup/bifrost/` ages out with the 7-day rotation.
 
-## Bifrost governance — budgets + key-sealing (B111 on v1.6.7; re-verified on v2.2.6, B202)
+## Bifrost's `ollama` provider — retired (B211, 2026-10-22)
+
+rogueone's Ollama sits behind a token front door since 2026-10-22 (`model-serving-ollama.md` § Front door). Bifrost's
+`ollama` provider could not follow it there: on a throwaway Bifrost 2.3.1 (the production digest, every header captured),
+an Ollama key set to `env.OLLAMA_API_KEY` sent **no** `Authorization` header (after an API update and after a restart);
+only a plain-text value was sent, which B111 forbids in `config.db` (and every `bifrost-backup` copy). The provider had
+no use: no virtual key allowed it (all 6 have `allow_all_providers=False`), and its whole history was 7 keyless test
+requests, the last on 2026-10-09. Local models route through LiteLLM. So it was deleted:
+```
+kubectl -n weyland exec -i deploy/weyland-guard -c weyland-guard -- python -c "import os,httpx; c=httpx.Client(base_url='http://bifrost.weyland.svc.cluster.local:8080',headers={'X-Bifrost-Setup-Token':os.environ['BIFROST_SETUP_TOKEN']},timeout=30); print('delete', c.delete('/api/providers/ollama').status_code); print('after', c.get('/api/providers/ollama').status_code)"
+```
+Expect `delete 200` and `after 404`. Backups from then on hold 21 providers; a restore from an older backup brings it
+back, and its model-list refresh then shows up as `401 … fasthttp` in the proxy log: run the command again.
+
+ — budgets + key-sealing (B111 on v1.6.7; re-verified on v2.2.6, B202)
 
 **Per-provider budget caps** (`scripts/register_bifrost_governance.py`, idempotent). Budgets are on a
 **model-config** `(provider, model_name:"*", scope:"global")` via `POST /api/governance/model-configs` with nested
