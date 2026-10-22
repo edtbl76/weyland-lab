@@ -1,0 +1,18 @@
+# B179 (2026-10-22) — remove the Emdash run worktrees that hold nothing: no uncommitted or untracked change, no commit
+# off origin/main, older than 24 h. Every `agent-ready-nightly` run opens one, even with no `agent-ready` issue; 10 had
+# piled up by 2026-10-22. Anything with work in it is kept and named in the journal. USER unit (the worktrees and the repo
+# are in the user's home). See docs/runbooks/software-factory.md § Worktree sweep.
+#   Install:  cp nodes/rogueone/systemd/emdash-worktree-sweep.{service,timer} ~/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now emdash-worktree-sweep.timer
+#   Dry run:  bash scripts/emdash-worktree-sweep.sh   ·   logs: journalctl --user -u emdash-worktree-sweep
+[Unit]
+Description=Emdash run worktree sweep — remove the empty ones (B179)
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+# Invoked via bash (the repo file may not carry the exec bit).
+ExecStart=/bin/bash /home/edwardmangini/IdeaProjects/weyland/scripts/emdash-worktree-sweep.sh --apply
+StandardOutput=journal
+StandardError=journal

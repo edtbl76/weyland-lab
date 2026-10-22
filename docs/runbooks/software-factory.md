@@ -105,6 +105,38 @@ morning, read the run's transcript (`~/.claude/projects/*emdash-<run>*/*.jsonl`)
 `agent-ready` label** (otherwise the next run redoes it) and clear the worktree:
 `git worktree remove <path> && git branch -D emdash-<run>`.
 
+## Worktree sweep — `emdash-worktree-sweep` (B179, 2026-10-22)
+
+Every run opens a worktree and an `emdash-<run>` branch, even on a night with no `agent-ready` issue, and nothing removed
+them: 10 had piled up by 2026-10-22, all empty. A daily user timer (06:30 NY, after the 04:00 run and the 06:00 watch)
+removes a run worktree and its branch only when it has **no uncommitted or untracked change**, **no commit that is not on
+`origin/main`**, and is **older than 24 h** (so a run in progress is never touched). Anything with work in it is kept and
+named in the journal: review those by hand, as above. Only worktrees under `~/emdash/worktrees` on an `emdash-` branch are
+considered. Logic `scripts/emdash-worktree-sweep.sh` (8 bats against real git repos), units
+`nodes/rogueone/systemd/emdash-worktree-sweep.{service,timer}`.
+
+See what it would do (removes nothing):
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/emdash-worktree-sweep.sh
+```
+2026-10-22: `would remove` 8 empty worktrees (79 to 237 h old), 2 kept as younger than 24 h.
+
+Before the first timed run, prove Emdash tolerates a worktree disappearing (it keeps its own record of each run): remove
+the oldest by hand, then open Emdash, check the run list still shows and the automation is still enabled.
+
+[rogueone]
+```
+git -C /home/edwardmangini/IdeaProjects/weyland worktree remove /home/edwardmangini/emdash/worktrees/weyland-93040a9c/emdash-da39df5f && git -C /home/edwardmangini/IdeaProjects/weyland branch -D emdash-da39df5f
+```
+Then install the timer (and see the journal after the first run):
+
+[rogueone]
+```
+cp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/emdash-worktree-sweep.service /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/emdash-worktree-sweep.timer /home/edwardmangini/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now emdash-worktree-sweep.timer && systemctl --user start emdash-worktree-sweep.service && journalctl --user -u emdash-worktree-sweep -n 20 --no-pager
+```
+
 ## Freshness — `emdash-conveyor-watch` (B179 DoD)
 
 The conveyor fails by silence (no app, no run), so a daily check at 06:00 NY reads Emdash's run records, read-only,

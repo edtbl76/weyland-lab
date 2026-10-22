@@ -1,0 +1,12 @@
+# B179 (2026-10-22) — sweep the empty Emdash run worktrees daily at 06:30 NY: after the 04:00 conveyor run and the 06:00
+# freshness watch. The 24 h age floor in the script, not this slot, is what keeps a run in progress safe. Persistent: a
+# sweep missed while rogueone was off runs at the next boot.
+[Unit]
+Description=Emdash run worktree sweep daily at 06:30 (B179)
+
+[Timer]
+OnCalendar=*-*-* 06:30:00 America/New_York
+Persistent=true
+
+[Install]
+WantedBy=timers.target
