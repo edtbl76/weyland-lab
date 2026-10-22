@@ -26,6 +26,22 @@ Exit 0: every write surface has a policy, a front door or a tracked gap (gaps ar
 each defect: an open write surface, a missing or non-boolean `writes`, or a gap with no backlog item. Exit 2 means it
 couldn't check (the registry is unreadable, or no policy was parsed at all).
 
+**Do the front doors let the notebooks in?** (2026-10-21, CI repo-guards.) A front door admits the callers its author
+listed; the JupyterHub notebooks were never listed, so Trino and Valkey refused them for a week and only a by-hand run of
+the whole notebook library found it. This reads every notebook's `<service>.<namespace>.svc` hosts and fails when a
+NetworkPolicy selecting that Service does not admit the singleuser servers:
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-notebook-front-doors.sh --list
+```
+Exit 0: `OK — 27 notebook(s) dial 23 in-cluster service(s): 6 behind a front door that admits them, 16 with no front
+door, 1 not in git (Helm-made).` (2026-10-21). Exit 1 names the notebooks, the host and the policy, with the from-entry
+to add (`namespaceSelector kubernetes.io/metadata.name=jupyterhub` + `podSelector component=singleuser-server`) and its
+pin in `write-surface-netpol.bats`. Exit 2: it could not check (no notebooks, a manifest or notebook that does not
+parse). **Proven failing (RUN 2026-10-21):** the real tree with Trino's notebook entry removed from a scratch copy →
+`20_query_trino_federation.ipynb, 40_transform_dbt_marts.ipynb, 62_eval_rag.ipynb, 72_authz_ranger.ipynb dial
+trino.data-mesh, but trino-front-door-only does not admit the singleuser servers`, exit 1. What it does not cover: an
+Istio AuthorizationPolicy front door, and a poll path like the no-auth proxy's `nextUri` (pinned by its own bats case).
+
 ## Add a service that takes writes
 
 1. Set `writes: true` on its `applications.yaml` entry.

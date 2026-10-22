@@ -92,6 +92,10 @@ steps:
       # a NetworkPolicy / AuthorizationPolicy selecting its pods, a stated `front_door`, or a tracked `accepted_gap: B<n>`.
       # The Dagster API, store-scaler and the Realm took writes from any pod until 2026-10-14. Pure file analysis.
       - bash scripts/check-write-surfaces.sh
+      # 2026-10-21 — every in-cluster service a JupyterHub notebook dials admits the singleuser servers through any
+      # front-door NetworkPolicy that selects it. B211's front doors refused the notebooks for a week (Trino, Valkey);
+      # each policy's pin proved its LISTED callers, nothing asked whether every REAL caller was listed. Pure file analysis.
+      - bash scripts/check-notebook-front-doors.sh
       - bash scripts/check-quality-tools.sh
       # Every OpenTofu dir under nodes/ must pass `tofu fmt -check` — 7 files had drifted unnoticed (2026-09-24),
       # burying real diffs in re-alignment noise. Parse errors are exit 2, not a formatting finding.
