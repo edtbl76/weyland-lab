@@ -46,6 +46,9 @@ spec:
             - secretRef:
                 name: bifrost-provider-keys
           env:
+            # B211 (2026-10-22): rogueone's Ollama front door asks remote callers for this bearer token.
+            - name: OLLAMA_API_KEY
+              valueFrom: { secretKeyRef: { name: ollama-proxy-token, key: token } }
             # LiteLLM's OWN Anthropic key (2026-10-17, after the OpenCode exposure). It used to read ANTHROPIC_API_KEY from
             # the envFrom above — Bifrost's secret — so the two gateways shared one key. The litellm-secrets
             # ANTHROPIC_API_KEY slot (set from ANTHROPIC_LITELLM_KEY in .env) is LiteLLM's own. docs/runbooks/secrets-map.md.

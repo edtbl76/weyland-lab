@@ -12,6 +12,8 @@ import time
 
 import httpx
 
+from weyland_pipeline.ollama_auth import ollama_headers
+
 
 def _api_base(ollama_url: str) -> str:
     # The eval / tool-server use the OpenAI-compat ".../v1" base; the native unload
@@ -21,7 +23,7 @@ def _api_base(ollama_url: str) -> str:
 
 def _resident(base: str) -> list[str]:
     try:
-        r = httpx.get(f"{base}/api/ps", timeout=10)
+        r = httpx.get(f"{base}/api/ps", timeout=10, headers=ollama_headers())
         r.raise_for_status()
         return [m.get("model") or m.get("name") for m in r.json().get("models", [])]
     except Exception:
@@ -47,7 +49,8 @@ def drain_gpu(ollama_url: str, timeout_s: int = 90, poll_s: float = 2.0, log=Non
     _say(f"[drain] unloading resident model(s): {resident}")
     for m in resident:
         try:
-            httpx.post(f"{base}/api/generate", json={"model": m, "keep_alive": 0, "prompt": ""}, timeout=30)
+            httpx.post(f"{base}/api/generate", json={"model": m, "keep_alive": 0, "prompt": ""}, timeout=30,
+                       headers=ollama_headers())
         except Exception as e:
             _say(f"[drain] unload request for {m} errored (continuing to poll): {e}")
 

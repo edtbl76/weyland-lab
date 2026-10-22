@@ -73,6 +73,9 @@ spec:
             periodSeconds: 15
             failureThreshold: 6
           env:
+            # B211 (2026-10-22): rogueone's Ollama front door asks remote callers for this bearer token.
+            - name: OLLAMA_API_KEY
+              valueFrom: { secretKeyRef: { name: ollama-proxy-token, key: token } }
             # B49(b) Phase 2 — app-level spans → Tempo OTLP (OPT-IN; unset = no tracing). service.name=weyland-dagster;
             # coarse per-dataset store-load spans (weyland_pipeline/_otel.py). Runbook: observability.md.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT

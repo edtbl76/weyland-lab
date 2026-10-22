@@ -24,7 +24,7 @@ OUT="${OUT:-$HOME/sealed-out}"
 SEAL=0; [ "${1:-}" = "--seal" ] && SEAL=1
 
 SECRETS=(
-  # --- weyland (36) ---
+  # --- weyland (37) ---
   weyland/aidlc-kb-minio-secret
   weyland/apisix-secret
   weyland/cosign-signing-key         # B88 — cosign image-signing key. ⚠ BRICKING: lose it and every
@@ -39,6 +39,7 @@ SECRETS=(
   weyland/linear-backup-secret        # B194 — READ-ONLY Linear API key (LINEAR_API_KEY_RO) for the nightly Linear backup asset
   weyland/typesafe-api                # B174 — TypeSafe (Jev) API key for the operator's decision-model shadow (prepaid credit)
   weyland/bifrost-setup-token         # B202 — Bifrost v2.2.6+ setup token (X-Bifrost-Setup-Token; dashboard auth off)
+  weyland/ollama-proxy-token          # B211 — bearer token for rogueone's Ollama front door (OLLAMA_API_KEY in 8 workloads)
   weyland/realm-of-agents-secret      # B209 — the Realm's agents-read Bifrost VK (BIFROST_VK); unsealed until the 2026-10-21 DoD re-audit
   weyland/registry-push-auth          # B211 — htpasswd for registry-push.weyland.lab (Traefik basic auth on image pushes)
   weyland/glitchtip-secret            # ⚠ bricking: Django SECRET_KEY — also escrow off-cluster

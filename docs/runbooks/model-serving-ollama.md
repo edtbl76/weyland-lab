@@ -17,16 +17,12 @@ reference — they still apply to the CPU-offloaded portion of any model that ov
 
 - **Address:** `192.168.1.230` → API at **`http://192.168.1.230:11434`** (OpenAI-compatible `/v1`),
   DNS **`ollama.weyland.lab`**. LAN-bound via `OLLAMA_HOST=0.0.0.0:11434`.
-- **Firewall (B211, 2026-10-14):** Ollama has no auth, and `/api/pull`, `/api/delete` and `/api/create` change what it
-  serves. rogueone's ufw admits `:11434` only from **mother** (`192.168.1.243`: every pod's traffic arrives SNATed to
-  it) and **docker0** (`172.17.0.0/16`: the OpenHands containers); loopback stays open for local clients. The rest of the
-  LAN is denied. Applied with, and shown by:
-  ```
-  sudo ufw allow from 192.168.1.243 to any port 11434 proto tcp && sudo ufw allow from 172.17.0.0/16 to any port 11434 proto tcp && sudo ufw deny 11434/tcp
-  sudo ufw status numbered | grep 11434     # the two ALLOWs must be listed ABOVE the DENY
-  ```
-  A port rule can't tell `/api/pull` from `/api/chat`, so pods on mother can still pull or delete models; closing
-  that needs a path-filtering proxy in front of an Ollama bound to 127.0.0.1 (not done).
+- **Front door (B211, 2026-10-22):** Ollama has no authentication. It binds **`127.0.0.1:11434`**, and
+  `ollama-proxy.service` (nginx) owns `192.168.1.230:11434` and `172.17.0.1:11434`. A remote caller must send
+  `Authorization: Bearer <token>`; model management (`/api/pull`, `/api/push`, `/api/create`, `/api/copy`,
+  `/api/delete`, `/api/blobs`) is refused to every remote caller, token or not. rogueone's own processes (loopback, its
+  LAN address, docker0) need no token. ufw still admits `:11434` only from mother and docker0. Full section:
+  [§ Front door](#front-door--token-proxy-b211-2026-10-22).
 - **Hardware:** RTX 5000 Ada (16 GB VRAM) + 128 GB RAM. Models that fit in VRAM run fully on GPU;
   larger models (e.g. 30B@Q4 ≈ 20 GB) offload the overflow layers to CPU/RAM.
 - **Serves:** the eval-judge panel, weyland-tool-server RAG (`/context/ask`), Open WebUI, and Hermes.
@@ -104,6 +100,106 @@ your question
 - **Embedding (step 1)** is a separate, **fixed** model (`bge-small`, in the tool-server image) —
   it's what finds the relevant chunks, is **not** one of the 6, and doesn't change when you pick a
   different generation model. So all 6 reason over the *same* retrieved context.
+
+## Front door — token proxy (B211, 2026-10-22)
+
+**Why.** ufw admitted mother, and every pod's traffic reaches rogueone SNATed to mother's address, so "only mother" meant
+any pod in the cluster, and `/api/pull` or `/api/delete` from any pod changed what Ollama serves. A port rule cannot tell
+one pod from another, so the door is now a token. One token, `OLLAMA_PROXY_TOKEN` in `scripts/.env`, is sealed into the
+cluster as `ollama-proxy-token` (key `token`) and written to rogueone's `/etc/ollama-proxy-secret/token.map`.
+
+| Piece | Where |
+|---|---|
+| The proxy | `nodes/rogueone/ollama-proxy/` (`nginx.conf` + `listen.conf`, `local-sources.conf`, `upstream.conf`), run by `nodes/rogueone/systemd/ollama-proxy.service` (nginx in Docker, host network, image pinned by digest) |
+| Ollama on loopback | `nodes/rogueone/systemd/ollama-host.conf` (`OLLAMA_HOST=127.0.0.1:11434`) |
+| The callers | `OLLAMA_API_KEY` from `ollama-proxy-token` in LiteLLM, Dagster user-code, tool-server, weyland-agent, guardrails-structure, promptfoo, nemo-guardrails (`api_key_env_var`); the operator's `LLM_API_KEY` (chat client and health check). The MLflow gateway's `ollama-local` secret and Open WebUI's Ollama connection key hold the same value |
+| Firewall | `nodes/rogueone/ufw/rogueone-ufw.sh` (`--apply`, `--check`): `:11434` and `:8765` |
+| Tests | `nodes/rogueone/ollama-proxy/test-proxy.sh` (a real Ollama behind the repo config, 9 cases), `scripts/tests/ollama-proxy.bats`, `scripts/tests/rogueone-ufw.bats` |
+
+**Prove the proxy before deploying it** (a real `ollama/ollama:0.31.2` behind the repo's config; a throwaway token):
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama-proxy/test-proxy.sh
+```
+Expect 9 `ok` lines and `OK — the proxy admits only the token from a remote source and never forwards model management.`
+Each client type was also proven in its real image against that proxy (2026-10-22): LiteLLM (`OLLAMA_API_KEY`),
+guardrails-structure, nemo-guardrails, promptfoo and LangChain's `ChatOpenAI` all logged **401** without the token and
+reached Ollama (its own **404** for the missing model) with it. nemo-guardrails refuses to load its config when the env
+var is unset, so a missing secret fails loudly.
+
+**Roll it out, in this order.** Steps 1 to 4 change nothing for callers (Ollama still answers anyone on the LAN side and
+ignores the header), so the token is in every caller before step 6 makes it required.
+
+1. The token, generated into `scripts/.env` (never typed, never printed):
+
+   [rogueone]
+   ```
+   grep -q '^OLLAMA_PROXY_TOKEN=.' /home/edwardmangini/IdeaProjects/weyland/scripts/.env || printf 'OLLAMA_PROXY_TOKEN=%s\n' "$(openssl rand -hex 32)" >> /home/edwardmangini/IdeaProjects/weyland/scripts/.env
+   ```
+2. The cluster Secret, then check its stored length (64 hex characters → 88 base64), then seal it:
+   ```
+   set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && kubectl -n weyland create secret generic ollama-proxy-token --from-literal=token="$OLLAMA_PROXY_TOKEN" --dry-run=client -o yaml | kubectl apply -f -
+   ```
+   ```
+   kubectl -n weyland get secret ollama-proxy-token -o jsonpath='{.data.token}' | wc -c
+   ```
+   ```
+   kubectl -n weyland annotate secret ollama-proxy-token sealedsecrets.bitnami.com/managed=true --overwrite && kubectl -n weyland get secret ollama-proxy-token -o yaml | kubeseal --format yaml > /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/weyland__ollama-proxy-token.yaml
+   ```
+3. Push (the sealed file with the manifests and code), CI, then `ship-images.sh` (tool-server, operator,
+   guardrails-structure, nemo-guardrails, Dagster user-code), and weyland-agent by hand (`push-image.sh`, the next free
+   `:vN`). Argo rolls LiteLLM and promptfoo from their manifests.
+4. The two callers that store the key themselves: the MLflow gateway (`register_gateway_endpoints.py` rotates the
+   `ollama-local` secret in place from `OLLAMA_PROXY_TOKEN`), and Open WebUI (Admin Panel → Settings → Connections →
+   Ollama API → the connection's settings → Key: the `OLLAMA_PROXY_TOKEN` value). Open WebUI keeps connection settings in
+   its database, so an env var would be ignored.
+
+   [rogueone]
+   ```
+   python3 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_gateway_endpoints.py
+   ```
+5. rogueone's copy of the token, for the proxy:
+
+   [rogueone]
+   ```
+   sudo install -d -m 0700 /etc/ollama-proxy-secret && set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && printf '"Bearer %s" 1;\n' "$OLLAMA_PROXY_TOKEN" | sudo tee /etc/ollama-proxy-secret/token.map >/dev/null && sudo chmod 0600 /etc/ollama-proxy-secret/token.map
+   ```
+6. The flip (seconds without Ollama on the LAN): Ollama to loopback, then the proxy onto the freed address.
+
+   [rogueone]
+   ```
+   sudo install -m 0644 /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/ollama-host.conf /etc/systemd/system/ollama.service.d/override.conf && sudo install -m 0644 /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/ollama-proxy.service /etc/systemd/system/ollama-proxy.service && sudo systemctl daemon-reload && sudo systemctl restart ollama && sudo systemctl enable --now ollama-proxy
+   ```
+7. Check: a pod with no token is refused, the callers are served, the firewall is in place.
+   ```
+   kubectl -n weyland exec deploy/weyland-guard -c weyland-guard -- python -c "import httpx; print(httpx.get('http://192.168.1.230:11434/api/tags', timeout=10).status_code)"
+   ```
+   Expect `401`. Then the callers (expect `200`, and an answer): `GET /ollama/health` on tool-server, one `wl-local` call
+   through LiteLLM, the operator's `/operator/ask`, an Open WebUI chat. The proxy's access log shows each caller's
+   status, never the token:
+
+   [rogueone]
+   ```
+   docker logs --since 10m ollama-proxy 2>&1 | awk '{print $1, $7, $9}' | sort | uniq -c | sort -rn | head -20
+   ```
+   [rogueone]
+   ```
+   sudo bash /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ufw/rogueone-ufw.sh --check
+   ```
+   A `401` from `192.168.1.243` in the log is a caller still without the token: find it before moving on.
+
+**Roll back** (any caller broken and not fixable on the spot): stop the proxy and put Ollama back on all addresses.
+
+[rogueone]
+```
+sudo systemctl disable --now ollama-proxy && printf '[Service]\nEnvironment="OLLAMA_HOST=0.0.0.0"\n' | sudo tee /etc/systemd/system/ollama.service.d/override.conf >/dev/null && sudo systemctl daemon-reload && sudo systemctl restart ollama
+```
+The callers keep sending the header, which Ollama ignores, so nothing else needs reverting. Then revert
+`ollama-host.conf` in git so the repo matches.
+
+**Rotate the token:** steps 1 (delete the old line first), 2, 4 and 5, then `sudo systemctl restart ollama-proxy` and
+restart the callers (`kubectl rollout restart` of the 8 deployments; they read the secret at start).
 
 ## Performance tuning — CPU thread count (CRITICAL for CPU-offloaded layers — ~160× fix)
 

@@ -46,6 +46,8 @@ LOCAL_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-operator")
 # Cap each tool result the LOCAL brain sees (chars, ~4/token). One `k8s_pods_list_in_namespace` is ~18K tokens — on its
 # own more than a 16K slot. The graph keeps the full result; only the model's input is trimmed. Haiku is not capped.
 LOCAL_TOOL_RESULT_CAP = int(os.getenv("LOCAL_TOOL_RESULT_CAP", "12000"))
+# The bearer token rogueone's Ollama front door asks remote callers for (B211; secret ollama-proxy-token). Any value
+# passes the OpenAI client; the proxy checks it.
 LOCAL_API_KEY = os.getenv("LLM_API_KEY", "ollama")
 # A small model tool-calls cleanly only on a FEW real tools. Curate the fleet (namespaced k8s_/grafana_/trino_/…) to the
 # ops core for the LOCAL brain. Comma substrings matched against tool names; empty → the full fleet. Anything outside
@@ -204,8 +206,9 @@ async def _local_healthy() -> bool:
         return _health["ok"]
     ok = True
     try:
+        # B211: rogueone's front door answers 401 without the token, which would read as "down" and fail over to Haiku.
         async with httpx.AsyncClient() as c:
-            r = await c.get(HEALTH_URL, timeout=HEALTH_TIMEOUT)
+            r = await c.get(HEALTH_URL, timeout=HEALTH_TIMEOUT, headers={"Authorization": f"Bearer {LOCAL_API_KEY}"})
             ok = r.status_code == 200
     except Exception:
         ok = False

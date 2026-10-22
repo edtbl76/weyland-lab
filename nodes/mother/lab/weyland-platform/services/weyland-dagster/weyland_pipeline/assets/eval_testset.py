@@ -12,6 +12,7 @@ import re
 import httpx
 from dagster import Output, MetadataValue, asset
 
+from weyland_pipeline.ollama_auth import ollama_headers
 from weyland_pipeline.resources import PostgresResource
 
 EVAL_MODELS = os.environ.get(
@@ -129,6 +130,7 @@ def _generate_questions(docs: list[dict], n: int) -> list[dict]:
                 "response_format": {"type": "json_object"},  # constrain output to valid JSON
             },
             timeout=600,
+            headers=ollama_headers(),
         )
         resp.raise_for_status()
         last = resp.json()["choices"][0]["message"].get("content") or ""

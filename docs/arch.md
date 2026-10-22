@@ -192,7 +192,7 @@ NodePort had never worked (see MySQL below).
 ### weyland CTs
 | Component | Endpoint | Purpose |
 |---|---|---|
-| Ollama (rogueone, **B79**) | `ollama.weyland.lab:11434/v1` (.230) | **GPU** LLM serving on rogueone — moved off CT-102 2026-07-12 (freed 32 GB → mother 50→64 GB); 6 models; serves the eval-judge panel + tool-server/open-webui + the **B66 operator brain (`qwen2.5:7b`, local-primary; Haiku failover when the card can't serve)** + the MLflow gateway's guardrail judge (`qwen3:14b`, B215). `OLLAMA_HOST=0.0.0.0`. **Driver (B226):** the NVIDIA packages are held back from unattended-upgrades (`/etc/apt/apt.conf.d/51weyland-hold-nvidia`; rogueone boots one pinned kernel with a DKMS-built module, so module and driver drift only when a driver moves without a reboot — it ran nine days unseen, 2026-10-09 → 10-19), and the hourly `gpu-driver-drift` user timer pushes module-vs-driver to Kuma. |
+| Ollama (rogueone, **B79**) | `ollama.weyland.lab:11434/v1` (.230) | **GPU** LLM serving on rogueone — moved off CT-102 2026-07-12 (freed 32 GB → mother 50→64 GB); 6 models; serves the eval-judge panel + tool-server/open-webui + the **B66 operator brain (`qwen2.5:7b`, local-primary; Haiku failover when the card can't serve)** + the MLflow gateway's guardrail judge (`qwen3:14b`, B215). `OLLAMA_HOST=127.0.0.1:11434` behind **`ollama-proxy.service`** (B211, 2026-10-22: nginx on `.230:11434` asks every remote caller for the `ollama-proxy-token` bearer token and refuses remote model management; ufw admits only mother + docker0). **Driver (B226):** the NVIDIA packages are held back from unattended-upgrades (`/etc/apt/apt.conf.d/51weyland-hold-nvidia`; rogueone boots one pinned kernel with a DKMS-built module, so module and driver drift only when a driver moves without a reboot — it ran nine days unseen, 2026-10-09 → 10-19), and the hourly `gpu-driver-drift` user timer pushes module-vs-driver to Kuma. |
 | whisper-server (CT 103) | `whisper.weyland.lab:8080/inference` (.246) | native whisper.cpp STT (multipart). |
 | whisper OpenAI shim (CT 103) | `whisper.weyland.lab:9000/v1/audio/transcriptions` (.246) | OpenAI-compatible STT adapter -> whisper-server. |
 | ~~Hermes (CT 104)~~ RETIRED | — (destroyed 2026-07-23) | **Decommissioned** (B2, NousResearch agent). Replaced by the **B66 operator agent** — a LangGraph pod on mother, local `qwen2.5:7b` brain (curated flat toolset; Haiku health-failover), Telegram long-poll, tool-server `/mcp-act` (job-allowlist + confirm-step). Kanban (B27) → Linear. Design rationale kept in `concepts/agent-platform-design.md`. |
@@ -1645,7 +1645,8 @@ run found 11 more, tracked as **B211** (buildkitd + the no-auth registry first).
 `istio_requests_total`), then a NetworkPolicy admitting only them. Covered: buildkitd (the two CI build steps), Flink's
 JobManager, MLflow (its NodePort admits only rogueone), Trino and the no-auth proxy, Nessie, APISIX's etcd, OpenSearch,
 Feast (plus forward-auth on its open ingress), the operator (and `/operator/ask` free by default) and promptfoo. Ollama
-runs on rogueone, so its door is the host firewall (ufw admits only mother and the local Docker bridge). The stores
+runs on rogueone, so its door was the host firewall (ufw admits only mother and the local Docker bridge); since
+2026-10-22 it is a token proxy, because every pod reaches rogueone as mother (model-serving-ollama.md § Front door). The stores
 behind them got the same treatment: Redpanda, both Valkeys, DataHub's OpenSearch. **The registry** took
 unauthenticated pushes, so any pod could replace an image every workload pulls. It splits into a pull name,
 `registry.weyland.lab` (Traefik routes only GET/HEAD), and an authenticated push name, `registry-push.weyland.lab`

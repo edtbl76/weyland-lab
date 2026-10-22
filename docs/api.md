@@ -20,7 +20,7 @@ Hosts & access users: [hosts.md](hosts.md). `mother` = 192.168.1.243, CTs by IP 
 
 | Service | Host | Endpoint | OpenAI? | Notes |
 |---|---|---|---|---|
-| **Ollama** (LLM, **B79 → rogueone**) | rogueone (GPU) | `http://ollama.weyland.lab:11434/v1` (`192.168.1.230`) | ✅ | **Moved off CT-102 2026-07-12** (freed 32 GB → mother 50→64 GB); 6 models on the RTX 5000 Ada; `OLLAMA_HOST=0.0.0.0`. See [runbooks/model-serving-ollama.md](runbooks/model-serving-ollama.md). |
+| **Ollama** (LLM, **B79 → rogueone**) | rogueone (GPU) | `http://ollama.weyland.lab:11434/v1` (`192.168.1.230`) | ✅ | **Moved off CT-102 2026-07-12** (freed 32 GB → mother 50→64 GB); 6 models on the RTX 5000 Ada; Ollama binds `127.0.0.1`; `ollama-proxy.service` serves `:11434` and wants `Authorization: Bearer <ollama-proxy-token>` from every remote caller, refusing remote model management (B211, 2026-10-22). See [runbooks/model-serving-ollama.md](runbooks/model-serving-ollama.md). |
 | **whisper shim** (STT) | whisper CT 103 | `http://whisper.weyland.lab:9000/v1/audio/transcriptions` (`192.168.1.246`) | ✅ | OpenAI-compatible adapter → whisper.cpp. See [runbooks/transcription-whisper.md](runbooks/transcription-whisper.md). |
 | **whisper-server** (STT, native) | whisper CT 103 | `http://whisper.weyland.lab:8080/inference` (`192.168.1.246`) | ✗ | Raw whisper.cpp multipart endpoint. |
 | **vLLM** (LLM, GPU — **B111 bench**) | rogueone | `http://192.168.1.230:8001/v1` (Bifrost `vllm`) | ✅ (on-demand) | On-demand throughput/continuous-batching bench — `Qwen2.5-7B-Instruct-AWQ`; **native Docker engine only** (`DOCKER_HOST=…docker.sock`) + VRAM-capped. `scripts/vllm-bench.sh`. See [runbooks/gpu-inference.md](runbooks/gpu-inference.md) + [demos/gpu-inference.md](demos/gpu-inference.md). |

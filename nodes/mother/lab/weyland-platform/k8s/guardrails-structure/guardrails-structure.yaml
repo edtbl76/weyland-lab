@@ -37,6 +37,9 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           env:
+            # B211 (2026-10-22): rogueone's Ollama front door asks remote callers for this bearer token.
+            - name: OLLAMA_API_KEY
+              valueFrom: { secretKeyRef: { name: ollama-proxy-token, key: token } }
             - name: OLLAMA_BASE_URL          # where the re-ask reaches the judge models (litellm ollama_chat)
               value: http://192.168.1.230:11434
           # First /ready imports guardrails-ai + litellm (heavy) and builds the Guard — allow ~2.5 min before liveness.

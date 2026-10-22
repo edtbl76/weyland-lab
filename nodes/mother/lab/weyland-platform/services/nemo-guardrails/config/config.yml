@@ -11,9 +11,10 @@ models:
   - type: main
     engine: openai
     model: gpt-oss:20b
+    # B211 (2026-10-22): rogueone's Ollama front door wants a bearer token (secret ollama-proxy-token).
+    api_key_env_var: OLLAMA_API_KEY
     parameters:
       base_url: http://192.168.1.230:11434/v1
-      api_key: ollama
 
 rails:
   input:

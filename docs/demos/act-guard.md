@@ -162,7 +162,8 @@ Kubernetes namespaces"), and `operator_brain_selected_total{brain="local"}` coun
 
 **14. The guard:** `check-write-surfaces.sh` → `OK — 61 deployed service(s): 40 take writes, each with a policy, a front
 door or a tracked gap (0 gap(s)); 21 read-only.` Ollama, on rogueone, counts as a front door: ufw admits only mother and
-the local Docker bridge on 11434.
+the local Docker bridge on 11434. (Since 2026-10-22 the door is a token proxy: ufw could not tell one pod from another,
+because every pod arrives as mother. See [model-serving-ollama.md](../runbooks/model-serving-ollama.md) § Front door.)
 
 ## GuardCallsFailing: the alert can fire and reaches Telegram (run 2026-10-21)
 

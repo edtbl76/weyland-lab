@@ -16,6 +16,7 @@ import os
 import httpx
 from dagster import asset, Output, MetadataValue
 
+from weyland_pipeline.ollama_auth import ollama_headers
 from weyland_pipeline.resources import PostgresResource
 
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
@@ -95,7 +96,7 @@ def _gemini() -> list[dict]:
 
 def _ollama() -> list[dict]:
     base = OLLAMA_BASE_URL.replace("/v1", "")  # /api/tags is the native list
-    resp = httpx.get(f"{base}/api/tags", timeout=15)
+    resp = httpx.get(f"{base}/api/tags", timeout=15, headers=ollama_headers())
     resp.raise_for_status()
     return [{
         "source": "ollama",

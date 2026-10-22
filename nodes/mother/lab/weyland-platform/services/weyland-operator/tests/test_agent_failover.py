@@ -304,3 +304,26 @@ def test_only_the_local_brains_cap_tool_results(agent_mod):
 
 def test_the_prompt_sends_recall_questions_to_shared_memory(agent_mod):
     assert "memory_search_notes" in agent_mod.SYSTEM and "memory_read_note" in agent_mod.SYSTEM
+
+
+def test_the_health_check_presents_the_ollama_token(agent_mod, monkeypatch):
+    """B211 (2026-10-22): rogueone's front door answers 401 to a remote caller without the token. A token-less health check
+    would read that as "Ollama down" and send every chat to PAID Haiku, silently. The check sends the brain's own key."""
+    seen = {}
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get(self, url, timeout=None, headers=None):
+            seen.update(url=url, headers=headers or {})
+            return types.SimpleNamespace(status_code=200)
+
+    monkeypatch.setattr(agent_mod.httpx, "AsyncClient", _Client)
+    monkeypatch.setattr(agent_mod, "LOCAL_API_KEY", "tok-123")
+    agent_mod._health["at"] = float("-inf")
+    assert asyncio.run(agent_mod._local_healthy()) is True
+    assert seen["headers"].get("Authorization") == "Bearer tok-123"

@@ -79,8 +79,9 @@ spec:
             # with ~2K per request and Ollama silently cut the ~6K-token prompt (2026-10-04). Build it on rogueone first.
             - name: OLLAMA_MODEL
               value: qwen2.5:7b-operator
+            # B211 (2026-10-22): the bearer token rogueone's Ollama front door asks for (the chat client and the health check).
             - name: LLM_API_KEY
-              value: ollama          # Ollama ignores the key; any non-empty string satisfies the OpenAI client
+              valueFrom: { secretKeyRef: { name: ollama-proxy-token, key: token } }
             # FALLBACK brain — Haiku via LiteLLM (flat fleet, handles all ~91 tools). Used ONLY when the local engine
             # fails a fast health pre-check (GET OLLAMA_HEALTH_URL, ~3s, cached ~30s) or errors mid-request — so a
             # rogueone/Ollama outage degrades to paid cloud instead of going dark, and steady-state Haiku spend ≈ $0.

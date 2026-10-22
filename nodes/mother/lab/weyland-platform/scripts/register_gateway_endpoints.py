@@ -52,10 +52,12 @@ _load_dotenv()
 
 GW = os.environ.get("MLFLOW_GATEWAY_API", "http://192.168.1.243:30500") + "/api/3.0/mlflow/gateway"  # mlflow-lan NodePort (rogueone)
 
-# One shared secret per provider. Ollama ignores the api_key, but the field is required -> a dummy.
+# One shared secret per provider. Ollama itself ignores the api_key; since B211 (2026-10-22) rogueone's front door checks
+# it, so it is the front-door token from scripts/.env (OLLAMA_PROXY_TOKEN). The value is never printed.
 OLLAMA_BASE = os.environ.get("OLLAMA_OPENAI_BASE", "http://192.168.1.230:11434/v1")  # /v1 is required
 SECRETS = [
-    {"secret_name": "ollama-local", "provider": "ollama", "api_key": "ollama", "api_base": OLLAMA_BASE},
+    {"secret_name": "ollama-local", "provider": "ollama", "api_key": os.environ.get("OLLAMA_PROXY_TOKEN", "ollama"),
+     "api_base": OLLAMA_BASE},
 ]
 # endpoint name -> (provider, secret_name, model_name). The 6 local models, unified behind the gateway.
 ENDPOINTS = [

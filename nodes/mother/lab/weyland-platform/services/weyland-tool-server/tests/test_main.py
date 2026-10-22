@@ -190,6 +190,25 @@ def test_check_ollama_ok_lists_models(monkeypatch):
     assert main._check_ollama() == {"status": "ok", "models": ["m1", "m2"]}
 
 
+def test_ollama_calls_present_the_front_door_token(monkeypatch):
+    # B211 (2026-10-22): rogueone's Ollama front door answers 401 to a remote caller without the bearer token.
+    monkeypatch.setattr(main, "OLLAMA_API_KEY", "tok-123")
+    seen = []
+
+    class _R:
+        def raise_for_status(self): pass
+        def json(self): return {"data": [], "choices": [{"message": {"content": "hi"}}]}
+
+    def _call(url, **kw):
+        seen.append(kw.get("headers") or {})
+        return _R()
+    monkeypatch.setattr(main.httpx, "get", _call)
+    monkeypatch.setattr(main.httpx, "post", _call)
+    main._check_ollama()
+    main._ollama_chat([{"role": "user", "content": "q"}], "m")
+    assert [h.get("Authorization") for h in seen] == ["Bearer tok-123", "Bearer tok-123"]
+
+
 def test_check_ollama_error_is_failopen_dict(monkeypatch):
     def _boom(*a, **k):
         raise httpx.ConnectError("ollama down")

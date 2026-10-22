@@ -11,6 +11,7 @@ Callers FAIL SAFE (a best-effort parse) when this service is unreachable, so a g
 same fail-open contract as Scan (`weyland-guard`) and Classify (`llama-guard`).
 """
 import os
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -18,6 +19,8 @@ from pydantic import BaseModel, Field
 
 # The eval judges run on Ollama (rogueone). litellm's `ollama_chat` provider wants the root WITHOUT `/v1`.
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.230:11434")
+# The bearer token rogueone's Ollama front door asks remote callers for (B211, 2026-10-22; secret ollama-proxy-token).
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "ollama")
 
 app = FastAPI(title="guardrails-structure")
 
@@ -62,15 +65,28 @@ def _ollama_base(api_base: str | None) -> str:
     return base[:-3].rstrip("/") if base.endswith("/v1") else base   # strip /v1 for litellm ollama_chat
 
 
+def _origin(url: str) -> tuple:
+    u = urlsplit(url)
+    return u.scheme, u.hostname, u.port
+
+
+def _key_for(base: str) -> str:
+    """The front-door token only for the configured Ollama: `api_base` comes from the request, and a caller-chosen URL
+    must never receive it. Compared as scheme + host + port, never as a string prefix (192.168.1.230.evil.example)."""
+    return OLLAMA_API_KEY if _origin(base) == _origin(_ollama_base(None)) else "ollama"
+
+
 @app.post("/structure/judge-scores", response_model=JudgeScoresResponse)
 def judge_scores(req: JudgeScoresRequest):
     """Validate the judge's raw output against JudgeScores; RE-ASK the same judge model to repair on a schema miss.
     Returns empty scores + validation_passed=False on any failure — the caller fails safe to its own best-effort parse."""
     try:
+        base = _ollama_base(req.api_base)
         outcome = _get_guard().parse(
             llm_output=req.raw,
             model=f"ollama_chat/{req.model}",
-            api_base=_ollama_base(req.api_base),
+            api_base=base,
+            api_key=_key_for(base),
             num_reasks=req.num_reasks,
         )
         if outcome.validation_passed and outcome.validated_output:

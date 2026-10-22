@@ -38,6 +38,9 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           env:
+            # B211 (2026-10-22): rogueone's Ollama front door asks remote callers for this bearer token.
+            - name: OLLAMA_API_KEY
+              valueFrom: { secretKeyRef: { name: ollama-proxy-token, key: token } }
             - name: NEMO_MODEL_NAME          # the model id Open WebUI shows for the guarded lane
               value: weyland-operator
             - name: NEMO_CONFIG_PATH

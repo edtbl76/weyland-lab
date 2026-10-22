@@ -88,6 +88,12 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")  # B4 panel-validated mo
 # Generation on CPU is slow (~25 tok/s) and qwen3 may emit a long thinking block — keep
 # the timeout generous so legitimate answers aren't cut off mid-stream.
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))
+# The bearer token rogueone's Ollama front door asks remote callers for (B211, 2026-10-22; secret ollama-proxy-token).
+OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "ollama")
+
+
+def _ollama_headers() -> dict:
+    return {"Authorization": f"Bearer {OLLAMA_API_KEY}"}
 
 
 def validate_required_secrets() -> None:
@@ -557,7 +563,7 @@ def _check_neo4j() -> dict:
 def _check_ollama() -> dict:
     """Reachability + model inventory of the Ollama endpoint (GET /v1/models is cheap)."""
     try:
-        resp = httpx.get(f"{OLLAMA_BASE_URL}/models", timeout=5)
+        resp = httpx.get(f"{OLLAMA_BASE_URL}/models", timeout=5, headers=_ollama_headers())
         resp.raise_for_status()
         models = [m["id"] for m in resp.json().get("data", [])]
         return {"status": "ok", "models": models}
@@ -591,6 +597,7 @@ def _ollama_chat(messages: list[dict], model: str) -> str:
         f"{OLLAMA_BASE_URL}/chat/completions",
         json={"model": model, "messages": messages, "stream": False},
         timeout=OLLAMA_TIMEOUT,
+        headers=_ollama_headers(),
     )
     resp.raise_for_status()
     return resp.json()["choices"][0]["message"]["content"]

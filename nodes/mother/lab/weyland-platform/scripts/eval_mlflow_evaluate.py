@@ -33,7 +33,8 @@ except ImportError:
 _OLLAMA = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
 os.environ["OPENAI_API_BASE"] = _OLLAMA
 os.environ["OPENAI_BASE_URL"] = _OLLAMA
-os.environ.setdefault("OPENAI_API_KEY", "ollama")
+# The base URL above is Ollama, so the key is the front-door token (B211, 2026-10-22; secret ollama-proxy-token).
+os.environ["OPENAI_API_KEY"] = os.environ.get("OLLAMA_API_KEY", "ollama")
 JUDGE = os.environ.get("EVAL_MLFLOW_JUDGE", "openai:/gpt-oss:20b")
 
 mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow.weyland.svc.cluster.local:5000"))

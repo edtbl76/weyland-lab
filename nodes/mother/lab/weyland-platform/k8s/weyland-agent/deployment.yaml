@@ -51,6 +51,9 @@ spec:
             httpGet: { path: /ready, port: 8080 }
             periodSeconds: 10
           env:
+            # B211 (2026-10-22): rogueone's Ollama front door asks remote callers for this bearer token.
+            - name: OLLAMA_API_KEY
+              valueFrom: { secretKeyRef: { name: ollama-proxy-token, key: token } }
             - name: WEYLAND_DB_HOST
               value: weyland-postgres.weyland.svc.cluster.local
             - name: WEYLAND_DB_PORT

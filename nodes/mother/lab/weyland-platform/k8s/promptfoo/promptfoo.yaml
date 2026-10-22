@@ -98,6 +98,9 @@ spec:
           # host flag and binds localhost, so it can't back a Service. Evals are pushed via `kubectl exec ...
           # promptfoo eval` into the same PROMPTFOO_CONFIG_DIR the server reads.
           env:
+            # B211 (2026-10-22): rogueone's Ollama front door asks remote callers for this bearer token.
+            - name: OLLAMA_API_KEY
+              valueFrom: { secretKeyRef: { name: ollama-proxy-token, key: token } }
             - name: PROMPTFOO_CONFIG_DIR
               value: /data
             - name: OLLAMA_BASE_URL

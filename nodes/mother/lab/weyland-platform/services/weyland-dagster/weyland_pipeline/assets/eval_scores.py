@@ -15,6 +15,7 @@ from contextlib import contextmanager
 import httpx
 from dagster import Output, MetadataValue, asset, get_dagster_logger
 
+from weyland_pipeline.ollama_auth import ollama_headers
 from weyland_pipeline.resources import PostgresResource
 from weyland_pipeline.structure import validate_scores
 
@@ -79,6 +80,7 @@ def _judge(client: httpx.Client, judge_model: str, question: str, contexts, answ
                 "stream": False,
                 "response_format": {"type": "json_object"},
             },
+            headers=ollama_headers(),
         )
         resp.raise_for_status()
         content = _strip_think(resp.json()["choices"][0]["message"].get("content") or "")

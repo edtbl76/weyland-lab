@@ -1,0 +1,3 @@
+# Test-only deps for guardrails-structure, installed per-project by scripts/run-lang-tests.sh. guardrails-ai itself is
+# never imported by the tests (the Guard is stubbed); what they exercise is app.py's own decisions.
+fastapi

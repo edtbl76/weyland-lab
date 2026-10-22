@@ -34,7 +34,7 @@ model {
 
   // ---- rogueone: external laptop, always on (the operator's interface — owner, 2026-10-03) ----
   rogueone = node "rogueone" "RTX 5000 Ada laptop (.230) — GPU inference + training edge. Always on (the operator's interface)." {
-    ollama = component "Ollama" "LLM serving — ollama.weyland.lab :11434 (moved here B79). No auth of its own: ufw on rogueone admits only mother (192.168.1.243) and the local docker bridge to :11434 (B211), so every k3s pod reaches it through mother."
+    ollama = component "Ollama" "LLM serving — ollama.weyland.lab :11434 (moved here B79). No auth of its own, so it binds 127.0.0.1 and ollama-proxy (nginx, B211 2026-10-22) owns .230:11434: every remote caller sends the ollama-proxy-token bearer token, and remote model management (/api/pull, /api/delete, ...) is refused. ufw still admits only mother and docker0."
     vllm = component "vLLM" "On-demand GPU bench :8001/v1 — Qwen2.5-7B-AWQ, continuous batching (B111)"
     sglang = component "SGLang" "On-demand GPU bench :8002/v1 — Llama-3.2-1B, RadixAttention prefix caching (B111)"
     clefFlash = component "Clef-flash" "On-demand decision model :8004 (B174) — Cloudflare's Apache-2.0 9B, Jev-compatible POST /v1/systemone; 4-bit ~8.5 GB, so never beside the operator's qwen (scripts/clef-flash.sh)"

@@ -21,7 +21,9 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))
 RETRIEVE_LIMIT = int(os.getenv("AGENT_RETRIEVE_LIMIT", "5"))
 
-_llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama", model=OLLAMA_MODEL,
+# The bearer token rogueone's Ollama front door asks remote callers for (B211, 2026-10-22; secret ollama-proxy-token).
+OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "ollama")
+_llm = ChatOpenAI(base_url=OLLAMA_BASE_URL, api_key=OLLAMA_API_KEY, model=OLLAMA_MODEL,
                   timeout=OLLAMA_TIMEOUT, temperature=0)
 
 # B103 prompt federation — Langfuse prompt-linked tracing (alongside MLflow autolog). Fail-safe: never blocks a step.
