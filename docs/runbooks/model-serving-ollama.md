@@ -16,7 +16,8 @@ and CPU benchmark sections below were measured on the original CT-102 CPU deploy
 reference — they still apply to the CPU-offloaded portion of any model that overflows the 16 GB VRAM.
 
 - **Address:** `192.168.1.230` → API at **`http://192.168.1.230:11434`** (OpenAI-compatible `/v1`),
-  DNS **`ollama.weyland.lab`**. LAN-bound via `OLLAMA_HOST=0.0.0.0:11434`.
+  DNS **`ollama.weyland.lab`**. That address is the front door (`ollama-proxy.service`); Ollama itself binds
+  `OLLAMA_HOST=127.0.0.1:11434` since B211 (2026-10-22; it was `0.0.0.0`).
 - **Front door (B211, 2026-10-22):** Ollama has no authentication. It binds **`127.0.0.1:11434`**, and
   `ollama-proxy.service` (nginx) owns `192.168.1.230:11434` and `172.17.0.1:11434`. A remote caller must send
   `Authorization: Bearer <token>`; model management (`/api/pull`, `/api/push`, `/api/create`, `/api/copy`,
@@ -38,12 +39,12 @@ rogueone is a first-class LAN host with a normal login (no `pct` — that was th
 ## Install Ollama (on rogueone)
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
-# bind to the LAN (default is 127.0.0.1 only) via a systemd drop-in:
+# keep Ollama on loopback (the LAN address belongs to the front door, § Front door), from the repo's drop-in:
 sudo mkdir -p /etc/systemd/system/ollama.service.d
-printf '[Service]\nEnvironment="OLLAMA_HOST=0.0.0.0:11434"\n' \
-  | sudo tee /etc/systemd/system/ollama.service.d/override.conf
+sudo install -m 0644 /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/ollama-host.conf /etc/systemd/system/ollama.service.d/override.conf
 sudo systemctl daemon-reload && sudo systemctl restart ollama
 ```
+Then the front door: [§ Front door](#front-door--token-proxy-b211-2026-10-22) steps 5 to 8.
 The installer detects the RTX 5000 Ada and pulls the CUDA runtime automatically — `ollama ps` shows a
 `PROCESSOR` column (`GPU` / `CPU` / split) per loaded model.
 
@@ -107,6 +108,7 @@ your question
 any pod in the cluster, and `/api/pull` or `/api/delete` from any pod changed what Ollama serves. A port rule cannot tell
 one pod from another, so the door is now a token. One token, `OLLAMA_PROXY_TOKEN` in `scripts/.env`, is sealed into the
 cluster as `ollama-proxy-token` (key `token`) and written to rogueone's `/etc/ollama-proxy-secret/token.map`.
+Sequence and refusals: [flow-ollama-front-door.md](../diagrams/flow-ollama-front-door.md).
 
 | Piece | Where |
 |---|---|

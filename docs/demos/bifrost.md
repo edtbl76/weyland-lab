@@ -56,6 +56,31 @@ claude plugin install bifrost-weyland-conventions@bifrost-skills
 ```
 (Every skill installs as `bifrost-<name>` — e.g. `bifrost-deploy-via-argo`, `bifrost-systematic-debugging`, `bifrost-ct-bcg-matrix`.)
 
+## A compositor rollout no longer needs a Bifrost restart (B231, RUN 2026-10-22)
+
+The last open point of the 2.3.1 upgrade: restart both compositors, leave Bifrost alone, and the fleet path through
+Bifrost still answers.
+```
+kubectl -n weyland rollout restart deploy/weyland-mcp-compositor deploy/weyland-mcp-compositor-memory && kubectl -n weyland rollout status deploy/weyland-mcp-compositor --timeout=180s && kubectl -n weyland rollout status deploy/weyland-mcp-compositor-memory --timeout=180s
+```
+[rogueone]
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/bifrost-fleet-txn.py --env-file /home/edwardmangini/IdeaProjects/weyland/scripts/.env
+```
+```
+TXN_OK
+```
+Bifrost's pod was still the one started 2026-10-19 19:12 (not restarted).
+
+**Bifrost's `ollama` provider, retired the same day (B211).** No virtual key allowed it, and behind Ollama's new token
+front door it would need a plain-text key in `config.db`. Check it stays gone:
+```
+kubectl -n weyland exec -i deploy/weyland-guard -c weyland-guard -- python -c "import os,httpx; c=httpx.Client(base_url='http://bifrost.weyland.svc.cluster.local:8080',headers={'X-Bifrost-Setup-Token':os.environ['BIFROST_SETUP_TOKEN']},timeout=30); print('ollama provider:', c.get('/api/providers/ollama').status_code)"
+```
+```
+ollama provider: 404
+```
+
 ## v2.3.1 — the upgrade, and stranded MCP sessions now recover (B231, RUN 2026-10-19)
 
 Bifrost moved v2.2.6 → **v2.3.1** after B212 tested 2.3 on throwaway instances

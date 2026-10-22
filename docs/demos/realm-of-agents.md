@@ -21,6 +21,31 @@ fallbacks off, so an automatic caller spends nothing. The
 ship-images Realm transaction uses it: a code-review question with a planted bug (`return a - b`) routed to huginn and
 answered in about 2 s on the free lane (observed 2026-10-12).
 
+## The free lane is `wl-local`; `wl-judge` is a real judge (B222, RUN 2026-10-22)
+
+`wl-judge` served the operator's `qwen2.5:7b-operator`, the model the held-out tests showed fails as a judge, and the
+Realm's free-only requests rode on it. Now `wl-judge` serves `qwen3:14b` and the free brain has its own lane, `wl-local`,
+on the operator's resident model. Both, through LiteLLM's NodePort with fallbacks disabled (so neither can spend):
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && for m in wl-local wl-judge; do curl -s http://192.168.1.243:30400/v1/chat/completions -H "Authorization: Bearer $LITELLM_API_KEY" -H 'Content-Type: application/json' -d "{\"model\":\"$m\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with the single word ok.\"}],\"max_tokens\":200,\"disable_fallbacks\":true}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['model'], '|', d['choices'][0]['message']['content'].strip())"; done
+```
+```
+wl-local | ok
+wl-judge | ok
+```
+(3.1 s and 4.7 s. rogueone runs one model at a time, so the judge call evicts the operator's model, which reloads on its
+next call.) The Realm's free-only request after the ship, from its own log:
+```
+kubectl -n weyland logs deploy/realm-of-agents -c realm-of-agents --since=30m | grep -i 'thinking (wl-'
+```
+```
+[realm] Huginn · code review — thinking (wl-local)
+```
+Negative: the lane's metric counter could not prove this (LiteLLM restarted twice that afternoon and its request counter
+reset to 0 for every lane), so the Realm's own log is the evidence of record.
+
 ## How a request flows
 
 ```mermaid

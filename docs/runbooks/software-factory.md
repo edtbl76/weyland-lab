@@ -112,7 +112,7 @@ them: 10 had piled up by 2026-10-22, all empty. A daily user timer (06:30 NY, af
 removes a run worktree and its branch only when it has **no uncommitted or untracked change**, **no commit that is not on
 `origin/main`**, and is **older than 24 h** (so a run in progress is never touched). Anything with work in it is kept and
 named in the journal: review those by hand, as above. Only worktrees under `~/emdash/worktrees` on an `emdash-` branch are
-considered. Logic `scripts/emdash-worktree-sweep.sh` (8 bats against real git repos), units
+considered (decision flow: [flow-emdash-worktree-sweep.md](../diagrams/flow-emdash-worktree-sweep.md)). Logic `scripts/emdash-worktree-sweep.sh` (8 bats against real git repos), units
 `nodes/rogueone/systemd/emdash-worktree-sweep.{service,timer}`.
 
 See what it would do (removes nothing):

@@ -83,7 +83,8 @@ lab's Linear issues + Claude Code; n = 200 cannot rule out a weak effect (AUC �
   "Run @SpecBot" line was replaced (2026-10-07). SpecBot stays installed as a second opinion (`@SpecBot` in a
   comment) until the owner is confident in the check; uninstalling it is then a Linear settings action.
 * The lean-CI step `issue-readiness` checks open High Weyland Lab issues, advisory, under a second.
-* The judge builds stay: `wl-judge` → `qwen2.5:7b-operator` (32K) and `wl-judge-oss` → `gpt-oss:20b-judge` (8K) —
+* The judge builds stay: `wl-judge` → `qwen2.5:7b-operator` (32K; since B222, 2026-10-22, `wl-judge` serves `qwen3:14b` and the 32K
+  qwen build is the `wl-local` lane) and `wl-judge-oss` → `gpt-oss:20b-judge` (8K) —
   Ollama's 2K / 4K defaults cut long judge prompts silently for every other judge (Langfuse evaluators) too.
 
 ## Research harness (re-run when the judge model or hardware changes)

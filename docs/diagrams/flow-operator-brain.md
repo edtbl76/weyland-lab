@@ -19,7 +19,7 @@ brain is a `503`. The ship-images operator transaction uses it, so a post-deploy
 sequenceDiagram
     participant C as caller (Telegram turn / sweep enrichment / /operator/ask)
     participant R as agent.run
-    participant H as health pre-check (Ollama /api/tags, ~3s, cached 30s)
+    participant H as health pre-check (Ollama /api/tags with the front-door token, ~3s, cached 30s)
     participant Lo as local qwen2.5:7b (rogueone Ollama, curated FLAT ~14 tools)
     participant Ha as Haiku (LiteLLM → full flat 91-tool fleet)
     C->>R: run(message)
@@ -43,5 +43,6 @@ sequenceDiagram
         Note over R: operator_brain_selected_total{brain="haiku",reason="local_down"}
         R-->>C: reply (paid)
     end
+    Note over H: since B211 the check sends Authorization Bearer LLM_API_KEY. Without it the front door answers 401, read as down, and every chat goes to paid Haiku
     Note over R: Haiku selections are the failover signal — watch operator_brain_selected_total — any paid spend through Bifrost → BifrostSpendObserved
 ```

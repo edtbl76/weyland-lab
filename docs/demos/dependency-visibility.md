@@ -157,6 +157,35 @@ CANNOT CHECK: /tmp/tmp.XXXXXXXXXX/.github/dependabot.yml does not exist
 exit 2
 ```
 
+**A new upstream advisory against unchanged pins, end to end (RUN 2026-10-22).** The 2026-10-21 scan named certifi
+GHSA-6q48-6c7w-9gw2 (CRITICAL: compromised emSign intermediates; fixed 2026.10.19) and 28 pillow advisories (fixed 13.0.0).
+Every lockfile moved except two that fastembed caps at `pillow<13` (accepted per version, with a matching Dependabot
+ignore). The proof is the running pods, not the lockfiles:
+```
+for spec in "weyland realm-of-agents" "weyland weyland-operator" "weyland weyland-tool-server" "weyland weyland-agent" "weyland nemo-guardrails" "weyland dagster-user-code" "weyland weyland-guard" "data-mesh feast-server" "weyland datahub-mcp"; do set -- $spec; c=$(kubectl -n $1 get deploy $2 -o jsonpath='{.spec.template.spec.containers[0].name}'); echo "$1/$2: $(kubectl -n $1 exec deploy/$2 -c $c -- python3 -c "import importlib.metadata as m
+def g(p):
+  try: return m.version(p)
+  except Exception: return '-'
+print('certifi', g('certifi'), 'pillow', g('pillow'))" | tail -1)"; done
+```
+```
+weyland/realm-of-agents: certifi 2026.10.19 pillow 13.0.0
+weyland/weyland-operator: certifi 2026.10.19 pillow 13.0.0
+weyland/weyland-tool-server: certifi 2026.10.19 pillow -
+weyland/weyland-agent: certifi 2026.10.19 pillow 13.0.0
+weyland/nemo-guardrails: certifi 2026.10.19 pillow 12.3.0
+weyland/dagster-user-code: certifi 2026.10.19 pillow -
+weyland/weyland-guard: certifi 2026.10.19 pillow -
+data-mesh/feast-server: certifi 2026.10.19 pillow -
+weyland/datahub-mcp: certifi 2026.10.19 pillow -
+```
+(nemo-guardrails' 12.3.0 is the accepted cap.) **Negative control:** osv-scanner on the operator's lockfile as it was
+before the change reports `{'certifi': 2}`, and 0 on the bumped one, so the scanner was reading the file, not skipping it.
+**What the lockfiles could not show:** `ray-head:v10` ran certifi **2025.1.31**, older than either pin, because its
+`requirements-ray-head.txt` never named certifi and the base image `rayproject/ray:2.56.0` supplies its own. It now pins
+`certifi==2026.10.19` (`ray-head:v11`). Read a long-running hand-tagged image's packages live; a lockfile only covers what
+it names.
+
 **Every Dependabot ignore has a live reason behind it** (2026-10-22). An ignore blocks security updates for one package
 in one directory and never expires, so the guard checks each one against `osv-scanner.toml` and the directory's pin:
 

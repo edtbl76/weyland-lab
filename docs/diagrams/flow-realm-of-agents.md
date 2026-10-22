@@ -28,6 +28,7 @@ sequenceDiagram
     R-->>OP: {routed_to, role, realm, answer}
     OP-->>U: reply
     Note over R,M: every hop emits an MLflow trace (experiment realm-of-agents)
+    Note over R,M: allow_paid false (the default since B209, and the ship transaction) runs every think on the free wl-local lane (qwen2.5:7b-operator on rogueone, LiteLLM fallbacks off) instead of wl-agentic. It was wl-judge until B222 (2026-10-22)
 ```
 
 Demo: [demos/realm-of-agents.md](../demos/realm-of-agents.md). Concept: [concepts/realm-of-agents.md](../concepts/realm-of-agents.md).

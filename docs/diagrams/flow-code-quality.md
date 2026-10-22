@@ -25,7 +25,7 @@ See [../runbooks/code-quality.md](../runbooks/code-quality.md) and [../schedules
 
 ```mermaid
 sequenceDiagram
-    participant Cron as CronJobs (ns weyland)<br/>Sun 12:00 + 13:00 UTC
+    participant Cron as CronJobs (ns weyland)<br/>Sun 03:00 + 04:00 NY (B228)
     participant Clone as clone initContainer<br/>(git clone --full-history)
     participant Suite as scan-suite image<br/>(22 tools, code-maat among them)
     participant Maven as maven build + sonar-scanner<br/>(Flink modules)
@@ -45,6 +45,7 @@ sequenceDiagram
         Ingest-->>Suite: 202 (queue-accepted, NOT entity-created)
         Ingest->>BP: map .body.tool!=null → security_scan (one entity per tool)
     end
+    Note over Suite: kubescape runs with --exceptions kubescape-exceptions.json (2026-10-22): C-0236 image-signature is accepted alert-only, its count printed apart, out of the posture totals
     Note over Suite,Reg: trivy-images (B213, weyland-lab only) — the images the manifests DEPLOY
     Suite->>Suite: deployed_images — images.tsv refs plus every registry.weyland.lab ref in k8s/ (23)
     loop each deployed image

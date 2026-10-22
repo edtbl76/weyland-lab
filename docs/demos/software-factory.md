@@ -55,7 +55,40 @@ found EMA-292 by the label alone and also reported two defects the spec had miss
 **Negative case, the OpenHands arm (run 5):** on a local model the same task took 77 minutes, wrote no tests and rewrote
 skill content while reporting success. That is why it is DON'T ADOPT. It ran only in a sandbox copy.
 
+## Worktree sweep (RUN 2026-10-22)
+
+Every run leaves a worktree; the daily sweep (06:30 NY, `emdash-worktree-sweep.timer`) removes the empty ones
+([flow-emdash-worktree-sweep.md](../diagrams/flow-emdash-worktree-sweep.md)). What it would do now, removing nothing:
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/emdash-worktree-sweep.sh
+```
+```
+kept emdash-5a2a8e94: younger than 24 h (12 h; may still be running)
+would remove emdash-d9d8c755 (empty, 26 h old)
+OK — 0 removed, 1 kept (dry run: pass --apply to remove).
+```
+Its first real run (the timer's install, the same day): `OK — 7 removed, 2 kept`; the owner had removed the oldest by
+hand first and Emdash still opened and listed its runs.
+
+Negative cases, in a scratch repo (`mktemp -d`, removed at the end): a worktree with uncommitted work is kept and named,
+and a repo with no `origin/main` is exit 2 rather than a guess about what is unpushed:
+
+[rogueone]
+```
+T=$(mktemp -d) && export GIT_AUTHOR_NAME=d GIT_AUTHOR_EMAIL=d@d GIT_COMMITTER_NAME=d GIT_COMMITTER_EMAIL=d@d && git init -q --bare -b main $T/o.git && git clone -q $T/o.git $T/r 2>/dev/null && git -C $T/r commit -q --allow-empty -m i && git -C $T/r push -q origin main && mkdir -p $T/w/p && git -C $T/r worktree add -q -b emdash-dirty $T/w/p/emdash-dirty origin/main && echo x > $T/w/p/emdash-dirty/f && touch -d '3 days ago' $T/w/p/emdash-dirty/.git && EMDASH_SWEEP_REPO=$T/r EMDASH_WORKTREES=$T/w bash /home/edwardmangini/IdeaProjects/weyland/scripts/emdash-worktree-sweep.sh --apply; echo "exit $?"; git -C $T/r update-ref -d refs/remotes/origin/main && EMDASH_SWEEP_REPO=$T/r EMDASH_WORKTREES=$T/w bash /home/edwardmangini/IdeaProjects/weyland/scripts/emdash-worktree-sweep.sh --apply; echo "exit $?"; rm -r "$T"
+```
+```
+kept emdash-dirty: uncommitted or untracked changes (/tmp/tmp.XXXXXXXXXX/w/p/emdash-dirty)
+OK — 0 removed, 1 kept.
+exit 0
+CANNOT CHECK: /tmp/tmp.XXXXXXXXXX/r has no origin/main, so unpushed work cannot be told apart
+exit 2
+```
+
 ## Teardown
 
-Read-only. An empty-queue run creates one local worktree and branch, `emdash-<run>`; clear it with
-`git worktree remove <path> && git branch -D emdash-<run>`.
+Read-only. An empty-queue run creates one local worktree and branch, `emdash-<run>`; the daily sweep removes it once it
+is a day old and still empty (by hand: `git worktree remove <path> && git branch -D emdash-<run>`). The negative-case
+scratch repo above removes itself.

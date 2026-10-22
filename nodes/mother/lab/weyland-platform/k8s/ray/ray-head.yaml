@@ -31,7 +31,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: ray-head
-          image: registry.weyland.lab/ray-head:v10   # v10 (2026-10-16, B214) = v8 with mlflow 3.16.1 (genre-trainer's pin; 3.15.x still had the AI Gateway SSRF) + GitPython 3.1.62. v9 was built with mlflow 3.15.0 and never deployed. v8 (2026-10-16): v7 with its pip additions pinned (genre-trainer/requirements-ray-head.txt; Mako/Werkzeug/GitPython/sqlparse past their advisories). base Ray + trainer deps (services/ray-head/) — v7: Ray 2.56 + mlflow 3.14 (B47)  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          image: registry.weyland.lab/ray-head:v11   # v11 (2026-10-22) = v10 with certifi 2026.10.19 pinned (the base image's 2025.1.31 carried GHSA-6q48-6c7w-9gw2 unseen: no lockfile named it) + pillow 13.0.0. v10 (2026-10-16, B214) = v8 with mlflow 3.16.1 (genre-trainer's pin; 3.15.x still had the AI Gateway SSRF) + GitPython 3.1.62. v9 was built with mlflow 3.15.0 and never deployed. v8 (2026-10-16): v7 with its pip additions pinned (genre-trainer/requirements-ray-head.txt; Mako/Werkzeug/GitPython/sqlparse past their advisories). base Ray + trainer deps (services/ray-head/) — v7: Ray 2.56 + mlflow 3.14 (B47)  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           # B47 hardening: drop priv-esc + seccomp (see arch)
           securityContext:
             allowPrivilegeEscalation: false
