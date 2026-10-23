@@ -13,7 +13,8 @@
 #   osv-scanner: same flags and JSON shape; the osv-scanner.toml accept list still applies (0 of 7 accepted ids
 #   reported). v2 reports FEWER: v1 scored an UNPINNED requirement as version 0.0.0 and listed every advisory ever
 #   filed for it (91 phantoms on golden-paths/python/django alone).
-FROM golang:1.27.2 AS gotools
+# 2026-10-22: 1.27.2 -> 1.27.3 (GO-2026-6809 / CVE-2026-111943, crypto/x509; every Go tool below is rebuilt with it).
+FROM golang:1.27.3 AS gotools
 ENV GOTOOLCHAIN=local GOBIN=/out
 # go install where the release's go.mod is clean; a clone + `go get` where a pinned module carried an advisory
 # (2026-10-18, B220 — the re-scan found them): gitleaks x/crypto 0.35 → 0.55 + x/text 0.22 → 0.41; gosec x/net → 0.60,
@@ -50,9 +51,9 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Static binaries (amd64). Each is a single file → drop into /usr/local/bin. trivy's release is already built with
-# go1.27.2 (bumped 0.72 → 0.76, 2026-10-17); the other Go tools come from the gotools stage above.
+# go1.27.3 (0.76.1, 2026-10-22, for GO-2026-6809; was 0.76.0 on go1.27.2; 0.72 → 0.76 on 2026-10-17); the other Go tools come from the gotools stage above.
 RUN set -eux; \
-    curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy; \
+    curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz" | tar -xz -C /usr/local/bin trivy; \
     curl -fsSL -o /usr/local/bin/hadolint "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64"; \
     curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz" | tar -xJ --strip-components=1 -C /usr/local/bin shellcheck-v0.10.0/shellcheck; \
     curl -fsSL -o /opt/code-maat.jar "https://github.com/adamtornhill/code-maat/releases/download/v1.0.4/code-maat-1.0.4-standalone.jar"; \

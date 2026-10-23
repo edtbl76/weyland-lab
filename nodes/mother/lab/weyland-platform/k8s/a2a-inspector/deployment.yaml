@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: a2a-inspector
-          image: registry.weyland.lab/a2a-inspector:v3  # v3 (2026-10-22) = v1 + certifi 2026.10.19 in uv.lock (services/a2a-inspector/Dockerfile; v2 was the same build without pipefail)  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          image: registry.weyland.lab/a2a-inspector:v4  # v4 (2026-10-22) = v1 + certifi 2026.10.19 and PyJWT 2.15.1 in uv.lock (services/a2a-inspector/Dockerfile)  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

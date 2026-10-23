@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: datahub-mcp
-          image: registry.weyland.lab/mcp-server-datahub:0.7   # 0.7 (2026-10-22) = 0.6 with certifi 2026.10.19 (GHSA-6q48-6c7w-9gw2); still package 0.6.0. 0.6 (2026-10-19, B231) = 0.5 with aiohttp 3.14.5 (GHSA-2g87-pp6c-29x5, GHSA-5wr8-gcqf-gqf3). 0.5 (2026-10-16, B214) = 0.4 with PyJWT 2.15.0 (GHSA-42vr-xj54-vc7v, GHSA-x33g-cr3x-6449). 0.4 (2026-10-16) = 0.3's exact 117 packages, now pinned in requirements.txt. 0.3 = mcp-server-datahub 0.6.0 + mcp 1.30.0 — keeps `--transport http` (0.7.x dropped it → 0.2 crashlooped) AND gets the mcp-1.30 session-crash fix. Runtime-verified. Rebuild from services/mcp-server-datahub/Dockerfile.
+          image: registry.weyland.lab/mcp-server-datahub:0.8   # 0.8 (2026-10-22, later) = 0.7 + opentelemetry-api 1.45.1 (GHSA-xcq7-p3pf-p88h). 0.7 (2026-10-22) = 0.6 with certifi 2026.10.19 (GHSA-6q48-6c7w-9gw2); still package 0.6.0. 0.6 (2026-10-19, B231) = 0.5 with aiohttp 3.14.5 (GHSA-2g87-pp6c-29x5, GHSA-5wr8-gcqf-gqf3). 0.5 (2026-10-16, B214) = 0.4 with PyJWT 2.15.0 (GHSA-42vr-xj54-vc7v, GHSA-x33g-cr3x-6449). 0.4 (2026-10-16) = 0.3's exact 117 packages, now pinned in requirements.txt. 0.3 = mcp-server-datahub 0.6.0 + mcp 1.30.0 — keeps `--transport http` (0.7.x dropped it → 0.2 crashlooped) AND gets the mcp-1.30 session-crash fix. Runtime-verified. Rebuild from services/mcp-server-datahub/Dockerfile.
           args: ["--transport", "http"]
           ports:
             - { name: http, containerPort: 8000 }

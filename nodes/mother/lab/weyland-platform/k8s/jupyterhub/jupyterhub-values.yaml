@@ -73,7 +73,9 @@ singleuser:
     # v5 (2026-10-22): the base's own certifi (CRITICAL GHSA-6q48-6c7w-9gw2), pillow 12.3.0 (28 advisories) and pip
     # (vendoring the old certifi) pinned in requirements-lake.txt to 2026.10.19 / 13.0.0 / 26.2.2, conda cache cleared.
     # Proven: pip check clean, the toolkit imports, a matplotlib→pillow render, the server's /api 200. Roll back = tag: v4.
-    tag: v5
+    # v6 (2026-10-22, later): + GitPython 3.2.1 and nbconvert 7.17.2 (base 3.2.0 / 7.17.1; advisories of 2026-10-21/22).
+    # Proven: pip check clean, a notebook converted to HTML, git imports, /api 200. Roll back = tag: v5.
+    tag: v6
     pullPolicy: IfNotPresent
   storage:
     capacity: 2Gi

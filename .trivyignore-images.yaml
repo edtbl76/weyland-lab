@@ -498,3 +498,26 @@ vulnerabilities:
       - pkg:pypi/pillow@12.3.0
     statement: "nemo-guardrails + rogueone basic-memory only: fastembed caps pillow<13 (every release to 0.9.0); text rails / Markdown notes, no untrusted image reaches Pillow. Same accept as osv-scanner.toml (2026-10-22)"
     expired_at: 2027-01-22
+  # Go stdlib v1.26.5 compiled into adbc-driver-flightsql 1.12.0 (weyland-dagster-user-code), GO-2026-6809 = CVE-2026-111943
+  # (crypto/x509 distrusts the compromised emSign intermediates; the certifi event, in Go). 1.12.0 is the newest release
+  # (2026-07-28), so no wheel with a fixed Go exists. Dagster uses this driver over grpc+tcp (no TLS) to GizmoSQL inside
+  # the cluster (GIZMOSQL_URI), so crypto/x509 never verifies a public certificate here. LIFT: an adbc release built with
+  # Go >= 1.26.10 / 1.27.3 -> bump, rebuild, delete. Scoped to stdlib v1.26.5.
+  - id: CVE-2026-111943
+    purls:
+      - pkg:golang/stdlib@v1.26.5
+    statement: "adbc-driver-flightsql 1.12.0's Go 1.26.5; no newer wheel; used over grpc+tcp in-cluster, no TLS verification (2026-10-22)"
+    expired_at: 2027-01-22
+  # openjdk-21-jre-headless 21.0.12.1+1-1~deb13u1 (scan-suite, debian-13.7): Debian has published NO fixed version
+  # (trivy FixedVersion empty, 2026-10-22). The JRE exists only to run code-maat over `git log` of our own repos: a local,
+  # short-lived batch step with no network listener and no outside input. LIFT: rebuild scan-suite when Debian ships it.
+  - id: CVE-2026-91403
+    purls:
+      - pkg:deb/debian/openjdk-21-jre-headless
+    statement: "CRITICAL, no Debian fix yet; the JRE only runs code-maat over our own git history, no listener, no outside input (2026-10-22)"
+    expired_at: 2027-01-22
+  - id: CVE-2026-91415
+    purls:
+      - pkg:deb/debian/openjdk-21-jre-headless
+    statement: "HIGH, no Debian fix yet; the JRE only runs code-maat over our own git history, no listener, no outside input (2026-10-22)"
+    expired_at: 2027-01-22

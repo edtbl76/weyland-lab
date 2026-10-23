@@ -47,7 +47,7 @@ spec:
               # ImagePullBackOff for 13 days (no MinIO backup since 2026-09-11). Now the Chainguard mc client MIRRORED into
               # the lab registry (source cgr.dev/chainguard/minio-client:latest-dev, same digest) so an upstream deletion
               # cannot break this again. Refresh procedure: docs/runbooks/storage-minio.md "mc client image".
-              image: registry.weyland.lab/minio-client:cg-2026-09-25@sha256:f0dd93b48af1f8a641edcd3c64661c8dbe05189bd2ef2f8cea216eb18af10bf8  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+              image: registry.weyland.lab/minio-client:cg-2026-10-22@sha256:f0b1d3d6ae12391d9bbe88345dee6da67027c93cda18dc5c9a463c2cc7d61b29  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
               resources:
                 requests: { memory: 64Mi, cpu: 50m }
                 limits: { memory: 256Mi }

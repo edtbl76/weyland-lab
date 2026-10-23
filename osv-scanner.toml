@@ -133,6 +133,14 @@ effectiveUntil = 2027-01-16
 reason = "BUILD STAGES ONLY: the four ONNX export stages (weyland-dagster, weyland-tool-server, weyland-agent bge-export; weyland-guard onnx-export). They run once at build time to export fixed public models (BAAI bge-base/bge-small, the guard's two DeBERTa classifiers) and only the .onnx + tokenizer.json reach the runtime image; transformers is never shipped. The advisories (GHSA-29pf-2h5f-8g72, GHSA-69w3-r845-3855, GHSA-fgcw-684q-jj6r, GHSA-x9r9-c232-4q39, GHSA-xrqw-3rrv-vx5w) concern malicious model files, trust_remote_code and Trainer; the stages never set trust_remote_code and never train. Every fix is in transformers 5.x, and a new exporter risks a byte-different ONNX graph, which would force re-embedding every vector store (U13 relies on byte-equivalence). Gap noted, not fixed here: the stages do not pin a model revision. Accepted 2026-10-16 (B214)."
 
 [[PackageOverrides]]
+name = "opentelemetry-api"
+version = "1.25.0"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-22
+reason = "scan-suite only (GHSA-xcq7-p3pf-p88h, MODERATE: unbounded tracestate parsing; fixed 1.45.1). Held at 1.25 by semgrep 1.90, which pins opentelemetry 1.25 (the same hold as protobuf 4.25.9 above: every semgrep new enough to lift it pins a vulnerable mcp). The scanner is a batch job that parses repo files; it receives no inbound trace context, so no untrusted tracestate reaches the parser. Every other lockfile moved to 1.45.1. Accepted 2026-10-22."
+
+[[PackageOverrides]]
 name = "pillow"
 version = "12.3.0"
 ecosystem = "PyPI"

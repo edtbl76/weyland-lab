@@ -20,7 +20,7 @@ filelock==3.30.3
 fsspec==2026.6.0
 gql==4.0.0
 graphene==3.4.3
-graphql-core==3.2.11
+graphql-core==3.2.13   # 2026-10-22: GHSA-r77w-qph3-7vf8, GHSA-vj8h-fx38-h3vc
 graphql-relay==3.2.0
 greenlet==3.5.3
 grpcio==1.78.0
