@@ -65,8 +65,9 @@ spec:
           image: $K6_IMG
           command: $K6_CMD
           env:
-            # B233: Trino authenticates (HTTPS 8443 + password). The Job's login is `perf` (the trino-perf Secret);
-            # k6 is Go, so SSL_CERT_FILE makes the lab CA its trust root.
+            # B233: Trino authenticates (HTTPS 8443 + password). The Job's login is perf (the trino-perf Secret);
+            # k6 is Go, so SSL_CERT_FILE makes the lab CA its trust root. No backticks in this block: the heredoc
+            # is unquoted (it expands VUS/DUR), so a backtick here runs a command.
             - {name: BASE, value: "https://trino.data-mesh.svc.cluster.local:8443"}
             - {name: TRINO_USER, valueFrom: {secretKeyRef: {name: trino-perf, key: username}}}
             - {name: TRINO_PASSWORD, valueFrom: {secretKeyRef: {name: trino-perf, key: password}}}

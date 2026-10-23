@@ -120,6 +120,11 @@ Client quirks, all proven against a throwaway Trino 468 with the live Ranger pol
    the push: on the old door the claimed user IS the login, so `{USER}` grants exactly what every caller does today.
 7. Push (the sealed files with the manifests and code), CI, then `ship-images.sh` (Dagster user-code). Argo rolls
    Trino, Cube, trino-mcp, dbt-docs, datahub-actions, Lightdash, Ranger Admin and the JupyterHub config.
+   **Expect a short default-deny window when Trino and Ranger Admin restart together** (2026-10-23: 90 s, 15:32:54 →
+   15:34:25). The Trino plugin's policy cache lives in the container's `/tmp`, so a fresh Trino pod has no policies
+   until Ranger Admin answers; meanwhile every query is denied ("Principal X cannot become user X"), and trino-mcp,
+   which tests Trino once at start, crash-loops until then. It clears by itself; confirm with
+   `kubectl -n data-mesh logs deploy/trino -c trino --since=10m | grep "Switched policy engine"` (a version, not `[-1]`).
 8. The callers that store their connection themselves (UI steps):
    - **DataHub:** Ingestion → Sources → `trino` → Edit → the YAML: paste `k8s/data-mesh/datahub-ingestion/trino.recipe.yaml`'s
      `source:` block → Save. Then **Run** it.

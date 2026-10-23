@@ -1,6 +1,8 @@
 # Soda Core data sources → Trino directly, as the `dbt` login over HTTPS (B233, 2026-10-23; was the `trino-noauth`
 # proxy with auth_type NoAuthentication, which only worked because Trino trusted X-Trino-User). TRINO_PASSWORD comes
-# from the `trino-dbt` Secret; Soda resolves ${...} from the environment. soda-core-trino has no CA option, so
+# from the `trino-dbt` Secret; Soda resolves the dollar-brace placeholder below from the environment. This file is a
+# Jinja template, comments included: a literal placeholder in a comment fails the whole scan ("Error resolving Jinja
+# template", 2026-10-23), so a placeholder appears only on the password lines. soda-core-trino has no CA option, so
 # soda_scan_op runs the scan with REQUESTS_CA_BUNDLE set to the lab CA for that subprocess only (trino_auth).
 # L5 Slice C: an INDEPENDENT contract scan over the published marts, complementary to dbt's in-transform tests.
 data_source weyland:
