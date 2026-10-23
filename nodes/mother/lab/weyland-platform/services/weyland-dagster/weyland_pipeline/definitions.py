@@ -46,6 +46,7 @@ from weyland_pipeline.schedules import (
 from weyland_pipeline.sensors import datasets_music_raw_sensor
 from weyland_pipeline.lancedb_sync import weyland_lancedb_sync_job, lancedb_sync_sensor
 from weyland_pipeline.trino_auth import subprocess_env
+from weyland_pipeline.soda_telemetry import disable_soda_telemetry
 
 # B49(b) Phase 2 — start app-level tracing → Tempo (opt-in via OTEL_EXPORTER_OTLP_ENDPOINT). Called at code-location
 # import so it also initializes INSIDE each forked op subprocess (the multiprocess executor re-imports this module).
@@ -298,6 +299,8 @@ def soda_scan_op(context):
         # every datasets_finance table too. mart_macro_indicators is covered by the `weyland` marts scan above.
         ("weyland_finance", "/tmp/soda_finance.json", ["/app/soda/checks/finance.yml", _bl]),
     ]
+    # Soda's usage telemetry off before any scan (owner, 2026-10-23): it posted to collect.soda.io from the cluster.
+    context.log.info(f"Soda telemetry off: {disable_soda_telemetry()}")
     worst = 0
     marts_bad = False
     for ds, results_file, check_files in scans:

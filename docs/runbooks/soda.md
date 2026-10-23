@@ -59,6 +59,13 @@ miss): `- missing_percent(<col>) < 100`.
 
 ## Gotchas
 
+- **Usage telemetry is off (owner, 2026-10-23).** Soda Core posted anonymous usage stats to `collect.soda.io` from the
+  cluster unless its *user* config (`~/.soda/config.yml`, which it creates on first run with the stats on) says
+  otherwise; the key is ignored in `configuration.yml`. `soda_scan_op` rewrites that file with
+  `send_anonymous_usage_stats: false` before every scan (`weyland_pipeline/soda_telemetry.py`). Proven in the image: 3
+  attempts to `collect.soda.io` with the default file, 0 with the opt-out.
+- **`configuration.yml` is a Jinja template, comments included.** A literal dollar-brace placeholder in a comment fails
+  every scan ("Error resolving Jinja template", 2026-10-23); placeholders belong only on the password lines.
 - **Node is tight** — `dagster-user-code` uses `strategy: Recreate` (RollingUpdate deadlocks: can't schedule the new
   pod beside the old on the ~98%-committed node). If a redeploy hangs on "old replicas pending termination", delete
   the old pod to free memory.
