@@ -76,6 +76,13 @@ spec:
             # B211 (2026-10-22): rogueone's Ollama front door asks remote callers for this bearer token.
             - name: OLLAMA_API_KEY
               valueFrom: { secretKeyRef: { name: ollama-proxy-token, key: token } }
+            # B233 (2026-10-23): Trino authenticates (HTTPS 8443 + password). This pod's login is `dbt` — dbt, the mart
+            # export, Feast, Soda and GE (profiles.yml, weyland_pipeline/trino_auth.py). Not optional: a missing Secret
+            # must stop the rollout, not start a code server whose every Trino call 401s.
+            - name: TRINO_USER
+              valueFrom: { secretKeyRef: { name: trino-dbt, key: username } }
+            - name: TRINO_PASSWORD
+              valueFrom: { secretKeyRef: { name: trino-dbt, key: password } }
             # B49(b) Phase 2 — app-level spans → Tempo OTLP (OPT-IN; unset = no tracing). service.name=weyland-dagster;
             # coarse per-dataset store-load spans (weyland_pipeline/_otel.py). Runbook: observability.md.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -367,7 +374,12 @@ spec:
               subPath: dagster.yaml
             - name: ge-data-docs
               mountPath: /ge-data   # B77 part b — GE (ge_validate_op runs in-pod via DefaultRunLauncher) writes Data Docs here; ge-docs nginx serves the same PVC
+            - name: weyland-ca
+              mountPath: /etc/weyland-ca   # B233 — the lab CA every Trino client here verifies Trino's cert against
+              readOnly: true
       volumes:
+        - name: weyland-ca
+          secret: { secretName: weyland-mkcert-ca, items: [{ key: rootCA.pem, path: rootCA.pem }] }
         - name: dagster-config
           configMap:
             name: dagster-config

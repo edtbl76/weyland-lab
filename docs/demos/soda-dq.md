@@ -22,10 +22,10 @@ all-NULL columns that dbt range checks pass vacuously. Grounded in [../runbooks/
   (ns `weyland`). Soda lives in an **isolated venv** `/opt/soda-venv` inside that image; the op shells out to it.
 - **dbt marts present** — the 7 `iceberg.dbt.mart_*` tables must exist (run [dbt.md](dbt.md) first). A model fix
   only takes effect after `dbt run` rebuilds the Trino-materialized table.
-- **trino-noauth proxy** — `trino-noauth.data-mesh.svc.cluster.local:8080` (nginx strips the `Authorization`
-  header). Soda's Trino connector **always** sends HTTP Basic auth; Trino (no authenticator) rejects a password
-  over plaintext (`401 Password not allowed for insecure authentication`), so `configuration.yml` **must** point
-  at the proxy — **not** `trino.data-mesh` directly.
+- **The `dbt` Trino login** (B233, 2026-10-23) — `configuration.yml` points at `trino.data-mesh.svc.cluster.local:8443`
+  over HTTPS with Basic auth (`${TRINO_PASSWORD}` from the `trino-dbt` Secret; the lab CA via `REQUESTS_CA_BUNDLE` for
+  the scan subprocess). Before B233 it had to use the `trino-noauth` proxy, because Trino had no authenticator
+  ([runbooks/trino.md § Authentication](../runbooks/trino.md#authentication-b233-2026-10-23)).
 - **DataHub GMS** reachable in-cluster (`datahub-datahub-gms.data-mesh.svc:8080`) for the assertion emit
   (non-fatal — a DataHub hiccup never masks a data-quality failure).
 - Check files (COPY'd into the user-code image): `soda/configuration.yml`, `soda/checks/{music,health}.yml`.

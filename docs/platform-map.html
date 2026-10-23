@@ -209,7 +209,7 @@
         <div class="row"><span class="nm"><i class="cdot"></i>DuckDB</span><div><div class="rl">embedded single-node OLAP</div><span class="ex">count(*) over persisted usda food tables</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>GizmoSQL</span><div><div class="rl">DuckDB over Arrow Flight SQL</div><span class="ex">serves DuckDB at jdbc:arrow-flight-sql://mother:31337</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>Arrow Flight SQL</span><div><div class="rl">columnar wire protocol</div><span class="ex">IntelliJ Flight SQL JDBC → GizmoSQL base tables</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>trino-noauth</span><div><div class="rl">Authorization-strip proxy</div><span class="ex">lets Lightdash / Cube / Soda reach no-auth Trino</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>trino-noauth</span><div><div class="rl">Authorization-strip proxy</div><span class="ex">no repo caller since B233 (every caller logs in to Trino over HTTPS); retired at B233 stage 3</span></div></div>
       </div>
 
       <div class="grp-l">Semantic &amp; features</div>
@@ -259,7 +259,7 @@
       <div class="stage-head"><h2>Consume</h2><span class="role">BI · notebooks · dashboards</span></div>
       <div class="rows">
         <div class="row"><span class="nm"><i class="cdot"></i>Superset</span><div><div class="rl">BI + ad-hoc SQL</div><span class="ex">"Weyland Platform Overview" dashboard over Trino + 11 Postgres DBs</span></div></div>
-        <div class="row"><span class="nm"><i class="cdot"></i>Lightdash</span><div><div class="rl">dbt-native BI</div><span class="ex">governed metrics from mart meta.metrics via trino-noauth</span></div></div>
+        <div class="row"><span class="nm"><i class="cdot"></i>Lightdash</span><div><div class="rl">dbt-native BI</div><span class="ex">governed metrics from mart meta.metrics; its own Trino login (HTTPS)</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>JupyterHub</span><div><div class="rl">on-demand notebook layer</div><span class="ex">KubeSpawner pods (registry.weyland.lab/weyland-jupyter) run the B81 notebook library over the live mesh</span></div></div>
         <div class="row"><span class="nm"><i class="cdot"></i>NeoDash</span><div><div class="rl">Neo4j dashboards / viz</div><span class="ex">connects Bolt :30086 for the music graph</span></div></div>
       </div>

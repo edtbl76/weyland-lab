@@ -94,3 +94,31 @@ JSON
   CONTRACTS_ROOT="$BATS_TEST_TMPDIR/does-not-exist" run "$GUARD"
   [ "$status" -eq 2 ]
 }
+
+# --- --check-schema reads Trino as a real login (B233, 2026-10-23) --------------------------------
+# Trino takes a password, only over HTTPS. Without one the live check cannot run: exit 2, never a pass. The password
+# sits in a private netrc file, never on curl's command line.
+
+@test "--check-schema without a Trino login is exit 2, named, and never dials Trino" {
+  mkdir -p "$BATS_TEST_TMPDIR/c"
+  _valid_json > "$BATS_TEST_TMPDIR/c/ok.odcs.yaml"
+  stub curl 0 '{}'
+  unset TRINO_PASSWORD
+  TRINO_USER=dbt CONTRACTS_ROOT="$BATS_TEST_TMPDIR/c" run "$GUARD" --check-schema
+  [ "$status" -eq 2 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"TRINO_PASSWORD is not set"* ]] || { echo "$output"; return 1; }
+  if grep -q '^curl ' "$STUB_LOG"; then echo "curl was called"; return 1; fi
+}
+
+@test "--check-schema logs in from a netrc file over verified HTTPS, password never on the command line" {
+  mkdir -p "$BATS_TEST_TMPDIR/c"
+  _valid_json > "$BATS_TEST_TMPDIR/c/ok.odcs.yaml"
+  stub curl 0 '{"data":[["c"]],"stats":{"state":"FINISHED"}}'
+  TRINO_USER=dbt TRINO_PASSWORD="sekret-pw" CONTRACTS_ROOT="$BATS_TEST_TMPDIR/c" run "$GUARD" --check-schema
+  [ "$status" -eq 0 ] || { echo "$output"; cat "$STUB_LOG"; return 1; }
+  grep -q -- '--netrc-file ' "$STUB_LOG"
+  grep -q -- '--cacert /etc/weyland-ca/rootCA.pem' "$STUB_LOG"
+  grep -q 'https://trino.data-mesh.svc.cluster.local:8443/v1/statement' "$STUB_LOG"
+  if grep -q 'sekret-pw' "$STUB_LOG"; then echo "password on a command line"; return 1; fi
+  if grep -q 'X-Trino-User' "$STUB_LOG"; then echo "still self-asserting the user"; return 1; fi
+}

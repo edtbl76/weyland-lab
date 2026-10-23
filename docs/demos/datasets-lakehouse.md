@@ -45,7 +45,7 @@ sequenceDiagram
 - **Dagster** — `https://dagster.weyland.lab` (Keycloak forward-auth). Code pod: `deploy/dagster-user-code` (ns `weyland`).
 - **lakeFS** — `https://lakefs.weyland.lab` (browser); in-cluster `lakefs.data-mesh.svc.cluster.local:8000`.
 - **Nessie** — `https://nessie.weyland.lab` (Iceberg catalog / table versioning); in-cluster `nessie.data-mesh.svc.cluster.local:19120`.
-- **Trino** — `https://trino.weyland.lab` (monitoring console only; query via CLI/IntelliJ). In-cluster `trino.data-mesh.svc:8080`.
+- **Trino** — `https://trino.weyland.lab` (monitoring console only; query via CLI/IntelliJ). In-cluster `trino.data-mesh.svc.cluster.local:8443` (HTTPS, a login per caller since B233).
 - **MinIO browser** — `https://files.weyland.lab` (Filestash) for the underlying `lakefs` / `warehouse` buckets.
 - `kubectl` runs on **mother** (`emangini@mother`).
 

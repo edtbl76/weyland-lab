@@ -39,8 +39,9 @@ Each proven via MCP `tools/list` (+ a real read call, and a write-denial probe w
 > editing tools. See `docs/runbooks/code-intelligence.md` § Serena.
 
 ## Connectivity notes
-- **trino-mcp** → the `trino-noauth` proxy (`trino-noauth.data-mesh.svc:8080`) as `X-Trino-User: mcp` — the same no-auth
-  path dbt/Soda/Cube use. Ranger is default-deny, so `mcp` reads only what it's granted and can never write.
+- **trino-mcp** → Trino directly (`trino.data-mesh.svc.cluster.local:8443`) as its own `mcp` login over HTTPS (B233,
+  2026-10-23; the `trino-mcp` Secret, the lab CA via `SSL_CERT_FILE` — [trino.md § Authentication](trino.md#authentication-b233-2026-10-23)).
+  Ranger is default-deny, so `mcp` reads only what it's granted and can never write; it can act only as itself.
 - **postgres-mcp** is **meshed** (`sidecar.istio.io/inject`) — Postgres is STRICT-mTLS; a non-meshed client gets opaque
   ECONNRESET. The mesh does TLS, so the connection is plaintext (`sslmode=disable`). `DATABASE_URI` is composed via
   `$(PGPASSWORD)` interpolation from `weyland-postgres-secret` (password never inlined).

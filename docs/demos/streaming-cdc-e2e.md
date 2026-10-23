@@ -68,7 +68,7 @@ The union of the three component demos' prerequisites:
   `https://flink.weyland.lab`; `flink-jars` (nginx) serving `sql-runner.jar` + `health-job.jar`; History Server
   `https://flink-history.weyland.lab`; PyFlink image `registry.weyland.lab/weyland-flink-py` (CI-built).
 - **Nessie / Iceberg** (`nessie.data-mesh.svc:19120`, ref `main`) + **MinIO** for checkpoints (`s3://warehouse/_flink`).
-- **Trino** — `trino.data-mesh.svc:8080` reads the Flink-written Iceberg.
+- **Trino** — `trino.data-mesh.svc.cluster.local:8443` (HTTPS, a login per caller since B233) reads the Flink-written Iceberg.
 - `kubectl` runs on **mother** (`emangini@mother`).
 
 ## UI walkthrough

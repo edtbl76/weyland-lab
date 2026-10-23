@@ -1,5 +1,7 @@
 # B211 (2026-10-14) — Trino's front door. It has no authenticator, so X-Trino-User is self-asserted and Ranger can be
 # bypassed by claiming a privileged user; limiting WHO can connect is the control until a password authenticator lands.
+# B233 (2026-10-23): the password authenticator is landing (runbooks/trino.md § Authentication) — 8443 takes passwords;
+# 8080 keeps trusting X-Trino-User until stage 3 closes it, so this policy is still the control for 8080 until then.
 # Callers on 8080: the no-auth proxy, dagster-user-code (dbt, marts), DataHub actions, dbt-docs, Superset, JupyterHub
 # singleuser servers (notebooks 20/40, since 2026-10-21), Traefik (UI),
 # Prometheus (/metrics), and rogueone (192.168.1.230: DataGrip via the trino-lan NodePort, query-lan.yaml, which keeps
@@ -46,6 +48,33 @@ spec:
     - ipBlock: {cidr: 192.168.1.230/32}
     ports:
     - {protocol: TCP, port: 8080}
+    # B233 (2026-10-23): the HTTPS port, the only one that accepts a password; same callers while they move to it.
+    - {protocol: TCP, port: 8443}
+  # B233: callers with a password, admitted on the password port only. Cube, Lightdash, trino-mcp and datahub-coverage
+  # reached Trino through the no-auth proxy before and now log in directly. Ranger Admin's Trino resource lookup
+  # (policy-editor autocomplete) logs in as `ranger`; B211 never listed it, so the lookup had been refused since
+  # 2026-10-14 without anyone noticing.
+  - from:
+    - podSelector:
+        matchLabels: {app: ranger-admin}
+    - podSelector:
+        matchLabels: {app: cube}
+    - podSelector:
+        matchLabels: {app.kubernetes.io/name: lightdash}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: trino-mcp}
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: weyland}
+      podSelector:
+        matchLabels: {app: datahub-coverage}
+    # the on-demand perf baseline Job (scripts/perf/trino-baseline.sh, login `perf`). B211 never listed it, so the
+    # baseline had been refused since 2026-10-14 too.
+    - podSelector:
+        matchLabels: {job-name: perf-trino-k6}
+    ports:
+    - {protocol: TCP, port: 8443}
   - from:
     - *id001
     ports:

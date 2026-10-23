@@ -162,6 +162,9 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   eval/operator DB) + `system` are wired as Trino catalogs — the Tier-2 stores are NOT Trino connectors, they get
   native clients in `22`. Trino here is UNMESHED (single `trino` container, no istio sidecar), so the singleuser pod
   reaches it over plain HTTP via the privateIPs NetworkPolicy — no mTLS wall. `22` (Tier-2 native) still to come.
+  **Since B233 (2026-10-23)** the Trino notebooks log in as `notebook` over HTTPS on 8443 (`TRINO_USER` /
+  `TRINO_PASSWORD` from `jupyterhub/trino-notebook`, the lab CA at `/etc/weyland-ca`, the port from `TRINO_HTTPS_PORT`)
+  — [trino.md § Authentication](trino.md#authentication-b233-2026-10-23).
 - **`21_query_duckdb_gizmosql` (2026-09-01, validated live, headless-execute clean):** DuckDB two ways —
   **embedded** (in the kernel, httpfs over the lakeFS S3 gateway, window fns + projection pushdown, and true
   zero-copy Arrow interop proven by identical buffer address across polars/arrow/duckdb) using the EXISTING
@@ -209,7 +212,7 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   staging→marts, no intermediate) · `41_semantic_cube` (Cube headless semantic layer via its pg-wire SQL API, the
   `MEASURE()` contract, governed measures over the marts). **Validated in-cluster** (ephemeral injected data-mesh
   pod) because Trino + Cube are ClusterIP-only — NOT via NodePort (a Trino NodePort would expose the no-auth engine
-  on the LAN) and NOT via port-forward. Trino needs no creds; Cube SQL API needs `CUBE_SQL_PASSWORD` from
+  on the LAN) and NOT via port-forward. Trino needed no creds then (since B233 the notebooks log in as `notebook`); Cube SQL API needs `CUBE_SQL_PASSWORD` from
   SealedSecret `jupyterhub/cube-creds` (mirrors data-mesh `cube-secret` `CUBEJS_SQL_PASSWORD`).
 - **Feature & ML (2026-09-02, both validated live, headless-execute clean):** `50_feature_feast` (Feast train/serve
   parity — online retrieval from Valkey + historical point-in-time from Postgres over `track_audio_features` /
@@ -241,7 +244,9 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
   column mask on the main Trino — `mask-depression-pct-analyst` MASK_NULL: `analyst` sees `mart_state_health_trends.
   depression_pct` NULL, `dbt` sees real, sibling cols unchanged; DEFAULT-DENY + `trino-noauth` bypass explained).
   Only DataHub needs a secret — `jupyterhub/datahub-creds` (← weyland `datahub-token`); Soda uses trino-noauth,
-  Ranger sets the Trino user via the client (no password).
+  Ranger sets the Trino user via the client (no password). **Since B233 (2026-10-23):** `71` scans as the `notebook`
+  login over HTTPS (`BasicAuthentication`, `${TRINO_PASSWORD}`), and `72` contrasts the logins `notebook` and `analyst`
+  and shows `analyst` refused when it claims another user (`jupyterhub/trino-notebook`, `jupyterhub/trino-analyst`).
 - **Streaming (2026-09-02, both validated live IN-CLUSTER, headless-execute clean) — the FINAL wave:**
   `80_streaming_redpanda` (Kafka API + Schema Registry — list topics, inspect a registered Avro schema, consume a
   bounded Avro batch with live offset watermarks via `confluent-kafka[avro]`, fresh read-only consumer group) ·
@@ -334,10 +339,10 @@ AI/RAG (needs `litellm-creds`; `60` downloads bge-base from HF on first run):
 - [ ] `61_gateway_litellm` — `wl-*` aliases list + a chat + streaming.
 - [ ] `62_eval_rag` — the eval leaderboard + a live `wl-judge` faithfulness score.
 
-Governance/quality (`70` needs `datahub-creds`; 71/72 no creds):
+Governance/quality (`70` needs `datahub-creds`; 71/72 need the Trino logins `trino-notebook` / `trino-analyst`, B233):
 - [ ] `70_governance_datahub` — search + lineage (needs `DATAHUB_TOKEN`).
-- [ ] `71_quality_soda` — a contract scan over the marts (8/8 pass) via `trino-noauth`.
-- [ ] `72_authz_ranger` — **MESHED?** no (main Trino unmeshed) — column mask: as `analyst` `depression_pct` is NULL, as `dbt` real.
+- [ ] `71_quality_soda` — a contract scan over the marts (8/8 pass) as the `notebook` login (HTTPS 8443).
+- [ ] `72_authz_ranger` — **MESHED?** no (main Trino unmeshed) — column mask: as `analyst` `depression_pct` is NULL, as `notebook` real; `analyst` claiming `notebook` is refused ("cannot become user").
 
 Streaming (no creds):
 - [ ] `80_streaming_redpanda` — list topics + consume an Avro batch.

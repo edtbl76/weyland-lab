@@ -36,7 +36,8 @@ browsable Data Docs at `ge-docs.weyland.lab`. On-demand (a Dagster Job) so it co
 - **Table asset + `UserConfigurableProfiler`** (not a query asset + the Onboarding Assistant) — a `SELECT * LIMIT`
   query asset profiled *table-level only* (2 expectations); a **table** asset lets GE introspect the schema so the
   profiler enumerates every column (80–153 expectations/table).
-- **Trino via `trino-noauth`, user `dbt`** — the passwordless, Ranger-authorized path Soda already uses.
+- **Trino as the `dbt` login over HTTPS** (B233, 2026-10-23; the passwordless `trino-noauth` path before) — the same
+  login Soda uses; `${TRINO_PASSWORD}` stays a placeholder in GE's stored datasource ([runbooks/trino.md § Authentication](../runbooks/trino.md#authentication-b233-2026-10-23)).
 
 ## Honest scope
 

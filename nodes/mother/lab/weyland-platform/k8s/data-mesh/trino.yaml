@@ -22,6 +22,27 @@ data:
     # Behind Traefik + Istio, which add X-Forwarded-* headers; Trino's Jetty rejects forwarded requests
     # by default (406 "does not allow processing of the X-Forwarded-For header"). Trust the proxy.
     http-server.process-forwarded=true
+    # B233 — the password front door. Without an authenticator every caller self-asserted X-Trino-User, so Ranger's
+    # per-user policies could be bypassed by claiming a privileged name. Each caller now has its own identity and
+    # password (password.db, bcrypt; scripts/trino-credentials.sh). Trino accepts a password ONLY over HTTPS, so 8443
+    # serves TLS with a cert from the lab's mkcert CA (clients verify it with weyland-mkcert-ca).
+    http-server.authentication.type=PASSWORD
+    http-server.https.enabled=true
+    http-server.https.port=8443
+    http-server.https.keystore.path=/etc/trino/auth/tls.pem
+    internal-communication.shared-secret=${ENV:TRINO_SHARED_SECRET}
+    # The web UI runs as a fixed read-only identity: Keycloak forward-auth already gates trino.weyland.lab to the
+    # owner, so a second Trino login would add nothing (owner decision, 2026-10-23).
+    web-ui.authentication.type=fixed
+    web-ui.user=trino-ui
+    # TRANSITION (stage 1-2 of runbooks/trino.md § Authentication): plain HTTP on 8080 still trusts X-Trino-User, so
+    # nothing breaks while callers move to 8443 one by one. In Trino 468 this flag means exactly that: on HTTP,
+    # authentication is NOT checked (a no-credential request got 200 on the throwaway). Stage 3 sets it false, after
+    # which 8080 answers only Traefik's UI path (X-Forwarded-Proto: https) and refuses everything else.
+    http-server.authentication.allow-insecure-over-http=true
+  password-authenticator.properties: |
+    password-authenticator.name=file
+    file.password-file=/etc/trino/auth/password.db
   jvm.config: |
     -server
     -Xmx4G
@@ -89,9 +110,14 @@ spec:
               type: RuntimeDefault
           ports:
             - { name: http, containerPort: 8080 }
+            - { name: https, containerPort: 8443 }
           envFrom:
             - secretRef: { name: trino-secret }
           env:
+            # B233 — internal-communication.shared-secret (required once an authenticator is on). Not optional: a
+            # missing Secret must stop the rollout loudly, not start Trino without it.
+            - name: TRINO_SHARED_SECRET
+              valueFrom: { secretKeyRef: { name: trino-auth, key: TRINO_SHARED_SECRET } }
             # 2026-10-21: the container's working set creeps ~0.4 GiB/day after each restart (1.2 → 4.4 GiB over a week,
             # Prometheus), all outside the 4G heap, until the Sunday dbt build tips it over the 8Gi limit (OOMKilled
             # 10-11 and 10-18). glibc gives every busy thread its own malloc arena and rarely returns them; capping the
@@ -99,13 +125,16 @@ spec:
             # flatten (runbooks/trino.md § Memory creep), the next suspect is the Ranger plugin's native/Truffle memory.
             - { name: MALLOC_ARENA_MAX, value: "2" }
           readinessProbe:
-            httpGet: { path: /v1/info, port: 8080 }
+            # B233: on the TLS port, so the probe also proves the cert loaded. /v1/info needs no credential.
+            httpGet: { path: /v1/info, port: 8443, scheme: HTTPS }
             initialDelaySeconds: 20
             periodSeconds: 10
           volumeMounts:
             - { name: config, mountPath: /etc/trino/config.properties, subPath: config.properties }
             - { name: config, mountPath: /etc/trino/jvm.config, subPath: jvm.config }
             - { name: config, mountPath: /etc/trino/node.properties, subPath: node.properties }
+            - { name: config, mountPath: /etc/trino/password-authenticator.properties, subPath: password-authenticator.properties }
+            - { name: auth, mountPath: /etc/trino/auth, readOnly: true }   # password.db + tls.pem (B233)
             - { name: catalogs, mountPath: /etc/trino/catalog }
             # A2 — native Ranger access control (default-deny; the trino Ranger service has public-allow policies).
             # Rollback = remove these 3 mounts + the ranger volume, restart Trino.
@@ -138,6 +167,10 @@ spec:
         - { name: config, configMap: { name: trino-config } }
         - { name: catalogs, configMap: { name: trino-catalogs } }
         - { name: ranger, configMap: { name: trino-ranger } }
+        - name: auth
+          secret:
+            secretName: trino-auth
+            items: [{ key: password.db, path: password.db }, { key: tls.pem, path: tls.pem }]
         - { name: data, emptyDir: {} }
 ---
 apiVersion: v1
@@ -159,6 +192,7 @@ spec:
   selector: { app: trino }
   ports:
     - { name: http, port: 8080, targetPort: 8080 }
+    - { name: https, port: 8443, targetPort: 8443 }   # B233 — the only port that accepts a password
 ---
 # Trino exposes OpenMetrics at /metrics on the HTTP port (built-in since Trino 424). Prometheus
 # auto-discovers this ServiceMonitor (serviceMonitorSelectorNilUsesHelmValues:false); query in
@@ -173,11 +207,16 @@ spec:
   selector:
     matchLabels: { app: trino }
   endpoints:
-    - port: http
+    - port: https
+      scheme: https
       path: /metrics
       interval: 30s
-      # Trino's /metrics wants Basic auth (WWW-Authenticate: Basic realm="Trino"); in no-auth mode it
-      # accepts ANY username and ignores the password. Creds from trino-metrics-auth (data-mesh, imperative).
+      # B233: /metrics needs an authenticated user, and a password is accepted only over HTTPS (the plain port
+      # answers a Basic-auth scrape with 401 even in the transition mode — measured on the throwaway). Prometheus
+      # logs in as `prometheus` (trino-metrics-auth, written by scripts/trino-credentials.sh) and verifies the cert.
+      tlsConfig:
+        ca: { secret: { name: weyland-mkcert-ca, key: rootCA.pem } }
+        serverName: trino.data-mesh.svc.cluster.local
       basicAuth:
         username: { name: trino-metrics-auth, key: username }
         password: { name: trino-metrics-auth, key: password }

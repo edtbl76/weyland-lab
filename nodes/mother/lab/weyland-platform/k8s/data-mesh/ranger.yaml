@@ -238,7 +238,11 @@ spec:
             # install.properties lives in the key/ dir (RANGER_ADMIN_CONF); conf/ holds krb5/log4j/append.
             - { name: key, mountPath: /opt/mr3-run/ranger/key }
             - { name: conf, mountPath: /opt/mr3-run/ranger/conf }
+            # B233: the lab CA, so the Trino resource lookup (ranger_setup.py's jdbc.url, HTTPS 8443) verifies the cert.
+            - { name: weyland-ca, mountPath: /etc/weyland-ca, readOnly: true }
       volumes:
+        - name: weyland-ca
+          secret: { secretName: weyland-mkcert-ca, items: [{ key: rootCA.pem, path: rootCA.pem }] }
         - name: key
           emptyDir: {}
         - name: key-template

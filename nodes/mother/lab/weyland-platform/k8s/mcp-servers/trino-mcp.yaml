@@ -1,7 +1,6 @@
 # trino-mcp — B17+B19 Phase 3, MCP server #2. tuannvm/mcp-trino (Go) exposing the lakehouse (Trino: iceberg.* + dbt
-# marts) as MCP query/discovery tools. Connects to the `trino-noauth` proxy (ns data-mesh) — the same no-auth path
-# dbt/Soda/Cube use (proxy strips Basic auth; Trino sees only X-Trino-User). Unmeshed — trino/trino-noauth are
-# PERMISSIVE, so a plain HTTP hop works.
+# marts) as MCP query/discovery tools. Connects to Trino directly as its own `mcp` login over HTTPS (B233, 2026-10-23;
+# it used the trino-noauth proxy before). Unmeshed — Trino's sidecar is PERMISSIVE, so the TLS connection passes.
 #
 # READ-ONLY BY CONSTRUCTION: TRINO_USER=mcp, and Ranger (Trino authz) is DEFAULT-DENY — `mcp` can do ONLY what a Ranger
 # policy grants (select/show), never write. NOT the `dbt` user (which can write iceberg.dbt). If a query returns
@@ -25,18 +24,24 @@ spec:
       # connection refused"), with no retry. So any moment the Trino path is down while this pod starts — a Trino OOM
       # restart, or the 2026-09-29 05:14 UTC event that restarted 35 containers at once, trino-noauth-proxy included —
       # became a CrashLoopBackOff (24 restarts in 37 days). This init container waits until Trino reports it is serving
-      # (`"starting":false` on /v1/info, through the same trino-noauth proxy the server uses), so a blip means waiting
-      # in Init, not crash-looping. Once running, the server survives Trino outages (queries fail, the process stays up).
+      # (`"starting":false` on /v1/info, on the same HTTPS port the server uses since B233; /v1/info needs no login), so a
+      # blip means waiting in Init, not crash-looping. Once running, the server survives Trino outages (queries fail, the
+      # process stays up). BusyBox wget verifies TLS and reads SSL_CERT_FILE (proven 2026-10-23: the lab CA accepted;
+      # no CA, or a wrong hostname, refused).
       initContainers:
         - name: wait-for-trino
           image: alpine:latest
           command: ["/bin/sh", "-c"]
           args:
             - |
-              until wget -q -T 5 -O- http://trino-noauth.data-mesh.svc.cluster.local:8080/v1/info 2>/dev/null | grep -q '"starting":false'; do
-                echo "waiting for Trino (trino-noauth) to be ready"; sleep 5
+              until wget -q -T 5 -O- https://trino.data-mesh.svc.cluster.local:8443/v1/info 2>/dev/null | grep -q '"starting":false'; do
+                echo "waiting for Trino to be ready"; sleep 5
               done
               echo "Trino ready"
+          env:
+            - { name: SSL_CERT_FILE, value: /etc/weyland-ca/rootCA.pem }
+          volumeMounts:
+            - { name: weyland-ca, mountPath: /etc/weyland-ca, readOnly: true }
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001
@@ -56,12 +61,23 @@ spec:
             - { name: MCP_HOST, value: 0.0.0.0 }          # default is localhost → unreachable in-pod without this
             - { name: MCP_PORT, value: "8080" }
             - { name: OAUTH_ENABLED, value: "false" }      # no JWT for trusted in-cluster use
-            - { name: TRINO_HOST, value: trino-noauth.data-mesh.svc.cluster.local }
-            - { name: TRINO_PORT, value: "8080" }
-            - { name: TRINO_SCHEME, value: http }          # plaintext no-auth proxy
-            - { name: TRINO_SSL, value: "false" }
-            - { name: TRINO_USER, value: mcp }             # read-only identity (Ranger default-deny → grant select/show only)
+            # B233 (2026-10-23): Trino directly, as the `mcp` login over HTTPS (was the trino-noauth proxy). The binary has
+            # no CA option; Go reads SSL_CERT_FILE for its trust roots, and this process only dials Trino, so the lab CA
+            # alone is the right root set. Proven against a throwaway Trino 468: with the CA `select current_user` = mcp;
+            # without it "tls: failed to verify certificate". TRINO_SSL_INSECURE stays false.
+            - { name: TRINO_HOST, value: trino.data-mesh.svc.cluster.local }
+            - { name: TRINO_PORT, value: "8443" }
+            - { name: TRINO_SCHEME, value: https }
+            - { name: TRINO_SSL, value: "true" }
+            - { name: TRINO_SSL_INSECURE, value: "false" }
+            - { name: SSL_CERT_FILE, value: /etc/weyland-ca/rootCA.pem }
+            - name: TRINO_USER                             # read-only identity (Ranger default-deny → grant select/show only)
+              valueFrom: { secretKeyRef: { name: trino-mcp, key: username } }
+            - name: TRINO_PASSWORD
+              valueFrom: { secretKeyRef: { name: trino-mcp, key: password } }
             - { name: TRINO_CATALOG, value: iceberg }
+          volumeMounts:
+            - { name: weyland-ca, mountPath: /etc/weyland-ca, readOnly: true }   # B233
           readinessProbe:
             tcpSocket: { port: 8080 }
             initialDelaySeconds: 5
@@ -80,6 +96,9 @@ spec:
             # Limit raised 128Mi -> 256Mi (2026-08-22): OOMKilled 2026-08-21 at 104Mi steady-state — 81% of the
             # old ceiling. Same reasoning as postgres-mcp: cgroup OOM, not node pressure; request unchanged.
             limits: { memory: 256Mi }
+      volumes:
+        - name: weyland-ca
+          secret: { secretName: weyland-mkcert-ca, items: [{ key: rootCA.pem, path: rootCA.pem }] }
 ---
 apiVersion: v1
 kind: Service

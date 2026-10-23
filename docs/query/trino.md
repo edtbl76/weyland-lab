@@ -8,11 +8,15 @@ dbt marts (`iceberg.dbt.*`) see **[[dbt-marts]]** — don't duplicate them here.
 
 ## Connect
 
-- **CLI (in-pod):** `kubectl -n data-mesh exec -it deploy/trino -- trino` → `trino>` prompt. No auth.
-- **IntelliJ / DataGrip:** a **Trino** data source at the `trino-lan` NodePort `jdbc:trino://192.168.1.243:30808`,
-  user any / no password — admitted for rogueone only (Trino has no authenticator, so the NetworkPolicy is the gate;
-  the lab never port-forwards). In-cluster the svc is `trino.data-mesh.svc:8080`.
-- **Web UI:** `https://trino.weyland.lab` (forward-auth → Keycloak, then Trino username-only login) — this is a
+- **CLI (in-pod):** `kubectl -n data-mesh exec -it deploy/trino -- trino` → `trino>` prompt (the coordinator's own
+  loopback, not a remote caller).
+- **IntelliJ / DataGrip:** a **Trino** data source at the `trino-lan` NodePort over TLS,
+  `jdbc:trino://192.168.1.243:30843?SSL=true&SSLVerification=FULL`, user `emangini`, password `TRINO_PW_EMANGINI` from
+  `scripts/.env` — admitted for rogueone only (the lab never port-forwards). Since B233 (2026-10-23) every caller logs
+  in, over HTTPS only; in-cluster the svc is `trino.data-mesh.svc.cluster.local:8443`
+  ([runbooks/trino.md § Authentication](../runbooks/trino.md#authentication-b233-2026-10-23)).
+- **Web UI:** `https://trino.weyland.lab` (forward-auth → Keycloak; Trino's own UI login is off — the UI runs as the fixed
+  identity `trino-ui`, B233) — this is a
   **monitoring console** (running queries, timings, cluster), NOT a query editor. Run SQL via CLI / IntelliJ /
   **Superset** (Trino is a Superset database).
 

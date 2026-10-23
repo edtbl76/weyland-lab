@@ -15,7 +15,7 @@ aggregations (its 4–6Gi heap has an OOM history). So:
 |---|---|---|
 | tool-server (`192.168.1.243:30080`) | `/health`, `/ready` | the FastMCP serving plane, no tool fan-out |
 | LiteLLM gateway (`192.168.1.243:30400`) | `/health/readiness` | the gateway's own routing/serving, **no completion** |
-| Trino (`trino.data-mesh.svc:8080`) | `SELECT 1` | coordinator submit+poll, **no aggregation** |
+| Trino (`trino.data-mesh.svc.cluster.local:8443`, login `perf`) | `SELECT 1` | coordinator submit+poll, **no aggregation** |
 
 ## Current baseline (2026-09-10, VUs as noted)
 
@@ -46,8 +46,10 @@ Knobs: `PERF_VUS` (default 10 LAN / 3 Trino) · `PERF_DURATION` (30s / 20s). k6 
 `mother` is **swapless with ~4.6Gi peak headroom** ([[mother-ram-ceiling-hydrate-reliability]], B134/B99),
 so a load test is itself a risk. The harness is **bounded by design** — low VUs + light endpoints keep it
 negligible (0% errors at the levels above, node untroubled). Raise `PERF_VUS` only after watching the node
-stay comfortable; the Trino Job runs **sidecar-off** (Trino has no Istio sidecar) so it reaches `trino:8080`
-over plain HTTP.
+stay comfortable; the Trino Job runs **sidecar-off** and, since B233 (2026-10-23), logs in as `perf` over HTTPS on 8443 (the
+`trino-perf` Secret; the lab CA through `SSL_CERT_FILE`; admitted by its `job-name` label —
+[trino.md § Authentication](trino.md#authentication-b233-2026-10-23)). Before B233 it dialled `trino:8080` over plain
+HTTP, which Trino's front door had refused since B211 (2026-10-14).
 
 ## Live Grafana dashboard (optional)
 

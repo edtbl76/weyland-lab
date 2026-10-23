@@ -119,6 +119,31 @@ datasets_finance.filings_text" \
   [ "$status" -eq 2 ]
 }
 
+# --- the live Trino read (B233, 2026-10-23): Trino authenticates now ----------------------------
+# Trino takes a password, only over HTTPS. Without the password the guard cannot read REALITY, which is exit 2 (could
+# not check), never 0. The password goes in a private netrc file, never on curl's command line (ps would show it).
+
+@test "live Trino read without TRINO_PASSWORD is exit 2, named, and never dials Trino" {
+  stub curl 0 '{}'
+  unset TRINO_TABLES TRINO_PASSWORD
+  DATAHUB_URNS="iceberg.datasets_finance.price_daily" run "$GUARD"
+  [ "$status" -eq 2 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"TRINO_PASSWORD is not set"* ]] || { echo "$output"; return 1; }
+  if grep -q '^curl ' "$STUB_LOG"; then echo "curl was called"; cat "$STUB_LOG"; return 1; fi
+}
+
+@test "live Trino read logs in from a netrc file over verified HTTPS, password never on the command line" {
+  stub curl 0 '{"data":[["datasets_finance.price_daily"]],"stats":{"state":"FINISHED"}}'
+  unset TRINO_TABLES
+  TRINO_PASSWORD="sekret-pw" DATAHUB_URNS="iceberg.datasets_finance.price_daily" run "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; cat "$STUB_LOG"; return 1; }
+  grep -q -- '--netrc-file ' "$STUB_LOG"
+  grep -q -- '--cacert /etc/weyland-ca/rootCA.pem' "$STUB_LOG"
+  grep -q 'https://trino.data-mesh.svc.cluster.local:8443/v1/statement' "$STUB_LOG"
+  if grep -q 'sekret-pw' "$STUB_LOG"; then echo "password on a command line"; return 1; fi
+  if grep -q 'X-Trino-User' "$STUB_LOG"; then echo "still self-asserting the user"; return 1; fi
+}
+
 @test "main: --list prints every table with a verdict and exits 0 even on drift" {
   TRINO_TABLES="datasets_finance.price_daily
 datasets_finance.filings_text" \
@@ -132,14 +157,14 @@ datasets_finance.filings_text" \
 # --- first-call admission retry ------------------------------------------------------------------
 #
 # k3s's NetworkPolicy controller admits a NEW pod's IP a few seconds after the pod starts, and the
-# trino-noauth proxy's policy (B211) admits this job by label — so the CronJob's very first Trino call
+# Trino front door's policy admits this job by label (B211; the trino-noauth proxy's until B233) — so the CronJob's very first Trino call
 # can be refused while the rule is live and correct. Observed 2026-10-17 03:05 NY: "Failed to connect
 # ... after 1 ms", the whole night failed, monitoring-extras went Degraded. The first statement POST
 # therefore carries a bounded curl retry on refusal; a Trino that stays down still fails closed (2).
 
 @test "fetch: the first Trino call retries a refused connection, bounded" {
   stub curl 0 '{"data":[["datasets_finance.price_daily"]]}'
-  DATAHUB_URNS="iceberg.datasets_finance.price_daily" run "$GUARD"
+  TRINO_PASSWORD=pw DATAHUB_URNS="iceberg.datasets_finance.price_daily" run "$GUARD"
   [ "$status" -eq 0 ]
   local first; first="$(grep -m1 '^curl ' "$STUB_LOG")"
   [[ "$first" == *"/v1/statement"* ]]
@@ -149,9 +174,11 @@ datasets_finance.filings_text" \
 
 @test "fetch: a Trino that stays unreachable still fails closed as exit 2 and says why" {
   stub curl 7 ''
-  DATAHUB_URNS="iceberg.datasets_finance.price_daily" run "$GUARD"
+  # B233: with the password set, so the exit 2 is the unreachable Trino and not the missing credential
+  TRINO_PASSWORD=pw DATAHUB_URNS="iceberg.datasets_finance.price_daily" run "$GUARD"
   [ "$status" -eq 2 ]
   [[ "$output" == *"could not read mesh tables from Trino"* ]]
+  grep -q '^curl ' "$STUB_LOG"
 }
 
 # --- anti-drift ----------------------------------------------------------------------------------

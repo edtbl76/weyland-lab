@@ -23,7 +23,7 @@ The union of the three component demos — all must be healthy:
 
 - **The mart exists** — `iceberg.dbt.mart_state_health_trends` (build via [dbt.md](dbt.md) if absent).
 - **DataHub** — GMS in-cluster (`datahub-datahub-gms.data-mesh.svc:8080`), UI `datahub.weyland.lab` (Keycloak).
-- **Soda** — isolated venv in `deploy/dagster-user-code`; `trino-noauth` proxy up (see [soda-dq.md](soda-dq.md)).
+- **Soda** — isolated venv in `deploy/dagster-user-code`; the `trino-dbt` login present (B233, see [soda-dq.md](soda-dq.md)).
 - **Ranger** — Trino native plugin wired, `analyst` user + mask policy applied via `ranger_setup.py` (see
   [ranger-masking.md](ranger-masking.md)).
 - `kubectl` runs on **mother** (`emangini@mother`).

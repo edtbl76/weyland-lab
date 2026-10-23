@@ -18,7 +18,9 @@ superset-worker` before turning either on.
 
 - **UI:** `https://superset.weyland.lab` — sign in with Keycloak
 - **SQL Lab:** top nav → SQL → SQL Lab; pick a database, schema, table
-- **Trino:** database `Trino`, URI `trino://trino@trino.data-mesh.svc.cluster.local:8080/iceberg`
+- **Trino:** database `Trino`, URI `trino://superset@trino.data-mesh.svc.cluster.local:8443/iceberg` with the
+  `superset` login (B233, HTTPS + password; the connection is stored in Superset's DB, set in its UI —
+  [trino.md § Authentication](trino.md#authentication-b233-2026-10-23) step 8)
 - **Postgres DBs:** each lab DB is a separate Superset database connection (weyland, dagster, datahub, glitchtip, keycloak, lakefs, mlflow, nessie, sonarqube, superset, unleash)
 
 ---
@@ -75,7 +77,9 @@ argocd app sync superset --core
 Added via API on initial setup. If lost, re-run the setup script or add manually via **Settings → Database Connections**.
 
 Key connections:
-- `Trino` — `trino://trino@trino.data-mesh.svc.cluster.local:8080/iceberg`
+- `Trino` — `trino://superset@trino.data-mesh.svc.cluster.local:8443/iceberg`, password `TRINO_PW_SUPERSET`, engine
+  params `{"connect_args": {"http_scheme": "https", "verify": "/etc/ssl/weyland-ca/rootCA.pem"}}` (B233; it was
+  `trino://trino@…:8080` with no password before)
 - `weyland`, `dagster`, `datahub`, `glitchtip`, `keycloak`, `lakefs`, `mlflow`, `nessie`, `sonarqube`, `superset`, `unleash` — all `postgresql+psycopg2://weyland:weyland_dev_password@weyland-postgres.weyland.svc.cluster.local:5432/<db>`
 
 ---

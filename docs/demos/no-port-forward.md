@@ -17,6 +17,8 @@ There is no UI deliverable — the CLI walkthrough is the whole demo (repo tooli
 ```
 L=192.168.1.243; curl -s "http://$L:30909/api/v1/query?query=up" | jq -r .status; curl -s "http://$L:30808/v1/info" | jq -r .nodeVersion.version; curl -s "http://$L:30920/_cluster/health" | jq -r .status; (printf 'PING\r\n'; sleep 1) | nc -w3 $L 30379 | head -1
 ```
+(B233, 2026-10-23: `:30808` is Trino's old plain-HTTP door until B233's stage 3; the login door is `:30843`, HTTPS —
+[runbooks/trino.md § Authentication](../runbooks/trino.md#authentication-b233-2026-10-23).)
 Output (run): `success` (136 `up` series) · `468` (Trino) · `yellow` (single-node OpenSearch) · `+PONG` (Valkey). The
 same run: Uptime Kuma `:30301` → `HTTP 302` (its own login), GMS `:30818/health` → `HTTP 200`, musicbrainz-postgres
 `:30544` answered the Postgres SSL probe.

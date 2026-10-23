@@ -11,7 +11,7 @@ flowchart TB
   MARTS[("dbt marts — iceberg.dbt.mart_*<br/>7 tested tables (curated gold)")]
 
   subgraph TRINO["Trino (federated query engine)"]
-    NOAUTH["trino-noauth proxy<br/>(strips Basic-auth; for tools that force a password)"]
+    NOAUTH["Trino HTTPS :8443<br/>(each caller its own login, B233)"]
     TAUTH["trino.weyland.lab<br/>(IntelliJ / CLI)"]
   end
   MARTS --> TRINO
@@ -50,7 +50,8 @@ different consumers:
 
 - **Cube (L6)** — a **headless API** (SQL / REST / GraphQL). Any pg client or app hits it; the SQL API's one rule is
   `MEASURE(measure)` (a bare measure column is rejected). Superset consumes it via `MEASURE()` virtual datasets. It's
-  the metric layer an *application or agent* calls. Connects to Trino through the `trino-noauth` proxy.
+  the metric layer an *application or agent* calls. Connects to Trino as its own `cube` login over HTTPS (B233,
+  [runbooks/trino.md § Authentication](../runbooks/trino.md#authentication-b233-2026-10-23)).
 - **MetricFlow** — the **dbt Semantic Layer** built into the dbt project (`semantic_models.yml`). Metrics compile to
   Trino and are queried with `mf query`. Needs a DAY time-spine (`metricflow_time_spine`), so it's scoped to the
   **time-shaped health marts** (`year` → a date axis); the categorical music marts aren't a fit. It's the metric
@@ -60,7 +61,7 @@ different consumers:
 
 - **Superset** — reads Cube (governed) AND raw Trino tables (ad-hoc SQL Lab). The Cube dashboard is seeded by
   `scripts/superset_seed_cube.py`.
-- **Lightdash** — dbt-native BI; its own metrics/explores over the marts, via `trino-noauth`.
+- **Lightdash** — dbt-native BI; its own metrics/explores over the marts, as its `lightdash` login over HTTPS.
 - **JupyterHub (L8)** — on-demand JupyterLab pods read the marts either through Trino OR straight from the **lakeFS
   silver** in all 4 formats (Parquet/Arrow/Avro/Lance) with the baked polars/duckdb toolkit. This is the
   code-first, exploratory consumer — no metric governance, full flexibility.
@@ -68,8 +69,9 @@ different consumers:
 ## Why it all funnels through Trino
 
 The marts are **Iceberg tables on Nessie** — there's no separate serving DB. Trino is the read path for every
-consumer, so the semantic layers (Cube, MetricFlow) and BI tools all connect to Trino (Cube/Lightdash via the
-`trino-noauth` auth-strip proxy, since both force a password that no-auth Trino would 401). JupyterHub is the one
+consumer, so the semantic layers (Cube, MetricFlow) and BI tools all connect to Trino, each as its own login over
+HTTPS on 8443 (B233, 2026-10-23; before that Cube/Lightdash went through the `trino-noauth` auth-strip proxy, which
+stays deployed until B233's stage 3 but has no repo caller). JupyterHub is the one
 consumer that can *also* bypass Trino and read the lakeFS object store directly — useful when you want the raw file,
 not a query result.
 
@@ -83,15 +85,13 @@ sequenceDiagram
     actor User
     participant Cube as Cube<br/>(SQL :15432 / REST :4000)
     participant MF as MetricFlow (mf query)
-    participant Proxy as trino-noauth proxy
     participant Trino as Trino
     participant Marts as dbt marts<br/>(iceberg.dbt.mart_*)
     participant LD as Lightdash
 
     Note over User,Marts: Cube — governed metric API
     User->>Cube: SELECT track_genre, MEASURE(avg_danceability) FROM spotify_audio
-    Cube->>Proxy: compiled SQL (Basic-auth header)
-    Proxy->>Trino: strip Authorization → X-Trino-User: dbt
+    Cube->>Trino: compiled SQL (HTTPS 8443, login cube)
     Trino->>Marts: read mart_spotify_audio
     Trino-->>Cube: rows
     Cube-->>User: governed metric value
@@ -105,7 +105,6 @@ sequenceDiagram
 
     Note over User,LD: BI face (dbt-native)
     User->>LD: open explore / metric
-    LD->>Proxy: dbt-compiled SQL
-    Proxy->>Trino: forward
+    LD->>Trino: dbt-compiled SQL (HTTPS 8443, login lightdash)
     Trino-->>LD: rows → chart
 ```

@@ -1,0 +1,17 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: trino-mcp
+  namespace: weyland
+spec:
+  encryptedData:
+    password: AgCu8jR/DyTjIN5UpsZqtMTZdfl0GycIDxUb+FJo+k1YjB2dA8Y4vfUuW5uTNle31p8whPnNnalJi5Kw1g+SqIFWjxHDn02El5yu7jEJP9HQXlAQA8P2uESeZRmv47pRj8qO5JN3e2GkbsVUU7Aqr19GoW+9/Df1q+VgbN2YEj5jzudZ/wsnOY0yjjqkd8D5lGmDdr92G+zl0GmshAWFvXLQCzUwwSWFmZ+fx/e0Dhqu7Yn9d3GQNs5sdngYk53DsATLi4tO5168Z0ue55B94sX9BneiKnvPA94KHEDqZzYpVzD1fqub11Owo05GbP/fndLy2A3Id9XWR6BRLZXt/3DpAOMSMoHgZdTgJzoXx1xePpAWZNV1pz0avV2qVCevEi/Gxvd3BMos3/aIYw/LId0eGuwaLj0a0oT7X94WpdKZB62tkhM8q+cY1E+rypf0jH3SSj1mPSbcr50d3mydG8lXzfcUFRYKdGpeihyFpwYMQwSOLl2o5kDzy5S8+HUx1xbfHcXRMctNuAmRvPC/uc4HRxPeEr5sHFw0NHWgYVVt3jME/FsVEyUrf9fi0sbpCnPMkf4qqWoPp1aIsdO+UIaiWWJNA3EuhSd4sYFJ6AGetEaQwICcrdhRznmD70WC2D0nywgkaGdh/9FZWeV87Vbhmyoynr83vS+hBhLW6Q4a+k/5d3+eZ5M270dh46PByHfEg9+kcO3IMQT9UveVj+Sh4gGRpIUeM9F/JYVB/abTUl8w0+2wP8EN6U0F4imwZds=
+    username: AgA87WLtflDXJVmHp/waDIQTiQa4Qmi3g7yBqVsZQXEYaDZh55IT+u2GPK9V+/hMdUels0PZRuIELqEOR9FowqP1x2AWx4zbxhHaMn+cAJBPaSzkQukhsYkUjzkNANcu1wixKMG46HvcJEfZhk1+x3ddICzAJbFwVgrC1W5JHz0ipGpnwB5O1wkHYlA9Zf9aw4jQn4EdD89tXpckpr/j/2frtVOtvsP5b7gDJlrgr9hR8rDlkQSKjn/fqQ50OluAEDz2bYXEykQW4kEACQnxmD5kc4kg7bApBAoJkMwmc/blWCeiM4GcDd6PPzvApLZDzekx/gc7eWotyFjvpvFJkC0rCn0N3OqUbUYYO44bnwrdunMiO8S1PS54/Kl60EfhDLNQ42t3C7eIMkhSJ2EsjfuGEoPUFOiJjDB4KW1q47EzHpwnVejFHSDiLKM3QaBdBezufup3isRTeOEKgP8Zu+9+76E9goGcl1iozT7e9xnyF1OfGCpSHvEXSXP29GuryAVSw4qVi9H/iUjVF7hkHpfi7m9rXpFmUjNE/Jf0vrbDI7sgYgyCG4FvFZHiCyWXBwIrSDaN99e4FfOiTC9V5TmNMnM/BGw5APMlKV75qjRQrbY7xz8T2D6TiSNtSNaQQIP/ktTZw/yz+WBUaAswcUDUJ2o4opX1k4yBJLJTbtZmtYjHUn7yW0S2ybzYzEifmLKX1Bs=
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: trino-mcp
+      namespace: weyland
+    type: Opaque

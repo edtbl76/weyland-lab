@@ -6,8 +6,9 @@ uniqueness/completeness, value-range bounds, and per-column **emptiness tripwire
 (Governance/Security) layer (Ranger + OPA + Soda), complementary to dbt's in-transform tests: dbt validates
 *during* the build (row-level, null-filtered); Soda validates the *published output* (aggregate) and so catches
 all-NULL columns that dbt range checks pass vacuously. Soda lives in an isolated venv (`/opt/soda-venv`) inside
-the `dagster-user-code` image and shells out; its Trino connector always sends HTTP Basic auth, so it must point
-at the **`trino-noauth` proxy** (nginx strips `Authorization`) rather than Trino directly. The `-srf` scan-results
+the `dagster-user-code` image and shells out; its Trino connector sends HTTP Basic auth, which Trino checks since
+B233 (2026-10-23): it logs in as `dbt` over HTTPS on 8443 (`REQUESTS_CA_BUNDLE` = the lab CA for the subprocess only).
+Before B233 it went through the `trino-noauth` proxy, which stripped `Authorization`. The `-srf` scan-results
 JSON is the venv↔main-env bridge that `emit_soda_assertions` reads back. There is no Soda web UI (Soda Cloud is
 paid, $0 rule); results land in Dagster run logs and each mart's DataHub Quality tab. See
 [../demos/soda-dq.md](../demos/soda-dq.md) and [../runbooks/soda.md](../runbooks/soda.md).
@@ -19,7 +20,6 @@ sequenceDiagram
     actor User
     participant Dag as Dagster soda_quality_job
     participant Soda as Soda venv (/opt/soda-venv, subprocess)
-    participant Proxy as trino-noauth proxy
     participant Trino as Trino
     participant Marts as iceberg.dbt.mart_*
     participant Emit as emit_soda_assertions
@@ -27,8 +27,7 @@ sequenceDiagram
 
     User->>Dag: launch soda_quality_job
     Dag->>Soda: soda scan -d weyland -srf results.json
-    Soda->>Proxy: SodaCL checks (Basic-auth header)
-    Proxy->>Trino: strip Authorization → X-Trino-User: dbt
+    Soda->>Trino: SodaCL checks (HTTPS 8443, login dbt)
     Trino->>Marts: aggregate checks (row count, uniqueness, ranges, missing_percent)
     Marts-->>Soda: pass/fail per check
     Soda-->>Dag: -srf scan-results JSON (venv ↔ main-env bridge)

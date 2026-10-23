@@ -2,8 +2,8 @@
 
 Great Expectations is the **profiling showcase** of the data-quality layer (part b) — on-demand, ~$0 standing RAM.
 The `ge_validate_job` shells out to the isolated `/opt/ge-venv` (GE **0.18**, pinned because acryl-datahub 1.7 dropped
-the native GE action). Per showcase table it opens a **Fluent Trino *table* asset** (user `dbt` via the `trino-noauth`
-proxy), lets the **`UserConfigurableProfiler`** auto-generate a per-column suite (types, non-null, min/max/quantile
+the native GE action). Per showcase table it opens a **Fluent Trino *table* asset** (the `dbt` login over HTTPS on 8443 since B233,
+[runbooks/trino.md § Authentication](../runbooks/trino.md#authentication-b233-2026-10-23); the `trino-noauth` proxy before), lets the **`UserConfigurableProfiler`** auto-generate a per-column suite (types, non-null, min/max/quantile
 ranges, value sets, uniqueness — GE's actual differentiator), validates it with a checkpoint, and builds **Data
 Docs**. The main-env `emit_ge_assertions` reads the validation-results JSON and hand-rolls each expectation into a
 DataHub Assertion (nativeType = expectation type, column-scoped when it targets a column) — so GE lands **alongside
@@ -18,7 +18,7 @@ sequenceDiagram
   actor U as Operator (Dagster UI)
   participant OP as ge_validate_op (user-code pod)
   participant GE as /opt/ge-venv (GE 0.18)
-  participant TR as Trino (trino-noauth, user dbt)
+  participant TR as Trino (HTTPS 8443, login dbt)
   participant PVC as ge-data-docs PVC
   participant EM as emit_ge_assertions (main env)
   participant DH as DataHub GMS

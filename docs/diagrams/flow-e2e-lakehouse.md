@@ -16,7 +16,7 @@ sequenceDiagram
     participant Trino as Trino
     participant DBT as dbt-trino<br/>(weyland_dbt_assets)
     participant T2 as Tier-2 stores<br/>(ClickHouse / Cassandra)
-    participant Cube as Cube SQL API<br/>(:15432, trino-noauth)
+    participant Cube as Cube SQL API<br/>(:15432, login cube)
     participant LD as Lightdash / Superset
 
     Op->>DAG: materialize land asset ({"force": true})
@@ -31,7 +31,7 @@ sequenceDiagram
     Trino->>Ice: read gold (sources)
     Trino->>Ice: CREATE TABLE iceberg.dbt.mart_* (Trino writes)
     Op->>Cube: SELECT dim, MEASURE(metric) FROM cube
-    Cube->>Trino: compiled SQL via trino-noauth proxy
+    Cube->>Trino: compiled SQL (HTTPS 8443, login cube)
     Trino->>Ice: read mart_*
     Trino-->>Cube: rows
     Cube-->>Op: governed metric value

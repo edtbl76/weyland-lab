@@ -21,11 +21,12 @@ all-NULL columns that dbt range checks pass vacuously.
 - **Isolated venv.** `soda-core` pins opentelemetry/click/ruamel at versions incompatible with the main env, so it
   is installed into `/opt/soda-venv` (Dockerfile `python -m venv`) and invoked as a subprocess. `-srf <file>` writes
   a scan-results JSON that the main-env op reads back and feeds to `emit_soda_assertions` (the venv↔main-env bridge).
-- **trino-noauth proxy.** Soda's Trino connector **always** sends HTTP Basic auth; Trino (no authenticator) rejects
-  a password over plaintext (`401 Password not allowed for insecure authentication`). So `configuration.yml` points
-  at `trino-noauth.data-mesh.svc.cluster.local:8080` (nginx strips the `Authorization` header → Trino sees
-  `X-Trino-User: dbt`, the same no-auth path dbt/Superset use). **Do not** point it at `trino.data-mesh` directly.
-  (dbt itself connects direct, method:none — the proxy is only for basic-auth connectors, cf. Lightdash.)
+- **Trino login (B233, 2026-10-23).** Soda's Trino connector sends HTTP Basic auth, and since B233 Trino takes it:
+  `configuration.yml` points at `trino.data-mesh.svc.cluster.local:8443` (`http_scheme: https`,
+  `auth_type: BasicAuthentication`, user `dbt`, `password: ${TRINO_PASSWORD}` resolved from the pod env). soda-core-trino
+  has no CA option, so `soda_scan_op` runs the scan with `REQUESTS_CA_BUNDLE` set to the lab CA for that subprocess only
+  ([trino.md § Authentication](trino.md#authentication-b233-2026-10-23)). Before B233 it went through the
+  `trino-noauth` proxy with `NoAuthentication`, because Trino trusted `X-Trino-User`.
 - **DataHub Assertions.** `emit_soda_assertions` mints a stable assertion URN `md5(table:check)` → a `_NATIVE_`
   DATASET assertion (the check text is the logic, no per-operator mapping) + an `AssertionRunEvent` (pass/fail) on
   the mart's `trino` URN. Idempotent; re-runs update the same assertion. Non-fatal — a DataHub hiccup never masks a

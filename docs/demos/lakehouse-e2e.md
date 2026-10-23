@@ -33,7 +33,7 @@ sequenceDiagram
     participant Trino as Trino
     participant DBT as dbt-trino<br/>(weyland_dbt_assets)
     participant T2 as Tier-2 stores<br/>(ClickHouse / Cassandra)
-    participant Cube as Cube SQL API<br/>(:15432, trino-noauth)
+    participant Cube as Cube SQL API<br/>(:15432, login cube)
     participant LD as Lightdash / Superset
 
     Op->>DAG: materialize land asset ({"force": true})
@@ -48,7 +48,7 @@ sequenceDiagram
     Trino->>Ice: read gold (sources)
     Trino->>Ice: CREATE TABLE iceberg.dbt.mart_* (Trino writes)
     Op->>Cube: SELECT dim, MEASURE(metric) FROM cube
-    Cube->>Trino: compiled SQL via trino-noauth proxy
+    Cube->>Trino: compiled SQL (HTTPS 8443, login cube)
     Trino->>Ice: read mart_*
     Trino-->>Cube: rows
     Cube-->>Op: governed metric value
@@ -65,8 +65,9 @@ The union of the three component demos' prerequisites — confirm each before th
   `parquet/`/`arrow/`/`avro/`/`lance/`.
 - **Nessie / Iceberg** — `https://nessie.weyland.lab`; `nessie.data-mesh.svc:19120`. Gold `iceberg.datasets_*`
   and marts `iceberg.dbt.*` on ref `main`.
-- **Trino** — write path for dbt + read path for Cube; in-cluster `trino.data-mesh.svc:8080`, no-auth LAN. Cube/
-  Lightdash reach it via `trino-noauth.data-mesh.svc:8080`.
+- **Trino** — write path for dbt + read path for Cube; in-cluster `trino.data-mesh.svc.cluster.local:8443`, HTTPS +
+  a password per caller since B233 (dbt as `dbt`, Cube as `cube`, Lightdash as `lightdash` —
+  [runbooks/trino.md § Authentication](../runbooks/trino.md#authentication-b233-2026-10-23)).
 - **dbt-docs** — `https://dbt-docs.weyland.lab` (Keycloak forward-auth).
 - **Cube** — Playground `https://cube.weyland.lab`; SQL API `cube.data-mesh.svc:15432` (pg-wire, user `cube`).
 - **Lightdash** — `https://lightdash.weyland.lab`; **Superset** — `https://superset.weyland.lab`.

@@ -65,3 +65,69 @@ def test_to_yaml_round_trips(monkeypatch):
     _stub_sources(monkeypatch, cols=[("id", "bigint")])
     c = g.build_contract("music", "p", "a.b.c", "cid", "bronze", "src")
     assert yaml.safe_load(g.to_yaml(c)) == c                            # emitted YAML reparses to the same contract
+
+
+# ── B233: the Trino read authenticates (HTTPS + password, the lab CA) ────────────────────────────────
+class _Resp:
+    def __init__(self, body):
+        self._body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        import json
+        return json.dumps(self._body).encode()
+
+
+def _capture(monkeypatch, body):
+    seen = []
+
+    def fake_urlopen(req, timeout=None, context=None):
+        seen.append((req, context))
+        return _Resp(body)
+    monkeypatch.setattr(g.urllib.request, "urlopen", fake_urlopen)
+    return seen
+
+
+def test_trino_reads_send_basic_auth_over_a_verifying_tls_context(monkeypatch, tmp_path):
+    import base64
+    import ssl
+    ca = tmp_path / "ca.pem"
+    ca.write_text("")
+    monkeypatch.setenv("TRINO_USER", "dbt")
+    monkeypatch.setenv("TRINO_PASSWORD", "pw-123")
+    monkeypatch.setattr(g, "_ca_context", lambda: ssl.create_default_context())
+    seen = _capture(monkeypatch, {"data": [["c", "varchar"]]})
+    assert g.trino_columns("iceberg", "dbt", "t") == [("c", "varchar")]
+    req, ctx = seen[0]
+    assert req.full_url == "https://trino.data-mesh.svc.cluster.local:8443/v1/statement"
+    assert req.get_header("Authorization") == "Basic " + base64.b64encode(b"dbt:pw-123").decode()
+    assert req.get_header("X-trino-user") is None              # never a self-asserted user
+    assert ctx is not None and ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+
+
+def test_trino_read_without_a_password_fails_closed(monkeypatch):
+    import pytest
+    monkeypatch.setenv("TRINO_USER", "dbt")
+    monkeypatch.delenv("TRINO_PASSWORD", raising=False)
+    seen = _capture(monkeypatch, {})
+    with pytest.raises(RuntimeError, match="TRINO_PASSWORD is not set"):
+        g.trino_columns("iceberg", "dbt", "t")
+    assert seen == []
+
+
+def test_the_ca_context_loads_the_lab_ca_path(monkeypatch):
+    loaded = []
+
+    class _Ctx:
+        def load_verify_locations(self, cafile=None):
+            loaded.append(cafile)
+    monkeypatch.setattr(g.ssl, "create_default_context", lambda: _Ctx())
+    monkeypatch.setenv("TRINO_CA", "/etc/weyland-ca/rootCA.pem")
+    g._ca_context()
+    assert loaded == ["/etc/weyland-ca/rootCA.pem"]
+

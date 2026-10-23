@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# B104 — Trino perf baseline (in-cluster). Trino is ClusterIP-only (trino.data-mesh.svc:8080), so k6 runs
-# as an ephemeral Job IN data-mesh. Trino has NO Istio sidecar, so the Job sets sidecar.istio.io/inject
-# =false and reaches trino:8080 over plain HTTP. LIGHT `SELECT 1` at low VUs — Trino's 4-6Gi heap has an
+# B104 — Trino perf baseline (in-cluster). Trino is ClusterIP-only, so k6 runs as an ephemeral Job IN data-mesh,
+# sidecar off (Trino's sidecar is PERMISSIVE). Since B233 (2026-10-23) it logs in as `perf` over HTTPS on 8443 (the
+# trino-perf Secret; the lab CA via SSL_CERT_FILE), and Trino's front door admits it by its job-name label. LIGHT `SELECT 1` at low VUs — Trino's 4-6Gi heap has an
 # OOM history; NEVER point this at heavy aggregations. On-demand; records to tests/perf/baseline.tsv; cleans up.
 #   env: PERF_VUS (default 3) · PERF_DURATION (default 20s) · TRINO_NS (default data-mesh) · K6_IMAGE
 #   GRAFANA: PERF_GRAFANA=1 also streams this run to the in-cluster Prometheus via remote-write (tagged
@@ -65,14 +65,21 @@ spec:
           image: $K6_IMG
           command: $K6_CMD
           env:
-            - {name: BASE, value: "http://trino:8080"}
+            # B233: Trino authenticates (HTTPS 8443 + password). The Job's login is `perf` (the trino-perf Secret);
+            # k6 is Go, so SSL_CERT_FILE makes the lab CA its trust root.
+            - {name: BASE, value: "https://trino.data-mesh.svc.cluster.local:8443"}
+            - {name: TRINO_USER, valueFrom: {secretKeyRef: {name: trino-perf, key: username}}}
+            - {name: TRINO_PASSWORD, valueFrom: {secretKeyRef: {name: trino-perf, key: password}}}
+            - {name: SSL_CERT_FILE, value: /etc/weyland-ca/rootCA.pem}
             - {name: SQL, value: "SELECT 1"}
             - {name: VUS, value: "$VUS"}
             - {name: DURATION, value: "$DUR"}$RW_ENV
           volumeMounts:
             - {name: s, mountPath: /scripts}
+            - {name: weyland-ca, mountPath: /etc/weyland-ca, readOnly: true}
       volumes:
         - {name: s, configMap: {name: perf-trino-k6}}
+        - {name: weyland-ca, secret: {secretName: weyland-mkcert-ca, items: [{key: rootCA.pem, path: rootCA.pem}]}}
 EOF
 
 printf '→ trino  (SELECT 1  vus=%s  dur=%s  in-cluster Job, sidecar off)\n' "$VUS" "$DUR"

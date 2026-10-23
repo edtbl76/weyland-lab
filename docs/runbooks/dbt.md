@@ -13,8 +13,10 @@ BI over the marts: **Lightdash** (governed dbt metrics, [lightdash.md](lightdash
 
 ## Architecture
 
-- **Adapter:** `dbt-trino`, `profiles.yml` = `method: none, host: trino.data-mesh.svc:8080, http_scheme: http,
-  database: iceberg (catalog), schema: dbt, threads: 2`. Trino is no-auth on the LAN.
+- **Adapter:** `dbt-trino`, `profiles.yml` = `method: ldap` (user + password), user `dbt`, host
+  `trino.data-mesh.svc.cluster.local:8443`, `http_scheme: https`, `cert` = the lab CA, `database: iceberg` (catalog),
+  `schema: dbt`, `threads: 1`. Since B233 (2026-10-23) Trino authenticates; the password is `TRINO_PASSWORD` from the
+  `trino-dbt` Secret ([trino.md § Authentication](trino.md#authentication-b233-2026-10-23)).
 - **Models:** staging = **ephemeral** (inlined, no table); marts = **table** (real Iceberg tables). Sources = the
   gold tables (`iceberg.datasets_music/health.*`).
 - **Manifest baked at image BUILD:** the Dockerfile runs `dbt deps && dbt parse` → `dbt/target/manifest.json`;

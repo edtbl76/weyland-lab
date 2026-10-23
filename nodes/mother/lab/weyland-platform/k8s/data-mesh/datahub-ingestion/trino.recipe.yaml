@@ -1,15 +1,21 @@
 # DataHub managed-ingestion recipe — Trino (federation query engine). Source-of-record only (UI-configured).
 # Catalogs the `iceberg` catalog's tables (datasets.* music gold + catalog/eval) and emits sibling +
 # upstream lineage to the underlying iceberg platform via catalog_to_connector_details — so the catalog
-# shows the query layer over the lake. In-cluster svc URL (Trino has no in-cluster auth; the DataHub
-# executor is meshed → reaches it). The postgres catalog is already cataloged directly by the postgres
+# shows the query layer over the lake. In-cluster svc URL, as the `datahub` login over HTTPS (B233, 2026-10-23:
+# Trino authenticates; TRINO_DATAHUB_PASSWORD is the actions pod's env from the trino-datahub Secret, the lab CA is
+# mounted at /etc/weyland-ca). The postgres catalog is already cataloged directly by the postgres
 # source, so it's omitted here (the trino source ingests one catalog via `database`). Schedule: daily.
 source:
   type: trino
   config:
-    host_port: "trino.data-mesh.svc.cluster.local:8080"
+    host_port: "trino.data-mesh.svc.cluster.local:8443"
     database: "iceberg"
-    username: "trino"
+    username: "datahub"
+    password: "${TRINO_DATAHUB_PASSWORD}"
+    options:
+      connect_args:
+        http_scheme: https
+        verify: /etc/weyland-ca/rootCA.pem
     include_views: true
     catalog_to_connector_details:
       iceberg:

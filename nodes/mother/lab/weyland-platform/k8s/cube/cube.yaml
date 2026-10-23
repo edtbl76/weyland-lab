@@ -1,6 +1,5 @@
-# B1.7 L6 — Cube: the serving semantic layer over the dbt marts (Trino/Iceberg). Connects through the SAME
-# trino-noauth proxy Soda/Lightdash use (Cube's Trino driver sends Basic auth like they do; the proxy strips it so
-# Trino sees only X-Trino-User: dbt). Dev mode ON = the Playground UI + hot model reload (lab-friendly). Model is
+# B1.7 L6 — Cube: the serving semantic layer over the dbt marts (Trino/Iceberg). Connects to Trino directly as its own
+# `cube` login over HTTPS (B233, 2026-10-23; it used the trino-noauth proxy as `dbt` before). Dev mode ON = the Playground UI + hot model reload (lab-friendly). Model is
 # mounted from the cube-model ConfigMap; grows via git. SQL API (Postgres-wire :15432) + REST + GraphQL on :4000.
 # B69: `cube-secret` (the `CUBEJS_API_SECRET` JWT signing key) is NO LONGER committed here — a live signing key
 # in plaintext git is a leak. It's now an imperative secret (rotated), to be sealed in Wave 2. Recreate:
@@ -168,11 +167,20 @@ spec:
             # the Playground *in the browser*, and only when opened — we consume via Superset/API, so it's a non-issue.
             - { name: CUBEJS_DEV_MODE, value: "true" }
             - { name: CUBEJS_DB_TYPE, value: trino }
-            - { name: CUBEJS_DB_HOST, value: trino-noauth.data-mesh.svc.cluster.local }
-            - { name: CUBEJS_DB_PORT, value: "8080" }
-            - { name: CUBEJS_DB_USER, value: dbt }
+            # B233 (2026-10-23): Trino directly, as the `cube` login over HTTPS (was the trino-noauth proxy as `dbt`).
+            # REJECT_UNAUTHORIZED is load-bearing: Cube's base driver defaults rejectUnauthorized to FALSE, so without it
+            # the driver sends the password to any server that answers (proven: no CA + unset flag still connected;
+            # no CA + true refused). The CA is the lab's mkcert root.
+            - { name: CUBEJS_DB_HOST, value: trino.data-mesh.svc.cluster.local }
+            - { name: CUBEJS_DB_PORT, value: "8443" }
+            - name: CUBEJS_DB_USER
+              valueFrom: { secretKeyRef: { name: trino-cube, key: username } }
+            - name: CUBEJS_DB_PASS
+              valueFrom: { secretKeyRef: { name: trino-cube, key: password } }
             - { name: CUBEJS_DB_PRESTO_CATALOG, value: iceberg }
-            - { name: CUBEJS_DB_SSL, value: "false" }
+            - { name: CUBEJS_DB_SSL, value: "true" }
+            - { name: CUBEJS_DB_SSL_REJECT_UNAUTHORIZED, value: "true" }
+            - { name: CUBEJS_DB_SSL_CA, value: /etc/weyland-ca/rootCA.pem }
             # SQL API (Postgres-wire) — lets BI tools / psql query the semantic layer.
             - { name: CUBEJS_PG_SQL_PORT, value: "15432" }
             - { name: CUBEJS_SQL_USER, value: cube }
@@ -185,12 +193,15 @@ spec:
             # which Cube's model globber loads too → "duplicate cube name". (Trade-off: no hot-reload on CM change;
             # redeploy to update the model — fine for the lab.)
             - { name: model, mountPath: /cube/conf/model/marts.yml, subPath: marts.yml }
+            - { name: weyland-ca, mountPath: /etc/weyland-ca, readOnly: true }   # B233
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { memory: 768Mi }
       volumes:
         - name: model
           configMap: { name: cube-model }
+        - name: weyland-ca
+          secret: { secretName: weyland-mkcert-ca, items: [{ key: rootCA.pem, path: rootCA.pem }] }
 ---
 apiVersion: v1
 kind: Service

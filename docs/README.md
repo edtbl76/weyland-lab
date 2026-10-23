@@ -56,7 +56,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [lan-access.md](runbooks/lan-access.md) — LAN access: NodePorts ONLY, never port-forward — every `-lan` NodePort, how to add one (rogueone pinning), the `check-no-port-forward.sh` guard
 - [lan-dns.md](runbooks/lan-dns.md) — `weyland-lan-dns` — `*.weyland.lab` resolution, CoreDNS forward
 - [langfuse.md](runbooks/langfuse.md) — Langfuse LLM observability (B103) — sessions, online evals, OOM/Redis gotchas
-- [lightdash.md](runbooks/lightdash.md) — Lightdash dbt-native BI: trino-noauth proxy, PAT dbt project, metrics-as-code, S3, seed/content-as-code
+- [lightdash.md](runbooks/lightdash.md) — Lightdash dbt-native BI: its Trino login (HTTPS, B233), PAT dbt project, metrics-as-code, S3, seed/content-as-code
 - [likec4.md](runbooks/likec4.md) — LikeC4 architecture diagrams (B64) — one model → explorer + mkdocs
 - [linear-backup.md](runbooks/linear-backup.md) — nightly Linear workspace snapshot → MinIO `linear-backup` (B194): operate, verify, install, rotate the read-only key
 - [mcp-fleet.md](runbooks/mcp-fleet.md) — MCP server fleet (B17+B19 Phase 3) — 6 read-only servers + FastMCP compositor

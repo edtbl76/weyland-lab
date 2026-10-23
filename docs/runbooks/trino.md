@@ -14,13 +14,158 @@ Superset / dbt / the B73 "use the data" work all ride on it. Manifest: `k8s/data
 - `system` — Trino internals.
 
 ## How to connect
-- **CLI:** `kubectl -n data-mesh exec -it deploy/trino -- trino` → `trino>` prompt.
-- **IntelliJ / DataGrip:** a **Trino** data source at the `trino-lan` NodePort `jdbc:trino://192.168.1.243:30808`
-  (`k8s/data-mesh/query-lan.yaml`), user any / no password. Admitted for rogueone only (`netpol-trino.yaml`) —
-  Trino has no authenticator. NodePorts only, never a port-forward.
-- **Web UI:** `https://trino.weyland.lab` (forward-auth → Keycloak, then Trino username-only login). It's
-  a **monitoring console** (running queries, timings, cluster), NOT a query editor — use Superset/CLI/IDE
-  to run SQL.
+Since B233 (2026-10-23) Trino authenticates: every caller logs in with its own password, and a password is accepted
+**only over HTTPS on 8443** (a cert from the lab's mkcert CA). See § Authentication.
+- **CLI:** `kubectl -n data-mesh exec -it deploy/trino -- trino` → `trino>` prompt (inside the coordinator; the CLI
+  talks to its own loopback HTTP port, so it is not a remote caller).
+- **IntelliJ / DataGrip:** a **Trino** data source at the `trino-lan` NodePort over TLS:
+  `jdbc:trino://192.168.1.243:30843?SSL=true&SSLVerification=FULL`, user `emangini`, password `TRINO_PW_EMANGINI`
+  from `scripts/.env` (rogueone trusts the mkcert root already; the cert names `192.168.1.243`). The JDBC driver
+  refuses a password over plain HTTP ("TLS/SSL is required"), so the old `:30808` door cannot work with a login.
+  Admitted for rogueone only (`netpol-trino.yaml`). NodePorts only, never a port-forward.
+- **Web UI:** `https://trino.weyland.lab` (forward-auth → Keycloak). Trino's own UI login is off: the UI runs as the
+  fixed identity `trino-ui` (`web-ui.authentication.type=fixed`), because Keycloak already gates the page to the owner
+  (owner decision, 2026-10-23). It's a **monitoring console** (running queries, timings, cluster), NOT a query editor —
+  use Superset/CLI/IDE to run SQL.
+
+## Authentication (B233, 2026-10-23)
+
+**Why.** Trino 468 had no authenticator: every client set `X-Trino-User` and Trino believed it, so Ranger's per-user
+policies (the `analyst` column mask, any future row filter) could be bypassed by claiming another name. The network
+front door (`netpol-trino.yaml`, B211) limited who could connect, never who they were. Two things had to change, and
+either alone does nothing:
+1. **A password per caller** (Trino's file authenticator, bcrypt hashes in `password.db`), over **HTTPS only**. In Trino
+   468 `http-server.authentication.allow-insecure-over-http=true` does NOT mean "check passwords over HTTP": it means
+   "on HTTP, skip authentication and trust the header" (a no-credential request got 200 on the throwaway). With it
+   `false`, plain HTTP refuses everything except a request that says it arrived over HTTPS (`X-Forwarded-Proto`, which
+   Traefik sets for the UI path).
+2. **Ranger's impersonation policy narrowed.** A login may still *name* a different session user; Ranger's
+   `all - trinouser` policy decides it, and `ranger_setup.py` had opened it to group `public` for every user (`*`) — so
+   a password alone would have let `analyst` log in and claim `dbt` (proven on the throwaway: it ran as dbt). The
+   plugin checks impersonation even when login == user, so removing `public` locks everyone out; the fix is the `{USER}`
+   macro: each login may become only itself (`restrict_impersonation_to_self()`, tests in
+   `scripts/tests/test_ranger_setup.py`).
+
+**The identities** — one per caller, the password in `scripts/.env` as `TRINO_PW_<ID>`
+(`scripts/trino-credentials.sh`):
+
+| Login | Caller | Where the credential lives |
+|---|---|---|
+| `dbt` | Dagster user-code (dbt, the mart export, Feast, Soda, GE) + dbt-docs | `weyland/trino-dbt` → `TRINO_USER` / `TRINO_PASSWORD` |
+| `cube` | Cube | `data-mesh/trino-cube` → `CUBEJS_DB_USER` / `CUBEJS_DB_PASS` |
+| `datahub` | DataHub managed ingestion (`trino.recipe.yaml`) | `data-mesh/trino-datahub` → `TRINO_DATAHUB_PASSWORD` on datahub-actions |
+| `datahub-coverage` | the coverage CronJob (ns weyland) | `weyland/trino-datahub-coverage` |
+| `mcp` | trino-mcp | `weyland/trino-mcp` |
+| `prometheus` | the ServiceMonitor scrape (`/metrics` needs a login) | `data-mesh/trino-metrics-auth` |
+| `notebook`, `analyst` | the JupyterHub servers (notebook 72 uses both) | `jupyterhub/trino-notebook`, `jupyterhub/trino-analyst` |
+| `perf` | the on-demand k6 baseline Job | `data-mesh/trino-perf` |
+| `lightdash`, `superset` | the BI tools | entered in each app's UI (stored in its own DB) |
+| `emangini` | DataGrip on rogueone | the IDE's data source |
+| `ranger` | Ranger Admin's resource lookup | Ranger's `trino` service config (`ranger_setup.py`) |
+
+Trino's side is `data-mesh/trino-auth`: `password.db`, `tls.pem` (mkcert key + cert for
+`trino.data-mesh.svc.cluster.local`, `trino.data-mesh.svc`, `trino.data-mesh`, `trino`, `192.168.1.243`; expires
+**2029-01-23**) and `TRINO_SHARED_SECRET` (internal communication, required once an authenticator is on). Every client
+verifies Trino's cert against `weyland-mkcert-ca` mounted at `/etc/weyland-ca` (Superset: `/etc/ssl/weyland-ca`).
+Client quirks, all proven against a throwaway Trino 468 with the live Ranger policies:
+- **Cube's** base driver defaults `rejectUnauthorized` to **false** — `CUBEJS_DB_SSL_REJECT_UNAUTHORIZED=true` is
+  load-bearing (without it Cube connected with no CA at all).
+- **Soda** and **GE** have no CA option: `soda_scan_op` / `ge_validate_op` set `REQUESTS_CA_BUNDLE` for their
+  subprocess only (`trino_auth.subprocess_env()`); Soda resolves `${TRINO_PASSWORD}`; GE keeps the placeholder in its
+  stored datasource and uses `add_or_update_sql` (its file context had kept its first connection string forever).
+- **trino-mcp**, **k6** and BusyBox **wget** are Go / OpenSSL clients with no CA flag: `SSL_CERT_FILE` points them at
+  the lab CA (each refuses the cert without it).
+- **Lightdash** passes no TLS options: `NODE_EXTRA_CA_CERTS` adds the lab CA to Node's store.
+- **Trino JDBC** (DataGrip, Ranger's lookup driver 451) detects a PEM truststore itself; `SSLTrustStoreType=PEM` fails.
+
+**Roll it out, in this order.** Stages 1-2 change nothing a caller notices: plain HTTP on 8080 keeps trusting
+`X-Trino-User` while every caller moves to 8443 (proven: both doors work at once). Stage 3 closes 8080.
+
+*Stage 1-2 — credentials, then the push.*
+1. The passwords and the shared secret into `scripts/.env` (generated, never printed):
+
+   [rogueone]
+   ```
+   bash /home/edwardmangini/IdeaProjects/weyland/scripts/trino-credentials.sh generate
+   ```
+2. Trino's password file and the mkcert cert, into a private dir:
+
+   [rogueone]
+   ```
+   bash /home/edwardmangini/IdeaProjects/weyland/scripts/trino-credentials.sh build /home/edwardmangini/.trino-auth-build
+   ```
+3. The Secrets (from files; checks every stored length):
+   ```
+   bash /home/edwardmangini/IdeaProjects/weyland/scripts/trino-credentials.sh apply /home/edwardmangini/.trino-auth-build
+   ```
+4. Seal them into the repo (`k8s/sealed-secrets/sealed/`):
+   ```
+   bash /home/edwardmangini/IdeaProjects/weyland/scripts/trino-credentials.sh seal
+   ```
+5. Remove the build dir (the key and hashes now live only in the sealed Secret):
+
+   [rogueone]
+   ```
+   rm -r /home/edwardmangini/.trino-auth-build
+   ```
+6. Ranger: the impersonation policy and the lookup login. `ranger_setup.py` needs `RANGER_ADMIN_PASSWORD`; if
+   `scripts/.env` lacks it, copy it from the cluster Secret first (not printed):
+   ```
+   grep -q '^RANGER_ADMIN_PASSWORD=.' /home/edwardmangini/IdeaProjects/weyland/scripts/.env || printf 'RANGER_ADMIN_PASSWORD=%s\n' "$(kubectl -n data-mesh get secret ranger-admin-secret -o jsonpath='{.data.RANGER_ADMIN_PASSWORD}' | base64 -d)" >> /home/edwardmangini/IdeaProjects/weyland/scripts/.env
+   ```
+   ```
+   set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && kubectl -n weyland exec -i deploy/dagster-user-code -- env RANGER_ADMIN_PASSWORD="$RANGER_ADMIN_PASSWORD" TRINO_PW_RANGER="$TRINO_PW_RANGER" python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/ranger_setup.py
+   ```
+   Expect `impersonation policy 1: now {USER} only` (or `already self-only`) and `ranger trino setup done`. Safe before
+   the push: on the old door the claimed user IS the login, so `{USER}` grants exactly what every caller does today.
+7. Push (the sealed files with the manifests and code), CI, then `ship-images.sh` (Dagster user-code). Argo rolls
+   Trino, Cube, trino-mcp, dbt-docs, datahub-actions, Lightdash, Ranger Admin and the JupyterHub config.
+8. The callers that store their connection themselves (UI steps):
+   - **DataHub:** Ingestion → Sources → `trino` → Edit → the YAML: paste `k8s/data-mesh/datahub-ingestion/trino.recipe.yaml`'s
+     `source:` block → Save. Then **Run** it.
+   - **Superset:** Settings → Database Connections → the Trino database → Edit → SQLAlchemy URI
+     `trino://superset@trino.data-mesh.svc.cluster.local:8443/iceberg`, password `TRINO_PW_SUPERSET`; Advanced → Other
+     → Engine parameters `{"connect_args": {"http_scheme": "https", "verify": "/etc/ssl/weyland-ca/rootCA.pem"}}` →
+     Test connection → Finish.
+   - **Lightdash:** Project settings → warehouse connection (Trino): host `trino.data-mesh.svc.cluster.local`, port
+     `8443`, user `lightdash`, password `TRINO_PW_LIGHTDASH`, HTTP scheme `https` → Test and save.
+   - **DataGrip:** the data source URL above, user `emangini`, password `TRINO_PW_EMANGINI`.
+   The values come from `scripts/.env` (`grep '^TRINO_PW_SUPERSET=' …` shows only the line you need).
+9. Live checks (§ Check it below), every caller on demand: dbt (`weyland_dbt_job`), the Soda and GE jobs, the mart
+   export, Cube (a Playground query), trino-mcp through Bifrost, DataHub's Trino source run, the coverage CronJob
+   (`kubectl create job --from`), notebooks 20/40/62/71/72/81, the perf baseline, Prometheus `up`, the Trino UI.
+
+*Stage 3 — close the old door* (a separate push, after every check in 9 passes): `allow-insecure-over-http=false`,
+8080 admits only Traefik (the UI path) in `netpol-trino.yaml`, the `:30808` NodePort and the no-auth proxy removed.
+
+**Check it.** From any admitted pod (e.g. dagster-user-code), with no credential and claiming a privileged user —
+expect 401:
+```
+kubectl -n weyland exec deploy/dagster-user-code -- python -c "import trino;c=trino.dbapi.connect(host='trino.data-mesh.svc.cluster.local',port=8443,user='dbt',http_scheme='https',verify='/etc/weyland-ca/rootCA.pem').cursor();c.execute('select 1');print(c.fetchall())"
+```
+And the pod's own login — expect `[['dbt']]`:
+```
+kubectl -n weyland exec deploy/dagster-user-code -- python -c "from weyland_pipeline.trino_auth import connect;c=connect().cursor();c.execute('select current_user');print(c.fetchall())"
+```
+The impersonation policy as Trino holds it (`{USER}` on policy 1):
+```
+kubectl -n data-mesh exec deploy/trino -c trino -- sh -c 'cat /tmp/ranger/trino/policycache/trino_trino.json' | python3 -c "import sys,json;[print(p['id'],p['resources']['trinouser']['values'],[i['groups'] for i in p['policyItems']]) for p in json.load(sys.stdin)['policies'] if 'trinouser' in p['resources']]"
+```
+
+**Rotate a login** (one identity; the others keep working): regenerate it, rebuild, re-apply, re-seal, push, then
+restart that caller (and Trino, which reads `password.db` at start):
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/trino-credentials.sh generate --rotate cube
+```
+then steps 2-5 and 7 above, `kubectl -n data-mesh rollout restart deploy/trino` and the caller's restart (a UI-stored
+login is re-entered in its UI). Rotating the cert is the same without `--rotate` (`build` re-issues it); do it before
+2029-01-23.
+
+**Roll back.** Stage 3: revert its commit (the old door reopens). Stages 1-2: revert the commit — Trino returns to no
+authenticator and every caller to the old door (Argo `selfHeal` makes the git revert the only rollback; see project
+rules). The Ranger `{USER}` policy can stay: it is correct with or without authentication.
 
 ## Gotchas (all cost time, all in the manifest now)
 - **Native Nessie catalog**, not generic REST (above).
@@ -28,8 +173,8 @@ Superset / dbt / the B73 "use the data" work all ride on it. Manifest: `k8s/data
   ([[proxmox-vm-cpu-host-avx]]); unrelated to Trino but surfaced in the same push.
 - **`http-server.process-forwarded=true`** — without it the web UI 406s behind Traefik+Istio
   ("Server configuration does not allow processing of the X-Forwarded-For header").
-- **`/metrics` auth:** OpenMetrics endpoint wants **Basic auth with username + EMPTY password** (no-auth
-  mode); the ServiceMonitor uses `basicAuth` → `trino-metrics-auth` secret (password = ``). Manual curl
+- **`/metrics` auth:** OpenMetrics needs an authenticated user. Since B233 the ServiceMonitor logs in as `prometheus`
+  over HTTPS on 8443 (`basicAuth` → `trino-metrics-auth`, a real password; `tlsConfig` with the lab CA). Manual curl
   also needs `-H "Accept: text/plain"` (it 406s on `*/*`); Prometheus sends the right Accept itself.
 - **No catalog auto-reload:** Trino reads catalogs/config at startup only → after a configmap change,
   `kubectl -n data-mesh rollout restart deploy/trino` (and the configmap must be synced/applied first).
@@ -52,10 +197,11 @@ Superset / dbt / the B73 "use the data" work all ride on it. Manifest: `k8s/data
 >
 > **Two traps worth keeping:**
 >
-> 1. **An empty password in `trino-metrics-auth` is CORRECT, not missing.** Trino's insecure mode
->    rejects any request that *carries* a password: `curl -u metrics:x` → **401
->    `Password not allowed for insecure authentication`**; `curl -u "metrics:"` → **200**. The empty
->    value is the required one. It is the most suspicious-looking artifact here and it was never the bug.
+> 1. **Until B233 (2026-10-23) an empty password in `trino-metrics-auth` was CORRECT, not missing.** Trino's insecure
+>    mode rejects any request that *carries* a password: `curl -u metrics:x` → **401
+>    `Password not allowed for insecure authentication`**; `curl -u "metrics:"` → **200**. Since B233 the opposite
+>    holds: the scrape is HTTPS on 8443 with the `prometheus` login's real password, and plain HTTP answers a
+>    Basic-auth scrape with 401 (measured on the throwaway), which is why the ServiceMonitor moved port in the same push.
 > 2. **Metric names carry a `_name_` segment** the JMX exporter inserts —
 >    `trino_execution_name_QueryManager_RunningQueries`, not `trino_execution_QueryManager_RunningQueries`.
 >    Guessing the shorter form returns "no such metric", which on a dashboard renders as an empty panel
@@ -96,8 +242,11 @@ jsonpath='{.items[0].status.containerStatuses[?(@.name=="trino")].lastState.term
 ## DataHub
 DataHub `trino` ingestion source (`k8s/data-mesh/datahub-ingestion/trino.recipe.yaml`) catalogs the
 `iceberg` catalog's tables as `trino`-platform datasets with **sibling + upstream lineage to the iceberg
-platform** (`catalog_to_connector_details`) — Trino shows as the query layer over the lake.
+platform** (`catalog_to_connector_details`) — Trino shows as the query layer over the lake. It logs in as `datahub`
+over HTTPS (B233); the live source is UI state, so the recipe is pasted into it (§ Authentication step 8).
 
 ## Secrets (imperative → SealedSecrets at B69)
 - `trino-secret` — MINIO_ACCESS_KEY / MINIO_SECRET_KEY / WEYLAND_PG_PASSWORD (catalog creds).
-- `trino-metrics-auth` — username=prometheus, password=`` (empty) for the /metrics scrape.
+- `trino-auth` (B233) — `password.db`, `tls.pem`, `TRINO_SHARED_SECRET`; built by `scripts/trino-credentials.sh`.
+- `trino-metrics-auth` — username=prometheus, its real password since B233 (it was empty in the no-auth era).
+- One Secret per caller login (§ Authentication's table), all from `scripts/trino-credentials.sh`.

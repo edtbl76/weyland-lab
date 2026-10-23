@@ -6,7 +6,7 @@ one of three APIs (**SQL**, **REST**, **GraphQL**). It sits *between* the marts 
 `data-mesh`, manifests in `k8s/cube/cube.yaml`, UI at `https://cube.weyland.lab` (Keycloak-gated).
 
 **Status: DEPLOYED 2026-07-12** (first build after B79 freed the node). 7 cubes over the marts, connected to Trino
-via the `trino-noauth` proxy, SQL API proven end-to-end.
+(via the `trino-noauth` proxy then; since B233, 2026-10-23, as its own `cube` login over HTTPS), SQL API proven end-to-end.
 
 ---
 
@@ -47,13 +47,15 @@ consumers (BI / app / agent / notebook)
       ▼
    Cube  ──model (cubes: measures + dimensions)──►  compiles to Trino SQL
       │
-      ▼  (trino-noauth proxy strips the Basic-auth header, like Soda/Lightdash)
+      ▼  (HTTPS :8443, login `cube`, cert verified against the lab CA — B233)
    Trino ──► iceberg.dbt.mart_*  (the dbt marts, on Nessie/MinIO)
 ```
 
-- **DB connection:** `CUBEJS_DB_TYPE=trino`, host `trino-noauth.data-mesh:8080`, user `dbt`, catalog `iceberg`.
-  Same no-auth path Soda/Lightdash use (Cube's Trino driver forces Basic auth → the nginx proxy strips it → Trino
-  sees only `X-Trino-User: dbt`; Ranger authorizes `dbt` on `iceberg.dbt`).
+- **DB connection:** `CUBEJS_DB_TYPE=trino`, host `trino.data-mesh.svc.cluster.local:8443`, user `cube` (password
+  from the `trino-cube` Secret), catalog `iceberg`, `CUBEJS_DB_SSL=true` + `CUBEJS_DB_SSL_CA` (the lab CA) +
+  `CUBEJS_DB_SSL_REJECT_UNAUTHORIZED=true` — load-bearing, Cube's driver defaults it to false (B233,
+  [trino.md § Authentication](trino.md#authentication-b233-2026-10-23)). Before B233 it went through the
+  `trino-noauth` proxy as `dbt`.
 - **Model:** 7 cubes in a ConfigMap (`cube-model`), one per mart (`spotify_audio`, `country_health`, …). Measures
   = the aggregations (`avg_danceability`, `total_plays_sum`), dimensions = the group-bys (`track_genre`, `country`).
 - **APIs:** REST + GraphQL + Playground on `:4000`; **SQL API** (Postgres-wire) on `:15432` (`cube`/`weyland_dev_password`).

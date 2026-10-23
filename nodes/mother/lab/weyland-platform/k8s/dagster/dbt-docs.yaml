@@ -35,6 +35,15 @@ spec:
               cd /app/dbt &&
               DBT_PROFILES_DIR=/app/dbt dbt docs generate || echo "dbt docs generate had issues — serving what we have";
               DBT_PROFILES_DIR=/app/dbt exec dbt docs serve --host 0.0.0.0 --port 8080 --no-browser
+          # B233 (2026-10-23): `dbt docs generate` reads column stats from Trino as the `dbt` login over HTTPS
+          # (profiles.yml), verifying the cert against the lab CA.
+          env:
+            - name: TRINO_USER
+              valueFrom: { secretKeyRef: { name: trino-dbt, key: username } }
+            - name: TRINO_PASSWORD
+              valueFrom: { secretKeyRef: { name: trino-dbt, key: password } }
+          volumeMounts:
+            - { name: weyland-ca, mountPath: /etc/weyland-ca, readOnly: true }
           ports:
             - name: http
               containerPort: 8080
@@ -45,6 +54,9 @@ spec:
           resources:
             requests: { cpu: 50m, memory: 384Mi }
             limits: { memory: 1Gi }
+      volumes:
+        - name: weyland-ca
+          secret: { secretName: weyland-mkcert-ca, items: [{ key: rootCA.pem, path: rootCA.pem }] }
 ---
 apiVersion: v1
 kind: Service

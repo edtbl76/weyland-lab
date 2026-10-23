@@ -7,7 +7,7 @@ app** (chart from the lightdash helm repo + values from git), the same shape as 
 `k8s/lightdash/lightdash-values.yaml`. UI: `https://lightdash.weyland.lab`.
 
 **Status: DEPLOYED 2026-07-08 — chart `2.9.1` / app `0.2248.0`.** Connected to Trino via the `trino-noauth` proxy
-(§5), dbt project pulled from GitHub via PAT, 44 metrics-as-code live, S3/MinIO wired, charts seeded (§7). The
+(§5; since B233, 2026-10-23, it logs in directly as `lightdash` over HTTPS — §6 step 3), dbt project pulled from GitHub via PAT, 44 metrics-as-code live, S3/MinIO wired, charts seeded (§7). The
 step-by-step below is the reproducible bring-up.
 
 Design: **get it UP first with Lightdash's own login, connect the dbt project + Trino in the UI after** — exactly
@@ -88,7 +88,11 @@ Add to `k8s/argocd/applications/helm-apps.yaml` (pin `targetRevision` to the ver
       syncOptions: [ServerSideApply=true]
 ```
 
-## 5. Trino auth-strip proxy (REQUIRED — Lightdash can't talk to no-auth Trino directly)
+## 5. Trino auth-strip proxy (HISTORY — not needed since B233)
+
+> **Since B233 (2026-10-23)** Trino authenticates (a password over HTTPS on 8443), so Lightdash sends its own
+> `lightdash` login straight to Trino (§6 step 3, [trino.md § Authentication](trino.md#authentication-b233-2026-10-23)). The proxy below stays deployed until
+> B233's stage 3 retires it, but no repo caller uses it. The rest of this section is why it existed.
 
 Lightdash's Trino connector **forces a password** (mandatory form field) → it sends HTTP **Basic auth**. Trino has
 **no authenticator** (deliberate LAN no-auth — dbt/DataHub/Superset all connect passwordless), and Trino returns
@@ -115,9 +119,10 @@ It's a raw manifest (not an Argo app) — `kubectl apply` it, restart the pod on
    - **Repository:** `edtbl76/weyland-lab` · **Branch:** `main` · **dbt version:** latest (v1.10).
    - **Project directory path:** `/nodes/mother/lab/weyland-platform/services/weyland-dagster/dbt` (leading `/` =
      from the repo root; the field defaults to `/` which is the repo root → `dbt_project.yml not found`).
-3. **Warehouse connection → Trino:** host **`trino-noauth.data-mesh.svc.cluster.local`** (the proxy, NOT Trino
-   directly), User `lightdash`, Password `weyland_dev_password` (throwaway — the proxy strips it), DB name `iceberg`
-   (catalog), Port `8080`, SSL mode `http`, Schema `dbt`.
+3. **Warehouse connection → Trino** (B233, 2026-10-23): host **`trino.data-mesh.svc.cluster.local`** (Trino directly),
+   User `lightdash`, Password `TRINO_PW_LIGHTDASH` from `scripts/.env`, DB name `iceberg` (catalog), Port `8443`,
+   SSL mode / HTTP scheme `https`, Schema `dbt`. The pod trusts the lab CA through `NODE_EXTRA_CA_CERTS`
+   (`lightdash-values.yaml`). Before B233 this was the `trino-noauth` proxy on `8080` with a throwaway password.
 4. Lightdash compiles the dbt project against Trino and surfaces `mart_spotify_audio`, `mart_state_health_trends`,
    etc. as explores (only the columns declared in each mart's `schema.yml` become dimensions). The **44
    `meta.metrics` already declared** across the mart schemas surface as first-class Lightdash metrics on refresh.

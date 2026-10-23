@@ -24,7 +24,7 @@ OUT="${OUT:-$HOME/sealed-out}"
 SEAL=0; [ "${1:-}" = "--seal" ] && SEAL=1
 
 SECRETS=(
-  # --- weyland (37) ---
+  # --- weyland (40) ---
   weyland/aidlc-kb-minio-secret
   weyland/apisix-secret
   weyland/cosign-signing-key         # B88 — cosign image-signing key. ⚠ BRICKING: lose it and every
@@ -67,6 +67,9 @@ SECRETS=(
   weyland/sonarqube-secret
   weyland/tool-server-sentry
   weyland/traefik-forward-auth-secret
+  weyland/trino-dbt                   # B233 — Trino login `dbt`: Dagster user-code (dbt, marts, Feast, GE, Soda) + dbt-docs
+  weyland/trino-mcp                   # B233 — Trino login `mcp` (trino-mcp)
+  weyland/trino-datahub-coverage      # B233 — Trino login `datahub-coverage` (the CronJob runs in weyland)
   weyland/unleash-secret
   weyland/weyland-postgres-secret
   # --- port-k8s-exporter (1) ---
@@ -74,7 +77,7 @@ SECRETS=(
   # and never sealed: it had NO ownerReferences at all, so nothing in git could restore it. The exporter
   # feeds the entire k8s half of the Port catalog, so losing this secret silently empties that catalog.
   port-k8s-exporter/weyland-cluster-port-k8s-exporter
-  # --- data-mesh (15) ---
+  # --- data-mesh (19) ---
   data-mesh/clickhouse-users
   data-mesh/cube-secret
   data-mesh/dagster-postgres-secret
@@ -88,6 +91,10 @@ SECRETS=(
   data-mesh/mysql-secret
   data-mesh/nessie-secret
   data-mesh/timescaledb-secret
+  data-mesh/trino-auth                # B233 — Trino's password.db (bcrypt) + tls.pem (mkcert) + TRINO_SHARED_SECRET
+  data-mesh/trino-cube                # B233 — Trino login `cube`
+  data-mesh/trino-datahub             # B233 — Trino login `datahub` (managed ingestion)
+  data-mesh/trino-perf                # B233 — Trino login `perf` (the on-demand k6 baseline Job)
   data-mesh/trino-metrics-auth
   data-mesh/trino-secret
   # --- monitoring (7) ---
@@ -104,7 +111,7 @@ SECRETS=(
   # --- n8n (2) ---
   n8n/n8n-secret                      # ⚠ bricking: N8N_ENCRYPTION_KEY — also escrow off-cluster
   n8n/weyland-lab-ssh-key
-  # --- jupyterhub (10) ---
+  # --- jupyterhub (12) ---
   jupyterhub/jupyterhub-oidc
   jupyterhub/lakefs-creds
   jupyterhub/iceberg-s3-creds         # B81 storage nb 11 — Nessie/Iceberg warehouse S3 creds (access_key/secret_key)
@@ -115,6 +122,8 @@ SECRETS=(
   jupyterhub/mlplat-creds             # B81 feature/ML nb 50+51 — Feast PG password + MLflow basic-auth (WEYLAND_PG_PASSWORD/MLFLOW_TRACKING_USERNAME/PASSWORD)
   jupyterhub/litellm-creds            # B81 AI/RAG nb 60-62 — LiteLLM gateway master key (LITELLM_MASTER_KEY)
   jupyterhub/datahub-creds            # B81 governance nb 70 — DataHub GMS token (DATAHUB_TOKEN)
+  jupyterhub/trino-notebook           # B233 — Trino login `notebook` (notebooks 20/40/62/71/81)
+  jupyterhub/trino-analyst            # B233 — Trino login `analyst`, Ranger's masked demo identity (notebook 72)
   # --- gatekeeper-system (1) ---
   gatekeeper-system/gpm-secret
 )

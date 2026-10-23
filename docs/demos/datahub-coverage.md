@@ -16,15 +16,18 @@ Reconcile two planes; a table in the first but not the second is drift:
 
 ## CLI walkthrough (the test — RUN against live infra)
 
-From rogueone, over the `trino-lan` (admitted for rogueone only) and `datahub-gms-lan` NodePorts + the DataHub token
+From rogueone, over the `trino-lan` (admitted for rogueone only; HTTPS `:30843` with the `datahub-coverage` login since
+B233 — commands updated for B233 (2026-10-23), not yet re-run) and `datahub-gms-lan` NodePorts + the DataHub token
 (the lab never port-forwards; the in-cluster CronJob run is in [runbooks/observability.md](../runbooks/observability.md)):
 
 ```
 TOKEN=$(kubectl -n weyland get secret datahub-token -o jsonpath='{.data.token}' | base64 -d)
 
-TRINO_HTTP=http://192.168.1.243:30808 DATAHUB_GMS_URL=http://192.168.1.243:30818 DATAHUB_GMS_TOKEN="$TOKEN" \
+set -a && . scripts/.env && set +a   # TRINO_PW_DATAHUB_COVERAGE (B233)
+export TRINO_HTTP=https://192.168.1.243:30843 TRINO_PASSWORD="$TRINO_PW_DATAHUB_COVERAGE" TRINO_CA="$(mkcert -CAROOT)/rootCA.pem"
+DATAHUB_GMS_URL=http://192.168.1.243:30818 DATAHUB_GMS_TOKEN="$TOKEN" \
   bash scripts/check-datahub-coverage.sh --list   # every mesh table + cataloged/UNCATALOGED
-TRINO_HTTP=http://192.168.1.243:30808 DATAHUB_GMS_URL=http://192.168.1.243:30818 DATAHUB_GMS_TOKEN="$TOKEN" \
+DATAHUB_GMS_URL=http://192.168.1.243:30818 DATAHUB_GMS_TOKEN="$TOKEN" \
   bash scripts/check-datahub-coverage.sh           # the gate
 ```
 

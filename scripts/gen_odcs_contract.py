@@ -17,15 +17,19 @@ services/weyland-dagster/dbt/models/marts/<domain>/schema.yml when the table is 
 """
 import argparse
 import json
+import base64
 import os
 import pathlib
 import re
+import ssl
 import sys
 import urllib.request
 
 _HERE = pathlib.Path(__file__).resolve().parent.parent
 _DAGSTER = _HERE / "nodes/mother/lab/weyland-platform/services/weyland-dagster"
-_TRINO = os.environ.get("TRINO_HTTP", "http://trino-noauth.data-mesh.svc.cluster.local:8080")
+# B233 (2026-10-23): Trino authenticates — a password, only over HTTPS (8443), the cert from the lab's mkcert CA. The
+# generator reads Trino as whatever login its pod holds (TRINO_USER / TRINO_PASSWORD; dagster-user-code's is `dbt`).
+_TRINO = os.environ.get("TRINO_HTTP", "https://trino.data-mesh.svc.cluster.local:8443")
 _OWNER = "ed@timberbacklabs.com"
 
 # Trino physical type -> ODCS logicalType.
@@ -64,16 +68,31 @@ def trino_columns(catalog, schema, table):
     return [(r[0], r[1]) for r in rows]
 
 
+def _auth_header():
+    user, password = os.environ.get("TRINO_USER"), os.environ.get("TRINO_PASSWORD")
+    if not (user and password):
+        raise RuntimeError("TRINO_PASSWORD is not set (or TRINO_USER): Trino takes a password only (B233); "
+                           "run the generator in a pod with a Trino login")
+    return "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+
+
+def _ca_context():
+    """A TLS context that verifies Trino's cert (and hostname) against the lab's mkcert CA."""
+    ctx = ssl.create_default_context()
+    ctx.load_verify_locations(cafile=os.environ.get("TRINO_CA", "/etc/weyland-ca/rootCA.pem"))
+    return ctx
+
+
 def _post(url, data):
     req = urllib.request.Request(url, data=data, method="POST",
-                                 headers={"X-Trino-User": "odcs-generator", "Content-Type": "text/plain"})
-    with urllib.request.urlopen(req, timeout=60) as r:  # nosec B310 — fixed TRINO_HTTP gateway (env-configured in-cluster host), no user-controlled URL
+                                 headers={"Authorization": _auth_header(), "Content-Type": "text/plain"})
+    with urllib.request.urlopen(req, timeout=60, context=_ca_context()) as r:  # nosec B310 — fixed TRINO_HTTP gateway (env-configured in-cluster host), no user-controlled URL
         return json.load(r)
 
 
 def _get(url):
-    req = urllib.request.Request(url, headers={"X-Trino-User": "odcs-generator"})
-    with urllib.request.urlopen(req, timeout=60) as r:  # nosec B310 — nextUri stays on TRINO_HTTP (host re-pointed by the caller); no user-controlled URL
+    req = urllib.request.Request(url, headers={"Authorization": _auth_header()})
+    with urllib.request.urlopen(req, timeout=60, context=_ca_context()) as r:  # nosec B310 — nextUri stays on TRINO_HTTP (host re-pointed by the caller); no user-controlled URL
         return json.load(r)
 
 

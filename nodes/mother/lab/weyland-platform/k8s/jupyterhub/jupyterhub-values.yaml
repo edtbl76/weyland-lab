@@ -79,6 +79,12 @@ singleuser:
     pullPolicy: IfNotPresent
   storage:
     capacity: 2Gi
+    # B233: the lab CA, so the Trino notebooks verify Trino's cert (TRINO_CA below).
+    extraVolumes:
+      - name: weyland-ca
+        secret: { secretName: weyland-mkcert-ca, items: [{ key: rootCA.pem, path: rootCA.pem }] }
+    extraVolumeMounts:
+      - { name: weyland-ca, mountPath: /etc/weyland-ca, readOnly: true }
   cpu:
     limit: 2
     guarantee: 0.1
@@ -141,7 +147,7 @@ singleuser:
         secretKeyRef: { name: neo4j-creds, key: NEO4J_PASSWORD }
     # Cube semantic-layer SQL API creds (B81 transform/semantic notebook 41). Cube's pg-wire SQL API (:15432,
     # user `cube`) needs a password; mirrors data-mesh `cube-secret` (CUBEJS_SQL_PASSWORD) into a jupyterhub
-    # SealedSecret `cube-creds`. The dbt-marts notebook (40) queries Trino (no creds needed).
+    # SealedSecret `cube-creds`. The dbt-marts notebook (40) queries Trino (its own login since B233, below).
     CUBE_SQL_PASSWORD:
       valueFrom:
         secretKeyRef: { name: cube-creds, key: CUBE_SQL_PASSWORD }
@@ -165,11 +171,23 @@ singleuser:
       valueFrom:
         secretKeyRef: { name: litellm-creds, key: LITELLM_MASTER_KEY }
     # DataHub GMS token (B81 governance notebook 70). Mirrors weyland `datahub-token` (token) into a jupyterhub
-    # SealedSecret `datahub-creds`; the notebook defaults DATAHUB_GMS_URL to the in-cluster GMS. Soda (71) uses
-    # trino-noauth (no creds); Ranger (72) sets the Trino user via the client (no password).
+    # SealedSecret `datahub-creds`; the notebook defaults DATAHUB_GMS_URL to the in-cluster GMS.
     DATAHUB_TOKEN:
       valueFrom:
         secretKeyRef: { name: datahub-creds, key: DATAHUB_TOKEN }
+    # B233 (2026-10-23): Trino authenticates (HTTPS 8443 + password). The notebooks (20, 40, 62, 71, 81) log in as
+    # `notebook`; Ranger's demo (72) also logs in as `analyst`, the masked identity, to show the mask bind to a real
+    # login (it used to set X-Trino-User to any name). Both from scripts/trino-credentials.sh.
+    TRINO_USER:
+      valueFrom:
+        secretKeyRef: { name: trino-notebook, key: username }
+    TRINO_PASSWORD:
+      valueFrom:
+        secretKeyRef: { name: trino-notebook, key: password }
+    TRINO_ANALYST_PASSWORD:
+      valueFrom:
+        secretKeyRef: { name: trino-analyst, key: password }
+    TRINO_CA: /etc/weyland-ca/rootCA.pem
   lifecycleHooks:
     postStart:
       exec:

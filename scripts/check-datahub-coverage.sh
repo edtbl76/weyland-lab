@@ -29,7 +29,7 @@
 # 2 = the guard could not do its job (Trino/GMS unreachable, no token, empty either side). Conflating
 # them means a broken guard reads exactly like a clean estate.
 #
-# INPUTS. By default it reads the REALITY set from Trino (the noauth gateway) and the CATALOGED set
+# INPUTS. By default it reads the REALITY set from Trino (its own login, HTTPS) and the CATALOGED set
 # from DataHub GMS. For testing, set either to a newline-separated fixture to skip the live fetch,
 # exactly as check-servicemonitor-coverage.sh skips kubectl/Prometheus with SM_SNAPSHOT_JSON/TARGETS_JSON:
 #
@@ -40,8 +40,12 @@
 # without running main.
 set -euo pipefail
 
-TRINO_HTTP="${TRINO_HTTP:-http://trino-noauth.data-mesh.svc.cluster.local:8080}"
+# B233 (2026-10-23): Trino authenticates — a password, only over HTTPS (8443), the cert from the lab's mkcert CA. This
+# guard logs in as `datahub-coverage` (TRINO_PASSWORD from the trino-datahub-coverage Secret); it used the trino-noauth
+# proxy and a self-asserted X-Trino-User before.
+TRINO_HTTP="${TRINO_HTTP:-https://trino.data-mesh.svc.cluster.local:8443}"
 TRINO_USER="${TRINO_USER:-datahub-coverage}"
+TRINO_CA="${TRINO_CA:-/etc/weyland-ca/rootCA.pem}"
 GMS_URL="${DATAHUB_GMS_URL:-http://datahub-datahub-gms.data-mesh.svc.cluster.local:8080}"
 GMS_TOKEN="${DATAHUB_GMS_TOKEN:-}"
 
@@ -86,20 +90,28 @@ is_cataloged() { # is_cataloged <schema.table> <newline names> -> 0 catalogued /
 
 # --- live fetch (skipped whenever the fixture env var is SET, even if empty) ----------------------
 
+trino_curl() { # curl as the guard's Trino login. The password sits in a private netrc file, never in argv.
+  curl -sS -f --netrc-file "$TRINO_NETRC" --cacert "$TRINO_CA" "$@"
+}
+
 fetch_trino_tables() { # -> newline schema.table for the mesh data estate, or non-zero on failure
   # datasets_* silver/gold + the dbt marts (the products). Trino REST: POST a statement, follow nextUri.
-  local sql body next rows out=""
+  local sql body next rows out="" host
+  [ -n "${TRINO_PASSWORD:-}" ] || { echo "TRINO_PASSWORD is not set — Trino takes a password only (B233)" >&2; return 1; }
+  TRINO_NETRC="$(mktemp)"; chmod 600 "$TRINO_NETRC"
+  trap 'rm -f "$TRINO_NETRC"' EXIT
+  host="$(sed -E 's#^[a-zA-Z]+://([^/:]+).*#\1#' <<<"$TRINO_HTTP")"
+  printf 'machine %s login %s password %s\n' "$host" "$TRINO_USER" "$TRINO_PASSWORD" > "$TRINO_NETRC"
   sql="SELECT table_schema || '.' || table_name FROM iceberg.information_schema.tables
        WHERE table_schema LIKE 'datasets\_%' ESCAPE '\\'
           OR (table_schema = 'dbt' AND table_name LIKE 'mart\_%' ESCAPE '\\')"
   # The FIRST call retries a refused connection (bounded, ~15 s): k3s's NetworkPolicy controller admits a
   # new pod's IP a few seconds after it starts, so the CronJob's opening dial can be refused while the
-  # trino-noauth policy is live and correct (2026-10-17 03:05 NY: refused "after 1 ms", the night failed).
+  # Trino front-door policy is live and correct (2026-10-17 03:05 NY: refused "after 1 ms", the night failed).
   # A Trino that stays down still fails here, and main turns that into exit 2. Later calls need no retry:
   # by then the pod is admitted.
-  body="$(curl -sS -f --retry 5 --retry-delay 3 --retry-connrefused -X POST "$TRINO_HTTP/v1/statement" \
-            -H "X-Trino-User: $TRINO_USER" -H 'Content-Type: text/plain' \
-            --data "$sql")" || return 1
+  body="$(trino_curl --retry 5 --retry-delay 3 --retry-connrefused -X POST "$TRINO_HTTP/v1/statement" \
+            -H 'Content-Type: text/plain' --data "$sql")" || return 1
   while :; do
     rows="$(jq -r '.data // [] | .[][]' <<<"$body" 2>/dev/null)" || return 1
     [ -n "$rows" ] && out+="$rows"$'\n'
@@ -107,9 +119,9 @@ fetch_trino_tables() { # -> newline schema.table for the mesh data estate, or no
     [ -z "$next" ] && break
     # Trino returns nextUri as an ABSOLUTE url on its own advertised host (e.g. trino.data-mesh.svc),
     # which is not reachable through a proxy/port-forward. Re-point scheme+authority at the endpoint we
-    # were actually given (trino-noauth); the query path + id are preserved, so it follows the same query.
+    # were actually given; the query path + id are preserved, so it follows the same query.
     next="$TRINO_HTTP$(sed -E 's#^[a-zA-Z]+://[^/]+##' <<<"$next")"
-    body="$(curl -sS -f "$next" -H "X-Trino-User: $TRINO_USER")" || return 1
+    body="$(trino_curl "$next")" || return 1
     # a FAILED state must be loud, not an empty (=clean-looking) result
     [ "$(jq -r '.stats.state // ""' <<<"$body")" = "FAILED" ] && return 1
   done

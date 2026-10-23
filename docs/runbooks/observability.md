@@ -194,14 +194,14 @@ segments** equal `schema.table` — which absorbs the platform prefixes (`iceber
   to a variable first.
 - Runs as CronJob **`datahub-coverage`, 03:05 NY** (`k8s/monitoring/datahub-coverage.yaml`), **unmeshed**,
   in the **weyland** namespace (it needs the `DATAHUB_GMS_TOKEN` from the local `datahub-token` Secret and
-  reaches trino-noauth + datahub-gms in data-mesh by FQDN). No kubectl, no RBAC.
+  reaches Trino (HTTPS 8443, login `datahub-coverage`, since B233) + datahub-gms in data-mesh by FQDN). No kubectl, no RBAC.
 - Failure routes to Telegram via the existing `ScheduledJobFailed` rule; freshness via `ScheduledJobStale`
   (daily 26h budget) — both in `cron-freshness-rules.yaml`. `scripts/tests/datahub-coverage.bats` (14
   cases, incl. the byte-identity assertion) runs in CI. Regenerate the ConfigMap after editing the guard:
   `scripts/embed-datahub-coverage.sh`.
 - **The first Trino call retries a refused connection** (`--retry 5 --retry-delay 3 --retry-connrefused`, ~15 s,
   then exit 2). k3s's NetworkPolicy controller admits a new pod's IP a few seconds after it starts, and the
-  trino-noauth policy admits this job by label, so its opening dial can be refused with the rule live and correct.
+  Trino front-door policy admits this job by label (the trino-noauth proxy's before B233), so its opening dial can be refused with the rule live and correct.
   Seen 2026-10-17 03:05 NY: `Failed to connect ... after 1 ms`, the night failed, `monitoring-extras` went Degraded.
 
 **After a failed night, don't wait for the next one** — run the CronJob now, in-cluster, exactly as scheduled:
@@ -212,7 +212,8 @@ Expect `OK — all N mesh table(s) in Trino are catalogued in DataHub.` A pass c
 Job keeps `ScheduledJobFailed` / `KubeJobFailed` firing until its 72 h TTL; once its cause is recorded, delete it:
 `kubectl -n weyland delete job <failed-job>`. The per-table verdicts (`--list`, every mesh table + cataloged /
 UNCATALOGED) are the first part of the same Job's log: `kubectl -n weyland logs job/"$J"`. The Job is the canonical
-run. From rogueone the guard also runs against the `trino-lan` (`192.168.1.243:30808`, admitted for rogueone only) and
+run. From rogueone the guard also runs against the `trino-lan` (`192.168.1.243:30843`, HTTPS + the `datahub-coverage` login
+since B233; admitted for rogueone only) and
 `datahub-gms-lan` (`:30818`) NodePorts — the walkthrough is in [demos/datahub-coverage.md](../demos/datahub-coverage.md);
 the lab never port-forwards.
 

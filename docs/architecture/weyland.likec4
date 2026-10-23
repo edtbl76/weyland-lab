@@ -95,13 +95,13 @@ model {
         }
 
         query = zone "Query / BI / semantic" {
-          trino = component "Trino" "Federation SQL — iceberg (native Nessie) + postgresql; NodePort 30808 (rogueone only — no authenticator, B218)"
+          trino = component "Trino" "Federation SQL — iceberg (native Nessie) + postgresql. B233: every caller logs in (password, HTTPS 8443, mkcert cert); Ranger lets a login act only as itself. NodePort 30843 (rogueone only)"
           gizmosql = component "GizmoSQL" "DuckDB over Arrow Flight SQL — persisted silver"
           superset = component "Superset" "BI/SQL exploration over Trino + stores. Its Celery worker is parked by default (B199)."
           lightdash = component "Lightdash" "dbt-native BI over the marts"
           cube = component "Cube" "Semantic / metrics layer (SQL/REST/GraphQL)"
           dbtDocs = component "dbt Core + docs" "dbt-trino builds 7 Iceberg marts"
-          trinoNoauth = component "trino-noauth proxy" "Strips auth for Lightdash / Cube"
+          trinoNoauth = component "trino-noauth proxy" "Stripped auth for Lightdash / Cube / Soda while Trino took no passwords; no caller since B233, removed in its final stage"
         }
 
         stream = zone "Streaming" {
@@ -368,9 +368,9 @@ model {
   weyland.mother.mesh.query.gizmosql -> weyland.mother.mesh.storage.lakefs "persisted DuckDB from Parquet"
   weyland.mother.mesh.query.superset -> weyland.mother.mesh.query.trino "BI queries"
   weyland.mother.mesh.query.superset -> weyland.mother.mesh.stores.valkey "Celery cache"
-  weyland.mother.mesh.query.lightdash -> weyland.mother.mesh.query.trinoNoauth "dbt-native BI"
-  weyland.mother.mesh.query.cube -> weyland.mother.mesh.query.trinoNoauth "semantic layer"
-  weyland.mother.mesh.query.trinoNoauth -> weyland.mother.mesh.query.trino "auth-stripped hop"
+  weyland.mother.mesh.query.lightdash -> weyland.mother.mesh.query.trino "dbt-native BI (login lightdash, HTTPS)"
+  weyland.mother.mesh.query.cube -> weyland.mother.mesh.query.trino "semantic layer (login cube, HTTPS)"
+  weyland.mother.mesh.query.trinoNoauth -> weyland.mother.mesh.query.trino "auth-stripped hop (unused since B233)"
 
   // Feature store / ML
   weyland.mother.mesh.ml.feast -> weyland.mother.ai.pg "registry + offline"
@@ -403,7 +403,7 @@ model {
 
   // Governance / catalog
   weyland.mother.mesh.gov.datahub -> weyland.mother.mesh.query.trino "native source ingestion"
-  weyland.mother.mesh.gov.ranger -> weyland.mother.mesh.query.trino "column masking / policy"
+  weyland.mother.mesh.gov.ranger -> weyland.mother.mesh.query.trino "column masking / policy; impersonation = {USER} (B233)"
   weyland.mother.mesh.gov.soda -> weyland.mother.mesh.query.trino "data-quality scans"
   weyland.mother.mesh.gov.greatExpectations -> weyland.mother.mesh.query.trino "B77b profiles + validates"
   weyland.mother.mesh.gov.datahubCoverage -> weyland.mother.mesh.query.trino "reads the live mesh-table list (iceberg.datasets_*.* + dbt marts)"

@@ -39,8 +39,8 @@ sequenceDiagram
 
 - **Dagster** — `https://dagster.weyland.lab`; assets `weyland_dbt_assets`, job `weyland_dbt_job` (weekly Sun 06:00 NY). Code pod `deploy/dagster-user-code` (ns `weyland`).
 - **dbt-docs** — `https://dbt-docs.weyland.lab` (Keycloak forward-auth) — model DAG / lineage / test-coverage UI.
-- **Trino** — write path to Iceberg; marts land in `iceberg.dbt.mart_*` (Nessie `main`). In-cluster `trino.data-mesh.svc:8080`.
-- **profiles.yml** — `dbt-trino`, `host: trino.data-mesh.svc:8080`, `http_scheme: http`, `database: iceberg`, `schema: dbt`, `threads: 2` (no-auth LAN Trino).
+- **Trino** — write path to Iceberg; marts land in `iceberg.dbt.mart_*` (Nessie `main`). In-cluster `trino.data-mesh.svc.cluster.local:8443` (HTTPS).
+- **profiles.yml** — `dbt-trino`, `method: ldap` (user `dbt` + `TRINO_PASSWORD`), `host: trino.data-mesh.svc.cluster.local`, `port: 8443`, `http_scheme: https`, `cert` = the lab CA, `database: iceberg`, `schema: dbt`, `threads: 1` (B233, [runbooks/trino.md § Authentication](../runbooks/trino.md#authentication-b233-2026-10-23)).
 - `kubectl` runs on **mother** (`emangini@mother`).
 
 ## UI walkthrough

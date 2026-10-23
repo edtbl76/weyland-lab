@@ -1,33 +1,31 @@
-# Soda Core data source → Trino via the `trino-noauth` nginx proxy (data-mesh, meshed).
-# `auth_type: NoAuthentication` is REQUIRED (2026-09-03): soda-core-trino defaults auth_type to
-# BasicAuthentication, which builds a trino auth object even with no password; trino-python-client >=0.339
-# then raises TrinoAuthError("TLS/SSL is required for authentication") CLIENT-SIDE at connect() — before the
-# request ever reaches the proxy, so the proxy's header-stripping no longer helps. NoAuthentication sends only
-# X-Trino-User: dbt (the same no-auth path dbt uses; Ranger authorizes `dbt`), which is what trino-noauth wants.
-# Without it EVERY data source fails to connect and the whole soda_quality_job dies. Do NOT point this at
-# trino.data-mesh directly — it 401s. `http_scheme: http` = plaintext on the LAN (Istio mTLS wraps the hop).
+# Soda Core data sources → Trino directly, as the `dbt` login over HTTPS (B233, 2026-10-23; was the `trino-noauth`
+# proxy with auth_type NoAuthentication, which only worked because Trino trusted X-Trino-User). TRINO_PASSWORD comes
+# from the `trino-dbt` Secret; Soda resolves ${...} from the environment. soda-core-trino has no CA option, so
+# soda_scan_op runs the scan with REQUESTS_CA_BUNDLE set to the lab CA for that subprocess only (trino_auth).
 # L5 Slice C: an INDEPENDENT contract scan over the published marts, complementary to dbt's in-transform tests.
 data_source weyland:
   type: trino
-  host: trino-noauth.data-mesh.svc.cluster.local
-  port: 8080
-  http_scheme: http
-  auth_type: NoAuthentication
+  host: trino.data-mesh.svc.cluster.local
+  port: 8443
+  http_scheme: https
+  auth_type: BasicAuthentication
   username: dbt
+  password: ${TRINO_PASSWORD}
   catalog: iceberg
   schema: dbt
 
 # #8 — gold source coverage: the health-domain gold Iceberg tables (WHO GHO + BRFSS) that FEED the marts. Asserting
-# them catches source drift at the origin (this is where the WHO dim1 code-vs-label bug lived). Same passwordless
-# proxy path; user `dbt` reads datasets_health (it's a dbt source). The emitters map `weyland_health` →
+# them catches source drift at the origin (this is where the WHO dim1 code-vs-label bug lived). Same `dbt`
+# login; it reads datasets_health (it's a dbt source). The emitters map `weyland_health` →
 # iceberg.datasets_health, so assertions/profiles/contracts attach to the gold datasets, not the marts.
 data_source weyland_health:
   type: trino
-  host: trino-noauth.data-mesh.svc.cluster.local
-  port: 8080
-  http_scheme: http
-  auth_type: NoAuthentication
+  host: trino.data-mesh.svc.cluster.local
+  port: 8443
+  http_scheme: https
+  auth_type: BasicAuthentication
   username: dbt
+  password: ${TRINO_PASSWORD}
   catalog: iceberg
   schema: datasets_health
 
@@ -35,23 +33,25 @@ data_source weyland_health:
 # reaches every music dataset, not just the 4 marts. Emitters map `weyland_music` → iceberg.datasets_music.
 data_source weyland_music:
   type: trino
-  host: trino-noauth.data-mesh.svc.cluster.local
-  port: 8080
-  http_scheme: http
-  auth_type: NoAuthentication
+  host: trino.data-mesh.svc.cluster.local
+  port: 8443
+  http_scheme: https
+  auth_type: BasicAuthentication
   username: dbt
+  password: ${TRINO_PASSWORD}
   catalog: iceberg
   schema: datasets_music
 
 # B113 Phase 1 — the finance-domain gold Iceberg tables (silver/gold datasets_finance: fred_macro,
 # fred_series_meta) so the baseline non-empty scan reaches the FRED datasets that feed mart_macro_indicators.
-# Emitters map `weyland_finance` → iceberg.datasets_finance (same passwordless proxy path; user `dbt`).
+# Emitters map `weyland_finance` → iceberg.datasets_finance (same `dbt` login).
 data_source weyland_finance:
   type: trino
-  host: trino-noauth.data-mesh.svc.cluster.local
-  port: 8080
-  http_scheme: http
-  auth_type: NoAuthentication
+  host: trino.data-mesh.svc.cluster.local
+  port: 8443
+  http_scheme: https
+  auth_type: BasicAuthentication
   username: dbt
+  password: ${TRINO_PASSWORD}
   catalog: iceberg
   schema: datasets_finance

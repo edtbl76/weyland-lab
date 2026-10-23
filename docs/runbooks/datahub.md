@@ -89,7 +89,8 @@ values, out of git).
   failed daily for 10+ days on `NoCredentialsError` while its env value was never used; sources whose services
   tolerate an empty credential kept reporting SUCCESS. Fix applied: all 7 undecryptable UI Secrets deleted, and the
   missing `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` added to `datahub-ingestion-secrets` (copied from `nessie-secret`
-  s3-access-key / s3-secret-key, resealed). Rule: every `${VAR}` a recipe uses is a key in `datahub-ingestion-secrets`
+  s3-access-key / s3-secret-key, resealed). Rule: every `${VAR}` a recipe uses is a key in a k8s Secret
+  (`datahub-ingestion-secrets`, or a store's own login Secret such as `trino-datahub` for `TRINO_DATAHUB_PASSWORD`, B233)
   and an `extraEnvs` entry; the UI Secrets list stays empty. Check: `listSecrets` returns `[]`.
   With creds fixed, dbt then failed on a second, masked bug: DataHub 1.6.0 (and 1.7.0.13) emits dbt semantic models
   with columns typed `entity:primary` and crashes resolving that as a Trino type (`KeyError: 'entity:primary'`).

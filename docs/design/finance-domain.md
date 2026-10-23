@@ -75,7 +75,7 @@ The domain isn't done when data lands — it's done when someone can *see* it. T
   mart already has a cube (`k8s/cube/cube.yaml`); finance adds one per mart for parity.
 - **L7 BI / Dashboards — Lightdash + Superset (NOT Grafana):**
   - **Lightdash** (dbt-native) — a `finance-marts-overview` dashboard + per-mart charts built from the dbt project's
-    `meta.metrics`, over Trino through the `trino-noauth` proxy — mirrors `health-marts-overview.yml` /
+    `meta.metrics`, over Trino (through the `trino-noauth` proxy at the time; as the `lightdash` login over HTTPS since B233) — mirrors `health-marts-overview.yml` /
     `music-marts-overview.yml` under `dbt/lightdash/`.
   - **Superset** — the finance marts registered as Trino datasets (schema `dbt`) with bar/line charts + a finance
     dashboard, seeded by `scripts/superset_seed.py` (the marts seeder), exactly as the 7 Music/Health marts are.

@@ -6,7 +6,7 @@ trainer can fit on it via `--source mart`, symmetric with `--source feast`.
 **Why this is an in-cluster, MESHED asset and not part of the trainer:** the mart lives in Trino
 (`trino.data-mesh.svc`), whose only LAN exposure (`trino.weyland.lab`) is Keycloak forward-auth gated —
 programmatic reads are blocked, and the trainer runs external on rogueone. So the privileged Trino read runs
-HERE (Dagster is meshed → reaches the Trino coordinator directly, no auth) and the result lands in lakeFS. The
+HERE (Dagster is meshed → reaches the Trino coordinator directly, as its `dbt` login over HTTPS since B233) and the result lands in lakeFS. The
 trainer then reads that parquet exactly as it reads the silver/feast parquet. This is the same bridge pattern as
 `genre_feast_training_set` — the only difference is the source (dbt mart vs Feast point-in-time join).
 
@@ -31,14 +31,11 @@ _DATASET = "mart_spotify_audio"   # the trainer reads music/<branch>/parquet/mar
 
 
 def _trino_conn():
-    """The dagster pod is meshed → reaches the in-cluster Trino coordinator directly (no forward-auth).
-    The `trino` python client ships with dbt-trino (already installed)."""
-    import trino
+    """The dagster pod is meshed → reaches the in-cluster Trino coordinator directly (no forward-auth), as its own
+    login over HTTPS (B233, trino_auth). The `trino` python client ships with dbt-trino (already installed)."""
+    from weyland_pipeline.trino_auth import connect
 
-    return trino.dbapi.connect(
-        host=os.environ.get("TRINO_HOST", "trino.data-mesh.svc.cluster.local"),
-        port=8080, user="dagster", catalog="iceberg", schema="dbt", http_scheme="http",
-    )
+    return connect(catalog="iceberg", schema="dbt")
 
 
 @asset(group_name="datasets_music_ml",

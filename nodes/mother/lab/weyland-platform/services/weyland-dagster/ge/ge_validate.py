@@ -14,8 +14,12 @@ import os
 import great_expectations as gx
 from great_expectations.profile.user_configurable_profiler import UserConfigurableProfiler
 
-# trino-noauth proxy (the path Soda already uses) — auth-stripped; user `dbt` is Ranger-authorized on these schemas.
-CONN = os.environ.get("GE_TRINO_CONN", "trino://dbt@trino-noauth.data-mesh.svc.cluster.local:8080/iceberg")
+# B233 (2026-10-23): Trino directly, as the `dbt` login over HTTPS (was the trino-noauth proxy, which only worked because
+# Trino trusted X-Trino-User). `${TRINO_PASSWORD}` stays a placeholder in the stored datasource config and GE substitutes
+# it from the environment at run time, so the file context on the ge-data PVC never holds the password. The lab CA comes
+# from TRINO_CA (the dialect verifies against it).
+CONN = os.environ.get("GE_TRINO_CONN", "trino://dbt:${TRINO_PASSWORD}@trino.data-mesh.svc.cluster.local:8443/iceberg")
+CONNECT_ARGS = {"http_scheme": "https", "verify": os.environ.get("TRINO_CA", "/etc/weyland-ca/rootCA.pem")}
 DOCS_ROOT = os.environ.get("GE_DOCS_ROOT", "/ge-data")     # GE context root; Data Docs land under <root>/uncommitted/data_docs
 RESULTS = os.environ.get("GE_RESULTS", "/tmp/ge_results.json")
 
@@ -30,10 +34,9 @@ TARGETS = [
 
 def main():
     ctx = gx.get_context(mode="file", project_root_dir=DOCS_ROOT)
-    try:
-        ds = ctx.sources.add_sql("trino", connection_string=CONN)
-    except Exception:
-        ds = ctx.get_datasource("trino")
+    # add_or_update, not add-then-get: the context is a FILE on the ge-data PVC, so a datasource created once kept its
+    # first connection string forever (an old URL would have survived every code change).
+    ds = ctx.sources.add_or_update_sql("trino", connection_string=CONN, kwargs={"connect_args": CONNECT_ARGS})
 
     out = []
     for schema, table in TARGETS:

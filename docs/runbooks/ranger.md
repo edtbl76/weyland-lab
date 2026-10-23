@@ -107,10 +107,19 @@ kubectl apply -f ~/ranger.yaml && kubectl -n data-mesh rollout restart deploy/ra
   chained **before** forward-auth on the ingress.
 - **Trino plugin config = ABSOLUTE paths:** `ranger.plugin.config.resource=/etc/trino/ranger-trino-security.xml,...`
   (Trino treats them as files, not classpath; bare names → "file does not exist").
-- **DEFAULT-DENY lockout:** the moment Trino loads the plugin, unlisted access is denied. Mesh consumers use varied
-  users (dbt=`dbt`, lightdash=`lightdash`, DataHub=`trino`). The service's 13 default policies grant to user `trino`
-  only → `ranger_setup.py` adds group `public` to them all before enabling. Rollback = remove the
-  access-control.properties mount from `trino.yaml` + restart Trino.
+- **DEFAULT-DENY lockout:** the moment Trino loads the plugin, unlisted access is denied. Mesh consumers log in as
+  varied users (`dbt`, `cube`, `datahub`, `mcp`, `notebook`, … — [trino.md](trino.md) § Authentication). The service's
+  13 default policies grant to user `trino` only → `ranger_setup.py` adds group `public` to them all before enabling.
+  Rollback = remove the access-control.properties mount from `trino.yaml` + restart Trino.
+- **Impersonation is a policy, and it was wide open (B233, 2026-10-23).** A Trino login may name a different session user
+  (`X-Trino-User`); Ranger decides it with the `all - trinouser` policy. Broadening it to `public` for user `*` meant any
+  login could become anyone — `analyst` claiming `dbt` ran as dbt and read past its mask (proven on a throwaway Trino 468
+  with the live policies). The plugin checks impersonation even when login == user, so an empty policy locks everyone
+  out. `ranger_setup.py`'s `restrict_impersonation_to_self()` sets it to the `{USER}` macro for `public` (each login may
+  become only itself), and `broadened()` never touches it again. Tests: `scripts/tests/test_ranger_setup.py`.
+- **The Trino resource lookup** (policy-editor autocomplete) logs in as `ranger` over HTTPS 8443 (`TRINO_PW_RANGER`,
+  passed to `ranger_setup.py`; the lab CA mounted at `/etc/weyland-ca` in ranger-admin). Trino's front door had never
+  admitted Ranger Admin, so the lookup failed from B211 (2026-10-14) until B233 admitted it on 8443.
 - **Masking user must exist:** a policy referencing user `analyst` 400s until the user is created
   (`POST /service/xusers/secure/users`, ROLE_USER) — `ensure_user()` handles it.
 - **Memory:** Ranger Admin ~2 Gi. On the tight node (steady ~69%) a deploy-window confluence (Ranger warm + DataHub
@@ -118,14 +127,24 @@ kubectl apply -f ~/ranger.yaml && kubectl -n data-mesh rollout restart deploy/ra
 
 ## Verify
 
-Column mask working (on **mother**):
+Column mask working, and a claimed identity refused (B233: every caller logs in over HTTPS; the pod holds the `dbt`
+login, and the `analyst` password is passed through from `scripts/.env`):
 ```
-kubectl -n weyland exec -i deploy/dagster-user-code -- python - <<'PY'
-import trino
-def q(u):
-    c=trino.dbapi.connect(host="trino.data-mesh.svc.cluster.local", port=8080, user=u, catalog="iceberg", schema="dbt")
-    cur=c.cursor(); cur.execute("SELECT state, year, depression_pct FROM iceberg.dbt.mart_state_health_trends ORDER BY state LIMIT 3"); return cur.fetchall()
-print("analyst (masked):", q("analyst"))   # depression_pct -> None
-print("dbt (unmasked)  :", q("dbt"))        # real values
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && kubectl -n weyland exec -i deploy/dagster-user-code -- env TRINO_PW_ANALYST="$TRINO_PW_ANALYST" python - <<'PY'
+import os, trino
+from trino.auth import BasicAuthentication as B
+PW = {"analyst": os.environ["TRINO_PW_ANALYST"], "dbt": os.environ["TRINO_PASSWORD"]}
+def q(login, as_user=None):
+    c = trino.dbapi.connect(host="trino.data-mesh.svc.cluster.local", port=8443, http_scheme="https",
+                            verify="/etc/weyland-ca/rootCA.pem", user=as_user or login, auth=B(login, PW[login]),
+                            catalog="iceberg", schema="dbt")
+    try:
+        cur = c.cursor(); cur.execute("SELECT state, year, depression_pct FROM mart_state_health_trends ORDER BY state LIMIT 3")
+        return cur.fetchall()
+    except Exception as e:
+        return "REFUSED: " + str(e).splitlines()[0][:90]
+print("analyst (masked)     :", q("analyst"))                 # depression_pct -> None
+print("dbt (unmasked)       :", q("dbt"))                     # real values
+print("analyst claiming dbt :", q("analyst", as_user="dbt"))  # REFUSED ... cannot become user dbt
 PY
 ```

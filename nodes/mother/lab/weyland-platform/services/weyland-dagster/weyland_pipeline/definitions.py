@@ -45,6 +45,7 @@ from weyland_pipeline.schedules import (
 )
 from weyland_pipeline.sensors import datasets_music_raw_sensor
 from weyland_pipeline.lancedb_sync import weyland_lancedb_sync_job, lancedb_sync_sensor
+from weyland_pipeline.trino_auth import subprocess_env
 
 # B49(b) Phase 2 — start app-level tracing → Tempo (opt-in via OTEL_EXPORTER_OTLP_ENDPOINT). Called at code-location
 # import so it also initializes INSIDE each forked op subprocess (the multiprocess executor re-imports this module).
@@ -303,7 +304,8 @@ def soda_scan_op(context):
         cmd = ["/opt/soda-venv/bin/soda", "scan", "-d", ds, "-c", "/app/soda/configuration.yml",
                "-srf", results_file, *check_files]
         context.log.info("Running: " + " ".join(cmd))
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        # B233: the lab CA for this subprocess only (soda-core-trino takes no CA option); TRINO_PASSWORD rides along.
+        result = subprocess.run(cmd, capture_output=True, text=True, env=subprocess_env())
         if result.stdout:
             context.log.info(result.stdout)
         if result.stderr:
@@ -392,7 +394,7 @@ def ge_validate_op(context):
     from weyland_pipeline.datahub_emit import emit_ge_assertions
     cmd = ["/opt/ge-venv/bin/python", "/app/ge/ge_validate.py"]
     context.log.info("Running: " + " ".join(cmd))
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, capture_output=True, text=True, env=subprocess_env())   # B233: lab CA + TRINO_PASSWORD
     if r.stdout:
         context.log.info(r.stdout)
     if r.stderr:

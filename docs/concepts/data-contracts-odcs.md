@@ -61,7 +61,10 @@ complementary, not redundant — this adoption does not remove the DataHub contr
   (`repo-guards`).
 - **Live schema conformance** — `check-odcs-contracts.sh --check-schema` asserts each declared column
   actually exists in the Trino physical table (validated live: all 10 conform; a bogus column is caught).
-  Needs the cluster, so it runs at close-out / as a manual pass rather than in CI.
+  Needs the cluster, so it runs at close-out / as a manual pass rather than in CI. Since B233 (2026-10-23) Trino takes
+  a password, only over HTTPS: the check and the generator below read `TRINO_USER` / `TRINO_PASSWORD` / `TRINO_CA` from
+  the environment and refuse to run (exit 2 / a raised error) without a login ([runbooks/trino.md](../runbooks/trino.md)
+  § Authentication).
 - **Products-without-contracts check** — `tests/test_product_contract_coverage.py` fails if any
   Music/Health/Finance DataHub data product has no ODCS contract (static, in the light lane).
 - **Generator** — `scripts/gen_odcs_contract.py` emits a conformant ODCS contract from the substance

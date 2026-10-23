@@ -63,12 +63,9 @@ def _read_silver(mc, repo, dataset):
 def _trino_conn():
     """Read the dbt marts straight from Trino (iceberg.dbt) — the dagster pod is meshed, so it reaches the
     in-cluster Trino coordinator. dbt-trino already installs the `trino` client."""
-    import trino
+    from weyland_pipeline.trino_auth import connect   # B233: the pod's `dbt` login over HTTPS
 
-    return trino.dbapi.connect(
-        host=os.environ.get("TRINO_HOST", "trino.data-mesh.svc.cluster.local"),
-        port=8080, user="feast", catalog="iceberg", schema="dbt", http_scheme="http",
-    )
+    return connect(catalog="iceberg", schema="dbt")
 
 
 def _load_offline_sources():

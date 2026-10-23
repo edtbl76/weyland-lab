@@ -2,7 +2,7 @@
 
 The last mile: the 7 dbt marts reach humans and apps through **governed metrics defined once**. **Cube** is a
 headless semantic API (SQL / REST / GraphQL) — the metric layer an app or agent calls; **MetricFlow** is the dbt
-Semantic Layer queried with `mf query`. Both compile to Trino (via the `trino-noauth` proxy for Cube). BI faces:
+Semantic Layer queried with `mf query`. Both compile to Trino (Cube as its own `cube` login over HTTPS since B233). BI faces:
 **Lightdash** (dbt-native) and **Superset** (Cube virtual datasets + ad-hoc SQL). Grounded in
 [../runbooks/cube.md](../runbooks/cube.md), [../runbooks/lightdash.md](../runbooks/lightdash.md),
 [../query/cube.md](../query/cube.md), and [../diagrams/flow-semantic-consumption.md](../diagrams/flow-semantic-consumption.md).
@@ -16,15 +16,13 @@ sequenceDiagram
     actor User
     participant Cube as Cube<br/>(SQL :15432 / REST :4000)
     participant MF as MetricFlow<br/>(mf query, dagster pod)
-    participant Proxy as trino-noauth proxy
     participant Trino as Trino
     participant Marts as dbt marts<br/>(iceberg.dbt.mart_*)
     participant LD as Lightdash<br/>(lightdash.weyland.lab)
 
     Note over User,Marts: Cube — governed metric over an API
     User->>Cube: SELECT track_genre, MEASURE(avg_danceability) FROM spotify_audio
-    Cube->>Proxy: compiled SQL (Basic-auth header)
-    Proxy->>Trino: strip Authorization → X-Trino-User: dbt
+    Cube->>Trino: compiled SQL (HTTPS 8443, login cube)
     Trino->>Marts: read mart_spotify_audio
     Marts-->>Trino: rows
     Trino-->>Cube: result
@@ -39,8 +37,7 @@ sequenceDiagram
 
     Note over User,LD: BI face (dbt-native)
     User->>LD: open explore / metric
-    LD->>Proxy: dbt-compiled SQL
-    Proxy->>Trino: forward
+    LD->>Trino: dbt-compiled SQL (HTTPS 8443, login lightdash)
     Trino-->>LD: rows → chart
 ```
 
@@ -49,7 +46,7 @@ sequenceDiagram
 - **Cube** — UI/Playground `https://cube.weyland.lab` (Keycloak forward-auth). SQL API `cube.data-mesh.svc.cluster.local:15432` (pg-wire, user `cube`). REST/GraphQL `:4000`.
 - **Lightdash** — `https://lightdash.weyland.lab` (own login).
 - **Superset** — `https://superset.weyland.lab` (Keycloak OIDC).
-- **Trino** — reached by Cube/Lightdash through `trino-noauth.data-mesh.svc:8080` (strips Basic auth). dbt marts live in `iceberg.dbt.mart_*`.
+- **Trino** — reached by Cube/Lightdash as their own logins over HTTPS, `trino.data-mesh.svc.cluster.local:8443` (B233; [runbooks/trino.md § Authentication](../runbooks/trino.md#authentication-b233-2026-10-23)). dbt marts live in `iceberg.dbt.mart_*`.
 - **MetricFlow** — `mf query` inside `deploy/dagster-user-code` (ns `weyland`); metrics in `dbt/models/semantic_models.yml`.
 - `kubectl` runs on **mother** (`emangini@mother`).
 

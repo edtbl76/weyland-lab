@@ -109,8 +109,8 @@ the gateway in `61`. Eval closes the loop. Query embeddings run locally (bge-bas
 | Notebook | Layer | Focus |
 |---|---|---|
 | `70_governance_datahub.ipynb` | **DataHub** (catalog/lineage) | GraphQL via the SDK — search datasets, inspect schema/owners/tags/domain, trace bidirectional lineage (provenance + impact), browse domains + glossary. Read-only |
-| `71_quality_soda.ipynb` | **Soda** (data quality) | run a real contract scan over the marts via `trino-noauth`, per-check pass/fail with measured values; a fail-closed guard so an unconnected scan can't read as success. Read-only |
-| `72_authz_ranger.ipynb` | **Ranger** (fine-grained authz) | live column masking on Trino — the same query as `analyst` (`depression_pct`→NULL) vs `dbt` (real), proving a column-scoped mask; DEFAULT-DENY + the `trino-noauth` bypass explained. Read-only |
+| `71_quality_soda.ipynb` | **Soda** (data quality) | run a real contract scan over the marts as this server's own Trino login (HTTPS), per-check pass/fail with measured values; a fail-closed guard so an unconnected scan can't read as success. Read-only |
+| `72_authz_ranger.ipynb` | **Ranger** (fine-grained authz) | live column masking on Trino — the same query as the login `analyst` (`depression_pct`→NULL) vs `notebook` (real), proving a column-scoped mask; DEFAULT-DENY, and `analyst` claiming another user refused (B233: the login is the identity). Read-only |
 
 DataHub is the catalog/lineage surface; Soda is the independent post-publish contract; Ranger is per-user
 query-engine authz. All three validated in-cluster. Only DataHub needs a token; Soda/Ranger use no-auth paths.

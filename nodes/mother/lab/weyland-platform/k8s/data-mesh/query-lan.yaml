@@ -4,6 +4,7 @@
 #
 #   DataHub GMS          192.168.1.243:30818 -> :8080  (REST/GraphQL; DATAHUB_GMS_TOKEN required) — store-park.sh
 #   Trino                192.168.1.243:30808 -> :8080  (JDBC/REST; DataGrip) — admitted for rogueone only, see below
+#                        192.168.1.243:30843 -> :8443  (B233: HTTPS + password; DataGrip's door after the cutover)
 #   Valkey               192.168.1.243:30379 -> :6379  (RESP; DataGrip "Redis") — admitted for rogueone only
 #   musicbrainz-postgres 192.168.1.243:30544 -> :5432  (pg-wire; its own password)
 #
@@ -39,6 +40,9 @@ spec:
   selector: { app: trino }
   ports:
     - { name: http, port: 8080, targetPort: 8080, protocol: TCP, nodePort: 30808 }
+    # B233 — DataGrip's door once Trino takes passwords: TLS straight to Trino (the cert names 192.168.1.243), the
+    # login `emangini`. Named https-lan, not https, so the ServiceMonitor (port https) does not scrape it twice.
+    - { name: https-lan, port: 8443, targetPort: 8443, protocol: TCP, nodePort: 30843 }
 ---
 apiVersion: v1
 kind: Service

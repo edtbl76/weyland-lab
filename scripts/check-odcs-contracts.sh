@@ -25,22 +25,37 @@ set -euo pipefail
 
 _here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONTRACTS_ROOT="${CONTRACTS_ROOT:-$_here/nodes/mother/lab/weyland-platform/services/weyland-dagster/contracts}"
-TRINO_HTTP="${TRINO_HTTP:-http://trino-noauth.data-mesh.svc.cluster.local:8080}"
-TRINO_USER="${TRINO_USER:-odcs-conformance}"
+# B233 (2026-10-23): Trino authenticates — a password, only over HTTPS (8443), the cert from the lab's mkcert CA. The live
+# check runs as whatever Trino login its pod holds (TRINO_USER / TRINO_PASSWORD; dagster-user-code's is `dbt`), and
+# refuses to run without one. It used the trino-noauth proxy and a self-asserted X-Trino-User before.
+TRINO_HTTP="${TRINO_HTTP:-https://trino.data-mesh.svc.cluster.local:8443}"
+TRINO_USER="${TRINO_USER:-}"
+TRINO_CA="${TRINO_CA:-/etc/weyland-ca/rootCA.pem}"
 
 # --- optional live schema conformance (--check-schema) -------------------------------------------
 # Assert every column a contract DECLARES actually exists in its Trino physical table. Needs the
 # cluster; not the default. Same Trino REST + nextUri-rewrite as check-datahub-coverage.sh.
+trino_login() { # write the login to a private netrc file (never argv); set TRINO_NETRC. Non-zero when there is none.
+  [ -n "$TRINO_USER" ] && [ -n "${TRINO_PASSWORD:-}" ] || {
+    echo "TRINO_PASSWORD is not set (or TRINO_USER) — Trino takes a password only (B233); run --check-schema in a pod with a Trino login" >&2
+    return 1; }
+  TRINO_NETRC="$(mktemp)"; chmod 600 "$TRINO_NETRC"
+  trap 'rm -f "$TRINO_NETRC"' EXIT
+  printf 'machine %s login %s password %s\n' "$(sed -E 's#^[a-zA-Z]+://([^/:]+).*#\1#' <<<"$TRINO_HTTP")" \
+    "$TRINO_USER" "$TRINO_PASSWORD" > "$TRINO_NETRC"
+}
+
+trino_curl() { curl -sS -f --netrc-file "$TRINO_NETRC" --cacert "$TRINO_CA" "$@"; }
+
 trino_query() { # trino_query <sql> -> first-column rows, or non-zero (fail closed)
   local sql="$1" body next rows out=""
-  body="$(curl -sS -f -X POST "$TRINO_HTTP/v1/statement" \
-            -H "X-Trino-User: $TRINO_USER" -H 'Content-Type: text/plain' --data "$sql")" || return 1
+  body="$(trino_curl -X POST "$TRINO_HTTP/v1/statement" -H 'Content-Type: text/plain' --data "$sql")" || return 1
   while :; do
     rows="$(jq -r '.data // [] | .[][]' <<<"$body" 2>/dev/null)" || return 1
     [ -n "$rows" ] && out+="$rows"$'\n'
     next="$(jq -r '.nextUri // empty' <<<"$body")"; [ -z "$next" ] && break
     next="$TRINO_HTTP$(sed -E 's#^[a-zA-Z]+://[^/]+##' <<<"$next")"
-    body="$(curl -sS -f "$next" -H "X-Trino-User: $TRINO_USER")" || return 1
+    body="$(trino_curl "$next")" || return 1
     [ "$(jq -r '.stats.state // ""' <<<"$body")" = "FAILED" ] && return 1
   done
   printf '%s' "$out" | sed '/^$/d'
@@ -129,6 +144,7 @@ main() {
   command -v python3 >/dev/null 2>&1 || { echo "python3 not found" >&2; return 2; }
   command -v jq      >/dev/null 2>&1 || { echo "jq not found" >&2; return 2; }
   [ -d "$CONTRACTS_ROOT" ] || { echo "contracts root missing: $CONTRACTS_ROOT (exit 2)" >&2; return 2; }
+  if [ "$checkschema" -eq 1 ]; then trino_login || return 2; fi
 
   local files n=0 bad=0 f json errs ids=""
   files="$(find "$CONTRACTS_ROOT" -type f -name '*.odcs.yaml' | sort)"

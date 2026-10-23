@@ -297,6 +297,20 @@ pinned() {   # pinned <file> <policy> <port> <expected sources...>
     ns=jupyterhub,component=singleuser-server ip=192.168.1.230/32
 }
 
+# B233 (2026-10-23): 8443 is Trino's HTTPS port, the only one that accepts a password. During the move to passwords it
+# admits the same callers as 8080 (the trino-lan NodePort's 30843 lands here for rogueone's DataGrip), plus the
+# callers that used to go through the no-auth proxy and now log in directly (Cube, Lightdash, trino-mcp,
+# datahub-coverage), the on-demand perf baseline Job, and Ranger Admin's resource lookup: each has a password, so each is admitted on 8443 only.
+@test "Trino's HTTPS port admits the HTTP port's callers plus the password-only callers" {
+  pinned data-mesh/netpol-trino.yaml trino-front-door-only 8443 \
+    app=trino-noauth-proxy app.kubernetes.io/name=acryl-datahub-actions app=superset app=ranger-admin \
+    app=cube app.kubernetes.io/name=lightdash ns=weyland,app=trino-mcp ns=weyland,app=datahub-coverage \
+    job-name=perf-trino-k6 \
+    ns=weyland,app=dagster-user-code ns=weyland,app=dbt-docs \
+    ns=kube-system,app.kubernetes.io/name=traefik ns=monitoring,app.kubernetes.io/name=prometheus \
+    ns=jupyterhub,component=singleuser-server ip=192.168.1.230/32
+}
+
 @test "the RAG OpenSearch admits only its writers, the dashboards and rogueone (the opensearch-lan NodePort)" {
   pinned opensearch/netpol.yaml opensearch-front-door-only 9200 \
     app.kubernetes.io/name=opensearch-dashboards ns=weyland,app=dagster-user-code ns=data-mesh,app=rag-index-opensearch \

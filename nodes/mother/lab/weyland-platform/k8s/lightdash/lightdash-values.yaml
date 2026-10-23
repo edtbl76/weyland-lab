@@ -76,3 +76,17 @@ ingress:
     - secretName: weyland-wildcard-tls
       hosts:
         - lightdash.weyland.lab
+
+# B233 (2026-10-23): Trino authenticates, a password over HTTPS only. The Trino warehouse connection itself lives in
+# Lightdash's database (Project settings -> warehouse: host trino.data-mesh.svc.cluster.local, port 8443, http_scheme
+# https, user lightdash, the TRINO_PW_LIGHTDASH password), so it is a UI step (runbooks/trino.md). Lightdash passes no
+# TLS options to its Trino client, so Node verifies with its own trust store; NODE_EXTRA_CA_CERTS adds the lab CA to it
+# without loosening verification.
+extraEnv:
+  - { name: NODE_EXTRA_CA_CERTS, value: /etc/weyland-ca/rootCA.pem }
+lightdashBackend:
+  extraVolumes:
+    - name: weyland-ca
+      secret: { secretName: weyland-mkcert-ca, items: [{ key: rootCA.pem, path: rootCA.pem }] }
+  extraVolumeMounts:
+    - { name: weyland-ca, mountPath: /etc/weyland-ca, readOnly: true }

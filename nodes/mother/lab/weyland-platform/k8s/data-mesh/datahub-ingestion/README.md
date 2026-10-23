@@ -14,7 +14,7 @@ to SealedSecrets/External-Secrets under B69.
 | Grafana (in-cluster) | `grafana.recipe.yaml` | 02:00 daily | `GRAFANA_SA_TOKEN` |
 | dbt (transform tier) | `dbt.recipe.yaml` | daily | `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` (reads `s3://warehouse/_dbt_artifacts/`) |
 | Postgres (all DBs on weyland-postgres) | `postgres.recipe.yaml` | daily (MusicBrainz weekly) | `WEYLAND_PG_PASSWORD` |
-| Trino (federation query layer) | `trino.recipe.yaml` | daily | — (Trino is no-auth in-cluster) |
+| Trino (federation query layer) | `trino.recipe.yaml` | daily | `TRINO_DATAHUB_PASSWORD` (pod env, `trino-datahub` Secret; B233) |
 | MongoDB | `mongo.recipe.yaml` | weekly (Sun) | `MONGO_PASSWORD` |
 | Neo4j | `neo4j.recipe.yaml` | daily | — |
 | Kafka / Redpanda (`datasets.*` + Avro schemas) | `kafka.recipe.yaml` | daily | — |

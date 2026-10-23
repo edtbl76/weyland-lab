@@ -73,7 +73,7 @@ reading a real slice of the live mesh:
 - **Transform / semantic** — the 7 dbt marts via Trino · **Cube** SQL API (meshed).
 - **Feature / ML** — Feast (Valkey online + Postgres point-in-time) · MLflow (tracking + registry).
 - **AI / RAG** — LiteLLM gateway + Qdrant retrieval (local bge-base query embed).
-- **Governance / quality** — DataHub (catalog + lineage) · Soda (trino-noauth) · Ranger (column masks).
+- **Governance / quality** — DataHub (catalog + lineage) · Soda (the `notebook` Trino login, B233) · Ranger (column masks).
 - **Streaming** — Redpanda (Kafka API + Schema Registry) · Debezium CDC.
 
 ## Seams made explicit
