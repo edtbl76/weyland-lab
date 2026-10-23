@@ -79,6 +79,7 @@ def _auth_header():
 def _ca_context():
     """A TLS context that verifies Trino's cert (and hostname) against the lab's mkcert CA."""
     ctx = ssl.create_default_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2   # an explicit floor rather than the interpreter's default
     ctx.load_verify_locations(cafile=os.environ.get("TRINO_CA", "/etc/weyland-ca/rootCA.pem"))
     return ctx
 

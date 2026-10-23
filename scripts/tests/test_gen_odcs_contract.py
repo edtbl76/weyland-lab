@@ -128,6 +128,7 @@ def test_the_ca_context_loads_the_lab_ca_path(monkeypatch):
             loaded.append(cafile)
     monkeypatch.setattr(g.ssl, "create_default_context", lambda: _Ctx())
     monkeypatch.setenv("TRINO_CA", "/etc/weyland-ca/rootCA.pem")
-    g._ca_context()
+    ctx = g._ca_context()
     assert loaded == ["/etc/weyland-ca/rootCA.pem"]
+    assert ctx.minimum_version == g.ssl.TLSVersion.TLSv1_2   # an explicit floor (Sonar S4423), not the library default
 
