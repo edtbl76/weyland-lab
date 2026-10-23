@@ -76,6 +76,11 @@ Client quirks, all proven against a throwaway Trino 468 with the live Ranger pol
 - **trino-mcp**, **k6** and BusyBox **wget** are Go / OpenSSL clients with no CA flag: `SSL_CERT_FILE` points them at
   the lab CA (each refuses the cert without it).
 - **Lightdash** passes no TLS options: `NODE_EXTRA_CA_CERTS` adds the lab CA to Node's store.
+- **DataHub's actions image** sets `REQUESTS_CA_BUNDLE` to the system bundle, and in `requests` an environment bundle
+  overrides a client's own `verify` path — so the recipe's `connect_args.verify` was silently ignored and the Trino
+  source failed `CERTIFICATE_VERIFY_FAILED` on its first live run. `datahub-values.yaml` builds a combined bundle (system
+  CAs + the lab root) in an init container and points `REQUESTS_CA_BUNDLE` / `SSL_CERT_FILE` at it. Any client in an image
+  that sets that variable needs the same treatment.
 - **Trino JDBC** (DataGrip, Ranger's lookup driver 451) detects a PEM truststore itself; `SSLTrustStoreType=PEM` fails.
 
 **Roll it out, in this order.** Stages 1-2 change nothing a caller notices: plain HTTP on 8080 keeps trusting

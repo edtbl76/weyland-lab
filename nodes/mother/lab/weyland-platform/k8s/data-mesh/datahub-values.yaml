@@ -183,12 +183,31 @@ acryl-datahub-actions:
     - name: TRINO_DATAHUB_PASSWORD
       valueFrom:
         secretKeyRef: { name: trino-datahub, key: password, optional: true }
-  # B233: the lab CA, which trino.recipe.yaml's connect_args.verify points at.
+    # B233: the image sets REQUESTS_CA_BUNDLE (and SSL_CERT_FILE) to the system bundle, and an env bundle OVERRIDES a
+    # client's own `verify` path in `requests` — so trino.recipe.yaml's connect_args.verify was silently replaced and
+    # the Trino source failed CERTIFICATE_VERIFY_FAILED (2026-10-23). Point both at a COMBINED bundle (system CAs + the
+    # lab root, built by build-ca-bundle below): public-CA sources keep working, Trino verifies. Reproduced and proven
+    # in acryldata/datahub-actions:v1.6.0 against a throwaway Trino: image bundle FAIL, combined bundle OK.
+    - { name: REQUESTS_CA_BUNDLE, value: /etc/weyland-bundle/ca-bundle.pem }
+    - { name: SSL_CERT_FILE, value: /etc/weyland-bundle/ca-bundle.pem }
+  # B233: the lab CA (trino.recipe.yaml's connect_args.verify) and the combined bundle above.
   extraVolumes:
     - name: weyland-ca
       secret: { secretName: weyland-mkcert-ca, items: [{ key: rootCA.pem, path: rootCA.pem }] }
+    - name: weyland-bundle
+      emptyDir: {}
   extraVolumeMounts:
     - { name: weyland-ca, mountPath: /etc/weyland-ca, readOnly: true }
+    - { name: weyland-bundle, mountPath: /etc/weyland-bundle, readOnly: true }
+  # The same image as the container (its /etc/ssl/certs is the bundle being extended); keep the tag in lockstep with
+  # the chart's actions image (v1.6.0).
+  extraInitContainers:
+    - name: build-ca-bundle
+      image: docker.io/acryldata/datahub-actions:v1.6.0
+      command: ["sh", "-c", "cat /etc/ssl/certs/ca-certificates.crt /etc/weyland-ca/rootCA.pem > /etc/weyland-bundle/ca-bundle.pem && grep -c 'BEGIN CERTIFICATE' /etc/weyland-bundle/ca-bundle.pem"]
+      volumeMounts:
+        - { name: weyland-ca, mountPath: /etc/weyland-ca, readOnly: true }
+        - { name: weyland-bundle, mountPath: /etc/weyland-bundle }
   resources:
     requests:
       cpu: "25m"
