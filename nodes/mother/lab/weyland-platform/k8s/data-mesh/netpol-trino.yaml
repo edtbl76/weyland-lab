@@ -1,11 +1,12 @@
-# B211 (2026-10-14) — Trino's front door. It has no authenticator, so X-Trino-User is self-asserted and Ranger can be
-# bypassed by claiming a privileged user; limiting WHO can connect is the control until a password authenticator lands.
-# B233 (2026-10-23): the password authenticator is landing (runbooks/trino.md § Authentication) — 8443 takes passwords;
-# 8080 keeps trusting X-Trino-User until stage 3 closes it, so this policy is still the control for 8080 until then.
-# Callers on 8080: the no-auth proxy, dagster-user-code (dbt, marts), DataHub actions, dbt-docs, Superset, JupyterHub
-# singleuser servers (notebooks 20/40, since 2026-10-21), Traefik (UI),
-# Prometheus (/metrics), and rogueone (192.168.1.230: DataGrip via the trino-lan NodePort, query-lan.yaml, which keeps
-# the client IP — externalTrafficPolicy Local; 2026-10-17). The NodePort admits only rogueone, not the whole LAN.
+# Trino's front door. B211 (2026-10-14) made it the only control: Trino had no authenticator, so X-Trino-User was
+# self-asserted and Ranger could be bypassed by claiming a privileged user. B233 (2026-10-23) added the real control —
+# a password per caller, over HTTPS only, and Ranger letting a login act only as itself (runbooks/trino.md
+# § Authentication) — so this policy is now defence in depth: it still limits WHO can connect, port by port.
+#   8443 (HTTPS, the only port that takes a password): every real caller, each logging in as its own identity, and
+#        rogueone (192.168.1.230: IntelliJ via the trino-lan NodePort 30843, query-lan.yaml, which keeps the client IP —
+#        externalTrafficPolicy Local). The NodePort admits only rogueone, not the whole LAN.
+#   8080 (plain HTTP): Traefik only — the forward-auth'd web UI (a fixed read-only identity). Since stage 3 Trino refuses
+#        anything else on HTTP (allow-insecure-over-http=false); the no-auth proxy and the :30808 NodePort are gone.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: {name: trino-front-door-only, namespace: data-mesh}
@@ -15,48 +16,19 @@ spec:
   policyTypes: [Ingress]
   ingress:
   - from:
-    - podSelector:
-        matchLabels: {app: trino-noauth-proxy}
+    # Dagster user-code (dbt, the mart export, Feast, Soda, GE — login dbt) and dbt-docs (dbt).
     - namespaceSelector:
         matchLabels: {kubernetes.io/metadata.name: weyland}
       podSelector:
         matchLabels: {app: dagster-user-code}
-    - podSelector:
-        matchLabels: {app.kubernetes.io/name: acryl-datahub-actions}
     - namespaceSelector:
         matchLabels: {kubernetes.io/metadata.name: weyland}
       podSelector:
         matchLabels: {app: dbt-docs}
     - podSelector:
-        matchLabels: {app: superset}
-    - namespaceSelector:
-        matchLabels: {kubernetes.io/metadata.name: kube-system}
-      podSelector:
-        matchLabels: {app.kubernetes.io/name: traefik}
-    - &id001
-      namespaceSelector:
-        matchLabels: {kubernetes.io/metadata.name: monitoring}
-      podSelector:
-        matchLabels: {app.kubernetes.io/name: prometheus}
-    # JupyterHub singleuser servers (notebooks 20 and 40 query Trino directly; admitted 2026-10-21 after the DoD re-audit's
-    # notebook batch got 503 from this policy, which had refused them since B211, 2026-10-14). Selected by label, not IP:
-    # a server's pod IP changes on every spawn. Same selector as MLflow's and Nessie's front doors.
-    - namespaceSelector:
-        matchLabels: {kubernetes.io/metadata.name: jupyterhub}
-      podSelector:
-        matchLabels: {component: singleuser-server}
-    - ipBlock: {cidr: 192.168.1.230/32}
-    ports:
-    - {protocol: TCP, port: 8080}
-    # B233 (2026-10-23): the HTTPS port, the only one that accepts a password; same callers while they move to it.
-    - {protocol: TCP, port: 8443}
-  # B233: callers with a password, admitted on the password port only. Cube, Lightdash, trino-mcp and datahub-coverage
-  # reached Trino through the no-auth proxy before and now log in directly. Ranger Admin's Trino resource lookup
-  # (policy-editor autocomplete) logs in as `ranger`; B211 never listed it, so the lookup had been refused since
-  # 2026-10-14 without anyone noticing.
-  - from:
+        matchLabels: {app.kubernetes.io/name: acryl-datahub-actions}   # DataHub managed ingestion (datahub)
     - podSelector:
-        matchLabels: {app: ranger-admin}
+        matchLabels: {app: superset}
     - podSelector:
         matchLabels: {app: cube}
     - podSelector:
@@ -69,12 +41,34 @@ spec:
         matchLabels: {kubernetes.io/metadata.name: weyland}
       podSelector:
         matchLabels: {app: datahub-coverage}
-    # the on-demand perf baseline Job (scripts/perf/trino-baseline.sh, login `perf`). B211 never listed it, so the
-    # baseline had been refused since 2026-10-14 too.
+    # Ranger Admin's Trino resource lookup (login ranger). B211 never listed it, so the lookup was refused 2026-10-14 → B233.
+    - podSelector:
+        matchLabels: {app: ranger-admin}
+    # The on-demand perf baseline Job (scripts/perf/trino-baseline.sh, login perf). Also refused 2026-10-14 → B233.
     - podSelector:
         matchLabels: {job-name: perf-trino-k6}
+    - &id001
+      namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: monitoring}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: prometheus}             # the /metrics scrape (login prometheus)
+    # The owner's JupyterHub server (notebooks 20/40/62/71/72/81, login notebook; 72 also analyst). Selected by label,
+    # not IP — a server's pod IP changes on every spawn — and narrowed to the owner's server by the spawner's username
+    # label (B233), not every singleuser server.
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: jupyterhub}
+      podSelector:
+        matchLabels: {component: singleuser-server, hub.jupyter.org/username: emangini}
+    - ipBlock: {cidr: 192.168.1.230/32}
     ports:
     - {protocol: TCP, port: 8443}
+  - from:
+    - namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: kube-system}
+      podSelector:
+        matchLabels: {app.kubernetes.io/name: traefik}
+    ports:
+    - {protocol: TCP, port: 8080}
   - from:
     - *id001
     ports:

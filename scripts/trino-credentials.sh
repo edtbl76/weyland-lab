@@ -26,7 +26,7 @@ SEALED_DIR="${SEALED_DIR:-$ROOT/nodes/mother/lab/weyland-platform/k8s/sealed-sec
 HTPASSWD_IMAGE="httpd:2.4-alpine@sha256:759a1d9178d351185978e41be37a3e91675a4ddc0653aa5df493cfd4c67e24ec"
 
 # identity|secret — the namespace/name of the caller's Secret (keys username + password), or - when the credential
-# is entered in an app's own UI (Lightdash, Superset), an IDE (DataGrip) or Ranger's service config.
+# is entered in an app's own UI (Lightdash, Superset), an IDE (IntelliJ) or Ranger's service config.
 IDENTITIES=(
   "dbt|weyland/trino-dbt"                                # Dagster user-code (dbt, marts, Feast, GE, Soda) + dbt-docs
   "cube|data-mesh/trino-cube"
@@ -39,7 +39,7 @@ IDENTITIES=(
   "perf|data-mesh/trino-perf"                            # the on-demand k6 baseline Job (scripts/perf/trino-baseline.sh)
   "lightdash|-"
   "superset|-"
-  "emangini|-"                                           # DataGrip on rogueone
+  "emangini|-"                                           # IntelliJ (Database tool) on rogueone
   "ranger|-"                                             # Ranger Admin's resource lookup (ranger_setup.py)
 )
 TRINO_SECRET="data-mesh/trino-auth"

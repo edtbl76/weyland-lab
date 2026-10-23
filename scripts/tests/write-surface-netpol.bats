@@ -287,28 +287,36 @@ pinned() {   # pinned <file> <policy> <port> <expected sources...>
   pinned data-mesh/netpol-valkey.yaml valkey-front-door-only 15020 ns=monitoring,app.kubernetes.io/name=prometheus
 }
 
-# 2026-10-17: Trino and the RAG OpenSearch got `-lan` NodePorts for rogueone (no authenticator / no security plugin, so
-# the policy is the only gate). Pin them so a widened CIDR — or a new caller — is a deliberate change here.
-@test "Trino admits only its listed callers and rogueone (192.168.1.230/32, the trino-lan NodePort)" {
-  pinned data-mesh/netpol-trino.yaml trino-front-door-only 8080 \
-    app=trino-noauth-proxy app.kubernetes.io/name=acryl-datahub-actions app=superset \
-    ns=weyland,app=dagster-user-code ns=weyland,app=dbt-docs \
-    ns=kube-system,app.kubernetes.io/name=traefik ns=monitoring,app.kubernetes.io/name=prometheus \
-    ns=jupyterhub,component=singleuser-server ip=192.168.1.230/32
+# B233 stage 3 (2026-10-23): Trino authenticates, so its front door is two doors. 8443 (HTTPS, the only port that takes a
+# password) admits every real caller — each logs in as its own identity — and rogueone's trino-lan NodePort (30843).
+# The notebook entry is narrowed to the owner's server by the spawner's username label. 8080 stopped trusting
+# X-Trino-User, and only Traefik's forward-auth'd UI path still uses it.
+@test "Trino's HTTP port admits only Traefik (the forward-auth'd web UI)" {
+  pinned data-mesh/netpol-trino.yaml trino-front-door-only 8080 ns=kube-system,app.kubernetes.io/name=traefik
 }
 
-# B233 (2026-10-23): 8443 is Trino's HTTPS port, the only one that accepts a password. During the move to passwords it
-# admits the same callers as 8080 (the trino-lan NodePort's 30843 lands here for rogueone's DataGrip), plus the
-# callers that used to go through the no-auth proxy and now log in directly (Cube, Lightdash, trino-mcp,
-# datahub-coverage), the on-demand perf baseline Job, and Ranger Admin's resource lookup: each has a password, so each is admitted on 8443 only.
-@test "Trino's HTTPS port admits the HTTP port's callers plus the password-only callers" {
+@test "Trino's HTTPS port admits each logged-in caller, the owner's notebook server and rogueone" {
   pinned data-mesh/netpol-trino.yaml trino-front-door-only 8443 \
-    app=trino-noauth-proxy app.kubernetes.io/name=acryl-datahub-actions app=superset app=ranger-admin \
+    app.kubernetes.io/name=acryl-datahub-actions app=superset app=ranger-admin \
     app=cube app.kubernetes.io/name=lightdash ns=weyland,app=trino-mcp ns=weyland,app=datahub-coverage \
-    job-name=perf-trino-k6 \
-    ns=weyland,app=dagster-user-code ns=weyland,app=dbt-docs \
-    ns=kube-system,app.kubernetes.io/name=traefik ns=monitoring,app.kubernetes.io/name=prometheus \
-    ns=jupyterhub,component=singleuser-server ip=192.168.1.230/32
+    job-name=perf-trino-k6 ns=weyland,app=dagster-user-code ns=weyland,app=dbt-docs \
+    ns=monitoring,app.kubernetes.io/name=prometheus \
+    ns=jupyterhub,component=singleuser-server,hub.jupyter.org/username=emangini ip=192.168.1.230/32
+}
+
+@test "Trino takes passwords and never trusts a claimed user on plain HTTP" {
+  # In Trino 468 allow-insecure-over-http=true means "on HTTP, skip authentication" (a no-credential request got 200 on
+  # the throwaway): flipping it back reopens the bypass B233 closed, whatever the NetworkPolicy says.
+  run python3 - "$P/data-mesh/trino.yaml" <<'PY'
+import sys, yaml
+(cm,) = [d for d in yaml.safe_load_all(open(sys.argv[1])) if d and d.get("kind") == "ConfigMap" and d["metadata"]["name"] == "trino-config"]
+props = dict(l.split("=", 1) for l in cm["data"]["config.properties"].splitlines() if "=" in l and not l.lstrip().startswith("#"))
+assert props.get("http-server.authentication.type") == "PASSWORD", props.get("http-server.authentication.type")
+assert props.get("http-server.authentication.allow-insecure-over-http") == "false", "plain HTTP still trusts X-Trino-User"
+assert props.get("http-server.https.enabled") == "true"
+print("ok")
+PY
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
 @test "the RAG OpenSearch admits only its writers, the dashboards and rogueone (the opensearch-lan NodePort)" {
@@ -352,12 +360,6 @@ pinned() {   # pinned <file> <policy> <port> <expected sources...>
     "ns=jupyterhub,component=singleuser-server" "ns=kube-system,app.kubernetes.io/name=traefik"
 }
 
-@test "the Trino no-auth proxy admits only its seven BI and notebook callers, on 8080" {
-  pinned lightdash/trino-noauth-proxy.yaml trino-noauth-proxy-front-door-only 8080 \
-    app=cube app.kubernetes.io/name=lightdash app=superset "ns=weyland,app=dagster-user-code" \
-    "ns=weyland,app=trino-mcp" "ns=weyland,app=datahub-coverage" "ns=jupyterhub,component=singleuser-server"
-}
-
 @test "the MCP compositors admit only the MCP gateway (and Bifrost, for the fleet one), on 8000" {
   pinned mcp-servers/netpol-compositors.yaml weyland-mcp-compositor-front-door-only 8000 app=weyland-mcp-gateway app=bifrost
   pinned mcp-servers/netpol-compositors.yaml weyland-mcp-compositor-memory-front-door-only 8000 app=weyland-mcp-gateway
@@ -378,22 +380,6 @@ pinned() {   # pinned <file> <policy> <port> <expected sources...>
 @test "the operator admits only dagster-user-code, Prometheus and the api-drift job, on 8080" {
   pinned weyland-operator/netpol.yaml weyland-operator-front-door-only 8080 \
     "ns=weyland,app=dagster-user-code" "ns=monitoring,app.kubernetes.io/name=prometheus" "ns=monitoring,app=api-drift"
-}
-
-@test "the Trino no-auth proxy tells Trino its own address, so nextUri polls come back through it" {
-  # Trino builds every nextUri from the request (http-server.process-forwarded=true). The proxy keeps Host = Trino (Envoy
-  # routes on it), so without X-Forwarded-Host every poll pointed at trino.data-mesh.svc directly, which B211's front door
-  # refuses for Cube and Lightdash: each query started, never polled, and timed out after 10 min (found 2026-10-21).
-  run python3 - "$P/lightdash/trino-noauth-proxy.yaml" <<'PY'
-import sys, yaml
-(cm,) = [d for d in yaml.safe_load_all(open(sys.argv[1])) if d and d.get("kind") == "ConfigMap"]
-conf = cm["data"]["nginx.conf"]
-assert "proxy_set_header X-Forwarded-Host trino-noauth.data-mesh.svc.cluster.local:8080;" in conf, "no X-Forwarded-Host"
-assert "proxy_set_header X-Forwarded-Proto http;" in conf, "no X-Forwarded-Proto"
-assert "proxy_set_header Host" not in conf, "Host must stay the proxy_pass target (Envoy routes on it)"
-print("ok")
-PY
-  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
 @test "the pinning helper is not a rubber stamp: a missing caller fails" {

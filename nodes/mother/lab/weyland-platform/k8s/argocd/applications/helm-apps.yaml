@@ -457,15 +457,8 @@ spec:
     - repoURL: https://github.com/edtbl76/weyland-lab.git
       targetRevision: main
       ref: values
-    # trino-noauth-proxy (the unauthenticated Trino front Lightdash + the coverage guards query) lives beside the
-    # values file but was kubectl-applied 2026-07-08 and never deployed by Argo — found by the B198 placement
-    # inventory (`managed: kubectl (not argo)`). Adopted here 2026-09-28; the only live change is the repo's
-    # container securityContext (allowPrivilegeEscalation false + RuntimeDefault seccomp), never applied until now.
-    - repoURL: https://github.com/edtbl76/weyland-lab.git
-      targetRevision: main
-      path: nodes/mother/lab/weyland-platform/k8s/lightdash
-      directory:
-        include: 'trino-noauth-proxy.yaml'
+    # The trino-noauth-proxy source (adopted 2026-09-28) was removed with B233 stage 3 (2026-10-23): Trino authenticates,
+    # Lightdash logs in directly as `lightdash`, and no caller used the proxy; prune: true deleted its resources.
   destination:
     server: https://kubernetes.default.svc
     namespace: data-mesh

@@ -18,11 +18,18 @@ Since B233 (2026-10-23) Trino authenticates: every caller logs in with its own p
 **only over HTTPS on 8443** (a cert from the lab's mkcert CA). See § Authentication.
 - **CLI:** `kubectl -n data-mesh exec -it deploy/trino -- trino` → `trino>` prompt (inside the coordinator; the CLI
   talks to its own loopback HTTP port, so it is not a remote caller).
-- **IntelliJ / DataGrip:** a **Trino** data source at the `trino-lan` NodePort over TLS:
-  `jdbc:trino://192.168.1.243:30843?SSL=true&SSLVerification=FULL`, user `emangini`, password `TRINO_PW_EMANGINI`
-  from `scripts/.env` (rogueone trusts the mkcert root already; the cert names `192.168.1.243`). The JDBC driver
-  refuses a password over plain HTTP ("TLS/SSL is required"), so the old `:30808` door cannot work with a login.
-  Admitted for rogueone only (`netpol-trino.yaml`). NodePorts only, never a port-forward.
+- **IntelliJ (Database tool):** a **Trino** data source at the `trino-lan` NodePort over TLS (the cert names
+  `192.168.1.243`), login `emangini` (`TRINO_PW_EMANGINI` in `scripts/.env`):
+  `jdbc:trino://192.168.1.243:30843?SSL=true&SSLVerification=FULL&SSLTrustStorePath=/home/edwardmangini/.local/share/mkcert/rootCA.pem`.
+  The `SSLTrustStorePath` is required: IntelliJ runs its own bundled Java, which does NOT read rogueone's system trust
+  store (`mkcert -install`), so without it the first query fails "unable to find valid certification path"
+  (2026-10-23). The live data source (`.idea/dataSources.xml`, gitignored) is authentication **No auth** with
+  `&user=emangini&password=…` in the URL, because the data-source dialog took no keyboard input; with No auth IntelliJ
+  passes no separate credentials, so the driver's "password is both in the URL and an argument" error cannot occur.
+  The JDBC driver refuses a password over plain HTTP ("TLS/SSL is required"); the old plain-HTTP `:30808` NodePort
+  was removed in stage 3. Admitted for rogueone only (`netpol-trino.yaml`). NodePorts only, never a port-forward — IntelliJ's
+  own Kubernetes port-forward is off on every data source (it was on for 10; switched to the `-lan` NodePorts
+  2026-10-23).
 - **Web UI:** `https://trino.weyland.lab` (forward-auth → Keycloak). Trino's own UI login is off: the UI runs as the
   fixed identity `trino-ui` (`web-ui.authentication.type=fixed`), because Keycloak already gates the page to the owner
   (owner decision, 2026-10-23). It's a **monitoring console** (running queries, timings, cluster), NOT a query editor —
@@ -60,7 +67,7 @@ either alone does nothing:
 | `notebook`, `analyst` | the JupyterHub servers (notebook 72 uses both) | `jupyterhub/trino-notebook`, `jupyterhub/trino-analyst` |
 | `perf` | the on-demand k6 baseline Job | `data-mesh/trino-perf` |
 | `lightdash`, `superset` | the BI tools | entered in each app's UI (stored in its own DB) |
-| `emangini` | DataGrip on rogueone | the IDE's data source |
+| `emangini` | IntelliJ (Database tool) on rogueone | the IDE's data source |
 | `ranger` | Ranger Admin's resource lookup | Ranger's `trino` service config (`ranger_setup.py`) |
 
 Trino's side is `data-mesh/trino-auth`: `password.db`, `tls.pem` (mkcert key + cert for
@@ -81,10 +88,11 @@ Client quirks, all proven against a throwaway Trino 468 with the live Ranger pol
   source failed `CERTIFICATE_VERIFY_FAILED` on its first live run. `datahub-values.yaml` builds a combined bundle (system
   CAs + the lab root) in an init container and points `REQUESTS_CA_BUNDLE` / `SSL_CERT_FILE` at it. Any client in an image
   that sets that variable needs the same treatment.
-- **Trino JDBC** (DataGrip, Ranger's lookup driver 451) detects a PEM truststore itself; `SSLTrustStoreType=PEM` fails.
+- **Trino JDBC** (IntelliJ, Ranger's lookup driver 451) detects a PEM truststore itself; `SSLTrustStoreType=PEM` fails.
 
 **Roll it out, in this order.** Stages 1-2 change nothing a caller notices: plain HTTP on 8080 keeps trusting
-`X-Trino-User` while every caller moves to 8443 (proven: both doors work at once). Stage 3 closes 8080.
+`X-Trino-User` while every caller moves to 8443 (proven: both doors work at once). Stage 3 closes 8080. **All three
+stages are done (2026-10-23)**; the steps stay here for a rebuild or a re-run.
 
 *Stage 1-2 — credentials, then the push.*
 1. The passwords and the shared secret into `scripts/.env` (generated, never printed):
@@ -139,14 +147,18 @@ Client quirks, all proven against a throwaway Trino 468 with the live Ranger pol
      Test connection → Finish.
    - **Lightdash:** Project settings → warehouse connection (Trino): host `trino.data-mesh.svc.cluster.local`, port
      `8443`, user `lightdash`, password `TRINO_PW_LIGHTDASH`, HTTP scheme `https` → Test and save.
-   - **DataGrip:** the data source URL above, user `emangini`, password `TRINO_PW_EMANGINI`.
+   - **IntelliJ** (Database tool → the Trino data source → Properties): the URL in § How to connect (with
+     `SSLTrustStorePath`), user `emangini`, password `TRINO_PW_EMANGINI`.
    The values come from `scripts/.env` (`grep '^TRINO_PW_SUPERSET=' …` shows only the line you need).
 9. Live checks (§ Check it below), every caller on demand: dbt (`weyland_dbt_job`), the Soda and GE jobs, the mart
    export, Cube (a Playground query), trino-mcp through Bifrost, DataHub's Trino source run, the coverage CronJob
    (`kubectl create job --from`), notebooks 20/40/62/71/72/81, the perf baseline, Prometheus `up`, the Trino UI.
 
-*Stage 3 — close the old door* (a separate push, after every check in 9 passes): `allow-insecure-over-http=false`,
-8080 admits only Traefik (the UI path) in `netpol-trino.yaml`, the `:30808` NodePort and the no-auth proxy removed.
+*Stage 3 — close the old door* (a separate push, after every check in 9 passes; done 2026-10-23):
+`allow-insecure-over-http=false`, 8080 admits only Traefik (the UI path) in `netpol-trino.yaml`, the `:30808` NodePort
+and the no-auth proxy removed (the Lightdash Argo app's proxy source dropped; `prune: true` deleted its resources), the
+notebook entry narrowed to the owner's server (`hub.jupyter.org/username`). Proven on the throwaway with the manifest's
+config: UI through Traefik 200, plain HTTP claiming `dbt` 403, Traefik's header with no credential 401.
 
 **Check it.** From any admitted pod (e.g. dagster-user-code), with no credential and claiming a privileged user —
 expect 401:

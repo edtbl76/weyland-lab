@@ -24,6 +24,7 @@ NodePort found). Fail closed: an inventory that cannot be read is never "all up"
 import json
 import os
 import socket
+import ssl
 import subprocess
 import sys
 import urllib.error
@@ -48,7 +49,7 @@ PROBES = {
     "data-mesh/musicbrainz-postgres-lan:30544": ("pg", None),
     "data-mesh/mysql-lan:30306": ("mysql", None),
     "data-mesh/timescaledb-lan:30543": ("pg", None),
-    "data-mesh/trino-lan:30808": ("http", "/v1/info"),
+    "data-mesh/trino-lan:30843": ("https", "/v1/info"),       # B233: TLS-only password door; /v1/info needs no login
     "data-mesh/valkey-lan:30379": ("redis", None),
     "minio/minio-s3-lan:30990": ("http", "/minio/health/live"),
     "monitoring/prometheus-lan:30909": ("http", "/-/healthy"),
@@ -71,7 +72,9 @@ PROBES = {
     "woodpecker/woodpecker-grpc-lan:30900": ("tcp", None),
     "woodpecker/woodpecker-http-lan:30980": ("http", HEALTHZ),
 }
-KINDS = {"http", "tcp", "pg", "redis", "mysql"}
+KINDS = {"http", "https", "tcp", "pg", "redis", "mysql"}
+# The lab mkcert CA an https probe verifies against (the cert names the node IP the watcher dials). B233.
+CA_ENV, CA_DEFAULT = "LAN_NODEPORT_CA", os.path.expanduser("~/.local/share/mkcert/rootCA.pem")
 
 
 class CannotRead(Exception):
@@ -89,6 +92,20 @@ def _http(host, port, arg, timeout):
     except urllib.error.HTTPError as e:
         code = e.code
     return (code < 500, f"HTTP {code}")
+
+
+def _https(host, port, arg, timeout):
+    ctx = ssl.create_default_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.load_verify_locations(cafile=os.environ.get(CA_ENV, CA_DEFAULT))
+    try:
+        with urllib.request.urlopen(f"https://{host}:{port}{arg or ROOT}", timeout=timeout, context=ctx) as r:  # nosec B310 — LAN node IP
+            code = r.status
+    except urllib.error.HTTPError as e:
+        code = e.code
+    except urllib.error.URLError as e:
+        return (False, f"TLS/URL error: {e.reason}")
+    return (code < 500, f"HTTPS {code}")
 
 
 def _tcp(_s):
@@ -124,6 +141,8 @@ def probe(host, port, kind, arg, timeout=5):
     try:
         if kind == "http":
             return _http(host, port, arg, timeout)
+        if kind == "https":
+            return _https(host, port, arg, timeout)
         fn = SOCKET_PROBES.get(kind)
         if fn is None:
             return (False, f"unknown probe kind {kind}")

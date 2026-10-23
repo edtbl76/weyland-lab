@@ -15,9 +15,9 @@ There is no UI deliverable — the CLI walkthrough is the whole demo (repo tooli
 
 [rogueone]
 ```
-L=192.168.1.243; curl -s "http://$L:30909/api/v1/query?query=up" | jq -r .status; curl -s "http://$L:30808/v1/info" | jq -r .nodeVersion.version; curl -s "http://$L:30920/_cluster/health" | jq -r .status; (printf 'PING\r\n'; sleep 1) | nc -w3 $L 30379 | head -1
+L=192.168.1.243; curl -s "http://$L:30909/api/v1/query?query=up" | jq -r .status; curl -s --cacert "$(mkcert -CAROOT)/rootCA.pem" "https://$L:30843/v1/info" | jq -r .nodeVersion.version; curl -s "http://$L:30920/_cluster/health" | jq -r .status; (printf 'PING\r\n'; sleep 1) | nc -w3 $L 30379 | head -1
 ```
-(B233, 2026-10-23: `:30808` is Trino's old plain-HTTP door until B233's stage 3; the login door is `:30843`, HTTPS —
+(B233, 2026-10-23: Trino's NodePort is `:30843`, HTTPS + a login; the old plain-HTTP `:30808` was removed in stage 3 —
 [runbooks/trino.md § Authentication](../runbooks/trino.md#authentication-b233-2026-10-23).)
 Output (run): `success` (136 `up` series) · `468` (Trino) · `yellow` (single-node OpenSearch) · `+PONG` (Valkey). The
 same run: Uptime Kuma `:30301` → `HTTP 302` (its own login), GMS `:30818/health` → `HTTP 200`, musicbrainz-postgres
@@ -30,7 +30,7 @@ same run: Uptime Kuma `:30301` → `HTTP 302` (its own login), GMS `:30818/healt
 ```
 kubectl -n weyland exec deploy/litellm -- python -c "
 import socket
-for n, p in (('prometheus (control)', 30909), ('trino', 30808), ('valkey', 30379), ('opensearch', 30920)):
+for n, p in (('prometheus (control)', 30909), ('trino', 30843), ('valkey', 30379), ('opensearch', 30920)):
     s = socket.socket(); s.settimeout(4)
     try: s.connect(('192.168.1.243', p)); print(n, 'CONNECTED')
     except Exception as e: print(n, 'REFUSED', type(e).__name__)

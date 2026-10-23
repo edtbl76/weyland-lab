@@ -92,7 +92,7 @@ Add to `k8s/argocd/applications/helm-apps.yaml` (pin `targetRevision` to the ver
 
 > **Since B233 (2026-10-23)** Trino authenticates (a password over HTTPS on 8443), so Lightdash sends its own
 > `lightdash` login straight to Trino (§6 step 3, [trino.md § Authentication](trino.md#authentication-b233-2026-10-23)). The proxy below stays deployed until
-> B233's stage 3 retires it, but no repo caller uses it. The rest of this section is why it existed.
+> B233's stage 3 removed it (2026-10-23). The rest of this section is why it existed.
 
 Lightdash's Trino connector **forces a password** (mandatory form field) → it sends HTTP **Basic auth**. Trino has
 **no authenticator** (deliberate LAN no-auth — dbt/DataHub/Superset all connect passwordless), and Trino returns

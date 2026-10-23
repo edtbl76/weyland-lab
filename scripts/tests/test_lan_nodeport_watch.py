@@ -176,6 +176,50 @@ def test_http_probe_counts_any_answer_below_500_as_up(status, up):
     assert ok is up, why
 
 
+# --- https (B233, 2026-10-23): Trino's password door is TLS-only, so its NodePort needs a probe that speaks TLS and
+# verifies the cert (the lab mkcert CA; the cert names the node IP the watcher dials). A bare TCP connect would read a
+# meshed pod's port as open even with Trino down.
+
+class _Resp:
+    status = 200
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_https_probe_verifies_the_cert_against_the_lab_ca(monkeypatch):
+    seen = {}
+
+    def fake_urlopen(url, timeout=None, context=None):
+        seen["url"], seen["ctx"] = url, context
+        return _Resp()
+    loaded = []
+    monkeypatch.setattr(w.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(w.ssl.SSLContext, "load_verify_locations", lambda self, cafile=None, **k: loaded.append(cafile))
+    monkeypatch.setenv("LAN_NODEPORT_CA", "/x/rootCA.pem")
+    ok, why = w.probe("192.168.1.243", 30843, "https", "/v1/info")
+    assert ok, why
+    assert seen["url"] == "https://192.168.1.243:30843/v1/info"
+    assert seen["ctx"].verify_mode == w.ssl.CERT_REQUIRED and seen["ctx"].check_hostname
+    assert loaded == ["/x/rootCA.pem"]
+
+
+def test_https_probe_reports_a_cert_it_cannot_verify_as_down(monkeypatch):
+    def fake_urlopen(url, timeout=None, context=None):
+        raise w.urllib.error.URLError(w.ssl.SSLCertVerificationError("certificate verify failed"))
+    monkeypatch.setattr(w.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(w.ssl.SSLContext, "load_verify_locations", lambda self, cafile=None, **k: None)
+    ok, why = w.probe("192.168.1.243", 30843, "https", "/v1/info")
+    assert not ok and "certificate" in why
+
+
+def test_trinos_tls_nodeport_is_probed_over_https():
+    assert w.PROBES["data-mesh/trino-lan:30843"] == ("https", "/v1/info")
+
+
 def test_push_url_reads_only_its_own_key_from_the_env_file(tmp_path, monkeypatch):
     monkeypatch.delenv("KUMA_LAN_PUSH_URL", raising=False)
     env = tmp_path / ".env"

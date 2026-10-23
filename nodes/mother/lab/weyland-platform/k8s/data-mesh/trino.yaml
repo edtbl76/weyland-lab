@@ -35,11 +35,11 @@ data:
     # owner, so a second Trino login would add nothing (owner decision, 2026-10-23).
     web-ui.authentication.type=fixed
     web-ui.user=trino-ui
-    # TRANSITION (stage 1-2 of runbooks/trino.md § Authentication): plain HTTP on 8080 still trusts X-Trino-User, so
-    # nothing breaks while callers move to 8443 one by one. In Trino 468 this flag means exactly that: on HTTP,
-    # authentication is NOT checked (a no-credential request got 200 on the throwaway). Stage 3 sets it false, after
-    # which 8080 answers only Traefik's UI path (X-Forwarded-Proto: https) and refuses everything else.
-    http-server.authentication.allow-insecure-over-http=true
+    # Stage 3 (2026-10-23): plain HTTP no longer trusts X-Trino-User. In Trino 468 `true` here means "on HTTP, skip
+    # authentication" (a no-credential request got 200 on the throwaway) — it was the transition mode while callers
+    # moved to 8443. With `false`, 8080 answers only a request that arrived over HTTPS (X-Forwarded-Proto: https, which
+    # Traefik sets for the UI) and refuses everything else (403). Pinned by write-surface-netpol.bats.
+    http-server.authentication.allow-insecure-over-http=false
   password-authenticator.properties: |
     password-authenticator.name=file
     file.password-file=/etc/trino/auth/password.db

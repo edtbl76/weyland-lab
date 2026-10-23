@@ -9,8 +9,8 @@ NodePort is a standing endpoint the policy can pin. The rule is an `AGENTS.md` h
 
 A service that is ClusterIP-only **on purpose** is reached by running the work in-cluster (a Job from its CronJob,
 `kubectl exec`), not by forwarding: **weyland-postgres** (STRICT mTLS — a plain client off the mesh cannot connect;
-query it in-pod, [query/postgres.md](../query/postgres.md)) and **trino-noauth** (strips auth; still deployed until B233's
-stage 3, with no repo caller since B233 — the datahub-coverage guard now logs in to Trino directly as an in-cluster
+query it in-pod, [query/postgres.md](../query/postgres.md)) and **trino-noauth** (stripped auth; removed in B233's stage 3,
+2026-10-23, after no repo caller was left — the datahub-coverage guard now logs in to Trino directly as an in-cluster
 Job, [observability.md](observability.md)).
 
 ## The NodePorts
@@ -49,7 +49,6 @@ All on mother, `192.168.1.243`. Manifest paths are under `nodes/mother/lab/weyla
 | Uptime Kuma API | `:30301` | Kuma login | `k8s/uptime-kuma/uptime-kuma-lan.yaml` |
 | musicbrainz-postgres | `:30544` | password | `k8s/data-mesh/query-lan.yaml` |
 | Trino | `:30843` | **rogueone only** + a Trino login over HTTPS (B233, DataGrip as `emangini`, [trino.md § Authentication](trino.md#authentication-b233-2026-10-23)) | `k8s/data-mesh/query-lan.yaml` + `netpol-trino.yaml` |
-| Trino (old door) | `:30808` | **rogueone only** — plain HTTP trusts `X-Trino-User`; removed at B233 stage 3 | `k8s/data-mesh/query-lan.yaml` + `netpol-trino.yaml` |
 | Valkey | `:30379` | **rogueone only** — no auth | `k8s/data-mesh/query-lan.yaml` + `netpol-valkey.yaml` |
 | OpenSearch (RAG, ns `opensearch`) | `:30920` | **rogueone only** — security plugin off | `k8s/opensearch/opensearch-lan.yaml` + `netpol.yaml` |
 
@@ -64,7 +63,7 @@ kubectl get svc -A -o json | jq -r '.items[] | select(.spec.type=="NodePort") | 
 
 [rogueone]
 ```
-for p in 30909 30818 30301 30544 30808 30843 30379 30920; do if nc -z -w3 192.168.1.243 $p; then echo "$p up"; else echo "$p NOT reachable"; fi; done
+for p in 30909 30818 30301 30544 30843 30379 30920; do if nc -z -w3 192.168.1.243 $p; then echo "$p up"; else echo "$p NOT reachable"; fi; done
 ```
 Every line must say `up`. A rogueone-only port that refuses here means its NetworkPolicy lost the `ipBlock` or the
 Service lost `externalTrafficPolicy: Local` (below).

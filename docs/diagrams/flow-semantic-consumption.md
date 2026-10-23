@@ -71,7 +71,7 @@ different consumers:
 The marts are **Iceberg tables on Nessie** — there's no separate serving DB. Trino is the read path for every
 consumer, so the semantic layers (Cube, MetricFlow) and BI tools all connect to Trino, each as its own login over
 HTTPS on 8443 (B233, 2026-10-23; before that Cube/Lightdash went through the `trino-noauth` auth-strip proxy, which
-stays deployed until B233's stage 3 but has no repo caller). JupyterHub is the one
+was removed in B233's stage 3). JupyterHub is the one
 consumer that can *also* bypass Trino and read the lakeFS object store directly — useful when you want the raw file,
 not a query result.
 

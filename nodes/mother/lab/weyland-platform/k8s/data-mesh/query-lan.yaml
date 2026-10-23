@@ -3,14 +3,13 @@
 # minio-s3-lan / lakefs-lan / mlflow-lan.
 #
 #   DataHub GMS          192.168.1.243:30818 -> :8080  (REST/GraphQL; DATAHUB_GMS_TOKEN required) — store-park.sh
-#   Trino                192.168.1.243:30808 -> :8080  (JDBC/REST; DataGrip) — admitted for rogueone only, see below
-#                        192.168.1.243:30843 -> :8443  (B233: HTTPS + password; DataGrip's door after the cutover)
+#   Trino                192.168.1.243:30843 -> :8443  (B233: JDBC/REST over HTTPS + a login; IntelliJ) — rogueone only
 #   Valkey               192.168.1.243:30379 -> :6379  (RESP; DataGrip "Redis") — admitted for rogueone only
 #   musicbrainz-postgres 192.168.1.243:30544 -> :5432  (pg-wire; its own password)
 #
 # externalTrafficPolicy: Local keeps the client's source IP (single node, so no hop is lost). That is what lets a
 # NetworkPolicy ipBlock tell rogueone (192.168.1.230) from the rest of the LAN — the same mechanism as mlflow-lan.
-# Trino (no authenticator: X-Trino-User is self-asserted) and Valkey (no auth) are B211 front-door services, so
+# Trino (authenticated since B233, the policy is defence in depth) and Valkey (no auth) are B211 front-door services, so
 # their policies (netpol-trino.yaml, netpol-valkey.yaml) admit 192.168.1.230/32 and nothing else from outside the
 # cluster. GMS (token) and musicbrainz-postgres (password) have no NetworkPolicy; their own auth is the gate, as
 # for the tier-2 stores. Valkey, musicbrainz-postgres and Trino are meshed; no PeerAuthentication in data-mesh, so
@@ -39,9 +38,8 @@ spec:
   externalTrafficPolicy: Local
   selector: { app: trino }
   ports:
-    - { name: http, port: 8080, targetPort: 8080, protocol: TCP, nodePort: 30808 }
-    # B233 — DataGrip's door once Trino takes passwords: TLS straight to Trino (the cert names 192.168.1.243), the
-    # login `emangini`. Named https-lan, not https, so the ServiceMonitor (port https) does not scrape it twice.
+    # B233 — TLS straight to Trino (the cert names 192.168.1.243), the login `emangini`. Named https-lan, not https, so
+    # the ServiceMonitor (port https) does not scrape it twice. The old no-auth :30808 (-> 8080) is gone (stage 3).
     - { name: https-lan, port: 8443, targetPort: 8443, protocol: TCP, nodePort: 30843 }
 ---
 apiVersion: v1
