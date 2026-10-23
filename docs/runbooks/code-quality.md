@@ -46,10 +46,16 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   `2026-10-21T19-06-15Z` suite showed 123 new C-0236 findings with nothing in the repo changed. Our own key would pass
   only `registry.weyland.lab` images, never the upstream ones. Verification is B88 decision 2 instead: `cosign verify`
   in CI, Gatekeeper's registry-prefix constraint at admission, an in-cluster verifier left as a separate decision.
-  `services/scan-suite/kubescape-exceptions.json` (one control, `alertOnly`; `tests/test_scan.py` pins that) keeps the
+  `services/scan-suite/kubescape-exceptions.json` (one control, action **`ignore`**; `tests/test_scan.py` pins that) keeps the
   control evaluated but out of the posture counts, and the log prints its size every run:
   `~ kubescape: C-0236 accepted: N workload(s) …`. The first run with it shows C-0236 as **gone** in `scan-diff.py`.
   Accepting another control needs its own dated reason here and in that file.
+  **`ignore`, not `alertOnly` (corrected the same day):** on kubescape **v4** (this image since B220) an `alertOnly`
+  exception only marks resources `acknowledged`: the control stays `failed` and every finding still counts. The first cut
+  used `alertOnly`, was proven on the previous v3 image (where it does exclude), and the 2026-10-22 suite on the shipped
+  v4 image moved nothing (`C-0236 accepted: 0`, high 779). Re-proven on the shipped image with `ignore`: `accepted: 124`,
+  high 664. `scan.py` now fails the tool loudly if C-0236 is ever left `acknowledged`. Prove a scanner change in the image
+  the CronJob runs (`kubectl -n weyland get cronjob code-scan-suite -o jsonpath='{..image}'`), never a cached older tag.
 - **The deployed images too** (2026-10-16, `trivy-images`): the source scanners never read a Dockerfile's
   `pip install` line, and 14 Dockerfiles install 103 packages that way (tool-server's `mcp` 1.28.1 sat in one through
   GHSA-84m7-p3x7-pcfv). So the suite also scans every `registry.weyland.lab` image a manifest under `k8s/` deploys (the

@@ -403,7 +403,7 @@ Run one now (and **before any Bifrost upgrade**):
 ```
 kubectl -n weyland create job --from=cronjob/bifrost-backup bifrost-backup-manual-$(date +%s)
 ```
-Expect `sqlite-backup OK (config.db): /backup/bifrost/<ts> — counts={'config_providers': 22, 'governance_virtual_keys': 6, 'prompts': …, 'skills': …, 'config_mcp_clients': 10, 'prompt_versions': …} files=['config.db']`.
+Expect `sqlite-backup OK (config.db): /backup/bifrost/<ts> — counts={'config_providers': 21, 'governance_virtual_keys': 6, 'prompts': …, 'skills': …, 'config_mcp_clients': 10, 'prompt_versions': …} files=['config.db']`.
 
 **Restore drill (non-destructive)** — opens the newest backup in a throwaway pod (copied to `/tmp`, never written back)
 and prints integrity, the manifest counts and the same tables' counts read from the copy:
@@ -411,7 +411,9 @@ and prints integrity, the manifest counts and the same tables' counts read from 
 kubectl -n weyland run bifrost-restore-drill --restart=Never --image=python:3.12-alpine --overrides='{"metadata":{"labels":{"sidecar.istio.io/inject":"false"}},"spec":{"automountServiceAccountToken":false,"securityContext":{"runAsUser":10001,"runAsGroup":10001,"runAsNonRoot":true},"containers":[{"name":"drill","image":"python:3.12-alpine","command":["python3","-c","import glob,json,os,shutil,sqlite3; d=sorted(glob.glob(\"/backup/bifrost/2*\"))[-1]; m=json.load(open(d+\"/manifest.json\")); shutil.copy(d+\"/config.db\",\"/tmp/r.db\"); c=sqlite3.connect(\"/tmp/r.db\"); q=lambda s: c.execute(s).fetchone()[0]; print(\"backup\",os.path.basename(d),\"integrity\",q(\"pragma integrity_check\"),\"manifest\",m[\"counts\"]); print(\"live-shape counts:\",{t:q(\"select count(*) from \"+t) for t in [\"config_providers\",\"governance_virtual_keys\",\"config_mcp_clients\",\"prompts\",\"skills\"]})"],"volumeMounts":[{"name":"b","mountPath":"/backup","readOnly":true}]}],"volumes":[{"name":"b","persistentVolumeClaim":{"claimName":"bifrost-backup"}}]}}' >/dev/null && kubectl -n weyland wait --for=jsonpath='{.status.phase}'=Succeeded pod/bifrost-restore-drill --timeout=180s >/dev/null; kubectl -n weyland logs bifrost-restore-drill; kubectl -n weyland delete pod bifrost-restore-drill
 ```
 Pass = `integrity ok` and the counts matching the manifest. Record the date in `docs/dr.md`. It runs detached and reads the
-pod's log: `kubectl run -i --rm` lost the output of this fast-exiting pod (2026-10-08). **Latest drill 2026-10-21** on
+pod's log: `kubectl run -i --rm` lost the output of this fast-exiting pod (2026-10-08). **Latest drill 2026-10-22** on the
+manual backup taken just after the `ollama` provider was retired, `20261022T201105Z`: integrity ok; providers **21**,
+virtual keys 6, MCP clients 10, prompts 280, skills 589, all matching the manifest. **Drill 2026-10-21** on
 the post-2.3.1 backup `20261021T035501Z`: integrity ok; providers 22, virtual keys 6, MCP clients 10, prompts 280,
 skills 589, all matching the manifest. **First drill 2026-10-08** on
 `20261008T200346Z`: integrity ok; providers 22, virtual keys 4, MCP clients 10, prompts 280, skills 589, all matching the

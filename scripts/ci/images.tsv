@@ -11,6 +11,8 @@
 # clef-flash (B174, rogueone's on-demand decision-model server, nodes/rogueone/services/gpu-inference/clef-flash/) is
 # built locally by `docker compose up --build` from scripts/clef-flash.sh at each start and pushed nowhere — deployed
 # nowhere in k8s — so it is intentionally omitted too (runbooks/decision-models.md § Compare Clef-flash).
+# a2a-inspector (B17) is hand-tagged vN: v1 was built from github.com/a2aproject/a2a-inspector by hand; v2+ is the patch
+# layer services/a2a-inspector/Dockerfile (FROM v1 by digest), built + pushed by hand like weyland-agent.
 # weyland-jupyter (JupyterHub singleuser, B81) is tag-pinned (registry.weyland.lab/weyland-jupyter:vN, pullPolicy
 # IfNotPresent) and built MANUALLY (bump the tag in k8s/jupyterhub/jupyterhub-values.yaml, then docker build/push)
 # — the notebook library is git-synced not baked, so the image changes only on a dep/toolkit bump. Intentionally

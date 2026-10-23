@@ -13,3 +13,8 @@ fastavro==1.12.2
 # Pin the singleuser side to 5.5.0 — the version weyland-jupyter:v1 ran against this hub, proven to spawn. Lift it with
 # the hub chart upgrade, never alone.
 jupyterhub==5.5.0
+# 2026-10-22: three of the BASE's own packages, pinned here because the base image's copies carried advisories no lockfile
+# could show (certifi GHSA-6q48-6c7w-9gw2 CRITICAL; pillow's 28 of 2026-10-20/21; pip 26.2.1 vendors certifi 2026.6.17).
+certifi==2026.10.19
+pillow==13.0.0
+pip==26.2.2

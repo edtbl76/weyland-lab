@@ -70,7 +70,10 @@ singleuser:
     # v4 (2026-10-20, B225): v3 without nbclassic — it bundled underscore + mathjax (2 HIGH, no fix in its newest 1.3.3)
     # and nothing used it (defaultUrl /lab; Notebook 7 keeps /tree via notebook-shim). trivy v3 206 → v4 204, nothing
     # new. Roll back = tag: v3.
-    tag: v4
+    # v5 (2026-10-22): the base's own certifi (CRITICAL GHSA-6q48-6c7w-9gw2), pillow 12.3.0 (28 advisories) and pip
+    # (vendoring the old certifi) pinned in requirements-lake.txt to 2026.10.19 / 13.0.0 / 26.2.2, conda cache cleared.
+    # Proven: pip check clean, the toolkit imports, a matplotlib→pillow render, the server's /api 200. Roll back = tag: v4.
+    tag: v5
     pullPolicy: IfNotPresent
   storage:
     capacity: 2Gi

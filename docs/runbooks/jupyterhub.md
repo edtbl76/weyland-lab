@@ -73,6 +73,14 @@ browser ──► jupyter.weyland.lab (Traefik ingress + weyland-wildcard-tls)
    Traefik `readTimeout` — see [[traefik-readtimeout-registry-push]].)
 4. **Push** `jupyterhub-values.yaml` + the Argo app → Argo deploys the chart.
 
+**The base's own certifi, pillow and pip are pinned (v5, 2026-10-22).** The scipy base ships certifi 2026.7.22
+(GHSA-6q48-6c7w-9gw2, CRITICAL), pillow 12.3.0 (28 advisories) and pip 26.2.1 (which vendors certifi 2026.6.17); no lockfile
+named them, so only the image scan saw them. `requirements-lake.txt` now pins `certifi==2026.10.19`, `pillow==13.0.0`
+and `pip==26.2.2` (pip upgrades conda's copies; `mamba install --freeze-installed` cannot solve the newer CA bundle
+without moving the scientific stack), and the build clears conda's package cache. Proven before the push: `pip check`
+clean, the toolkit imports, a matplotlib→pillow render, the server's `/api` 200. A running user server keeps its old
+image until it is restarted (File → Hub Control Panel → Stop My Server → Start). Roll back = `tag: v4`.
+
 **`nbclassic` is removed from the image (v4, B225, 2026-10-20).** The scipy base installs it. It bundles `underscore`
 and `mathjax`, 2 HIGH with no fix in its newest release, and nothing here uses it: `defaultUrl` is `/lab`, and
 Notebook 7 serves `/tree` through `notebook-shim`. The Dockerfile uninstalls it, and the build fails if its server

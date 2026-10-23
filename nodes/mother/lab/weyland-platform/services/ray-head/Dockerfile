@@ -10,6 +10,10 @@
 FROM rayproject/ray:2.56.0-py311
 
 # 2026-10-16: pinned (requirements-ray-head.txt in the genre-trainer context: v7's additions, four raised past advisories).
+# 2026-10-22: conda's OWN certifi + CA bundle to 2026.10.19 (GHSA-6q48-6c7w-9gw2). The pip pin below already fixed the
+# importable certifi, but conda's record (conda-meta) and its package cache still said 2026.6.17, and the image scanner
+# reads those. --freeze-installed moves nothing else; `conda clean` drops the stale cache (~384 MB).
+RUN conda install -y -c conda-forge --freeze-installed certifi=2026.10.19 ca-certificates=2026.10.19 && conda clean -afy
 COPY requirements-ray-head.txt /tmp/requirements-ray-head.txt
 RUN pip install --no-cache-dir -r /tmp/requirements-ray-head.txt
 COPY train_genre.py /home/ray/train_genre.py

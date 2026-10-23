@@ -8,6 +8,8 @@ and assert the REAL counts, plus the payload builder — no tool executed, no ne
 import json
 import os
 
+import pytest
+
 
 # ── payload builder + primitives ──────────────────────────────────────────────────────────────────
 def test_z_is_all_zero(scan):
@@ -67,12 +69,24 @@ def test_kubescape_runs_with_the_accepted_exceptions_file(scan, captured_posts, 
     assert cmd[cmd.index("--exceptions") + 1] == scan.KUBESCAPE_EXCEPTIONS
 
 
-def test_kubescape_exceptions_accept_only_c0236_as_alert_only():
-    """The accept is one control, never blanket suppression: adding a control here needs its own dated reason."""
-    path =os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "kubescape-exceptions.json")
+def test_kubescape_exceptions_accept_only_c0236_with_the_v4_ignore_action():
+    """The accept is one control, never blanket suppression: adding a control here needs its own dated reason.
+    `ignore`, not `alertOnly`: on kubescape v4 (the image since B220) `alertOnly` only ACKNOWLEDGES a resource, which still
+    fails and still counts. The 2026-10-22 suite ran with `alertOnly` and moved nothing (proven on the pre-v4 image)."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "kubescape-exceptions.json")
     policies = json.load(open(path, encoding="utf-8"))
     assert [c["controlID"] for p in policies for c in p["posturePolicies"]] == ["C-0236"]
-    assert all(p["actions"] == ["alertOnly"] and p["policyType"] == "postureExceptionPolicy" for p in policies)
+    assert all(p["actions"] == ["ignore"] and p["policyType"] == "postureExceptionPolicy" for p in policies)
+
+
+def test_an_exception_that_only_acknowledges_fails_loudly(scan, captured_posts, monkeypatch):
+    """An accept that left the control failing (acknowledged, still counted) must never pass as an accept."""
+    monkeypatch.setattr(scan, "load", lambda p: {"summaryDetails": {
+        "resourcesSeverityCounters": {"highSeverity": 7},
+        "controls": {"C-0236": {"statusInfo": {"status": "failed", "subStatus": "w/exceptions"},
+                                "subStatusCounters": {"ignoredResources": 0, "acknowledgedResources": 123}}}}})
+    with pytest.raises(RuntimeError, match="C-0236.*acknowledged.*123"):
+        scan.kubescape()
 
 
 def test_kubescape_prints_the_accepted_count_on_its_own_line(scan, captured_posts, monkeypatch, capsys):

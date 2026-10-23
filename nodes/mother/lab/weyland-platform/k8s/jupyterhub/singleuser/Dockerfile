@@ -17,9 +17,15 @@ USER root
 # is empty), and its go1.26.7 build carried 3 HIGH Go-stdlib advisories.
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && rm -f /usr/bin/pebble && rm -rf /var/lib/pebble /var/lib/apt/lists/*
+# 2026-10-22: the conda base's own certifi (2026.7.22), pillow (12.3.0) and pip (26.2.1, which vendors certifi 2026.6.17)
+# carried GHSA-6q48-6c7w-9gw2 (certifi, CRITICAL) and pillow's 28 advisories of 2026-10-20/21. They come from the base
+# image, so no lockfile named them; requirements-lake.txt now pins all three (pip upgrades conda's copies in place:
+# `mamba install --freeze-installed` cannot solve the newer CA bundle without moving the scientific stack). The conda
+# package cache, which still holds the old copies, is cleared below.
 # 2026-10-16: the additions are pinned (requirements-lake.txt, the versions weyland-jupyter:v1 runs).
 COPY requirements-lake.txt /tmp/requirements-lake.txt
 RUN pip install --no-cache-dir -r /tmp/requirements-lake.txt \
+    && mamba clean -afy \
     && mkdir -p /opt/examples
 # 2026-10-20 (B225): nbclassic removed. It bundles `underscore` and `mathjax`, 2 HIGH with no fix in its newest release
 # (1.3.3), and nothing uses it: no package requires it, the hub's defaultUrl is /lab, and Notebook 7 serves /tree on its

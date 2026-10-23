@@ -2,7 +2,7 @@
   {
     "name": "weyland-c0236-image-signature-accepted",
     "policyType": "postureExceptionPolicy",
-    "actions": ["alertOnly"],
+    "actions": ["ignore"],
     "resources": [{"designatorType": "Attributes", "attributes": {"kind": ".*"}}],
     "posturePolicies": [{"controlID": "C-0236"}]
   }

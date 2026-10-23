@@ -45,7 +45,7 @@ sequenceDiagram
         Ingest-->>Suite: 202 (queue-accepted, NOT entity-created)
         Ingest->>BP: map .body.tool!=null → security_scan (one entity per tool)
     end
-    Note over Suite: kubescape runs with --exceptions kubescape-exceptions.json (2026-10-22): C-0236 image-signature is accepted alert-only, its count printed apart, out of the posture totals
+    Note over Suite: kubescape runs with --exceptions kubescape-exceptions.json (2026-10-22): C-0236 image-signature is accepted with the ignore action (kubescape v4 counts an alertOnly one as acknowledged, still failed), its count printed apart, out of the posture totals, and a C-0236 left acknowledged fails the tool loudly
     Note over Suite,Reg: trivy-images (B213, weyland-lab only) — the images the manifests DEPLOY
     Suite->>Suite: deployed_images — images.tsv refs plus every registry.weyland.lab ref in k8s/ (23)
     loop each deployed image
