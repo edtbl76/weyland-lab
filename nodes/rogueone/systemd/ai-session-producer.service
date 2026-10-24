@@ -21,7 +21,8 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 # B185 (2026-10-13): then push time per issue to Port (issue_time entities, read back, + the Time per Issue dashboard).
-# B185 lane 2 (2026-10-15): before that, owner_time.py adds the owner's own time (ActivityWatch + Clockify; the Clockify
+# B185 lane 2 (2026-10-15): before that, owner_time.py adds the owner's own time (Clockify since ActivityWatch was
+# retired 2026-10-23 after failing its memory trial; the Clockify
 # key is read from ONLY its line of scripts/.env). An owner-time failure does not stop the agent-time push (the last
 # owner_time.json, true but older, is used), but it still fails the unit.
 # A failure fails this unit, which the nightly machine-inv-drift placement check reports to Kuma (failed unit).

@@ -1577,7 +1577,9 @@ and the report keeps them as separate columns rather than one blended number. **
 plus window, AFK and Chrome-tab watchers, user units, bound to 127.0.0.1) records what is in front of the owner;
 `owner_time.py` counts it through AW's own query language, so idle time and the window/tab overlap are AW's call.
 **Clockify** (free plan, owner's decision, 2026-10-15) is the manual option: its extension puts a timer on every Linear
-issue and names the entry `[EMA-###] <title>`.
+issue and names the entry `[EMA-###] <title>`. **ActivityWatch was retired on 2026-10-23:** it failed the trial's
+memory criterion (peak 180 MB against a 150 MB budget, growing with uptime) for about 6.5 attributed hours in 10
+days, so lane 2 is Clockify only and the report shows the ActivityWatch column as unknown.
 
 | Decision | Chosen | Rejected | Why |
 |---|---|---|---|

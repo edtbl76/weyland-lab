@@ -86,6 +86,9 @@ A directory with no summaries → `no session summaries in …`, exit 2. A `.jso
 ActivityWatch (automatic) and Clockify (a manual timer on Linear issues) add the owner's own hours per issue. Setup and
 rules: [runbooks/issue-time.md](../runbooks/issue-time.md) § Owner time.
 
+> **ActivityWatch was retired on 2026-10-23** after failing its week-long trial on memory (§ RUN 2026-10-23 below).
+> Steps 3 and 6 are the record of the trial; step 4's command still runs and now reads Clockify only.
+
 **3. The collectors are up, localhost only:**
 [rogueone]
 ```
@@ -126,6 +129,16 @@ python3 -c "import json; r=[json.loads(l) for l in open('/home/edwardmangini/.ca
 Observed on day 1: CPU 0.78–0.83% of a core (mostly the AFK watcher), RSS 71–74 MB, 0 samples over budget. CPU sits
 close to the line, which is why the week's samples decide it.
 
+**RUN 2026-10-23 — the trial's verdict, and the kill.** The same command at the end of the week:
+`53 samples · max CPU % of a core 0.79 · max RSS MB 180.0 · over budget 27`. CPU passed (0.39% average); memory failed,
+growing with uptime (74 → 127 MB over 3.5 days, then 160 → 180 MB after a restart). It attributed about 6.5 hours in
+10 days, and its matcher also counted non-issues (`UTF-8`, `M1-1`). The owner killed it:
+`systemctl --user disable --now aw-watcher-window aw-watcher-afk aw-server` → `inactive` ×3, port 5600 closed; the units,
+their `placement.yaml` rows and the binaries removed. Step 4 then printed
+`owner_time: 1 issue(s); Clockify ok; ActivityWatch retired`, and `issue-time.sh --json` shows EMA-243 with
+`owner_aw_hours: None` (unknown, never 0) and `owner_clockify_hours: 0.01`. The tests pin that the collector never
+contacts ActivityWatch again (`test_owner_time.py`).
+
 ## UI walkthrough — Port (UAT)
 
 1. Open `https://app.port.io` → **Catalog** sidebar → **Time per Issue**.
@@ -138,14 +151,14 @@ close to the line, which is why the week's samples decide it.
    and that issue's page lists the Issue Time entity under related entities.
 5. Find **EMA-206**: it has agent hours but an empty **Linear issue** relation (Port's Linear integration has no
    entity for it) — the expected state, named by the push.
-6. **Lane 2:** confirm a fourth card, **Owner hours, ActivityWatch (all issues)**, renders without error, and that the
+6. **Lane 2:** confirm a fourth card, **Owner hours, ActivityWatch (all issues)**, renders without error (since 2026-10-23 its values are empty: ActivityWatch was retired), and that the
    **EMA-243 · B185** row shows **Owner hours (ActivityWatch)** and **Owner hours (Clockify)** (0.01 each on 2026-10-15).
 
-## UI walkthrough — ActivityWatch and Clockify (UAT)
+## UI walkthrough — Clockify (UAT)
 
-1. Open `http://127.0.0.1:5600` in Chrome on rogueone → **Activity**. Confirm today's timeline shows your windows and,
-   under **Browser**, the `linear.app` tab you had open.
-2. Open a Linear issue in Chrome. Confirm the **Clockify** button sits beside the issue's status control; start and stop
+(ActivityWatch's timeline step was removed with it on 2026-10-23.)
+
+1. Open a Linear issue in Chrome. Confirm the **Clockify** button sits beside the issue's status control; start and stop
    it, then open `https://app.clockify.me/tracker` and confirm the entry is named `[EMA-###] <issue title>`.
 
 ## Cleanup
