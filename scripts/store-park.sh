@@ -17,6 +17,7 @@
 # `store-park: <up|down> <stores> (replicas N)`, and refuse (exit 2, nothing edited or committed) unless the push would
 # carry that one commit alone: the branch is main, main is level with origin/main (neither behind nor ahead), and the
 # manifests have no uncommitted changes of their own. A rejected push exits 2 with git's reason; nothing is forced.
+# After the push they ask Argo to sync (best effort, see argo_sync) instead of waiting out its ~3 min poll.
 #
 # Stores: cassandra mongodb cockroachdb superset-worker. Exit: 0 ok · 1 not Ready in time · 2 refused / cannot tell.
 # Undo the default parking when new hardware lands: B134 (EMA-195) § Undo on hardware.
@@ -58,6 +59,36 @@ datahub() {
   [ -n "$token" ] || { echo "DataHub: cannot read the token from Secret weyland/datahub-token" >&2; return 2; }
   DATAHUB_GMS_URL="${DATAHUB_GMS_URL:-http://192.168.1.243:30818}" DATAHUB_GMS_TOKEN="$token" \
     python3 "$REPO_ROOT/scripts/datahub_schedule.py" "$@"
+}
+
+# argo_sync <app> — `up`/`down` only, after the push: ask Argo to sync now instead of waiting out its ~3 min poll. BEST
+# EFFORT: every failure prints one line and leaves the wait to Argo's own poll; it never fails the command. With a live
+# argocd CLI session it uses that. Otherwise it swaps the cluster's admin password (Secret argocd/argocd-initial-admin-
+# secret, read through kubectl, never printed) for a short-lived token through the session API on the LAN NodePort: the
+# password goes in on curl's STDIN, the token reaches `argocd app sync` in its ENVIRONMENT, so neither is on a command
+# line, and the owner's saved CLI session is not touched. STORE_PARK_ARGOCD / STORE_PARK_ARGO_SERVER are the seams.
+ARGOCD="${STORE_PARK_ARGOCD:-argocd}"
+ARGO_SERVER="${STORE_PARK_ARGO_SERVER:-mother:30880}"
+argo_sync() {
+  local app="$1" pw token fallback="— leaving it to Argo's own poll (~3 min)"
+  command -v "$ARGOCD" >/dev/null || { echo "argo: no argocd CLI $fallback"; return 0; }
+  if "$ARGOCD" app list --grpc-web -o name >/dev/null 2>&1; then
+    if "$ARGOCD" app sync "$app" --grpc-web --async >/dev/null 2>&1; then echo "argo: sync of $app requested (CLI session)"
+    else echo "argo: sync of $app did not return cleanly (often a concurrent Argo operation) $fallback"; fi
+    return 0
+  fi
+  pw="$(kubectl -n argocd get secret argocd-initial-admin-secret -o 'go-template={{.data.password | base64decode}}' 2>/dev/null)"
+  [ -n "$pw" ] || { echo "argo: no CLI session, and cannot read Secret argocd/argocd-initial-admin-secret $fallback"; return 0; }
+  token="$(printf '%s' "$pw" \
+    | python3 -c 'import json,sys; print(json.dumps({"username": "admin", "password": sys.stdin.read()}))' \
+    | curl -s -m 10 -X POST -H 'Content-Type: application/json' --data @- "http://$ARGO_SERVER/api/v1/session" \
+    | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("token", ""))
+except ValueError: print("")')"
+  [ -n "$token" ] || { echo "argo: no CLI session, and the session API gave no token $fallback"; return 0; }
+  if ARGOCD_AUTH_TOKEN="$token" "$ARGOCD" app sync "$app" --server "$ARGO_SERVER" --plaintext --grpc-web --async >/dev/null 2>&1; then
+    echo "argo: sync of $app requested (token)"
+  else echo "argo: sync of $app did not return cleanly (often a concurrent Argo operation) $fallback"; fi
 }
 
 # replica_line <store> -> "<line-number> <value>" of the ONE line that sets its replicas; fails closed otherwise.
@@ -220,6 +251,7 @@ case "$cmd" in
         exit 2
       fi
       echo "pushed: $msg"
+      for a in $(for s in $list; do app_of "$s"; done | sort -u); do argo_sync "$a"; done
     fi
     # shellcheck disable=SC2086  # the store list is fixed words, split on purpose
     set_schedules "$want" $list

@@ -172,8 +172,20 @@ git_repo() {  # make $T a clone of a bare origin, everything committed and pushe
   printf 'dh\ndh.log\nbin/\nn\n' > "$T/.gitignore"
   git -C "$T" add -A && git -C "$T" commit -q -m init && git -C "$T" push -q origin main
   mkdir -p "$T/bin"
-  printf '#!/usr/bin/env bash\nprintf %%s "${KSTATE:-1/1}"\n' > "$T/bin/kubectl"; chmod +x "$T/bin/kubectl"
-  export PATH="$T/bin:$PATH" STORE_PARK_POLL=0; unset STORE_PARK_NO_KUBECTL
+  # kubectl: the Argo admin Secret read answers $KPW (unset = a default password); any other call answers $KSTATE
+  printf '#!/usr/bin/env bash\ncase "$*" in *argocd-initial-admin-secret*) printf %%s "${KPW-s3cret-pw}" ;; *) printf %%s "${KSTATE:-1/1}" ;; esac\n' \
+    > "$T/bin/kubectl"
+  # argocd: `app list` is the session check ($ARGO_SESSION=1 = live); `app sync` logs its args and the token it got
+  printf '#!/usr/bin/env bash\nif [ "$2" = list ]; then [ "${ARGO_SESSION:-0}" = 1 ] || { echo "invalid session: token is expired" >&2; exit 20; }; exit 0; fi\necho "$* token=${ARGOCD_AUTH_TOKEN:-none}" >> "$ARGO_LOG"; exit "${ARGO_SYNC_RC:-0}"\n' \
+    > "$T/bin/argocd"
+  # curl: the session API — logs its argv and its stdin separately, answers $CURL_BODY
+  printf '#!/usr/bin/env bash\necho "$*" >> "$CURL_ARGV"; cat >> "$CURL_STDIN"; printf %%s "${CURL_BODY-{\\"token\\":\\"tok-123\\"}}"\n' \
+    > "$T/bin/curl"
+  chmod +x "$T/bin/kubectl" "$T/bin/argocd" "$T/bin/curl"
+  export PATH="$T/bin:$PATH" STORE_PARK_POLL=0 ARGO_LOG="$T/argo.log" CURL_ARGV="$T/curl.argv" CURL_STDIN="$T/curl.stdin"
+  : > "$ARGO_LOG"; : > "$CURL_ARGV"; : > "$CURL_STDIN"
+  printf 'argo.log\ncurl.argv\ncurl.stdin\n' >> "$T/.git/info/exclude"
+  unset STORE_PARK_NO_KUBECTL
 }
 commits() { git -C "$T" rev-list --count HEAD; }
 pushed() { git -C "$T.origin" rev-list --count main; }
@@ -312,6 +324,90 @@ pushed() { git -C "$T.origin" rev-list --count main; }
   [[ "$output" == *"schedule NOT changed"* ]]
   [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
   [ "$(pushed)" = 2 ]
+}
+
+# --- up / down skip Argo's ~3 min poll: sync right after the push (best effort, never a gate) ----------------------------
+# Owner, 2026-10-24: most of each live run was Argo's poll. With no live CLI session the script swaps the cluster's admin
+# password for a short-lived token through the session API — password on curl's STDIN, token in the sync's ENVIRONMENT,
+# neither on a command line nor in the output — and never touches the owner's saved CLI session.
+
+@test "up syncs the store's Argo app right after the push, with the live CLI session" {
+  git_repo
+  run env ARGO_SESSION=1 bash "$S" up cockroachdb
+  [ "$status" -eq 0 ]
+  grep -q "^app sync data-mesh .*--async.* token=none$" "$ARGO_LOG"
+  [ ! -s "$CURL_ARGV" ]                                  # a live session needs no token
+  [[ "$output" == *"argo: sync of data-mesh requested (CLI session)"* ]]
+}
+
+@test "with no live session, up gets a token from the session API — password on stdin, token in the env, neither printed" {
+  git_repo
+  run bash "$S" up cockroachdb
+  [ "$status" -eq 0 ]
+  grep -q '"password": "s3cret-pw"' "$CURL_STDIN"        # the password went in on stdin
+  ! grep -q "s3cret-pw" "$CURL_ARGV"                      # and never on curl's command line
+  grep -q "/api/v1/session" "$CURL_ARGV"
+  grep -q "^app sync data-mesh .*--plaintext.* token=tok-123$" "$ARGO_LOG"
+  ! grep -q "tok-123" <(grep -v 'token=tok-123$' "$ARGO_LOG")   # the token is not an argument either
+  [[ "$output" != *"s3cret-pw"* && "$output" != *"tok-123"* ]]
+  [[ "$output" == *"argo: sync of data-mesh requested (token)"* ]]
+  [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
+}
+
+@test "the Argo Secret cannot be read: one line, then Argo's own poll, and up still succeeds" {
+  git_repo
+  run env KPW= bash "$S" up cockroachdb
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"argo: no CLI session, and cannot read Secret argocd/argocd-initial-admin-secret"*"Argo's own poll"* ]]
+  [ ! -s "$ARGO_LOG" ]
+  [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
+}
+
+@test "the session API refuses: one line naming it, then Argo's own poll, and up still succeeds" {
+  git_repo
+  run env CURL_BODY='{"error":"Invalid username or password","code":16}' bash "$S" up cockroachdb
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"argo: no CLI session, and the session API gave no token"*"Argo's own poll"* ]]
+  [ ! -s "$ARGO_LOG" ]
+}
+
+@test "a sync that does not return cleanly is one line, never a failure" {
+  git_repo
+  run env ARGO_SESSION=1 ARGO_SYNC_RC=20 bash "$S" up cockroachdb
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"argo: sync of data-mesh did not return cleanly"*"Argo's own poll"* ]]
+  [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
+}
+
+@test "no argocd CLI: one line, then Argo's own poll" {
+  git_repo
+  run env STORE_PARK_ARGOCD="$T/no-such-argocd" bash "$S" up cockroachdb
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"argo: no argocd CLI"*"Argo's own poll"* ]]
+}
+
+@test "up all syncs each Argo app once (data-mesh and superset)" {
+  git_repo
+  run env ARGO_SESSION=1 bash "$S" up all
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^app sync data-mesh ' "$ARGO_LOG")" = 1 ]
+  [ "$(grep -c '^app sync superset ' "$ARGO_LOG")" = 1 ]
+}
+
+@test "nothing to push means nothing to sync" {
+  git_repo
+  ARGO_SESSION=1 bash "$S" up cockroachdb >/dev/null; : > "$ARGO_LOG"
+  run env ARGO_SESSION=1 bash "$S" up cockroachdb
+  [ "$status" -eq 0 ]
+  [ ! -s "$ARGO_LOG" ]
+}
+
+@test "a rejected push syncs nothing" {
+  git_repo
+  printf '#!/bin/sh\nexit 1\n' > "$T.origin/hooks/pre-receive"; chmod +x "$T.origin/hooks/pre-receive"
+  run env ARGO_SESSION=1 bash "$S" up cockroachdb
+  [ "$status" -eq 2 ]
+  [ ! -s "$ARGO_LOG" ]
 }
 
 @test "up with no store is refused with usage (exit 2)" {
