@@ -49,7 +49,8 @@
 #      scaffold-all decision, 2026-09-23; docs/concepts/linear-evaluation.md). The map is the repo's
 #      `linear_project:` NAME. G1 = an active repo with NO linear_project (a repo added to repos.yaml
 #      but never given a project — the onboarding gap); G2 = a linear_project naming a project Linear
-#      no longer has (rename/delete/typo). Read from a PROJECTS query, NOT the issue snapshot — an empty
+#      no longer has (rename/delete/typo). A COMPLETED project still counts: Linear archives it, so the query
+#      includes archived projects (canceled ones excluded) — startme-curator, 2026-10-23. Read from a PROJECTS query, NOT the issue snapshot — an empty
 #      project has zero issues and so never appears there, and the empty scaffolds are exactly the ones
 #      repos map to. `stale` repos NEED no project, but ANY repo that declares a linear_project must have
 #      it resolve (a stale/planned repo's mapping can't silently rot either).
@@ -414,7 +415,8 @@ PY
 
 # --- reading Linear projects (check G) -----------------------------------------------------------
 #
-# linear_projects -> a JSON array of live project NAMES.
+# linear_projects -> a JSON array of projects: {"name": ..., "archived": bool} (canceled excluded; a fixture may
+# also give bare names, read as live).
 #
 # A SEPARATE query from linear_snapshot on purpose: an EMPTY project (0 issues) never appears in the
 # issue snapshot's `project { name }`, so repo↔project parity cannot be derived from issues — the
@@ -440,7 +442,7 @@ linear_projects() {
   body="$(mktemp)"
   http="$(curl -s --connect-timeout 10 --max-time 30 -o "$body" -w '%{http_code}' -X POST https://api.linear.app/graphql \
     -H "Authorization: ${LINEAR_API_KEY}" -H 'Content-Type: application/json' \
-    -d "{\"query\":\"{ team(id: \\\"${LINEAR_TEAM}\\\") { projects(first: 250, filter: { status: { type: { nin: [\\\"canceled\\\"] } } }) { nodes { name } } } }\"}")" || {
+    -d "{\"query\":\"{ team(id: \\\"${LINEAR_TEAM}\\\") { projects(first: 250, includeArchived: true, filter: { status: { type: { nin: [\\\"canceled\\\"] } } }) { nodes { name archivedAt } } } }\"}")" || {
       echo "FATAL: could not reach the Linear API for projects (curl transport failure/timeout)." >&2; rm -f "$body"; return 1; }
   if [ "$http" != "200" ]; then
     echo "FATAL: Linear API (projects) returned HTTP ${http}." >&2; rm -f "$body"; return 1
@@ -454,7 +456,9 @@ if "errors" in doc:
 nodes = (((doc.get("data") or {}).get("team") or {}).get("projects") or {}).get("nodes")
 if nodes is None:
     print("FATAL: unexpected Linear projects response shape", file=sys.stderr); raise SystemExit(1)
-print(json.dumps([n.get("name") for n in nodes if n.get("name")]))
+# Archived projects included: Linear archives a project when it is COMPLETED, and a finished project still exists
+# for check G (a repo maps to it); check H skips them. Observed 2026-10-23: 11 projects, 'start.me Curator' archived.
+print(json.dumps([{"name": n["name"], "archived": bool(n.get("archivedAt"))} for n in nodes if n.get("name")]))
 PY
   rm -f "$body"
 }
@@ -594,7 +598,17 @@ repo_noproj, repo_missing = [], []
 h_none, h_multi = [], []
 if check_g:
     try:
-        live_projects = set(json.load(open(projsfile, encoding="utf-8")))
+        # Entries are a bare name (a live project) or {"name": ..., "archived": true}. Linear ARCHIVES a project
+        # when it is completed, so G resolves a repo's name against live + archived (`known_projects`: a finished
+        # project still exists — owner, 2026-10-23, startme-curator: "it's not retired, it's just done"), while H
+        # checks only `live_projects`. Canceled projects never arrive (the query excludes them).
+        entries = json.load(open(projsfile, encoding="utf-8"))
+        known_projects, live_projects = set(), set()
+        for e in entries:
+            name, archived = (e, False) if isinstance(e, str) else (e["name"], bool(e.get("archived")))
+            known_projects.add(name)
+            if not archived:
+                live_projects.add(name)
     except Exception as exc:
         print(f"FATAL: could not parse the Linear projects list: {exc}", file=sys.stderr)
         raise SystemExit(2)
@@ -615,7 +629,7 @@ if check_g:
         if not lp or lp == "-":
             if required:
                 repo_noproj.append(repo)
-        elif lp not in live_projects:
+        elif lp not in known_projects:
             repo_missing.append((repo, lp))
     # CHECK H — every live project sits in EXACTLY one initiative. Initiatives drive scope, so a project
     # in none is in no one's scope (weyland work could hide there unchecked) and one in two is ambiguous.
@@ -774,7 +788,7 @@ if list_only:
             if not lp or lp == "-":
                 verdict = "NO PROJECT FIELD" if required else "none (not active)"
             else:
-                verdict = "OK" if lp in live_projects else "MISSING IN LINEAR"
+                verdict = ("OK" if lp in live_projects else "OK (completed, archived)") if lp in known_projects else "MISSING IN LINEAR"
             print(f"  {repo:42s} -> {lp:34s} [{verdict}]")
         print("  --- live Linear project -> initiative (check H) ---")
         for p in sorted(live_projects):

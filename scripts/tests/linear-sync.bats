@@ -600,6 +600,28 @@ YML
   [[ "$output" == *"linear_project"* ]]
 }
 
+# A COMPLETED project is archived by Linear, so a live query without includeArchived lost it and G2 read a finished
+# project as deleted (startme-curator, 2026-10-23: owner — "it's not retired, it's just done"). G resolves a repo's name
+# against live AND archived projects (never canceled ones); H still checks only live projects. Fixture entries may be
+# a bare name (live) or {"name": ..., "archived": true}.
+@test "G: a repo whose project is COMPLETED (archived) still resolves — PASSES" {
+  g_pass_af
+  cat > "$STUB_DIR/repos.yaml" <<'YML'
+repos:
+  - name: weyland-lab
+    status: active
+    linear_project: "Weyland Lab"
+  - name: startme-curator
+    status: active
+    linear_project: "start.me Curator"
+YML
+  printf '["Weyland Lab",{"name":"start.me Curator","archived":true}]' > "$STUB_DIR/p.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" \
+    LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"OK"* ]]
+}
+
 @test "G2: a linear_project naming a project Linear does not have FAILS" {
   g_pass_af
   cat > "$STUB_DIR/repos.yaml" <<'YML'
@@ -754,6 +776,15 @@ h_setup() {
     LINEAR_INITIATIVES_JSON="$STUB_DIR/ini.json" REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
   [ "$status" -eq 1 ]
   [[ "$output" == *"Weyland Lab"* ]]
+}
+
+@test "H: an ARCHIVED (completed) project in no initiative is not flagged" {
+  h_setup
+  printf '["Weyland Lab","rogueone Hardware","Stud.IO","Algopedia",{"name":"Finished Project","archived":true}]' > "$STUB_DIR/p.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" LINEAR_PROJECTS_JSON="$STUB_DIR/p.json" \
+    REPOS_FILE="$STUB_DIR/repos.yaml" run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" != *"Finished Project"* ]]
 }
 
 @test "H: every live project in exactly one initiative PASSES" {
