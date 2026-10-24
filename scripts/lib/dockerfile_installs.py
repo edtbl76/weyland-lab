@@ -18,6 +18,11 @@ _TAKES_VALUE = {"--index-url", "-i", "--extra-index-url", "--target", "-t", "--p
                 "--abi", "--only-binary", "--no-binary", "--progress-bar"}
 
 
+_REDIRECT = re.compile(r"^\d*(?:>>?|<|>&)")             # a shell redirect token (k8s manifests, B227)
+_REDIRECT_BARE = re.compile(r"^\d*(?:>>?|<)$")           # ... with its target in the NEXT token
+_MESSAGE = re.compile(r"\b(?:echo|printf)\b")            # `pip install` inside a message is not an install
+
+
 def _logical_lines(text):
     lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]
     return "\n".join(lines).replace("\\\n", " ").splitlines()
@@ -37,7 +42,9 @@ def _segment_packages(args):
     out, skip, i = [], False, 0
     while i < len(toks):
         t = toks[i]
-        if skip:
+        if _REDIRECT.match(t):                           # `>/dev/null`, `2>&1`; a bare `>` / `2>` also eats its target
+            skip = _REDIRECT_BARE.match(t) is not None
+        elif skip:
             skip = False
         elif t.startswith("-"):
             skip = t in _TAKES_VALUE
@@ -56,9 +63,9 @@ def packages(text):
     """Every package token installed directly by this Dockerfile, in order."""
     found = []
     for line in _logical_lines(text):
-        for seg in re.split(r"&&|\|\||;", line):
+        for seg in re.split(r"&&|\|\|?|;", line):
             m = _INSTALL.search(seg)
-            if m:
+            if m and not _MESSAGE.search(seg[:m.start()]):
                 found += _segment_packages(m.group(1))
     return found
 
@@ -88,8 +95,9 @@ def read_baseline(path):
 
 def write_baseline(path, counts):
     with open(path, "w", encoding="utf-8") as f:
-        f.write("# scripts/check-dockerfile-installs.sh — per-Dockerfile ceiling on packages installed outside a\n"
-                "# requirements file. It may only FALL: move installs into a pinned requirements file, then lower it\n"
+        f.write("# scripts/check-dockerfile-installs.sh — per-file ceiling (Dockerfiles and, since B227, k8s manifests) on\n"
+                "# packages installed outside a requirements file. It may only FALL: move installs into a pinned\n"
+                "# requirements file (for a manifest: bake them into an image built from one), then lower it\n"
                 "# (scripts/check-dockerfile-installs.sh --write-baseline). <path>\\t<count>; zero rows are omitted.\n")
         for p in sorted(counts):
             if counts[p]:

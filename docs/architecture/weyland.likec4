@@ -125,7 +125,7 @@ model {
         ml = zone "Feature store + ML" {
           feast = component "Feast server" "Feature store — registry/offline=Postgres, online=Valkey"
           feastUi = component "Feast UI" "Feast registry browser"
-          mlflow = component "MLflow" "Experiment tracking + model registry (hosts the AI Gateway, B100 P4); v3.16.1 (B215); NodePort 30500"
+          mlflow = component "MLflow" "Experiment tracking + model registry (hosts the AI Gateway, B100 P4); v3.16.1 (B215); image weyland-mlflow with its drivers and gateway extras baked from a frozen lockfile, no install on start (B227); NodePort 30500"
           aiGateway = gateway "MLflow AI Gateway" "B100 P4 — governed OpenAI-compat front door over 18 endpoints (6 local + 9 hosted + 2 small local + 1 judge); LLM-judge guardrails (Safety/PII, fail-closed; judge qwen3:14b since B215) + $10/mo budget + tracing + eval; served by the MLflow server, NodePort 30500"
           ray = component "Ray head" "Persistent Ray cluster — rogueone joins as edge worker"
           jupyterhub = component "JupyterHub" "Notebooks — singleuser pods on-demand"

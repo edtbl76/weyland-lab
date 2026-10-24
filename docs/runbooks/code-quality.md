@@ -106,6 +106,15 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   FULL frozen set of the image it replaced (`pip freeze` of the deployed image, verified freeze == file == deployed in
   a rebuild). Builder stages that only export ONNX models are pinned at the day's resolution, since nothing deployed
   holds them; conda-based images (ray-head, weyland-jupyter) pin only what their Dockerfile adds over the base.
+  **k8s manifests too (B227, 2026-10-24).** The same counter reads every `*.yaml` / `*.yml` under a `k8s/` directory
+  (382 that day): a container command, CronJob script or Helm bootstrap that `pip install`s on start is the same
+  drift plus PyPI egress on every boot. MLflow did it on every pod start, unseen. Shell redirects (`>/dev/null 2>&1`),
+  pipes, and `pip install` inside an `echo`/`printf` message are not counted (each was miscounted on the first pass,
+  now pinned by `test_dockerfile_installs.py`). The first count was 13 packages in 5 manifests; their ceilings are in
+  the same baseline: `superset-values.yaml` 4 (the bootstrap: `psycopg2-binary trino authlib clickhouse-connect`),
+  `sonar-scan.yaml` 3 (`pytest pytest-cov prometheus_client`), `api-drift.yaml` 1 (`pyyaml`), `docs-site.yaml` 1
+  (`mkdocs-likec4`), and `mlflow.yaml`, which falls to 0 when it moves to its `weyland-mlflow` image. A new install in
+  any manifest fails CI, named.
   ```
   bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dockerfile-installs.sh --list
   ```

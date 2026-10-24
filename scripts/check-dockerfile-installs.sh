@@ -2,7 +2,9 @@
 # Dockerfile direct-install ratchet (2026-10-16). A `pip install <pkg>` line in a Dockerfile is invisible to every
 # source scanner (they read requirements files) and, unpinned, drifts on any rebuild — the class that took Dagster down
 # on 2026-10-01; tool-server's mcp 1.28.1 hid in one through GHSA-84m7-p3x7-pcfv. The first count was 103 packages
-# (23 pinned, 80 unpinned) across 14 Dockerfiles. Scope: every Dockerfile* under nodes/ and golden-paths/. Each Dockerfile has a ceiling in scripts/ci/dockerfile-installs.baseline
+# (23 pinned, 80 unpinned) across 14 Dockerfiles. Scope: every Dockerfile* under nodes/ and golden-paths/, and since B227
+# (2026-10-24) every k8s manifest (*.yaml / *.yml under a k8s/ directory) — a container command that pip-installs on start
+# is the same drift. Each file has a ceiling in scripts/ci/dockerfile-installs.baseline
 # that may only FALL: move installs into a pinned requirements file, then lower it with --write-baseline.
 #
 #   usage: scripts/check-dockerfile-installs.sh [--list | --write-baseline]
@@ -24,18 +26,24 @@ root, baseline_path, mode = sys.argv[1:]
 # 2026-10-19 DoD audit: a direct install added to a template would be copied into every service made from it).
 files = sorted(p for top in ("nodes", "golden-paths")
                for p in glob.glob(os.path.join(root, top, "**", "Dockerfile*"), recursive=True) if os.path.isfile(p))
+# B227 (2026-10-24): k8s manifests too — a container command / CronJob script / Helm bootstrap that pip-installs on
+# start is the same drift, plus internet egress on every boot (MLflow did, invisible to this guard until then). Only
+# YAML under a k8s/ directory: CI configs, compose files and data YAML elsewhere are not manifests.
+manifests = sorted(p for top in ("nodes", "golden-paths") for ext in ("yaml", "yml")
+                   for p in glob.glob(os.path.join(root, top, "**", "k8s", "**", f"*.{ext}"), recursive=True)
+                   if os.path.isfile(p))
 if not files:
     print(f"CANNOT CHECK: no Dockerfile under {root}/nodes or {root}/golden-paths — refusing to report a clean tree",
           file=sys.stderr)
     sys.exit(2)
 counts = {}
-for p in files:
+for p in files + manifests:
     with open(p, encoding="utf-8", errors="replace") as f:
         counts[os.path.relpath(p, root)] = len(d.packages(f.read()))
 used = sum(1 for n in counts.values() if n)
 if mode == "--write-baseline":
     d.write_baseline(baseline_path, counts)
-    print(f"baseline written: {sum(counts.values())} direct install(s) across {used} Dockerfile(s)")
+    print(f"baseline written: {sum(counts.values())} direct install(s) across {used} file(s)")
     sys.exit(0)
 if mode == "--list":
     for p, n in sorted(counts.items()):
@@ -52,8 +60,9 @@ for b in bad:
 for low in lower:
     print(f"  LOWER THE BASELINE: {low} (scripts/check-dockerfile-installs.sh --write-baseline)")
 if bad:
-    print(f"DOCKERFILE INSTALLS ABOVE THE RATCHET: {len(bad)} file(s). Move them into a pinned requirements file.")
+    print(f"DIRECT INSTALLS ABOVE THE RATCHET: {len(bad)} file(s). Move them into a pinned requirements file "
+          "(for a manifest: bake them into an image built from one).")
     sys.exit(1)
-print(f"OK — {len(files)} Dockerfile(s) scanned; {sum(counts.values())} direct pip install(s) across {used} of them, "
-      "none above its ceiling.")
+print(f"OK — {len(files)} Dockerfile(s) and {len(manifests)} k8s manifest(s) scanned; {sum(counts.values())} direct pip "
+      f"install(s) across {used} of them, none above its ceiling.")
 PY

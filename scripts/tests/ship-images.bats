@@ -1196,6 +1196,43 @@ txn_stub_pod() {
   [[ "$output" == *"no validators"* ]]
 }
 
+# 2026-10-24 (B227): weyland-mlflow joined images.tsv — MLflow's drivers and gateway extras are baked in instead of
+# pip-installed on every start. Its transaction (observed live 2026-10-24 from dagster-user-code, which MLflow's front
+# door admits): /health answers OK, and the AI Gateway lists its endpoints ({"endpoints": [...]}, 18 that day). That
+# list is read from Postgres, so it proves the baked psycopg2 AND the gateway mount, not just a live process.
+@test "TXN checks MLflow, passing on health and a non-empty gateway endpoint list" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-mlflow:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK 18 gateway endpoint(s)'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"no transaction"* ]]   # MLflow is CHECKED, not silently unchecked
+  [[ "$output" == *"1 service(s) answered"* ]]
+}
+
+@test "TXN asks MLflow for its health and its gateway endpoints" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-mlflow:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK 18 gateway endpoint(s)'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  grep -q 'mlflow.weyland.svc.cluster.local:5000' "$STUB_LOG"
+  grep -q '"/health"' "$STUB_LOG"
+  grep -q '/api/3.0/mlflow/gateway/endpoints/list' "$STUB_LOG"
+}
+
+@test "TXN FAILS when MLflow's gateway lists NO endpoints, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-mlflow:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_FAIL the AI Gateway lists no endpoints'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-mlflow"* ]]
+  [[ "$output" == *"no endpoints"* ]]
+}
+
 @test "FLAG: a DISABLED weyland-ship-enabled HOLDS the ship (the only held verdict)" {
   SHIP_IMAGES_LIB=1 source "$SHIP"
   txn_stub_pod

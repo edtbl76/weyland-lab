@@ -63,6 +63,43 @@ def test_the_baseline_file_round_trips(tmp_path):
     assert d.read_baseline(str(p)) == {"a/Dockerfile": 3, "b/Dockerfile": 2}     # zeros are not stored
 
 
+# --- B227 (2026-10-24): the same counter reads k8s manifests, whose shell is not Dockerfile-shaped ------------------------
+
+def test_shell_redirects_are_not_packages():
+    # k8s/monitoring/api-drift.yaml — was counted as ['pyyaml', '>/dev/null', '2>&1']
+    assert d.packages("pip install --quiet pyyaml >/dev/null 2>&1\n") == ["pyyaml"]
+    # the redirect target is not a package; a word after it still is (shell installs both a and b here)
+    assert d.packages("pip install a > /tmp/log b\n") == ["a", "b"]
+    assert d.packages("pip install a 2> /tmp/err\n") == ["a"]
+
+
+def test_a_pipe_ends_the_install():
+    assert d.packages("pip install fastapi | tee /tmp/pip.log\n") == ["fastapi"]
+
+
+def test_pip_install_inside_an_echo_message_is_not_an_install():
+    # k8s/sonarqube/sonar-scan.yaml — its failure message was counted as 9 packages ('failed', '—', 'coverage', ...)
+    text = ('pip install --quiet --no-cache-dir pytest pytest-cov prometheus_client || \\\n'
+            '  { echo "!! pip install failed — coverage skipped, scan proceeds at honest 0%"; exit 0; }\n')
+    assert d.packages(text) == ["pytest", "pytest-cov", "prometheus_client"]
+    assert d.packages("printf 'run pip install x first\\n'\n") == []
+
+
+def test_a_manifest_folded_block_install_counts_its_packages():
+    # k8s/mlflow/mlflow.yaml before B227: a YAML `- >` folded scalar, the install chained into the server start
+    text = ("          args:\n"
+            "            # pip is authoritative at runtime\n"
+            "            - >\n"
+            "              pip install --quiet --no-cache-dir psycopg2-binary boto3 'mlflow[gateway]==3.16.1' litellm &&\n"
+            "              mlflow db upgrade \"postgresql://u:p@db:5432/mlflow\" &&\n"
+            "              mlflow server --host 0.0.0.0 --port 5000\n")
+    assert d.packages(text) == ["psycopg2-binary", "boto3", "mlflow[gateway]==3.16.1", "litellm"]
+
+
+def test_python_m_pip_counts():
+    assert d.packages("python3 -m pip install requests\n") == ["requests"]
+
+
 def test_a_pep508_url_reference_is_one_package():
     # tool-server installs grkit as 'grkit @ https://github.com/.../archive/<sha>.tar.gz#subdirectory=python'
     text = "RUN pip install 'grkit @ https://github.com/edtbl76/grkit/archive/0d07977.tar.gz#subdirectory=python' httpx\n"

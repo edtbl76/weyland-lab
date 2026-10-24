@@ -16,7 +16,7 @@ setup() {
 @test "at the ceiling is exit 0" {
   run bash "$SCRIPT"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  [[ "$output" == *"OK — 2 Dockerfile(s) scanned; 2 direct pip install(s) across 1 of them"* ]]
+  [[ "$output" == *"OK — 2 Dockerfile(s) and 0 k8s manifest(s) scanned; 2 direct pip install(s) across 1 of them"* ]]
 }
 
 @test "a golden-path Dockerfile is in scope: a direct install there is exit 1 (DoD audit 2026-10-19)" {
@@ -31,7 +31,7 @@ setup() {
   printf '' > "$T/baseline"
   run bash "$SCRIPT"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  [[ "$output" == *"OK — 2 Dockerfile(s) scanned; 0 direct pip install(s)"* ]]
+  [[ "$output" == *"OK — 2 Dockerfile(s) and 0 k8s manifest(s) scanned; 0 direct pip install(s)"* ]]
 }
 
 @test "one more direct install is exit 1, named" {
@@ -67,6 +67,31 @@ setup() {
   run bash "$SCRIPT"
   [ "$status" -eq 2 ]
   [[ "$output" == *"CANNOT CHECK: baseline"* ]]
+}
+
+# --- B227 (2026-10-24): k8s manifests too. MLflow ran `pip install psycopg2-binary boto3 'mlflow[gateway]==3.16.1'
+# litellm` on every pod start and no guard saw it, because the install lived in a manifest, not a Dockerfile.
+
+@test "a k8s manifest that installs on start is in scope: unlisted, it is exit 1, named" {
+  mkdir -p "$T/nodes/x/k8s/app"
+  printf 'args:\n  - >\n    pip install --quiet psycopg2-binary boto3 &&\n    app serve\n' > "$T/nodes/x/k8s/app/app.yaml"
+  run bash "$SCRIPT"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"FAIL nodes/x/k8s/app/app.yaml: 2 direct pip install(s), baseline 0 (not in the baseline)"* ]]
+}
+
+@test "a k8s manifest at its ceiling passes, and the summary counts manifests" {
+  mkdir -p "$T/nodes/x/k8s"; printf 'command: ["sh", "-c", "pip install pyyaml >/dev/null 2>&1 && run"]\n' > "$T/nodes/x/k8s/job.yml"
+  printf 'nodes/a/Dockerfile\t2\nnodes/x/k8s/job.yml\t1\n' > "$T/baseline"
+  run bash "$SCRIPT"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"OK — 2 Dockerfile(s) and 1 k8s manifest(s) scanned; 3 direct pip install(s) across 2 of them"* ]]
+}
+
+@test "a YAML file outside a k8s/ directory is not a manifest (CI configs, compose, data)" {
+  printf 'steps:\n  - run: pip install ruff\n' > "$T/nodes/a/ci.yaml"
+  run bash "$SCRIPT"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
 @test "the real repo is at or under its committed baseline" {

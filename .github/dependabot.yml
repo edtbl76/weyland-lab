@@ -112,6 +112,17 @@ updates:
         applies-to: security-updates
         patterns: ["*"]
 
+  # B227 (2026-10-24) — MLflow's frozen lockfile (the pod's full `pip freeze`). Security updates only, like the rest; an
+  # mlflow / mlflow-skinny / mlflow-tracing bump is NEVER a routine merge: its DB migrations are forward-only.
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/services/weyland-mlflow"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/services/mcp-server-datahub"
     schedule: { interval: "weekly", day: "sunday", time: "09:00" }

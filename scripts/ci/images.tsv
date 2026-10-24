@@ -37,3 +37,4 @@ weyland-mcp-compositor	services/weyland-mcp-compositor	k8s/mcp-servers/composito
 weyland-mcp-gateway	services/weyland-mcp-gateway	k8s/mcp-gateway/mcp-gateway.yaml
 realm-of-agents	services/realm-of-agents	k8s/realm-of-agents/deployment.yaml
 weyland-guard	services/weyland-guard	k8s/weyland-guard/deployment.yaml
+weyland-mlflow	services/weyland-mlflow	k8s/mlflow/mlflow.yaml

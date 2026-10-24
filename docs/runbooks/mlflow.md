@@ -73,14 +73,24 @@ a trace pins the prompt version that produced each answer. Registered prompts (`
   `kubectl -n weyland exec deploy/<svc> -- sh -c "cd /app && python -c \"import prompts; prompts.load_prompt('<name>','fb'); print(prompts.loaded_version('<name>'))\""`.
 
 ## Gotchas
-- **pip-on-start (v1).** The container installs `psycopg2-binary`, `boto3`, `mlflow[gateway]` and `litellm` on every
-  start (no custom image), so first/restart boot is ~1–2 min and needs egress. The server is
-  `ghcr.io/mlflow/mlflow:v3.16.1` since B215 (2026-10-17), and the `mlflow[gateway]==` pin MUST equal the image tag:
-  pip is authoritative at runtime, so a stale pin silently downgrades the image's mlflow on every boot. **Known gap:**
-  `psycopg2-binary`, `boto3` and `litellm` are installed UNPINNED, so each restart can pull new versions — the drift
-  class B213 closed for Dockerfiles, which its ratchet cannot see here because the install is in the manifest. If
-  restarts get slow/flaky, or to close that gap, bake a small `FROM ghcr.io/mlflow/mlflow:v3.16.1` image with a lockfile
-  and drop the install from the command — tracked as **B227** (EMA-315).
+- **The image: `weyland-mlflow` (B227, 2026-10-24), no install on start.** Until B227 the container ran
+  `pip install psycopg2-binary boto3 'mlflow[gateway]==3.16.1' litellm` before the server on every start: three
+  unpinned packages (litellm on the gateway's request path; the Postgres and S3 drivers) could move on any restart,
+  every boot needed PyPI egress and took 1–2 min longer, and no scanner could see what was installed. Now
+  `services/weyland-mlflow/` builds `FROM ghcr.io/mlflow/mlflow:v3.16.1@sha256:06058cc8…` (the digest the pod ran)
+  plus `requirements.txt`, the pod's FULL `pip freeze` (125 packages, `pip check` clean, `litellm==1.105.1`). Built
+  locally on 2026-10-24, its `pip freeze` was identical to the pod's, line for line (including the base's
+  `importlib_metadata` 9.0.1 → 8.9.0 that the old install made), and it passed `db upgrade`, `/health`, an artifact
+  round-trip and the drivers' imports. CI builds it (`scripts/ci/images.tsv` row `weyland-mlflow`), signs it, and
+  trivy grades it; Dependabot watches the lockfile (security updates only). A ship checks it with a real transaction
+  (`txn_mlflow`: `/health` plus a non-empty AI Gateway endpoint list, which is read from Postgres).
+  **Never move the mlflow version by itself in that lockfile:** `mlflow`, `mlflow-skinny` and `mlflow-tracing` move
+  together with the base tag, and the DB migrations are forward-only (next bullet). Runs as the upstream image's user
+  (root), as before. **Rollout:** the image is CI-built first; the Deployment then moves to its `git-<sha>` tag and
+  drops the install in a second change (an image the cluster cannot pull would leave a `Recreate` Deployment down).
+  **Roll back** by reverting that second commit: the database is untouched (`db upgrade` is a no-op on 3.16.1).
+  The guard that keeps this closed: `scripts/check-dockerfile-installs.sh` now reads k8s manifests too
+  ([code-quality.md](code-quality.md)).
 - **Upgrades migrate the DB schema — roll back by RESTORE, not by image tag (B215, 2026-10-17).** The server runs
   `mlflow db upgrade` on start, so a 3.16.1 → 3.15.1 image revert would meet a newer schema. Before any MLflow bump,
   confirm the core Postgres dump from the night before contains the `mlflow` database

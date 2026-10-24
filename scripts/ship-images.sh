@@ -611,6 +611,28 @@ except Exception as e:
 ' 2>/dev/null
 }
 
+# MLflow (2026-10-24, B227): the image bakes in the Postgres/S3 drivers and the AI Gateway extras that the pod used to
+# pip-install on every start. /health only says the process is up; the gateway's endpoint list is read from Postgres
+# through the baked psycopg2 and needs the gateway mounted, so a non-empty list proves both. Read-only. Shape observed
+# live 2026-10-24 from dagster-user-code (admitted by mlflow-front-door-only): {"endpoints": [...]} with 18 entries.
+txn_mlflow() {
+  local pod="${1:?usage: txn_mlflow <pod>}"
+  kubectl -n weyland exec "$pod" -- python3 -c '
+import json, urllib.request
+base = "http://mlflow.weyland.svc.cluster.local:5000"
+try:
+    h = urllib.request.urlopen(base + "/health", timeout=25).read().decode().strip()
+    if h != "OK":
+        print("TXN_FAIL /health answered " + repr(h[:60])); raise SystemExit
+    eps = json.load(urllib.request.urlopen(base + "/api/3.0/mlflow/gateway/endpoints/list", timeout=25)).get("endpoints") or []
+    print("TXN_OK " + str(len(eps)) + " gateway endpoint(s)" if eps else "TXN_FAIL the AI Gateway lists no endpoints")
+except SystemExit:
+    pass
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
 # Operator (2026-10-10): ask a REAL read-only question through POST /operator/ask and require a grounded answer — a
 # reply with a number in it. `/ready` only says the fleet loaded; this proves the brain answers using a tool. FREE-ONLY:
 # `"allow_paid": false` runs the unpaid local brain (the incident sweep's path), so a down local brain is a 503 and a
@@ -801,6 +823,7 @@ txn_ok() {
       feast-server)              verdict="$(txn_feast "$pod")" ;;
       weyland-tool-server)       verdict="$(txn_tool_server "$pod")" ;;
       weyland-guard)             verdict="$(txn_guard "$pod")" ;;
+      weyland-mlflow)            verdict="$(txn_mlflow "$pod")" ;;
       weyland-operator)          verdict="$(txn_operator "$pod")" ;;
       realm-of-agents)           verdict="$(txn_realm "$pod")" ;;
       weyland-mcp-compositor)    verdict="$(txn_bifrost_fleet)" ;;
