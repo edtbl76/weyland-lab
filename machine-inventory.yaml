@@ -125,6 +125,9 @@ hosts:
     - name: clang
       kind: apt
       status: system
+    - name: claude-desktop
+      kind: apt
+      status: system
     - name: clojure
       kind: apt
       status: system
@@ -222,6 +225,9 @@ hosts:
       kind: apt
       status: system
     - name: evince
+      kind: apt
+      status: system
+    - name: ffmpeg
       kind: apt
       status: system
     - name: findutils
@@ -1071,16 +1077,31 @@ hosts:
       kind: flatpak
       status: unreviewed
       rationale: ''
+    - name: acryldata/datahub-actions
+      kind: image
+      status: system
     - name: alpine
       kind: image
       status: system
     - name: alpine/k8s
       kind: image
       status: system
+    - name: alpine/openssl
+      kind: image
+      status: system
     - name: anchore/syft
       kind: image
       status: system
+    - name: apache/ranger
+      kind: image
+      status: system
     - name: aquasec/trivy
+      kind: image
+      status: system
+    - name: b206-weyland-guard
+      kind: image
+      status: system
+    - name: b206-weyland-tool-server
       kind: image
       status: system
     - name: bats/bats
@@ -1101,10 +1122,19 @@ hosts:
     - name: contiker/contiki-ng
       kind: image
       status: system
+    - name: curlimages/curl
+      kind: image
+      status: system
     - name: cytopia/yamllint
       kind: image
       status: system
     - name: debian
+      kind: image
+      status: system
+    - name: dep-dagster
+      kind: image
+      status: system
+    - name: dep-dagster-base
       kind: image
       status: system
     - name: dev-controlroom_backend_test
@@ -1122,6 +1152,9 @@ hosts:
     - name: docker.redpanda.com/redpandadata/redpanda
       kind: image
       status: system
+    - name: eclipse-temurin
+      kind: image
+      status: system
     - name: gateway-local
       kind: image
       status: system
@@ -1137,10 +1170,19 @@ hosts:
     - name: ghcr.io/ggml-org/llama.cpp
       kind: image
       status: system
+    - name: ghcr.io/google/osv-scanner
+      kind: image
+      status: system
     - name: ghcr.io/keploy/keploy
       kind: image
       status: system
+    - name: ghcr.io/mlflow/mlflow
+      kind: image
+      status: system
     - name: ghcr.io/sourcebot-dev/sourcebot
+      kind: image
+      status: system
+    - name: ghcr.io/tuannvm/mcp-trino
       kind: image
       status: system
     - name: ghcr.io/xampprocky/tokei
@@ -1170,6 +1212,9 @@ hosts:
     - name: hadolint/hadolint
       kind: image
       status: system
+    - name: httpd
+      kind: image
+      status: system
     - name: keploy/enterprise
       kind: image
       status: system
@@ -1185,10 +1230,37 @@ hosts:
     - name: lmsysorg/sglang
       kind: image
       status: system
+    - name: local/finance-trainer
+      kind: image
+      status: system
+    - name: local/flink-py
+      kind: image
+      status: system
+    - name: local/nemo-guardrails
+      kind: image
+      status: system
+    - name: local/ranger
+      kind: image
+      status: system
+    - name: local/scan-suite
+      kind: image
+      status: system
+    - name: local/weyland-jupyter
+      kind: image
+      status: system
     - name: maven
       kind: image
       status: system
+    - name: maximhq/bifrost
+      kind: image
+      status: system
     - name: mcp-server-datahub
+      kind: image
+      status: system
+    - name: mcp-weyland-mcp-compositor
+      kind: image
+      status: system
+    - name: mcp-weyland-tool-server
       kind: image
       status: system
     - name: mcp/sonarqube
@@ -1203,6 +1275,9 @@ hosts:
     - name: moby/buildkit
       kind: image
       status: system
+    - name: mr3project/ranger
+      kind: image
+      status: system
     - name: nginx
       kind: image
       status: system
@@ -1210,6 +1285,9 @@ hosts:
       kind: image
       status: system
     - name: nvidia/cuda
+      kind: image
+      status: system
+    - name: ollama/ollama
       kind: image
       status: system
     - name: openpolicyagent/opa
@@ -1227,6 +1305,51 @@ hosts:
     - name: pgvector/pgvector
       kind: image
       status: system
+    - name: pin-agent-export
+      kind: image
+      status: system
+    - name: pin-dag-export
+      kind: image
+      status: system
+    - name: pin-dagster
+      kind: image
+      status: system
+    - name: pin-feast
+      kind: image
+      status: system
+    - name: pin-finance-trainer
+      kind: image
+      status: system
+    - name: pin-flinkpy
+      kind: image
+      status: system
+    - name: pin-genre-trainer
+      kind: image
+      status: system
+    - name: pin-guard
+      kind: image
+      status: system
+    - name: pin-guard-export
+      kind: image
+      status: system
+    - name: pin-guardrails-structure
+      kind: image
+      status: system
+    - name: pin-jupyter
+      kind: image
+      status: system
+    - name: pin-nemo-guardrails
+      kind: image
+      status: system
+    - name: pin-scan-suite
+      kind: image
+      status: system
+    - name: pin-ts
+      kind: image
+      status: system
+    - name: pin-ts-export
+      kind: image
+      status: system
     - name: pipelinecomponents/yamllint
       kind: image
       status: system
@@ -1242,7 +1365,16 @@ hosts:
     - name: pytorch/pytorch
       kind: image
       status: system
+    - name: quay.io/jupyter/scipy-notebook
+      kind: image
+      status: system
     - name: rancher/kubectl
+      kind: image
+      status: system
+    - name: rayproject/ray
+      kind: image
+      status: system
+    - name: realm
       kind: image
       status: system
     - name: realm-of-agents
@@ -1251,16 +1383,64 @@ hosts:
     - name: redis
       kind: image
       status: system
+    - name: registry-push.weyland.lab/a2a-inspector
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/finance-trainer
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/genre-trainer
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/mcp-server-datahub
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/ranger
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/ray-head
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/weyland-agent
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/weyland-jupyter
+      kind: image
+      status: system
+    - name: registry.weyland.lab/a2a-inspector
+      kind: image
+      status: system
+    - name: registry.weyland.lab/feast-server
+      kind: image
+      status: system
     - name: registry.weyland.lab/finance-trainer
       kind: image
       status: system
+    - name: registry.weyland.lab/genre-trainer
+      kind: image
+      status: system
     - name: registry.weyland.lab/golden-python-fastapi
+      kind: image
+      status: system
+    - name: registry.weyland.lab/guardrails-structure
       kind: image
       status: system
     - name: registry.weyland.lab/mcp-server-datahub
       kind: image
       status: system
     - name: registry.weyland.lab/minio-client
+      kind: image
+      status: system
+    - name: registry.weyland.lab/nemo-guardrails
+      kind: image
+      status: system
+    - name: registry.weyland.lab/ranger
+      kind: image
+      status: system
+    - name: registry.weyland.lab/ray-head
+      kind: image
+      status: system
+    - name: registry.weyland.lab/realm-of-agents
       kind: image
       status: system
     - name: registry.weyland.lab/scan-suite
@@ -1272,7 +1452,13 @@ hosts:
     - name: registry.weyland.lab/weyland-dagster-user-code
       kind: image
       status: system
+    - name: registry.weyland.lab/weyland-flink-py
+      kind: image
+      status: system
     - name: registry.weyland.lab/weyland-guard
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-jupyter
       kind: image
       status: system
     - name: registry.weyland.lab/weyland-mcp-compositor
@@ -1285,6 +1471,9 @@ hosts:
       kind: image
       status: system
     - name: ruby
+      kind: image
+      status: system
+    - name: scan-suite
       kind: image
       status: system
     - name: semgrep/semgrep
@@ -1311,7 +1500,13 @@ hosts:
     - name: studio-gearlist_backend
       kind: image
       status: system
+    - name: swift
+      kind: image
+      status: system
     - name: tool-server-u13-test
+      kind: image
+      status: system
+    - name: trinodb/trino
       kind: image
       status: system
     - name: ubuntu
@@ -1323,6 +1518,9 @@ hosts:
     - name: weyland-clef-flash
       kind: image
       status: system
+    - name: weyland-flink-py
+      kind: image
+      status: system
     - name: weyland-mcp-compositor
       kind: image
       status: system
@@ -1330,6 +1528,9 @@ hosts:
       kind: image
       status: system
     - name: woodpeckerci/woodpecker-agent
+      kind: image
+      status: system
+    - name: woodpeckerci/woodpecker-cli
       kind: image
       status: system
     - name: woodpeckerci/woodpecker-server
