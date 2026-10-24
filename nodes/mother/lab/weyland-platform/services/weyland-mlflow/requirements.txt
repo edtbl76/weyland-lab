@@ -1,9 +1,9 @@
 # weyland-mlflow (B227) — the full `pip freeze` of the MLflow pod (mlflow 3.16.1, ghcr.io/mlflow/mlflow@sha256:06058cc8…)
-# as it ran on 2026-10-24 after its start-up `pip install psycopg2-binary boto3 'mlflow[gateway]==3.16.1' litellm`.
+# as it ran on 2026-10-24 after its start-up `pip install psycopg2-binary boto3 'mlflow[gateway]==3.17.2' litellm`.
 # Frozen, not resolved: every version here is one that ran in production. Bump through Dependabot / a deliberate edit,
 # never by re-freezing a newer pod. mlflow, mlflow-skinny and mlflow-tracing move together (forward-only migrations).
 aiohappyeyeballs==2.7.1
-aiohttp==3.14.3
+aiohttp==3.14.4
 aiosignal==1.4.0
 alembic==1.20.0
 annotated-doc==0.0.5
@@ -14,7 +14,7 @@ blinker==1.9.0
 boto3==1.43.114
 botocore==1.43.114
 cachetools==7.2.0
-certifi==2026.7.22
+certifi==2026.10.19
 cffi==2.1.1
 charset-normalizer==3.5.1
 click==8.5.0
@@ -28,14 +28,14 @@ distro==1.9.0
 docker==7.2.0
 fastapi==0.141.1
 fastuuid==0.14.0
-filelock==3.32.7
+filelock==4.2.1
 Flask==3.1.3
 flask-cors==6.0.5
 fonttools==4.65.0
 frozenlist==1.8.0
 fsspec==2026.9.0
 gitdb==4.0.12
-GitPython==3.1.62
+GitPython==3.2.1
 google-auth==2.58.0
 graphene==3.4.3
 graphql-core==3.2.12
@@ -64,23 +64,23 @@ jsonschema-specifications==2025.9.1
 kiwisolver==1.5.1
 limits==5.8.0
 litellm==1.105.1
-Mako==1.4.1
+Mako==1.4.2
 MarkupSafe==3.0.3
 matplotlib==3.11.2
-mlflow==3.16.1
+mlflow==3.17.2
 mlflow-skinny==3.16.1
 mlflow-tracing==3.16.1
-multidict==6.9.0
+multidict==6.9.1
 narwhals==2.26.0
 numpy==2.4.6
 openai==2.54.0
-opentelemetry-api==1.44.0
+opentelemetry-api==1.45.1
 opentelemetry-proto==1.44.0
 opentelemetry-sdk==1.44.0
 opentelemetry-semantic-conventions==0.65b0
 packaging==26.3
 pandas==3.0.6
-pillow==12.3.0
+pillow==13.0.0
 prettytable==3.18.0
 propcache==0.5.4
 protobuf==6.33.6
@@ -123,7 +123,7 @@ uvloop==0.23.0
 watchfiles==1.3.0
 wcwidth==0.8.4
 websockets==17.2
-Werkzeug==3.1.8
+Werkzeug==3.1.9
 wrapt==2.5.1
 yarl==1.25.1
 zipp==4.1.0
