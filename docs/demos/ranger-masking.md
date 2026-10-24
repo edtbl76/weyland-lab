@@ -1,6 +1,6 @@
 # Demo — Ranger column masking (masked vs unmasked Trino query)
 
-> **CLI walkthrough RUN live 2026-10-20 (B221); the UI walkthrough's eyes-on UAT is still pending** (B87, the demo
+> **CLI walkthrough RUN live 2026-10-23 (B233: logins + the impersonation refusal; 2026-10-20 B221 before it); the UI walkthrough's eyes-on UAT is still pending** (B87, the demo
 > sweep). See § RUN at the end.
 
 Prove an Apache Ranger **column-masking** policy with a single before/after: the **same** query on the **same**
@@ -59,16 +59,37 @@ Kubectl runs on **mother**.
 > time, run this **before** the plugin restart or default-deny locks everyone out (see
 > [../runbooks/ranger.md](../runbooks/ranger.md), "Rebuild from scratch" step 4 vs 5).
 
-**The proof — same query, two users** (the runbook's verify block; `analyst` → masked, `dbt` → real):
+**The proof — same query, two logins, and a claimed identity refused** (the runbook's verify block). Since B233
+(2026-10-23) Trino authenticates: each caller logs in over HTTPS with its own password, and Ranger lets a login act
+only as itself. Dagster's pod holds the `dbt` login; the `analyst` password is passed through from `scripts/.env`:
 ```
-[mother] kubectl -n weyland exec -i deploy/dagster-user-code -- python - <<'PY'
-import trino
-def q(u):
-    c=trino.dbapi.connect(host="trino.data-mesh.svc.cluster.local", port=8080, user=u, catalog="iceberg", schema="dbt")
-    cur=c.cursor(); cur.execute("SELECT state, year, depression_pct FROM iceberg.dbt.mart_state_health_trends ORDER BY state LIMIT 3"); return cur.fetchall()
-print("analyst (masked):", q("analyst"))   # depression_pct -> None
-print("dbt (unmasked)  :", q("dbt"))        # real values
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && kubectl -n weyland exec -i deploy/dagster-user-code -- env TRINO_PW_ANALYST="$TRINO_PW_ANALYST" python - <<'PY'
+import os, trino
+from trino.auth import BasicAuthentication as B
+PW = {"analyst": os.environ["TRINO_PW_ANALYST"], "dbt": os.environ["TRINO_PASSWORD"]}
+def q(login, as_user=None):
+    c = trino.dbapi.connect(host="trino.data-mesh.svc.cluster.local", port=8443, http_scheme="https",
+                            verify="/etc/weyland-ca/rootCA.pem", user=as_user or login, auth=B(login, PW[login]),
+                            catalog="iceberg", schema="dbt")
+    try:
+        cur = c.cursor(); cur.execute("SELECT state, year, depression_pct FROM mart_state_health_trends ORDER BY state LIMIT 3")
+        return cur.fetchall()
+    except Exception as e:
+        return "REFUSED: " + str(e).splitlines()[0][:90]
+print("analyst (masked)     :", q("analyst"))                 # depression_pct -> None
+print("dbt (unmasked)       :", q("dbt"))                     # real values
+print("analyst claiming dbt :", q("analyst", as_user="dbt"))  # REFUSED ... cannot become user dbt
 PY
+```
+
+**The negatives — no login, and the old door** (B233). No credential, claiming `dbt`, expect `401`:
+```
+kubectl -n weyland exec deploy/dagster-user-code -- python -c "import trino;c=trino.dbapi.connect(host='trino.data-mesh.svc.cluster.local',port=8443,user='dbt',http_scheme='https',verify='/etc/weyland-ca/rootCA.pem').cursor();c.execute('select 1');print(c.fetchall())"
+```
+Plain HTTP claiming `dbt`, from Traefik (the only pod still admitted on 8080), expect `403 Forbidden`; and the UI path
+Traefik serves, expect `200 OK`:
+```
+kubectl -n kube-system exec "$(kubectl -n kube-system get pods -l app.kubernetes.io/name=traefik -o jsonpath='{.items[0].metadata.name}')" -- sh -c 'wget -q -S -O /dev/null --header "X-Trino-User: dbt" --post-data "select 1" http://trino.data-mesh.svc.cluster.local:8080/v1/statement 2>&1 | head -1; wget -q -S -O /dev/null --header "X-Forwarded-Proto: https" http://trino.data-mesh.svc.cluster.local:8080/ui/api/cluster 2>&1 | head -1'
 ```
 
 ## Expected result
@@ -79,8 +100,14 @@ PY
   user.
 - The single diff between the two result sets is the masked column: definitive proof the Ranger policy is
   enforced by Trino at query time, not by the application.
+- **`analyst` claiming `dbt`** is refused (`Access Denied: Principal analyst cannot become user dbt`): the mask binds
+  to who logged in, not to a name the client chose. Before B233 this line returned dbt's real values.
+- **No credential** → `401 Unauthorized`; **plain HTTP claiming a user** → `403 Forbidden`; the UI path through
+  Traefik → `200 OK`.
 - (If both users see real values, the plugin has not picked up the policy yet — wait ~30s, or the setup did not
-  run; if both see `None` / errors, suspect the default-deny lockout — see the runbook's gotcha gauntlet.)
+  run; if both see `None` / errors, suspect the default-deny lockout — see the runbook's gotcha gauntlet. If every
+  login is refused "cannot become user X" for itself, Trino started while Ranger Admin was down: its policy cache is
+  in `/tmp`, so it holds no policies until Ranger answers — runbooks/trino.md, rollout step 7.)
 
 ## Cleanup / teardown
 
@@ -104,4 +131,14 @@ Ubuntu 24.04 LTS):
   `analyst` kept access. Removing the policy and user (both 204) restored it within 30 s. The policy count went back
   to 14 (only the mask policy; no deny items).
 - **UI walkthrough:** not run. The eyes-on UAT of the Ranger UI is still pending (B87).
+
+**2026-10-23, B233: Trino authenticates — the proof step above, live** (after stage 3):
+- `analyst (masked)     : [['AK', 2017, None], ['AK', 2012, None], ['AK', 2020, None]]`
+- `dbt (unmasked)       : [['AK', 2017, 18.5], ['AK', 2012, 16.9], ['AK', 2020, 15.9]]`
+- `analyst claiming dbt : REFUSED: TrinoUserError(type=USER_ERROR, name=PERMISSION_DENIED, message="Access Denied: Principal…`
+- No credential claiming `dbt` → `HttpError: error 401: b'Unauthorized'`; from Traefik, plain HTTP claiming `dbt` →
+  `HTTP/1.1 403 Forbidden`, the UI path → `HTTP/1.1 200 OK`.
+- The red check, before the fix: on a throwaway Trino 468 loaded with the live policies, `analyst` claiming `dbt` RAN
+  as dbt (Ranger's impersonation policy was open to `public` for user `*`). Notebook 72 shows the same refusal in
+  JupyterHub (`depression_pct` masked for `analyst` on 8/8 rows; `analyst` claiming `notebook` refused).
 
