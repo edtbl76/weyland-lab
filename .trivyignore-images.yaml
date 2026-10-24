@@ -521,3 +521,18 @@ vulnerabilities:
       - pkg:deb/debian/openjdk-21-jre-headless
     statement: "HIGH, no Debian fix yet; the JRE only runs code-maat over our own git history, no listener, no outside input (2026-10-22)"
     expired_at: 2027-01-22
+  - id: CVE-2026-112907
+    purls:
+      - pkg:pypi/filelock@3.32.7
+    statement: "weyland-mlflow only (GHSA-567q-5qvw-pf92, fixed 4.2.1): litellm caps filelock<4.0 through 1.106.3; Windows-only or ReadWriteLock, which nothing in the image uses (osv-scanner.toml has the full reason; B227 follow-on, 2026-10-24)"
+    expired_at: 2027-01-24
+  - id: CVE-2026-112913
+    purls:
+      - pkg:pypi/filelock@3.32.7
+    statement: "weyland-mlflow only (GHSA-9vhv-jxww-xfm5, fixed 4.2.1): litellm caps filelock<4.0 through 1.106.3; Windows-only or ReadWriteLock, which nothing in the image uses (osv-scanner.toml has the full reason; B227 follow-on, 2026-10-24)"
+    expired_at: 2027-01-24
+  - id: CVE-2026-112940
+    purls:
+      - pkg:pypi/filelock@3.32.7
+    statement: "weyland-mlflow only (GHSA-v4x8-3wr5-3wq8, fixed 4.2.1): litellm caps filelock<4.0 through 1.106.3; Windows-only or ReadWriteLock, which nothing in the image uses (osv-scanner.toml has the full reason; B227 follow-on, 2026-10-24)"
+    expired_at: 2027-01-24

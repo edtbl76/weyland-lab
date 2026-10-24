@@ -134,7 +134,8 @@ def _excluded(path: str, patterns: list) -> bool:
 
 
 # File types the server's analysers never index (no shell/bats/Markdown/data analyser on this Community server).
-NOT_ANALYSED = frozenset({".sh", ".bash", ".bats", ".md", ".txt", ".tsv", ".csv", ".service", ".timer", ".conf"})
+NOT_ANALYSED = frozenset({".sh", ".bash", ".bats", ".md", ".txt", ".tsv", ".csv", ".service", ".timer", ".conf",
+                          ".toml"})  # .toml: no Sonar analyser — a toml-only scan analysed 0 files (2026-10-24)
 
 
 def _run_scanner(src: str, key: str, token: str) -> tuple:

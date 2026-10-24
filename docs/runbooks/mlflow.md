@@ -86,11 +86,35 @@ a trace pins the prompt version that produced each answer. Registered prompts (`
   (`txn_mlflow`: `/health` plus a non-empty AI Gateway endpoint list, which is read from Postgres).
   **Never move the mlflow version by itself in that lockfile:** `mlflow`, `mlflow-skinny` and `mlflow-tracing` move
   together with the base tag, and the DB migrations are forward-only (next bullet). Runs as the upstream image's user
-  (root), as before. **Rollout:** the image is CI-built first; the Deployment then moves to its `git-<sha>` tag and
-  drops the install in a second change (an image the cluster cannot pull would leave a `Recreate` Deployment down).
-  **Roll back** by reverting that second commit: the database is untouched (`db upgrade` is a no-op on 3.16.1).
+  (root), as before. **Live since 2026-10-24** (`git-bfa17089`): Ready 39 s after the pod started, freeze == lockfile
+  in the pod, `db upgrade` a no-op, 18 gateway endpoints, `verify_gateway_guardrails.py` exit 2 with 0 FAIL (the RUN
+  is in [demos/mlflow.md](../demos/mlflow.md)). It rolled out in two changes: CI built the image first, then the
+  Deployment moved to its `git-<sha>` tag and dropped the install (an image the cluster cannot pull would leave a
+  `Recreate` Deployment down). Since then the bump PR moves that tag like any CI image's.
+  **Roll back** by reverting the manifest commit (`9a4bfe99`): the database is untouched (`db upgrade` is a no-op on 3.16.1).
+- **A download from OUTSIDE the cluster hangs unless the client streams through the server (found 2026-10-24, B227;
+  true since 3.16.1).** A 3.16 server that proxies an S3 store advertises `multipart_downloads_enabled: true`
+  (`/api/3.0/mlflow/server-info`), so the client downloads from a presigned MinIO URL, and that URL names
+  `minio.minio.svc.cluster.local:9000`, which resolves only in-cluster; the client retries about every 70 s, forever.
+  Uploads are proxied and work. Any off-cluster client that DOWNLOADS (rogueone scripts, a laptop) sets
+  `MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD=false`; with it, a log-then-download round-trip from rogueone printed `ok`.
+  In-cluster clients are unaffected, and no lab code downloads artifacts from outside the cluster today. The same
+  class as the registry's presigned redirects ([remote-training.md](remote-training.md) § the registry).
   The guard that keeps this closed: `scripts/check-dockerfile-installs.sh` now reads k8s manifests too
   ([code-quality.md](code-quality.md)).
+- **Prove an upgrade on a restored copy FIRST (B227 follow-on, 2026-10-24).** Before the bump PR that moves the
+  Deployment to a new MLflow version is merged, drill that CI-built image against the newest core dump:
+
+  [rogueone]
+  ```
+  bash /home/edwardmangini/IdeaProjects/weyland/scripts/mlflow-upgrade-drill.sh registry.weyland.lab/weyland-mlflow:git-<sha>
+  ```
+  A throwaway pod on mother (no sidecar, no service-account token, the backup mounted read-only) restores the `mlflow`
+  database into a scratch Postgres on `127.0.0.1`, runs that image's real `mlflow db upgrade` on it (timed), counts 10
+  tables (runs, experiments, registry, endpoints, secrets, guardrails, budgets, …) before and after, then starts the
+  upgraded server on the copy and asks `/health` and the gateway endpoint list. Exit 0 PASS · 1 a named problem
+  (upgrade failed, a count moved, a table missing, no endpoints) · 2 it could not run. Nothing reaches the live
+  database. Tests: `scripts/tests/mlflow-upgrade-drill.bats`.
 - **Upgrades migrate the DB schema — roll back by RESTORE, not by image tag (B215, 2026-10-17).** The server runs
   `mlflow db upgrade` on start, so a 3.16.1 → 3.15.1 image revert would meet a newer schema. Before any MLflow bump,
   confirm the core Postgres dump from the night before contains the `mlflow` database

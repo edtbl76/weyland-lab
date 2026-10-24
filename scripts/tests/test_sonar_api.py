@@ -327,6 +327,19 @@ def test_precheck_with_only_files_sonar_does_not_analyse_is_exit_0_without_scann
     assert "precheck: nothing for Sonar to analyse (4 files: .bats .md .sh .tsv)" in capsys.readouterr().out
 
 
+def test_a_toml_only_change_is_not_scanned(tmp_path, monkeypatch, capsys):
+    # Observed 2026-10-24 (B227 follow-on): an osv-scanner.toml accept was sent to the scanner, which analysed 0 files,
+    # so the precheck exited 2 on a change Sonar has no analyser for. TOML is a known non-analysed type.
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "osv-scanner.toml").write_text('[[PackageOverrides]]\nname = "x"\n')
+    seen = []
+    _serve(monkeypatch, _precheck_routes(), seen)
+    assert sa.main(["precheck", "osv-scanner.toml"]) == 0
+    assert seen == []                                   # no token minted, no scan
+    assert "precheck: nothing for Sonar to analyse (1 files: .toml)" in capsys.readouterr().out
+
+
 def test_precheck_scans_when_any_file_might_be_analysed(tmp_path, monkeypatch):
     monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
     monkeypatch.chdir(tmp_path)

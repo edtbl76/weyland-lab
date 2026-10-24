@@ -93,6 +93,14 @@ Re-evaluate if a fixed `base` / GHC is published. Accepted 2026-10-18 (B220).
 """
 
 [[PackageOverrides]]
+name = "filelock"
+version = "3.32.7"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-24
+reason = "weyland-mlflow only (GHSA-567q-5qvw-pf92, GHSA-9vhv-jxww-xfm5, GHSA-v4x8-3wr5-3wq8; all fixed 4.2.1). Held below 4 by litellm, which caps filelock<4.0 in every release through 1.106.3 (checked 2026-10-24; 4.2.1 with litellm 1.105.1 is ResolutionImpossible). Two advisories are Windows-only; the third is ReadWriteLock's SQLite reopen-by-name on POSIX, and nothing in the image uses ReadWriteLock: filelock is imported only by huggingface_hub, litellm and pip, all with the plain FileLock (grep of the image's site-packages, 2026-10-24). Lift when a litellm release allows filelock 4. Every other lockfile moves to 4.2.1. Accepted 2026-10-24 (B227 follow-on)."
+
+[[PackageOverrides]]
 name = "protobuf"
 version = "4.25.9"
 ecosystem = "PyPI"

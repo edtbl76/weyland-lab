@@ -57,6 +57,32 @@ List experiments via the server's backend store (resolve the db creds from the m
 - `OK <run_id>` + the MinIO artifact + the run in the UI = the full stack (server + Postgres +
   MinIO) is healthy.
 
+## RUN 2026-10-24 — the `weyland-mlflow` image (B227): nothing installed on start
+
+The pod used to `pip install psycopg2-binary boto3 'mlflow[gateway]==3.16.1' litellm` (three unpinned) before every
+start. It now runs `registry.weyland.lab/weyland-mlflow:git-bfa17089`: CI-built, signed, SBOM'd and trivy-scanned,
+`FROM` the same 3.16.1 digest plus the pod's frozen `pip freeze` (`services/weyland-mlflow/`). Observed after Argo
+rolled it (applied 20:24:37 UTC):
+
+| Check | Result |
+|---|---|
+| Image / command | `weyland-mlflow:git-bfa17089`, 0 restarts; the container command contains no `pip` |
+| Boot | pod start 20:25:05 → server up 20:25:24 → Ready 20:25:44 (39 s, 30 of them the probe's initial delay) |
+| `pip freeze` in the pod | identical to `requirements.txt` (125 packages); `pip check`: no broken requirements |
+| `mlflow db upgrade` | `Updating database tables`, no migration steps (a no-op on 3.16.1) |
+| `:30500` | `GET /health` → `OK`; the AI Gateway lists **18** endpoints |
+| Artifact round-trip | in the pod (this demo's smoke, plus a download): `OK`, `download: hi` |
+| Gateway guardrails | `verify_gateway_guardrails.py` exit **2**: 0 FAIL on 7 local models, budget `$10 per 1 months, REJECT, GLOBAL`, PII redacted on all 7, the Safety guard blocked `unsafe-echo` on 6; the one REVIEW (`deepseek-coder-16b`) is a soft refusal |
+| Ship transaction | `txn_mlflow` → `TXN_OK 18 gateway endpoint(s)` |
+
+**Found on the way, pre-existing since 3.16.1 (B215), not caused by the image:** a download from OUTSIDE the
+cluster (rogueone) hangs. A 3.16 server that proxies an S3 store advertises `multipart_downloads_enabled: true`
+(`/api/3.0/mlflow/server-info`), so the client fetches the file from a presigned URL, and that URL names
+`minio.minio.svc.cluster.local:9000`, which only resolves inside the cluster; the client retries about every 70 s.
+The upload works (it is proxied). Off-cluster clients set `MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD=false` to stream
+through the server instead: the same round-trip from rogueone then printed `ok` (runbook `mlflow.md` § Gotchas). No lab
+code downloads artifacts from outside the cluster today.
+
 ## Cleanup / teardown
 
 Delete the smoke experiment (removes its runs from the backend store), then garbage-collect the
