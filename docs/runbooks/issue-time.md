@@ -98,6 +98,22 @@ deleted, the Chrome extension left to the owner. `owner_time.py` no longer conta
 `{"status": "retired"}`, so the report shows its column as unknown, never zero. The database stays in
 `~/.local/share/activitywatch` (16 MB, still in the restic set) in case the history is ever wanted; nothing reads it.
 
+## Other options for owner time (2026-10-23)
+
+ActivityWatch is retired and Clockify is barely used, so the owner's own time per issue has no working source. The
+options, compared when B185 closed; evaluating them is **B235** (EMA-323, a spike that builds whatever it keeps):
+
+| Option | How it counts | Cost and fit |
+|---|---|---|
+| **Wakapi** (self-hosted, WakaTime-compatible) | automatic, from IntelliJ's WakaTime plugin: coding time per project and per branch — a branch carrying the issue id attributes with no clicks | free, open source, one Go service; sees only IDE time, not Linear or browser reading |
+| WakaTime (hosted) | the same plugin data | free tier keeps 2 weeks of history and is cloud; Wakapi is its $0 local equivalent |
+| **Clockify** (wired today) | manual: the timer button on each Linear issue | free and working, but only counts when pressed (0.4 minutes in 10 days) |
+| **Derive it, no tracker** | from Linear status changes (B194 snapshot) plus commit/PR times per issue | free, zero overhead; coarse — elapsed time, not hands-on time |
+| Harvest / Everhour / Traqq / Toggl | manual timers | same limit as Clockify; Toggl has no Linear integration |
+| solidtime / Kimai | self-hosted manual timers | a service to run for no gain over Clockify |
+| Rize / Reclaim | automatic | paid — out under $0 |
+| ActivityWatch | automatic, window and tab focus | **killed 2026-10-23** — failed its memory budget (§ Owner time) |
+
 ## How a minute is attributed
 
 Walking each session in order, an issue becomes **current** on exactly three markers; the time and tokens after it
