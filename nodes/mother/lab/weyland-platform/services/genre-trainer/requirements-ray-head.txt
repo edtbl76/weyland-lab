@@ -43,6 +43,6 @@ smmap==5.0.3
 SQLAlchemy==2.0.51
 sqlparse==0.6.0   # 0.5.5 in v7: PYSEC-2026-3696..3699, 3923
 threadpoolctl==3.6.0
-virtualenv==21.14.10   # 2026-10-22: the rayproject base supplies 20.29.1 (5 HIGH, fixed 21.14.9); no lockfile named it
+virtualenv==21.14.13   # 2026-10-22: the rayproject base supplies 20.29.1 (5 HIGH, fixed 21.14.9); no lockfile named it
 wcwidth==0.8.2
 Werkzeug==3.1.9   # 3.1.8 in v7: PYSEC-2026-4312
