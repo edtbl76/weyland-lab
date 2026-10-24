@@ -1,8 +1,9 @@
 # B10+B16 — MLflow (experiment tracking + model registry). Reuses the shared Postgres (backend store) and
 # MinIO (artifact store, proxied via --serve-artifacts so clients only talk to MLflow). Meshed: Postgres is
 # STRICT mTLS, so the pod MUST carry the sidecar label or psycopg2 gets `read ECONNRESET`. Dev-password gated
-# at the Traefik ingress (no native MLflow auth). v1 installs the pg/s3 drivers on start (no custom image) —
-# if pod restarts get slow/flaky, bake a small `FROM ghcr.io/mlflow/mlflow + pip install` image instead.
+# at the Traefik ingress (no native MLflow auth). B227 (2026-10-24): the image is weyland-mlflow
+# (services/weyland-mlflow/) — the pg/s3 drivers and the gateway extras are BAKED IN from the pod's frozen
+# `pip freeze`; nothing is pip-installed on start (it used to be, unpinned, on every boot).
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -43,7 +44,7 @@ spec:
     spec:
       containers:
         - name: mlflow
-          image: ghcr.io/mlflow/mlflow:v3.16.1  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root  (B47: 2.18.0 -> 3.14.0 cleared the 2025/2026 RCE CVEs; 2026-08-20: 3.14.0 -> 3.15.1 clears CVE-2026-64849, unauthenticated full-read SSRF in webhook delivery — this server has an un-authed LAN NodePort :30500, so the SSRF was reachable without credentials; 2026-10-17 B215: 3.15.1 -> 3.16.1 clears GHSA-h7x2-h6g9-p789 / CVE-2026-71211, the AI Gateway SSRF via an unvalidated api_base, <=3.15.2 — this server runs that gateway. 3 forward-only migrations, proven locally on a 3.15.1 DB)
+          image: registry.weyland.lab/weyland-mlflow:git-bfa17089  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root  (B227, 2026-10-24: CI-built FROM ghcr.io/mlflow/mlflow:v3.16.1 by digest + the frozen lockfile; the bump PR rewrites this git-<sha> tag. Version history: B47: 2.18.0 -> 3.14.0 cleared the 2025/2026 RCE CVEs; 2026-08-20: 3.14.0 -> 3.15.1 clears CVE-2026-64849, unauthenticated full-read SSRF in webhook delivery — this server has an un-authed LAN NodePort :30500, so the SSRF was reachable without credentials; 2026-10-17 B215: 3.15.1 -> 3.16.1 clears GHSA-h7x2-h6g9-p789 / CVE-2026-71211, the AI Gateway SSRF via an unvalidated api_base, <=3.15.2 — this server runs that gateway. 3 forward-only migrations, proven locally on a 3.15.1 DB)
           imagePullPolicy: IfNotPresent
           # B47 hardening: drop priv-esc + seccomp (see arch)
           securityContext:
@@ -55,14 +56,10 @@ spec:
             # B47: `mlflow db upgrade` applies the 3.x Alembic migrations to the backend store BEFORE the server
             # starts (2->3 changes the schema; the 3.x server refuses to start on a 2.x DB otherwise). Idempotent —
             # a no-op once migrated, so it's safe on every pod restart. BACK UP the mlflow DB before first rollout.
-            # B100 P4: `mlflow[gateway]` adds the built-in AI Gateway's backend deps (tiktoken/slowapi/watchfiles) —
-            # without them the gateway UI renders but its API 404s (unmounted). mlflow==3.16.1 is already in the image
-            # (since B215, 2026-10-17), so this just pulls the missing extras. (If restarts get slow, bake these into a small image — see top note.)
-            # ⚠ THIS PIN MUST TRACK THE IMAGE TAG ABOVE. pip is authoritative at runtime: leaving it at an older
-            # version silently DOWNGRADES the image's mlflow on every pod start, so a CVE bump done only on the
-            # image tag would look applied and not be. (Caught during the 3.14.0 -> 3.15.1 CVE-2026-64849 bump.)
+            # B100 P4: the AI Gateway's backend deps (`mlflow[gateway]`: tiktoken/slowapi/watchfiles), litellm and the
+            # psycopg2/boto3 drivers are in the image (B227) — this command installs NOTHING. To change a package or
+            # the mlflow version, edit services/weyland-mlflow/requirements.txt (+ its base tag), never this command.
             - >
-              pip install --quiet --no-cache-dir psycopg2-binary boto3 'mlflow[gateway]==3.16.1' litellm &&
               mlflow db upgrade "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow" &&
               mlflow server --host 0.0.0.0 --port 5000
               --backend-store-uri "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"
