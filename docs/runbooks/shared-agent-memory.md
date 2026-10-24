@@ -55,6 +55,15 @@ cd /home/edwardmangini/IdeaProjects/weyland && ~/.local/bin/uv run -q --with mcp
 To bump the version: re-freeze the list in `python:3.12-slim`
 (`pip install basic-memory==<v> && pip freeze`), re-install, run the check, and diff the notes' checksums before/after.
 
+**Do NOT move to 0.24.x — it rewrites the notes (tested 2026-10-24, B227 follow-on).** 0.24.0/0.24.1 pin
+`fastmcp==4.1.3` (which would clear GHSA-vqqp-x5qm-5qp4), but they REMOVED `disable_permalinks` (`config.py` lists it as a
+stale key) and `ensure_frontmatter_on_sync` now says "canonical permalinks are always added". Started exactly like the
+unit, with both protection settings, against a SCRATCH COPY of the store in a container, 0.24.1 rewrote **239 of 246**
+notes: a `permalink:` line added, descriptions re-wrapped, timestamps reformatted, the final newline stripped. Stay on
+0.23.2 (the fastmcp advisory is accepted in `osv-scanner.toml`: it is in fastmcp's client OAuth wrappers, which basic-memory
+does not use). **Before ANY version bump, run the new version against a scratch copy first** and diff the copy, never
+the live notes.
+
 ## Firewall (Basic Memory has no auth)
 
 Enabled 2026-10-03 so that **nothing changes except `:8765`** (default incoming stays allow; forwarding stays ACCEPT so

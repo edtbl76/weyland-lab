@@ -27,12 +27,14 @@ spec:
             - |
               set -eu
               apk add --no-cache git nodejs npm
-              # B64: LikeC4 in-page diagrams. The mkdocs-likec4 plugin shells out to the likec4 CLI at build time
-              # to render the ```likec4-view <id>``` fences embedded in the docs. Model + config live in likec4/.
-              npm i -g likec4
-              pip install --no-cache-dir mkdocs-likec4
               git clone --depth 1 https://github.com/edtbl76/weyland-lab.git /src
               cd /src
+              # B64: LikeC4 in-page diagrams. The mkdocs-likec4 plugin shells out to the likec4 CLI at build time
+              # to render the ```likec4-view <id>``` fences embedded in the docs. Model + config live in likec4/.
+              # B227 follow-on (2026-10-24): both PINNED — they used to install unpinned on every pod start. The CLI
+              # at the version that build used (1.60.0); the plugin from the pinned file beside this manifest.
+              npm i -g likec4@1.60.0
+              pip install --no-cache-dir -r /src/nodes/mother/lab/weyland-platform/k8s/docs-site/requirements.txt
               mkdocs build -f mkdocs-site.yml -d /site
           volumeMounts:
             - name: site

@@ -5,7 +5,7 @@
 # trainer and can't rot the same way. `ray[default]` carries ray.tune + the dashboard for `--task … --tune`.
 # 2026-10-17 (B220): pinned to the MLflow SERVER's version (ghcr.io/mlflow/mlflow:v3.16.1) — a newer client can call
 # APIs the server lacks. Bump with the server.
-mlflow==3.16.1
+mlflow==3.17.2
 scikit-learn
 pandas
 numpy

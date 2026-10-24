@@ -2,7 +2,3 @@
 # packages installed outside a requirements file. It may only FALL: move installs into a pinned
 # requirements file (for a manifest: bake them into an image built from one), then lower it
 # (scripts/check-dockerfile-installs.sh --write-baseline). <path>\t<count>; zero rows are omitted.
-nodes/mother/lab/weyland-platform/k8s/docs-site/docs-site.yaml	1
-nodes/mother/lab/weyland-platform/k8s/monitoring/api-drift.yaml	1
-nodes/mother/lab/weyland-platform/k8s/sonarqube/sonar-scan.yaml	3
-nodes/mother/lab/weyland-platform/k8s/superset/superset-values.yaml	4

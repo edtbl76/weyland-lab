@@ -1,0 +1,15 @@
+# weyland-superset (B227 follow-on, 2026-10-24) — what the lab adds to apache/superset:6.1.0, FROZEN. Installed with
+# --no-deps, so the image's own packages are never touched. These are the exact versions the Helm bootstrap had put in
+# the running pod on 2026-10-24 (its `pip install --target ... psycopg2-binary trino authlib clickhouse-connect`, which
+# ran unpinned on every start). That install ALSO wrote newer metadata for 11 of the image's packages (cryptography
+# 50.0.2, requests 2.34.2, urllib3 2.8.0, ...) while Python kept importing the image's own code (cryptography 46.0.5,
+# ...), so a scanner saw versions that never ran. This set reproduces what DID run: the base plus these nine.
+Authlib==1.8.0
+backports.zstd==1.7.0
+clickhouse-connect==1.9.0
+joserfc==1.7.5
+lz4==4.4.5
+orjson==3.12.0
+psycopg2-binary==2.9.13
+trino==0.340.0
+tzlocal==5.4.4

@@ -6,6 +6,15 @@
 # Not meshed on the first cut (keeps the OIDC/ingress bring-up clean; Trino is PERMISSIVE so plaintext
 # reaches it). Mesh in a follow-up.
 
+# B227 follow-on (2026-10-24): the lab's image — apache/superset 6.1.0 (by digest) plus the database drivers the
+# bootstrap used to pip-install unpinned on every start (k8s/superset/image/). Hand-tagged like weyland-jupyter: this
+# chart takes repository + tag separately, which the CI bump PR cannot rewrite. Next tag = the next FREE vN
+# (runbooks/superset.md § The image). One block: the web pod, the parked worker and the init job all use it.
+image:
+  repository: registry.weyland.lab/weyland-superset
+  tag: v1
+  pullPolicy: IfNotPresent
+
 postgresql:
   enabled: false   # use the lab Postgres (superset DB created in step 1)
 redis:
@@ -145,12 +154,10 @@ init:
 # Install the Trino SQLAlchemy driver at startup (the connection itself is added in step 4).
 bootstrapScript: |
   #!/bin/bash
-  # psycopg2-binary: the metadata-DB (Postgres) driver — the 6.1.0 image doesn't bundle it. trino: the query
-  # connector. clickhouse-connect: the ClickHouse dialect (clickhousedb:// + Superset engine spec) for the
-  # data-mesh OLAP store. Both need PyPI egress at pod start; a custom image baking them in is the cleaner
-  # long-term fix.
-  pip install --target /app/.venv/lib/python3.10/site-packages psycopg2-binary trino authlib clickhouse-connect
-  if [ ! -f ~/bootstrap ]; then echo "Superset bootstrapped (psycopg2 + trino + clickhouse)" > ~/bootstrap; fi
+  # psycopg2-binary (the metadata-DB driver the 6.1.0 image lacks), trino (the query connector), clickhouse-connect
+  # (the ClickHouse dialect) and authlib are BAKED INTO the image since B227's follow-on (2026-10-24; image block
+  # above, k8s/superset/image/). This script installs nothing: to change a driver, edit image/requirements.txt.
+  if [ ! -f ~/bootstrap ]; then echo "Superset bootstrapped (drivers baked into weyland-superset)" > ~/bootstrap; fi
 
 ingress:
   enabled: true

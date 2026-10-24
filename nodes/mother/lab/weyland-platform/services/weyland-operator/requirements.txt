@@ -67,9 +67,9 @@ mako==1.4.2
 markupsafe==3.0.3
 matplotlib==3.11.1
 mcp==1.30.0
-mlflow==3.16.1
-mlflow-skinny==3.16.1
-mlflow-tracing==3.16.1
+mlflow==3.17.2
+mlflow-skinny==3.17.2
+mlflow-tracing==3.17.2
 multidict==6.9.1
 narwhals==2.24.0
 numpy==2.5.2
@@ -77,6 +77,10 @@ openai==2.53.0
 opentelemetry-api==1.45.1
 opentelemetry-exporter-otlp-proto-common==1.45.1
 opentelemetry-exporter-otlp-proto-http==1.45.1
+# 2026-10-24 (B227 follow-on): the exporter's two new dependencies were unpinned, so each rebuild took the newest;
+# pinned at what the running pods have.
+opentelemetry-exporter-http-transport==0.66b1
+opentelemetry-exporter-otlp-common==0.66b1
 opentelemetry-proto==1.45.1
 opentelemetry-sdk==1.45.1
 opentelemetry-semantic-conventions==0.66b1

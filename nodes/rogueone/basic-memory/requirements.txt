@@ -43,7 +43,7 @@ fastembed==0.8.1
 fastmcp==4.0.0b1
 fastmcp-slim==4.0.0b1
 fastuuid==0.14.0
-filelock==4.0.9
+filelock==4.2.1
 flatbuffers==25.12.19
 frozenlist==1.8.0
 fsspec==2026.9.0
@@ -98,6 +98,10 @@ openapi-pydantic==0.6.0
 opentelemetry-api==1.45.1
 opentelemetry-exporter-otlp-proto-common==1.45.1
 opentelemetry-exporter-otlp-proto-http==1.45.1
+# 2026-10-24 (B227 follow-on): the exporter's two new dependencies were unpinned, so each rebuild took the newest;
+# pinned at what the running pods have.
+opentelemetry-exporter-http-transport==0.66b1
+opentelemetry-exporter-otlp-common==0.66b1
 opentelemetry-instrumentation==0.66b1
 opentelemetry-proto==1.45.1
 opentelemetry-sdk==1.45.1

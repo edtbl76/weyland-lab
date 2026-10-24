@@ -27,7 +27,7 @@ spec:
             - |
               set -eu
               apk add --no-cache git
-              npm i -g likec4
+              npm i -g likec4@1.59.4   # pinned 2026-10-24 (B227 follow-on) at what this build ran (its log, pod of 2026-09-26)
               likec4 --version
               git clone --depth 1 https://github.com/edtbl76/weyland-lab.git /src
               cd /src/docs

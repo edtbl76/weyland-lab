@@ -16,7 +16,7 @@ click==8.5.0
 dataclasses-json==0.6.7
 fastapi==0.142.2
 fastembed==0.8.1
-filelock==4.0.8
+filelock==4.2.1
 flatbuffers==25.12.19
 frozenlist==1.8.0
 fsspec==2026.9.0

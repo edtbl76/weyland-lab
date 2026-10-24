@@ -17,6 +17,9 @@
 # IfNotPresent) and built MANUALLY (bump the tag in k8s/jupyterhub/jupyterhub-values.yaml, then docker build/push)
 # — the notebook library is git-synced not baked, so the image changes only on a dep/toolkit bump. Intentionally
 # omitted from the tag-following CI loop, same as ranger. See runbooks/jupyterhub.md §2/§3.
+# weyland-superset (B227 follow-on, 2026-10-24) is hand-tagged vN for the same reason as weyland-jupyter: the Superset
+# chart takes image repository + tag as separate values keys, which the bump PR's registry/name:tag rewrite cannot see.
+# Built on rogueone + push-image.sh from k8s/superset/image/ (runbooks/superset.md § The image).
 # NOTE: feast-server + weyland-dagster-user-code share context services/weyland-dagster (different Dockerfiles);
 #       weyland-flink + weyland-flink-py share k8s/flink — a change in the shared dir rebuilds both (conservative, correct).
 #

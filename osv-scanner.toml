@@ -70,12 +70,12 @@ reason = "golang.org/x/crypto/openpgp is unmaintained (GO-2026-5932, no fixed re
 [[IgnoredVulns]]
 id = "GHSA-8mgp-746c-j5xp"
 ignoreUntil = 2027-01-16
-reason = "nltk 3.10.3 (CVE-2026-81726 / PYSEC-2026-3740): model-artifact APIs (TransitionParser.train/parse, AveragedPerceptron.save/load, PerceptronTagger.save_to_json, save_maxent_params) bypass nltk's path security. No fixed release (last_affected 3.10.3). weyland-agent gets nltk only through llama-index-core (nltk>=3.9.3); nothing in its image outside nltk itself calls those APIs (grep of site-packages, 2026-10-16), and the agent never loads or saves an nltk model from a caller-supplied path. Bump as soon as nltk ships a fix. Accepted 2026-10-16 (B214)."
+reason = "nltk 3.10.x — 3.10.4 in weyland-agent since 2026-10-24, still affected: no fixed release (CVE-2026-81726 / PYSEC-2026-3740): model-artifact APIs (TransitionParser.train/parse, AveragedPerceptron.save/load, PerceptronTagger.save_to_json, save_maxent_params) bypass nltk's path security. No fixed release (last_affected 3.10.3). weyland-agent gets nltk only through llama-index-core (nltk>=3.9.3); nothing in its image outside nltk itself calls those APIs (grep of site-packages, 2026-10-16), and the agent never loads or saves an nltk model from a caller-supplied path. Bump as soon as nltk ships a fix. Accepted 2026-10-16 (B214)."
 
 [[IgnoredVulns]]
 id = "GHSA-h35f-9h28-mq5c"
 ignoreUntil = 2027-04-16
-reason = "setuptools <83 (CVE-2026-59890 / PYSEC-2026-3447): MANIFEST.in exclusions bypassed when building an sdist on macOS APFS/HFS+ (NFC/NFD name collision). Does not apply here: every image runs on Linux and none builds an sdist. Kept below 83 on purpose in scan-suite (82+ drops pkg_resources, which semgrep 1.90's opentelemetry-instrumentation imports) and in the Dagster GE/Soda venvs (79.0.1, the venvs' own resolution). Accepted 2026-10-16 (B214)."
+reason = "setuptools <83 (CVE-2026-59890 / PYSEC-2026-3447): MANIFEST.in exclusions bypassed when building an sdist on macOS APFS/HFS+ (NFC/NFD name collision). Does not apply here: every image runs on Linux and none builds an sdist. Kept below 83 on purpose in scan-suite only (82+ drops pkg_resources, which semgrep 1.90's opentelemetry-instrumentation imports); the Dagster GE/Soda venvs moved to 84.2.1 on 2026-10-24 (B227 follow-on: GE imports pkg_resources only in its CLI, which ge_validate.py never loads). Accepted 2026-10-16 (B214)."
 
 # ---- B214 (2026-10-16): VERSION-SCOPED overrides. Each matches one exact package version, so the same advisory
 # elsewhere in the repo (another version, another lockfile) is still reported. Proven against osv-scanner 1.9.1:
@@ -91,6 +91,30 @@ standard library — it moves only with the compiler. The golden path is a hello
 untrusted floats. Newly visible 2026-10-18 because osv-scanner v2 reads cabal.project.freeze (v1 did not).
 Re-evaluate if a fixed `base` / GHC is published. Accepted 2026-10-18 (B220).
 """
+
+[[PackageOverrides]]
+name = "fastmcp"
+version = "4.0.0b1"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-24
+reason = "basic-memory only (nodes/rogueone/basic-memory; GHSA-vqqp-x5qm-5qp4, fixed 4.1.2): the flaw is in fastmcp's MCP CLIENT wrappers' OAuth client-credentials providers (an untrusted server can redirect the client secret). basic-memory 0.23.2 uses only the SERVER side (FastMCP, Context, middleware, exceptions: grep of its package, 2026-10-24) and no client-credentials provider. The fix needs basic-memory 0.24.x, which pins fastmcp 4.1.3 but REMOVED disable_permalinks and always adds permalinks: in a scratch copy it rewrote 239 of 246 notes even with both protection settings (runbooks/shared-agent-memory.md). Held at 0.23.2 until a release can sync without rewriting notes. Accepted 2026-10-24 (B227 follow-on)."
+
+[[PackageOverrides]]
+name = "fastmcp-slim"
+version = "4.0.0b1"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-24
+reason = "basic-memory only: the same advisory and reason as the fastmcp 4.0.0b1 override above (fastmcp-slim is its pinned twin). Accepted 2026-10-24 (B227 follow-on)."
+
+[[PackageOverrides]]
+name = "setuptools"
+version = "80.10.2"
+ecosystem = "PyPI"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-24
+reason = "scan-suite only (GHSA-xmj3-9gf7-h52w, published 2026-10-23: a Windows path escape through namespace_packages.txt during a LEGACY wheel install; fixed 84.1.0). Windows-only, and the scan image runs on Linux. Held at 80.10.2 because 82+ removes pkg_resources, which semgrep 1.90's opentelemetry-instrumentation imports (the PYSEC-2026-3447 accept above has the same reason). The Dagster GE/Soda venvs moved to 84.2.1. Accepted 2026-10-24 (B227 follow-on)."
 
 [[PackageOverrides]]
 name = "filelock"

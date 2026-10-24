@@ -110,11 +110,13 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   (382 that day): a container command, CronJob script or Helm bootstrap that `pip install`s on start is the same
   drift plus PyPI egress on every boot. MLflow did it on every pod start, unseen. Shell redirects (`>/dev/null 2>&1`),
   pipes, and `pip install` inside an `echo`/`printf` message are not counted (each was miscounted on the first pass,
-  now pinned by `test_dockerfile_installs.py`). The first count was 13 packages in 5 manifests; their ceilings are in
-  the same baseline: `superset-values.yaml` 4 (the bootstrap: `psycopg2-binary trino authlib clickhouse-connect`),
-  `sonar-scan.yaml` 3 (`pytest pytest-cov prometheus_client`), `api-drift.yaml` 1 (`pyyaml`), `docs-site.yaml` 1
-  (`mkdocs-likec4`), and `mlflow.yaml`, which falls to 0 when it moves to its `weyland-mlflow` image. A new install in
-  any manifest fails CI, named.
+  now pinned by `test_dockerfile_installs.py`). The first count was 13 packages in 5 manifests; **all five are at 0
+  since 2026-10-24** (B227 and its follow-on), so the baseline is empty and ANY direct install in a manifest fails CI,
+  named: MLflow and Superset install from images of their own (`weyland-mlflow`, CI-built; `weyland-superset`,
+  hand-tagged — `superset.md` § The image); api-drift installs its pinned `PyYAML` from a file embedded in its
+  ConfigMap (`scripts/lib/api-drift-requirements.txt`); docs-site installs `mkdocs-likec4` from
+  `k8s/docs-site/requirements.txt` and `likec4@1.60.0`; sonar-scan and CI's `test-python` step share one frozen
+  `scripts/ci/requirements-lang-tests.txt` (CI's step had the same unpinned install, out of this guard's reach).
   ```
   bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-dockerfile-installs.sh --list
   ```

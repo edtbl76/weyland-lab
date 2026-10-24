@@ -72,6 +72,44 @@ verdict() { MLFLOW_DRILL_LIB=1 bash -c ". '$S'; drill_verdict '$1'"; }
   [[ "$output" == *"NOT A PASS"* ]]
 }
 
+# 2026-10-24, the drill's first real run: 3.17.2 ships SQLAlchemy 2.1, which maps a bare postgresql:// to the psycopg
+# (v3) driver; the image has psycopg2, so `db upgrade` failed. The live command used a bare postgresql:// too, so the
+# drill must use the LIVE command's scheme, read from the manifest, or it proves a URI production never runs.
+scheme() { MLFLOW_DRILL_LIB=1 bash -c ". '$S'; db_scheme '$1'"; }
+
+@test "the drill takes the database URI scheme from the live manifest" {
+  printf '      mlflow db upgrade "postgresql+psycopg2://$(U)@db:5432/mlflow" &&\n      --backend-store-uri "postgresql+psycopg2://$(U)@db:5432/mlflow"\n' > "$T/m.yaml"
+  run scheme "$T/m.yaml"
+  [ "$status" -eq 0 ]
+  [ "$output" = "postgresql+psycopg2" ]
+  printf '      mlflow db upgrade "postgresql://$(U)@db:5432/mlflow"\n' > "$T/bare.yaml"
+  run scheme "$T/bare.yaml"
+  [ "$output" = "postgresql" ]              # carried as-is: the drill then fails where production would
+}
+
+@test "two different schemes in the manifest, or none, is exit 2: no guessing" {
+  printf 'a "postgresql://x/mlflow"\nb "postgresql+psycopg2://x/mlflow"\n' > "$T/m.yaml"
+  run scheme "$T/m.yaml"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"not exactly one"* ]]
+  printf 'nothing here\n' > "$T/none.yaml"
+  run scheme "$T/none.yaml"
+  [ "$status" -eq 2 ]
+}
+
+@test "a pod that ran and failed is judged on its output (exit 1, named), not 'could not run'" {
+  good | sed 's/^upgrade: ok 41$/upgrade: FAILED/' > "$T/log"
+  run env MLFLOW_DRILL_LIB=1 bash -c ". '$S'; judge Failed '$T/log'"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"the upgrade did not run cleanly"* ]]
+  : > "$T/empty"
+  run env MLFLOW_DRILL_LIB=1 bash -c ". '$S'; judge Failed '$T/empty'"
+  [ "$status" -eq 2 ]
+  run env MLFLOW_DRILL_LIB=1 bash -c ". '$S'; judge Pending '$T/log'"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"phase 'Pending'"* ]]
+}
+
 @test "the image argument is required and validated" {
   run bash "$S"
   [ "$status" -eq 2 ]

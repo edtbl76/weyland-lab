@@ -41,12 +41,37 @@ drill_verdict() {
   echo "PASS: ${from} -> ${to} in ${secs} s; counts unchanged; server answers, ${n} gateway endpoint(s)"
 }
 
+# db_scheme <manifest> — the ONE SQLAlchemy URI scheme the live MLflow command uses (postgresql, postgresql+psycopg2…).
+# The drill connects with the same scheme, so it fails exactly where production would: on 2026-10-24 a bare
+# postgresql:// under 3.17.2's SQLAlchemy 2.1 picked the psycopg (v3) driver the image does not have.
+db_scheme() {
+  local found
+  # `|| true`: no match must reach the count below (exit 2, named), not trip set -e/pipefail (exit 1)
+  found="$({ grep -oE '"postgresql(\+[a-z0-9]+)?://' "$1" 2>/dev/null || true; } | tr -d '"' | sed 's#://$##' | sort -u)"
+  [ "$(printf '%s\n' "$found" | grep -c .)" -eq 1 ] \
+    || { echo "cannot tell the live URI scheme: not exactly one in $1 (found: ${found:-none})"; return 2; }
+  printf '%s\n' "$found"
+}
+
+# judge <pod phase> <log> — a pod that RAN (Succeeded, or Failed with output) is judged on what it printed; anything
+# else could not run.
+judge() {
+  case "$1" in
+    Succeeded) drill_verdict "$2" ;;
+    Failed) if [ -s "$2" ]; then drill_verdict "$2"; else echo "NOT A PASS: the drill pod failed and printed nothing"; return 2; fi ;;
+    *) echo "NOT A PASS: the drill pod ended in phase '${1:-unknown}'"; return 2 ;;
+  esac
+}
+
 [ -n "${MLFLOW_DRILL_LIB:-}" ] && return 0 2>/dev/null
 
 IMAGE="${1:-}"
 [ -n "$IMAGE" ] || { echo "usage: scripts/mlflow-upgrade-drill.sh <image>" >&2; exit 2; }
 [[ "$IMAGE" =~ ^[a-z0-9][a-z0-9./_:@-]*$ ]] || { echo "not an image reference: $IMAGE" >&2; exit 2; }
 for f in pg.sh mlflow.sh; do [ -r "$LIB/$f" ] || { echo "cannot read $LIB/$f" >&2; exit 2; }; done
+MANIFEST="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/nodes/mother/lab/weyland-platform/k8s/mlflow/mlflow.yaml"
+SCHEME="$(db_scheme "$MANIFEST")" || { echo "$SCHEME" >&2; exit 2; }
+echo "→ the live command connects as ${SCHEME}:// (from k8s/mlflow/mlflow.yaml); the drill uses the same"
 
 cleanup() {
   kubectl -n "$NS" delete pod "$POD" --ignore-not-found --wait=false >/dev/null 2>&1 || true
@@ -59,7 +84,7 @@ kubectl -n "$NS" create configmap "$CM" --from-file=pg.sh="$LIB/pg.sh" --from-fi
 
 python3 -c '
 import json, sys
-image, pod, cm = sys.argv[1:]
+image, pod, cm, scheme = sys.argv[1:]
 mounts = [{"name": "s", "mountPath": "/drill", "readOnly": True}, {"name": "shared", "mountPath": "/shared"}]
 print(json.dumps({"apiVersion": "v1", "kind": "Pod",
   "metadata": {"name": pod, "labels": {"app": pod, "sidecar.istio.io/inject": "false"}},
@@ -70,13 +95,14 @@ print(json.dumps({"apiVersion": "v1", "kind": "Pod",
        "resources": {"requests": {"memory": "256Mi", "cpu": "250m"}, "limits": {"memory": "2Gi"}},
        "volumeMounts": mounts + [{"name": "b", "mountPath": "/backup", "readOnly": True}]},
       {"name": "mlflow", "image": image, "imagePullPolicy": "IfNotPresent", "command": ["sh", "/drill/mlflow.sh"],
+       "env": [{"name": "MLFLOW_DRILL_DB_SCHEME", "value": scheme}],
        "resources": {"requests": {"memory": "512Mi", "cpu": "250m"}, "limits": {"memory": "4Gi"}},
        "volumeMounts": mounts}],
     "securityContext": {"fsGroup": 70},
     "volumes": [{"name": "b", "hostPath": {"path": "/mnt/minio/backups", "type": "Directory"}},
                 {"name": "s", "configMap": {"name": cm}},
                 {"name": "shared", "emptyDir": {}}]}}))
-' "$IMAGE" "$POD" "$CM" | kubectl -n "$NS" apply -f - >/dev/null
+' "$IMAGE" "$POD" "$CM" "$SCHEME" | kubectl -n "$NS" apply -f - >/dev/null
 
 echo "→ drilling $IMAGE on a restored copy of the mlflow database (the restore streams ~2 GB; ~10 min)…"
 phase=""
@@ -89,9 +115,6 @@ LOG="$(mktemp)"
 { kubectl -n "$NS" logs "$POD" -c pg 2>/dev/null | grep -v -i 'locale\|initdb' || true
   kubectl -n "$NS" logs "$POD" -c mlflow 2>/dev/null || true; } > "$LOG"
 cat "$LOG"
-if [ "$phase" != Succeeded ]; then
-  echo "NOT A PASS: the drill pod ended in phase '${phase:-unknown}'" >&2; rm -f "$LOG"; exit 2
-fi
-rc=0; drill_verdict "$LOG" || rc=$?
+rc=0; judge "$phase" "$LOG" || rc=$?
 rm -f "$LOG"
 exit "$rc"

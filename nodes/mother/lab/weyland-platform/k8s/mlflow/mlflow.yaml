@@ -59,10 +59,13 @@ spec:
             # B100 P4: the AI Gateway's backend deps (`mlflow[gateway]`: tiktoken/slowapi/watchfiles), litellm and the
             # psycopg2/boto3 drivers are in the image (B227) — this command installs NOTHING. To change a package or
             # the mlflow version, edit services/weyland-mlflow/requirements.txt (+ its base tag), never this command.
+            # `postgresql+psycopg2://`, never a bare `postgresql://` (2026-10-24): SQLAlchemy 2.1 (mlflow 3.17's base)
+            # maps the bare scheme to the psycopg v3 driver, which the image does not have, so the server would not start.
+            # scripts/mlflow-upgrade-drill.sh caught it on a restored copy and reads this scheme from here.
             - >
-              mlflow db upgrade "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow" &&
+              mlflow db upgrade "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow" &&
               mlflow server --host 0.0.0.0 --port 5000
-              --backend-store-uri "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"
+              --backend-store-uri "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"
               --artifacts-destination s3://mlflow/ --serve-artifacts
               --allowed-hosts '*' --cors-allowed-origins '*' --workers 1
           ports:

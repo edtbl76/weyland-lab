@@ -1,0 +1,5 @@
+# docs-site build (k8s/docs-site/docs-site.yaml, the init container on squidfunk/mkdocs-material:9) — what it adds over
+# that image, PINNED (B227 follow-on, 2026-10-24). It used to `pip install mkdocs-likec4` unpinned on every pod start;
+# these are the versions that build installed on 2026-10-24 (its log). mkdocs itself comes from the base image.
+mkdocs-likec4==1.2.2
+pyjson5==2.0.1

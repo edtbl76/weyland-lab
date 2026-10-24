@@ -5,7 +5,7 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 certifi==2026.10.19
 charset-normalizer==3.5.2
-filelock==3.32.3
+filelock==4.2.1
 flatbuffers==25.12.19
 fsspec==2026.7.0
 hf-xet==1.7.0

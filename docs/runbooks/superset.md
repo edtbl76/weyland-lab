@@ -54,7 +54,7 @@ argocd app sync superset --core
 
 ## Gotchas (every one cost a cycle)
 
-1. **`psycopg2` not in image** — `bootstrapScript` installs `psycopg2-binary trino authlib` via `pip install --target /app/.venv/lib/python3.10/site-packages`. Uses system `pip` (venv has no pip), `--target` redirects into the venv's site-packages.
+1. **`psycopg2` not in image** — the upstream 6.1.0 image lacks it. Until 2026-10-24 `bootstrapScript` pip-installed `psycopg2-binary trino authlib clickhouse-connect` unpinned into the venv on every start; they are now BAKED INTO `weyland-superset` (§ The image below), and the bootstrap installs nothing.
 
 2. **`SUPERSET_SECRET_KEY` KeyError** — the secret must exist AND contain `SUPERSET_SECRET_KEY` before the pod starts. Chart generates `superset-env` from `supersetNode.connections`; `SUPERSET_SECRET_KEY` goes in `extraSecretEnv` so the chart includes it.
 
@@ -66,11 +66,34 @@ argocd app sync superset --core
 
 6. **Argo stuck sync** — if Argo shows "waiting for healthy state of Deployment/superset" and won't clear: `argocd app terminate-op superset --core` then `argocd app sync superset --core`. The Recreate strategy means the old pod must die before the new one starts — `terminate-op` clears the wedged operation so the sync can proceed.
 
-7. **Bootstrap installs into wrong Python** — early attempts used `/app/.venv/bin/pip` (venv has no pip) or `python3 -m pip` (venv python3 has no pip module). Only the system `pip` binary works; `--target` redirects the install into the venv's site-packages directory.
+7. **Bootstrap installs into wrong Python** (history: the bootstrap no longer installs; the image build uses the same system `pip` + `--target`) — early attempts used `/app/.venv/bin/pip` (venv has no pip) or `python3 -m pip` (venv python3 has no pip module). Only the system `pip` binary works; `--target` redirects the install into the venv's site-packages directory.
 
 8. **DataHub secrets wiped on GMS restart** — `OIDC_CLIENT_SECRET` is stored in the `superset-env` k8s Secret (safe). But DataHub Secrets (for ingestion recipes) are lost on GMS pod restart — re-enter them in DataHub UI → Settings → Secrets after any GMS restart.
 
 ---
+
+## The image — `weyland-superset` (B227 follow-on, 2026-10-24)
+
+`k8s/superset/image/` builds `FROM apachesuperset.docker.scarf.sh/apache/superset:6.1.0@sha256:fb346452…` (the digest
+the pod ran) plus `requirements.txt`: the nine packages the old bootstrap had added (psycopg2-binary 2.9.13, trino
+0.340.0, clickhouse-connect 1.9.0, Authlib 1.8.0 and their five dependencies), installed `--no-deps` with the system
+`pip` and `--target` into the venv. Measured 2026-10-24 on the running pod: the old unpinned install had ALSO written
+newer metadata for 11 of the image's packages (cryptography 50.0.2, requests 2.34.2, urllib3 2.8.0, …) while Python kept
+importing the image's own code (cryptography 46.0.5, …), so a scanner reported versions that never ran. The image
+reproduces what ran: the base unchanged (no duplicate `dist-info`), every requirement of the nine met by the base, the
+`postgresql` / `trino` / `clickhousedb` dialects load. Hand-tagged like `weyland-jupyter` (the chart takes `image.repository`
+and `image.tag` separately, which the CI bump PR cannot rewrite); `images.tsv` notes it.
+
+Build and push a new tag on rogueone (list the tags first and take the next FREE `vN`:
+`curl -s https://registry.weyland.lab/v2/weyland-superset/tags/list`):
+
+[rogueone]
+```
+docker build -t registry.weyland.lab/weyland-superset:<tag> /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/superset/image && bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/weyland-superset:<tag>
+```
+Then set `image.tag` in `superset-values.yaml` and push. **Order matters:** the tag must be in the registry BEFORE
+the values change reaches Argo (Recreate: a missing tag leaves Superset down in ImagePullBackOff). Roll back by
+reverting the values commit; the drivers are the same versions, so nothing about the metadata DB changes.
 
 ## Database connections (Superset → sources)
 

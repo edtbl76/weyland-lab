@@ -27,9 +27,9 @@ docstring_parser==0.18.0
 email-validator==2.3.0
 exceptiongroup==1.3.1
 fastapi==0.139.2
-fastmcp==3.4.5
-fastmcp-slim==3.4.5
-filelock==4.2.0
+fastmcp==3.4.10
+fastmcp-slim==3.4.10
+filelock==4.2.1
 flatbuffers==25.12.19
 fsspec==2026.9.0
 gitdb==4.0.12
@@ -75,6 +75,10 @@ openapi-pydantic==0.6.0
 opentelemetry-api==1.45.1
 opentelemetry-exporter-otlp-proto-common==1.45.1
 opentelemetry-exporter-otlp-proto-http==1.45.1
+# 2026-10-24 (B227 follow-on): the exporter's two new dependencies were unpinned, so each rebuild took the newest;
+# pinned at what the running pods have.
+opentelemetry-exporter-http-transport==0.66b1
+opentelemetry-exporter-otlp-common==0.66b1
 opentelemetry-instrumentation==0.66b1
 opentelemetry-instrumentation-asgi==0.66b1
 opentelemetry-instrumentation-fastapi==0.66b1

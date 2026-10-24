@@ -50,7 +50,7 @@ spec:
               args:
                 - |
                   set -eu
-                  pip install --quiet pyyaml >/dev/null 2>&1
+                  pip install --quiet -r /opt/api-drift/requirements.txt --root-user-action=ignore --disable-pip-version-check   # pinned, embedded (B227 follow-on); errors still print
                   python /opt/api-drift/api_drift.py /opt/api-drift/apis.yaml /opt/api-drift
               env:
                 # B208: additive drift posts a warning ApiContractStale here (same Alertmanager v2 API as

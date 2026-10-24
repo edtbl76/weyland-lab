@@ -1,0 +1,12 @@
+# The Python test lane's own tooling (CI `test-python` in .woodpecker.yml AND the sonar-scan CronJob's coverage step,
+# k8s/sonarqube/sonar-scan.yaml) — FROZEN (B227 follow-on, 2026-10-24). Both used to `pip install pytest pytest-cov
+# prometheus_client` unpinned on every run. `pip freeze` of those three in python:3.12-slim, `pip check` clean. Each
+# service's own test deps come from its requirements-test.txt (scripts/run-lang-tests.sh installs those).
+coverage==7.17.0
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0
+prometheus_client==0.26.0
+Pygments==2.21.0
+pytest==9.1.1
+pytest-cov==7.1.0

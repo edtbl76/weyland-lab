@@ -3,7 +3,9 @@
 # no MinIO, no network), and asks it /health and the AI Gateway's endpoint list, which is read from that database.
 # Prints `upgrade: ok <seconds>` (or `upgrade: FAILED`), `health: <body>`, `endpoints: <n>`. Always signals done.
 set -u
-DB="postgresql://postgres@127.0.0.1:5432/mlflow"
+# The live command's scheme (the wrapper reads it from k8s/mlflow/mlflow.yaml), so the driver choice is production's.
+DB="${MLFLOW_DRILL_DB_SCHEME:?the wrapper passes the live URI scheme}://postgres@127.0.0.1:5432/mlflow"
+echo "connect scheme: ${MLFLOW_DRILL_DB_SCHEME}"
 i=0
 while [ ! -f /shared/ready ] && [ "$i" -lt 1200 ]; do sleep 1; i=$((i + 1)); done
 [ -f /shared/ready ] || { echo "upgrade: FAILED (the restore never finished)"; touch /shared/done; exit 1; }

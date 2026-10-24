@@ -62,7 +62,7 @@ spec:
                 - -c
                 - |
                   set -u
-                  pip install --quiet --no-cache-dir pytest pytest-cov prometheus_client || \
+                  pip install --quiet --no-cache-dir -r scripts/ci/requirements-lang-tests.txt || \
                     { echo "!! pip install failed — coverage skipped, scan proceeds at honest 0%"; exit 0; }
                   bash scripts/run-lang-tests.sh python || echo "!! run-lang-tests python non-zero (coverage best-effort)"
                   bash scripts/coverage-ratchet.sh run python || echo "!! coverage-ratchet python non-zero (coverage.xml still emitted where tests ran)"

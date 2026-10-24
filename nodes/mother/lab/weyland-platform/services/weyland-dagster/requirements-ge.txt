@@ -103,7 +103,7 @@ ruamel.yaml==0.17.40
 ruamel.yaml.clib==0.2.15
 scipy==1.17.1
 Send2Trash==2.1.0
-setuptools==79.0.1
+setuptools==84.2.1   # 2026-10-24 (B227 follow-on): advisory fixes (PYSEC-2026-3447 <83, GHSA-xmj3-9gf7-h52w <84.1.0). 82+ removes pkg_resources: GE imports it only in its CLI (cli/util.py), which ge_validate.py never loads (checked: neither module in sys.modules after its imports + a context)
 six==1.17.0
 soupsieve==3.0.3
 SQLAlchemy==1.4.54

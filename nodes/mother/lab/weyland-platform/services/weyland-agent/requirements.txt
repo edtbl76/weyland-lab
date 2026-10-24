@@ -34,7 +34,7 @@ dirtyjson==1.0.8
 distro==1.9.0
 docker==7.2.0
 fastapi==0.141.1
-filelock==3.32.6
+filelock==4.2.1
 filetype==1.2.0
 Flask==3.1.3
 flask-cors==6.0.5
@@ -93,22 +93,26 @@ Mako==1.4.2   # 1.4.1 in v8: PYSEC-2026-4243
 MarkupSafe==3.0.3
 marshmallow==3.26.2
 matplotlib==3.11.2
-mlflow==3.16.0
-mlflow-skinny==3.16.0
-mlflow-tracing==3.16.0
+mlflow==3.17.2
+mlflow-skinny==3.17.2
+mlflow-tracing==3.17.2
 multidict==6.9.1   # 6.8.0 in v8: PYSEC-2026-4244
 mypy_extensions==1.1.0
 narwhals==2.26.0
 neo4j==6.3.0
 nest-asyncio==1.6.0
 networkx==3.6.1
-nltk==3.10.3
+nltk==3.10.4
 numpy==2.5.3
 onnxruntime==1.30.0
 openai==3.13.0
 opentelemetry-api==1.45.1
 opentelemetry-exporter-otlp-proto-common==1.45.1
 opentelemetry-exporter-otlp-proto-http==1.45.1
+# 2026-10-24 (B227 follow-on): the exporter's two new dependencies were unpinned, so each rebuild took the newest;
+# pinned at what the running pods have.
+opentelemetry-exporter-http-transport==0.66b1
+opentelemetry-exporter-otlp-common==0.66b1
 opentelemetry-proto==1.45.1
 opentelemetry-sdk==1.45.1
 opentelemetry-semantic-conventions==0.66b1

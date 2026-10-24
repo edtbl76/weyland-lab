@@ -32,7 +32,7 @@ pytz==2026.5
 requests==2.34.2
 ruamel.yaml==0.17.40
 ruamel.yaml.clib==0.2.15
-setuptools==79.0.1
+setuptools==84.2.1   # 2026-10-24 (B227 follow-on): advisory fixes (PYSEC-2026-3447, GHSA-xmj3-9gf7-h52w); the soda CLI runs and nothing soda-core ships imports pkg_resources (82+ removes it)
 six==1.17.0
 soda-core==3.5.6
 soda-core-trino==3.5.6

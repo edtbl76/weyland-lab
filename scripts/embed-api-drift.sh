@@ -19,6 +19,7 @@ files = [
     ("api_spec_diff.py", f"{root}/scripts/lib/api_spec_diff.py"),
     ("api_drift.py", f"{root}/scripts/lib/api_drift.py"),
     ("apis.yaml", f"{root}/nodes/mother/lab/weyland-platform/services/weyland-dagster/weyland_pipeline/apis.yaml"),
+    ("requirements.txt", f"{root}/scripts/lib/api-drift-requirements.txt"),   # the runner's pinned pyyaml (B227)
 ]
 for spec in sorted(glob.glob(f"{root}/docs/api/specs/*.json")):
     files.append((os.path.basename(spec), spec))

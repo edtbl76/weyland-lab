@@ -32,8 +32,9 @@ the structural C4 views.
 
 **In-page embeds — `mkdocs-likec4`**
 - `mkdocs-site.yml` has `- likec4` in plugins; the `docs-site` initContainer installs `nodejs npm`, `npm i -g
-  likec4`, and `pip install mkdocs-likec4` before `mkdocs build`. The plugin shells out to the likec4 CLI to
-  render each embedded view to an interactive web component at build time.
+  likec4@1.60.0`, and the plugin from the pinned `k8s/docs-site/requirements.txt` (`mkdocs-likec4==1.2.2`, B227
+  follow-on, 2026-10-24) before `mkdocs build`. The plugin shells out to the likec4 CLI to render each embedded view
+  to an interactive web component at build time.
 - Embed a view in any docs page (the **view-id goes in the BODY**, gotcha 1):
   ````
   ```likec4-view
@@ -67,8 +68,10 @@ the structural C4 views.
    — no bare ids from the model root.
 5. **Dense planes need sub-zones.** A `view of X { include * }` over 30 flat components is unreadable even
    interactively; nest into sub-zones so the plane view shows ~6 boxes to drill into.
-6. **Build reproducibility:** `npm i -g likec4` is unpinned for now (pin a version later); the standalone tar/CLI
-   run on Alpine (node:22-alpine) fine.
+6. **Build reproducibility:** `likec4` is PINNED in both builds since 2026-10-24 (it was unpinned until then), each at
+   the version its last build actually ran: the explorer (`k8s/likec4/likec4.yaml`) 1.59.4, docs-site 1.60.0. Align
+   them deliberately (one change, both rebuilt), never by a silent re-resolve. The standalone tar/CLI run on Alpine
+   (node:22-alpine) fine.
 7. **GitOps:** model lives in the repo the builds clone; a model change is live only after **push + rollout** of
    both `likec4` and `docs-site` (a manifest-only Argo sync won't rebuild the SPA if the pod template is unchanged).
 

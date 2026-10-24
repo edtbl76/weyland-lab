@@ -114,7 +114,13 @@ a trace pins the prompt version that produced each answer. Registered prompts (`
   tables (runs, experiments, registry, endpoints, secrets, guardrails, budgets, …) before and after, then starts the
   upgraded server on the copy and asks `/health` and the gateway endpoint list. Exit 0 PASS · 1 a named problem
   (upgrade failed, a count moved, a table missing, no endpoints) · 2 it could not run. Nothing reaches the live
-  database. Tests: `scripts/tests/mlflow-upgrade-drill.bats`.
+  database. Tests: `scripts/tests/mlflow-upgrade-drill.bats`. The drill connects with the LIVE command's URI scheme,
+  read from `k8s/mlflow/mlflow.yaml`, so a driver choice that would break production breaks the drill too.
+  **First real run (2026-10-24, 3.16.1 → 3.17.2): it caught an outage.** 3.17.2's base ships SQLAlchemy 2.1, which maps
+  a bare `postgresql://` to the psycopg v3 driver; the image has psycopg2, so `db upgrade` failed and the server would
+  not have started. The manifest now says `postgresql+psycopg2://` (works on SQLAlchemy 2.0 and 2.1), and the re-run
+  PASSED: `b7e2c1a4d9f3 -> dc11669786a5 in 50 s`, all 10 counts unchanged, the upgraded server answering with 18
+  gateway endpoints. Expect that one-time ~50 s at the first start of a new version.
 - **Upgrades migrate the DB schema — roll back by RESTORE, not by image tag (B215, 2026-10-17).** The server runs
   `mlflow db upgrade` on start, so a 3.16.1 → 3.15.1 image revert would meet a newer schema. Before any MLflow bump,
   confirm the core Postgres dump from the night before contains the `mlflow` database

@@ -1,0 +1,4 @@
+# api-drift CronJob (k8s/monitoring/api-drift.yaml) — its one dependency, PINNED (B227 follow-on, 2026-10-24). Embedded
+# into the api-drift-logic ConfigMap by scripts/embed-api-drift.sh and installed with `pip install -r`. Same pin as
+# scripts/requirements-test.txt. PyYAML has no dependencies of its own.
+PyYAML==6.0.3

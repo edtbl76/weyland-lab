@@ -78,7 +78,7 @@ expandvars==1.1.2
 fastapi==0.139.2
 fastavro==1.12.2
 feast==0.64.0
-filelock==3.30.3
+filelock==4.2.1
 flatbuffers==25.12.19
 frozenlist==1.8.0
 fsspec==2026.6.0
@@ -175,6 +175,10 @@ opentelemetry-proto==1.45.1
 opentelemetry-sdk==1.45.1
 opentelemetry-semantic-conventions==0.66b1
 opentelemetry-exporter-otlp-proto-http==1.45.1   # B49(b) Phase 2 — app-level spans → Tempo OTLP
+# 2026-10-24 (B227 follow-on): the exporter's two new dependencies were unpinned, so each rebuild took the newest; pinned
+# at what the running image (git-2fabff2a) has.
+opentelemetry-exporter-http-transport==0.66b1
+opentelemetry-exporter-otlp-common==0.66b1
 orderly-set==5.5.0
 orjson==3.11.9
 overrides==7.7.0

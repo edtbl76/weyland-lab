@@ -100,6 +100,22 @@ PY
   [ "$status" -eq 2 ]
 }
 
+# B227 follow-on (2026-10-24): the CronJob pip-installed pyyaml unpinned on every run, invisible to every scanner. It
+# now installs a pinned file embedded in the same ConfigMap, so the run and the repo agree on the version.
+@test "the CronJob installs pyyaml from the embedded pinned file, never by name" {
+  cm="$REPO_ROOT/nodes/mother/lab/weyland-platform/k8s/monitoring/api-drift-configmap.yaml"
+  job="$REPO_ROOT/nodes/mother/lab/weyland-platform/k8s/monitoring/api-drift.yaml"
+  awk -v key="  requirements.txt: |" '
+    $0 == key { grab=1; next }
+    grab && /^  [A-Za-z0-9._-]+: \|/ { grab=0 }
+    grab { sub(/^    /, ""); print }
+  ' "$cm" > "$BATS_TEST_TMPDIR/req.txt"
+  diff "$REPO_ROOT/scripts/lib/api-drift-requirements.txt" "$BATS_TEST_TMPDIR/req.txt"
+  grep -qE '^[Pp]y[Yy][Aa][Mm][Ll]==[0-9.]+$' "$BATS_TEST_TMPDIR/req.txt"
+  grep -q 'pip install --quiet -r /opt/api-drift/requirements.txt' "$job"
+  ! grep -qE 'pip install [^-]*pyyaml' "$job"
+}
+
 @test "the embedded ConfigMap copies are byte-identical to the repo engine + runner" {
   cm="$REPO_ROOT/nodes/mother/lab/weyland-platform/k8s/monitoring/api-drift-configmap.yaml"
   [ -f "$cm" ]

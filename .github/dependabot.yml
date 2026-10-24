@@ -112,6 +112,36 @@ updates:
         applies-to: security-updates
         patterns: ["*"]
 
+  # B227 follow-on (2026-10-24) — three new frozen lockfiles that replaced start-up `pip install`s: Superset's drivers
+  # (k8s/superset/image, a hand-tagged image: a merged bump needs a rebuild + push, runbooks/superset.md), the docs-site
+  # build's plugin (k8s/docs-site), and the Python test lane's tooling shared by CI and sonar-scan (scripts/ci).
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/k8s/superset/image"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/nodes/mother/lab/weyland-platform/k8s/docs-site"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/scripts/ci"
+    schedule: { interval: "weekly", day: "sunday", time: "09:00" }
+    open-pull-requests-limit: 0
+    groups:
+      security-and-patches:
+        applies-to: security-updates
+        patterns: ["*"]
+
   # B227 (2026-10-24) — MLflow's frozen lockfile (the pod's full `pip freeze`). Security updates only, like the rest; an
   # mlflow / mlflow-skinny / mlflow-tracing bump is NEVER a routine merge: its DB migrations are forward-only.
   - package-ecosystem: "pip"

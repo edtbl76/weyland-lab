@@ -378,7 +378,7 @@ steps:
     when: &skip_on_smoke [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
     image: python:3.12-slim
     commands:
-      - pip install --quiet --no-cache-dir pytest pytest-cov prometheus_client
+      - pip install --quiet --no-cache-dir -r scripts/ci/requirements-lang-tests.txt   # frozen tooling (B227 follow-on)
       - bash scripts/run-lang-tests.sh python --self-check
       - bash scripts/run-lang-tests.sh python
       # B88 gap #1 — coverage RATCHET: fails ONLY if a project's coverage drops vs the committed
