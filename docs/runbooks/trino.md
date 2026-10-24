@@ -27,9 +27,9 @@ Since B233 (2026-10-23) Trino authenticates: every caller logs in with its own p
   `&user=emangini&password=…` in the URL, because the data-source dialog took no keyboard input; with No auth IntelliJ
   passes no separate credentials, so the driver's "password is both in the URL and an argument" error cannot occur.
   The JDBC driver refuses a password over plain HTTP ("TLS/SSL is required"); the old plain-HTTP `:30808` NodePort
-  was removed in stage 3. Admitted for rogueone only (`netpol-trino.yaml`). NodePorts only, never a port-forward — IntelliJ's
-  own Kubernetes port-forward is off on every data source (it was on for 10; switched to the `-lan` NodePorts
-  2026-10-23).
+  was removed in stage 3. Admitted for rogueone only (`netpol-trino.yaml`). The Trino data source uses the NodePort.
+  An IntelliJ data source's own Kubernetes connection is also allowed (AGENTS.md's one exception), but for Trino it
+  would land on plain-HTTP 8080, which since stage 3 refuses everything except the UI path — so Trino is the NodePort.
 - **Web UI:** `https://trino.weyland.lab` (forward-auth → Keycloak). Trino's own UI login is off: the UI runs as the
   fixed identity `trino-ui` (`web-ui.authentication.type=fixed`), because Keycloak already gates the page to the owner
   (owner decision, 2026-10-23). It's a **monitoring console** (running queries, timings, cluster), NOT a query editor —
