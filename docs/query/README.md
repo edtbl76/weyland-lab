@@ -31,7 +31,7 @@ syntax demos.
 [../hosts.md](../hosts.md). From rogueone (IntelliJ/DataGrip, scripts) use the store's `-lan` NodePort on
 `192.168.1.243` — the lab never port-forwards — or in-pod via
 `kubectl -n data-mesh exec deploy/<store> -- <client>`. **Cassandra, MongoDB and CockroachDB are parked (`replicas: 0`) by default** (B199): wake one with
-`bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake <store>`, push, `store-park.sh wait <store>`, and park it again when done.
+`bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh up <store>` (one command: commit, push, wait until Ready), and park it again with `down <store>` when done.
 
 **Schemas drift** — datasets get reloaded and columns can change. When a query references a column that isn't
 there, introspect first (each file opens with a "list tables/columns" query) and adapt. Treat these as

@@ -22,12 +22,11 @@ runs. To use a parked store, wake it **on rogueone** (it is a git change, so it 
 
 ```
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh status          # what is parked now
-bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake cassandra  # then push the file it names
-bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wait cassandra  # blocks until Ready
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh up cassandra    # commit + push + wait until Ready
 ```
 
-Then re-run the section. **Park it again when you are done** (`... park cassandra`, push, `... wait cassandra`): the
-node runs near its memory ceiling. The Port "Scale data-mesh store" button and a live `kubectl scale` do not stick,
+Then re-run the section. **Park it again when you are done** (`... down cassandra`, the same one command): the
+node runs near its memory ceiling. `up`/`down` commit and push, so the owner runs them. The Port "Scale data-mesh store" button and a live `kubectl scale` do not stick,
 because Argo reverts them within ~3 minutes; git is the only switch. Runbook: `docs/runbooks/node-capacity.md`
 § *Parked stores*.
 

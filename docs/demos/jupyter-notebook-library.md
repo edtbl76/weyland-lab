@@ -33,7 +33,7 @@ and that IS the test (DoD). Distribution is git-sync on spawn, not an image rebu
    `41_semantic_cube` and Run All.
    **UAT — confirm:** all three run clean. Notebook 22 prints **`PARKED`** for Cassandra, CockroachDB and MongoDB (parked
    by default since B199) with the commands to wake them, and skips their cells; that is the expected result, not a
-   failure. To see a store's cells run, wake it first (`scripts/store-park.sh wake <store>`, push, `wait`). These are the mesh-join proof: GizmoSQL (nb 21), MySQL (nb 22),
+   failure. To see a store's cells run, wake it first (`scripts/store-park.sh up <store>`: commit, push, wait in one command; B232). These are the mesh-join proof: GizmoSQL (nb 21), MySQL (nb 22),
    and Cube (nb 41) are reached over mTLS, which only works because the singleuser pod carries the
    `istio-proxy` sidecar (`extraLabels` → `sidecar.istio.io/inject: "true"`). If any of the three hangs, the
    sidecar did not inject — re-check the runbook §5.1 sidecar box.

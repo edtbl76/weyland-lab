@@ -71,8 +71,8 @@ stick**: the `data-mesh` Argo app (`selfHeal: true`) sees `replicas: 0` diverge 
 `replicas: 1` and reverts it within ~3 min. Scaler and Argo fight; Argo wins.
 
 **Since B199 (2026-10-01) the wake half fails the same way for `cockroachdb` and `mongodb`:** their manifests are parked
-at `replicas: 0`, so a Port **wake** is reverted to 0 within ~3 min. Wake a parked store with `scripts/store-park.sh wake
-<store>` (it edits git, then push) instead. The button still works for `mysql` and `gizmosql`. B232 redesigns this path.
+at `replicas: 0`, so a Port **wake** is reverted to 0 within ~3 min. Wake a parked store with `scripts/store-park.sh up
+<store>` instead (one command: it commits the replica line, pushes and waits; B232). The button still works for `mysql` and `gizmosql`.
 
 The standard fix is `ignoreDifferences` on `/spec/replicas` (+ `RespectIgnoreDifferences=true`) for the four
 idle stores on the `data-mesh` Application — cede that one field to the scaler. It was written then **reverted**

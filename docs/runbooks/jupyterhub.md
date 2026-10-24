@@ -177,9 +177,10 @@ the stack-layer set runs against the live mesh. Validate by `jupyter nbconvert -
 - **`22_query_tier2_native` and the PARKED stores (B225, 2026-10-20).** Cassandra, MongoDB and CockroachDB are parked
   by default (B199). Their sections now probe the store first, at the protocol level: CQL connect, Mongo `ping`, SQL
   connect, never bare TCP, because the pod's sidecar accepts TCP to a meshed store even with nothing behind it. A
-  parked store prints `PARKED (or down)` with the exact `scripts/store-park.sh wake|wait|park` commands and is
+  parked store prints `PARKED (or down)` with the exact `scripts/store-park.sh up|down` commands and is
   skipped, so the notebook runs clean (headless exit 0) with them parked. Wake one on rogueone before running it
-  against that store (`node-capacity.md` § Parked stores); park it again after. The always-on stores (ClickHouse,
+  against that store: `bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh up <store>` (one command:
+  commit, push, wait; B232, `node-capacity.md` § Parked stores); park it again after with `down <store>`. The always-on stores (ClickHouse,
   TimescaleDB, MySQL) are not wrapped, so an outage there still fails. **In the § 5 UAT, a PARKED line for these
   three is the expected result, not a failure.**
 - **`22_query_tier2_native` (2026-09-01, validated live, headless-execute clean) — completes the query wave:** the

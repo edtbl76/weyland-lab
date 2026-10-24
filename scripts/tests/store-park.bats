@@ -19,7 +19,7 @@ STUB
   export STORE_PARK_DATAHUB_CMD="$T/dh" DH_LOG="$T/dh.log"; : > "$T/dh.log"
   S="${BATS_TEST_DIRNAME}/../store-park.sh"
 }
-teardown() { rm -rf "$T"; }
+teardown() { rm -rf "$T" "$T.origin" "$T.other"; }
 
 replicas_of() {  # replicas_of <store> -> the replica count git sets
   case "$1" in
@@ -158,4 +158,165 @@ STUB
   [ "$status" -eq 0 ]
   [[ "$output" == *"cockroachdb"*"datahub=paused"* ]]
   [[ "$output" == *"superset-worker"*"datahub=-"* ]]
+}
+
+# --- up / down (B232): edit + commit ONLY the manifest + push + DataHub + wait, in one command ---------------------------
+# These run REAL git (the manifest copies become a repo with a bare origin), not a git stub: the contract under test is
+# git's — what `commit -- <path>` leaves staged, what a rejected push prints. kubectl is a stub reporting $KSTATE.
+
+git_repo() {  # make $T a clone of a bare origin, everything committed and pushed, plus a kubectl stub
+  export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+  git init -q --bare -b main "$T.origin"
+  git -C "$T" init -q -b main
+  git -C "$T" remote add origin "$T.origin"
+  printf 'dh\ndh.log\nbin/\nn\n' > "$T/.gitignore"
+  git -C "$T" add -A && git -C "$T" commit -q -m init && git -C "$T" push -q origin main
+  mkdir -p "$T/bin"
+  printf '#!/usr/bin/env bash\nprintf %%s "${KSTATE:-1/1}"\n' > "$T/bin/kubectl"; chmod +x "$T/bin/kubectl"
+  export PATH="$T/bin:$PATH" STORE_PARK_POLL=0; unset STORE_PARK_NO_KUBECTL
+}
+commits() { git -C "$T" rev-list --count HEAD; }
+pushed() { git -C "$T.origin" rev-list --count main; }
+
+@test "up commits exactly the one manifest, pushes it, and reports Ready" {
+  git_repo
+  run bash "$S" up cockroachdb
+  [ "$status" -eq 0 ]
+  [ "$(git -C "$T" show --name-only --format= HEAD)" = "data-mesh/cockroachdb.yaml" ]
+  [ "$(git -C "$T" log -1 --format=%s)" = "store-park: up cockroachdb (replicas 1)" ]
+  [ "$(git -C "$T" rev-parse HEAD)" = "$(git -C "$T.origin" rev-parse main)" ]   # it is on origin, not just local
+  [ "$(replicas_of cockroachdb)" = 1 ]
+  [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
+}
+
+@test "down commits replicas 0, pushes, pauses DataHub, and waits until parked" {
+  git_repo
+  KSTATE=1/1 bash "$S" up mongodb >/dev/null; : > "$DH_LOG"
+  run env KSTATE=0/ bash "$S" down mongodb
+  [ "$status" -eq 0 ]
+  [ "$(git -C "$T" log -1 --format=%s)" = "store-park: down mongodb (replicas 0)" ]
+  [ "$(pushed)" = 3 ]
+  grep -qx "pause MongoDB - Weyland" "$DH_LOG"
+  [[ "$output" == *"mongodb: parked (0/0)"* ]]
+}
+
+@test "up resumes the store's exact DataHub schedule" {
+  git_repo
+  run bash "$S" up cassandra
+  [ "$status" -eq 0 ]
+  grep -qx "resume Cassandra - Weyland 15 4 \* \* 0 America/New_York" "$DH_LOG"
+}
+
+@test "up leaves the owner's other uncommitted and staged work untouched and uncommitted" {
+  git_repo
+  echo "# owner edit" >> "$T/superset/superset-values.yaml"
+  echo new > "$T/staged.txt"; git -C "$T" add staged.txt
+  run bash "$S" up cockroachdb
+  [ "$status" -eq 0 ]
+  [ "$(git -C "$T" show --name-only --format= HEAD)" = "data-mesh/cockroachdb.yaml" ]
+  git -C "$T" diff --name-only | grep -qx "superset/superset-values.yaml"       # still modified, not committed
+  git -C "$T" diff --cached --name-only | grep -qx "staged.txt"                 # still staged, not committed
+}
+
+@test "up all is ONE commit holding every manifest, and warns about the memory first" {
+  git_repo
+  run bash "$S" up all
+  [ "$status" -eq 0 ]
+  [ "$(commits)" = 2 ]
+  [ "$(git -C "$T" show --name-only --format= HEAD | sort | tr '\n' ' ')" = "data-mesh/cassandra.yaml data-mesh/cockroachdb.yaml data-mesh/mongodb.yaml superset/superset-values.yaml " ]
+  [[ "$output" == *"waking 4 stores at once"* ]]
+}
+
+@test "up refuses (exit 2, nothing committed) when the manifest already has uncommitted changes" {
+  git_repo
+  echo "# stray" >> "$T/data-mesh/cockroachdb.yaml"
+  run bash "$S" up cockroachdb
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"uncommitted changes"*"cockroachdb.yaml"* ]]
+  [ "$(commits)" = 1 ]
+  [ "$(replicas_of cockroachdb)" = 0 ]                                          # refused BEFORE editing
+}
+
+@test "up refuses (exit 2, nothing committed) when the branch is not main" {
+  git_repo
+  git -C "$T" checkout -q -b feature
+  run bash "$S" up cockroachdb
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"not main"*"feature"* ]]
+  [ "$(commits)" = 1 ]
+}
+
+@test "up refuses (exit 2, nothing committed) when main is behind origin/main" {
+  git_repo
+  git clone -q "$T.origin" "$T.other"
+  git -C "$T.other" commit -q --allow-empty -m elsewhere && git -C "$T.other" push -q origin main
+  run bash "$S" up cockroachdb
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"behind origin/main"* ]]
+  [ "$(commits)" = 1 ]
+  [ "$(replicas_of cockroachdb)" = 0 ]
+}
+
+@test "up refuses (exit 2) when main is AHEAD of origin/main — its push would publish the owner's commits" {
+  git_repo
+  git -C "$T" commit -q --allow-empty -m "owner's unpushed work"
+  run bash "$S" up cockroachdb
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"ahead of origin/main"* ]]
+  [ "$(pushed)" = 1 ]
+}
+
+@test "up refuses (exit 2) when it cannot fetch origin, never assumes it is up to date" {
+  git_repo
+  git -C "$T" remote set-url origin "$T.nowhere"
+  run bash "$S" up cockroachdb
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"cannot fetch"* ]]
+  [ "$(replicas_of cockroachdb)" = 0 ]
+}
+
+@test "a rejected push exits 2 with git's reason and says the commit is local only" {
+  git_repo
+  printf '#!/bin/sh\necho "denied by test hook" >&2\nexit 1\n' > "$T.origin/hooks/pre-receive"
+  chmod +x "$T.origin/hooks/pre-receive"
+  run bash "$S" up cockroachdb
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"push failed"* && "$output" == *"denied by test hook"* ]]
+  [[ "$output" == *"NOT pushed"* ]]
+  [ "$(pushed)" = 1 ]
+  [ ! -s "$DH_LOG" ]                                     # nothing after a failed push: no schedule change, no wait
+}
+
+@test "up on a store already awake in git commits and pushes nothing, then still waits" {
+  git_repo
+  bash "$S" up cockroachdb >/dev/null
+  run bash "$S" up cockroachdb
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"already awake"* ]]
+  [ "$(commits)" = 2 ] && [ "$(pushed)" = 2 ]
+  [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
+}
+
+@test "up exits 1 when the store is not Ready within the timeout, after the push" {
+  git_repo
+  run env KSTATE=1/ STORE_PARK_WAIT_TIMEOUT=0 bash "$S" up cockroachdb
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"NOT there yet"* ]]
+  [ "$(pushed)" = 2 ]                                    # the push happened; only Ready is missing
+}
+
+@test "up still waits, then exits 2, when the DataHub schedule could not be set" {
+  git_repo
+  run env DH_RC=2 bash "$S" up cockroachdb
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"schedule NOT changed"* ]]
+  [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
+  [ "$(pushed)" = 2 ]
+}
+
+@test "up with no store is refused with usage (exit 2)" {
+  git_repo
+  run bash "$S" up
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"usage: store-park.sh up <store|all>"* ]]   # the up-specific usage, not the catch-all
 }

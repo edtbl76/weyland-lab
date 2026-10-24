@@ -5,10 +5,18 @@
 # switch that sticks is the replica count committed to git. This script edits exactly that one line; you push it
 # (you handle all git), Argo applies it, and `wait` tells you when the store is really Ready.
 #
+#   store-park.sh up    <store|all>      # ONE command: replicas 1 + commit that file only + push + DataHub + wait
+#   store-park.sh down  <store|all>      # ONE command: replicas 0 + commit that file only + push + DataHub + wait
 #   store-park.sh status                 # each store: what git sets, and what is running
 #   store-park.sh wake  <store|all>      # set replicas 1 in git (then push)
 #   store-park.sh park  <store|all>      # set replicas 0 in git (then push)
 #   store-park.sh wait  <store|all>      # after the push: block until it is Ready (or the timeout)
+#
+# `up`/`down` (B232) commit and push, so THE OWNER RUNS THEM (the owner handles all git); an agent hands over the
+# command and never runs it. They commit ONLY the store manifests, by explicit path (never -a), with the fixed message
+# `store-park: <up|down> <stores> (replicas N)`, and refuse (exit 2, nothing edited or committed) unless the push would
+# carry that one commit alone: the branch is main, main is level with origin/main (neither behind nor ahead), and the
+# manifests have no uncommitted changes of their own. A rejected push exits 2 with git's reason; nothing is forced.
 #
 # Stores: cassandra mongodb cockroachdb superset-worker. Exit: 0 ok · 1 not Ready in time · 2 refused / cannot tell.
 # Undo the default parking when new hardware lands: B134 (EMA-195) § Undo on hardware.
@@ -93,6 +101,67 @@ live() {  # live <store> -> "desired/ready" from the cluster, or "?" when it can
     -o jsonpath='{.spec.replicas}/{.status.readyReplicas}' 2>/dev/null || echo "?"
 }
 
+# preflight <manifest...> — `up`/`down` push, so refuse (exit 2) unless that push would carry only their own commit.
+# Runs BEFORE any edit. Sets TOP to the work tree holding the manifests (the lab repo; a scratch repo under bats).
+preflight() {
+  local branch behind ahead f
+  TOP="$(git -C "$K" rev-parse --show-toplevel 2>/dev/null)" || die "refused: $K is not inside a git work tree"
+  branch="$(git -C "$TOP" symbolic-ref --short -q HEAD)" || branch="a detached HEAD"
+  [ "$branch" = main ] || die "refused: the branch is not main (it is $branch) — nothing edited or committed"
+  git -C "$TOP" fetch -q origin main 2>/dev/null \
+    || die "refused: cannot fetch origin main, so cannot tell whether main is up to date — nothing edited or committed"
+  if ! behind="$(git -C "$TOP" rev-list --count HEAD..origin/main)" || ! ahead="$(git -C "$TOP" rev-list --count origin/main..HEAD)"; then
+    die "refused: cannot compare main with origin/main — nothing edited or committed"
+  fi
+  [ "$behind" -eq 0 ] || die "refused: main is $behind commit(s) behind origin/main — git pull first; nothing edited or committed"
+  [ "$ahead" -eq 0 ] || die "refused: main is $ahead commit(s) ahead of origin/main — push or drop them first (this command's push would publish them too); nothing edited or committed"
+  for f in "$@"; do
+    [ -z "$(git -C "$TOP" status --porcelain -- "$f")" ] \
+      || die "refused: uncommitted changes of your own in ${f#"$TOP"/} — commit or revert them first; nothing edited or committed"
+  done
+}
+
+# set_schedules <0|1> <store...> — pause (0) or resume (1) each store's DataHub schedule; names the failures in DH_FAILED
+set_schedules() {
+  local want="$1" s n; shift
+  DH_FAILED=""
+  for s in "$@"; do
+    n="$(dh_name_of "$s")"; [ -n "$n" ] || continue
+    if [ "$want" = 0 ]; then datahub pause "$n" || DH_FAILED="$DH_FAILED $s"
+    else datahub resume "$n" "$(dh_cron_of "$s")" "$TZ_NY" || DH_FAILED="$DH_FAILED $s"; fi
+  done
+}
+
+# wait_for <store...> — block until the cluster runs what git sets for each; exit 1 at the timeout, 2 if it cannot ask
+wait_for() {
+  local s rl want n st desired ready hint deadline
+  if [ -n "${STORE_PARK_NO_KUBECTL:-}" ] || ! command -v kubectl >/dev/null; then
+    die "cannot ask the cluster (no kubectl) — not reporting Ready"
+  fi
+  deadline=$(( $(date +%s) + WAIT_TIMEOUT ))
+  for s in "$@"; do
+    rl="$(replica_line "$s")" || exit 2; read -r _ want <<<"$rl"
+    n=0
+    while :; do
+      st="$(live "$s")"; desired="${st%/*}"; ready="${st#*/}"; ready="${ready:-0}"
+      [ "$st" = "?" ] && die "$s: cannot read its state from the cluster — not reporting Ready"
+      if [ "$desired" = "$want" ] && [ "$ready" = "$want" ]; then
+        echo "$s: $( [ "$want" = 1 ] && echo "Ready (1/1)" || echo "parked (0/0)" )"; break
+      fi
+      n=$((n + 1))
+      if [ $((n % PROGRESS_EVERY)) -eq 1 ] || [ "$PROGRESS_EVERY" -eq 1 ]; then
+        hint=""; [ "$desired" != "$want" ] && hint=" — Argo has not applied the push yet (argocd app sync $(app_of "$s") to skip the ~3 min poll)"
+        echo "$s: waiting — git wants $want, cluster has desired=$desired ready=$ready$hint"
+      fi
+      if [ "$(date +%s)" -ge "$deadline" ]; then
+        echo "$s: NOT there yet — git wants $want, cluster has desired=$desired ready=$ready (pushed? Argo synced?)" >&2
+        exit 1
+      fi
+      sleep "$POLL"
+    done
+  done
+}
+
 cmd="${1:-}"; target="${2:-}"
 CHANGED=""
 case "$cmd" in
@@ -110,12 +179,8 @@ case "$cmd" in
     list="$(expand "$target")" || exit 2
     want=1; [ "$cmd" = park ] && want=0
     for s in $list; do set_replicas "$s" "$want"; done
-    dh_failed=""
-    for s in $list; do
-      n="$(dh_name_of "$s")"; [ -n "$n" ] || continue
-      if [ "$want" = 0 ]; then datahub pause "$n" || dh_failed="$dh_failed $s"
-      else datahub resume "$n" "$(dh_cron_of "$s")" "$TZ_NY" || dh_failed="$dh_failed $s"; fi
-    done
+    # shellcheck disable=SC2086  # the store list is fixed words, split on purpose
+    set_schedules "$want" $list; dh_failed="$DH_FAILED"
     if [ -n "$CHANGED" ]; then
       echo
       apps="$(for s in $list; do app_of "$s"; done | sort -u | tr '\n' ' ')"
@@ -130,31 +195,42 @@ case "$cmd" in
       echo "   the schedule (the git edit is then a no-op), or set it in the DataHub UI." >&2
       exit 2
     fi ;;
+  up|down)
+    [ -n "$target" ] || die "usage: store-park.sh $cmd <store|all>"
+    list="$(expand "$target")" || exit 2
+    want=1; [ "$cmd" = down ] && want=0
+    files=()
+    for s in $list; do replica_line "$s" >/dev/null || exit 2; files+=("$(file_of "$s")"); done
+    preflight "${files[@]}"
+    count="$(wc -w <<<"$list")"
+    if [ "$want" = 1 ] && [ "$count" -gt 1 ]; then
+      echo "!! waking $count stores at once — all four together need ~9 GB of mother's memory (runbooks/node-capacity.md)" >&2
+    fi
+    for s in $list; do set_replicas "$s" "$want"; done
+    if [ -n "$CHANGED" ]; then
+      msg="store-park: $cmd $list (replicas $want)"
+      # shellcheck disable=SC2086  # CHANGED is a list of manifest paths (no spaces), split on purpose
+      git -C "$TOP" commit -q -m "$msg" -- $CHANGED \
+        || die "commit failed — the replica edit is in the working tree, not committed; nothing pushed"
+      if ! out="$(git -C "$TOP" push -q origin main 2>&1)"; then
+        printf 'push failed: %s\n' "$out" >&2
+        echo "The commit \"$msg\" ($(git -C "$TOP" rev-parse --short HEAD)) is local only — NOT pushed. The DataHub" >&2
+        echo "schedule was not changed and nothing waited. Push it yourself (never forced), then re-run:" >&2
+        echo "  bash $REPO_ROOT/scripts/store-park.sh $cmd $target" >&2
+        exit 2
+      fi
+      echo "pushed: $msg"
+    fi
+    # shellcheck disable=SC2086  # the store list is fixed words, split on purpose
+    set_schedules "$want" $list
+    [ -n "$DH_FAILED" ] && echo "!! DataHub schedule NOT changed for:$DH_FAILED — the push IS done; re-run this command to retry the schedule, or set it in the DataHub UI." >&2
+    # shellcheck disable=SC2086
+    wait_for $list
+    [ -z "$DH_FAILED" ] || exit 2 ;;
   wait)
     [ -n "$target" ] || die "usage: store-park.sh wait <store|all>"
     list="$(expand "$target")" || exit 2
-    [ -z "${STORE_PARK_NO_KUBECTL:-}" ] && command -v kubectl >/dev/null || die "cannot ask the cluster (no kubectl) — not reporting Ready"
-    deadline=$(( $(date +%s) + WAIT_TIMEOUT ))
-    for s in $list; do
-      rl="$(replica_line "$s")" || exit 2; read -r _ want <<<"$rl"
-      n=0
-      while :; do
-        st="$(live "$s")"; desired="${st%/*}"; ready="${st#*/}"; ready="${ready:-0}"
-        [ "$st" = "?" ] && die "$s: cannot read its state from the cluster — not reporting Ready"
-        if [ "$desired" = "$want" ] && [ "$ready" = "$want" ]; then
-          echo "$s: $( [ "$want" = 1 ] && echo "Ready (1/1)" || echo "parked (0/0)" )"; break
-        fi
-        n=$((n + 1))
-        if [ $((n % PROGRESS_EVERY)) -eq 1 ] || [ "$PROGRESS_EVERY" -eq 1 ]; then
-          hint=""; [ "$desired" != "$want" ] && hint=" — Argo has not applied the push yet (argocd app sync $(app_of "$s") to skip the ~3 min poll)"
-          echo "$s: waiting — git wants $want, cluster has desired=$desired ready=$ready$hint"
-        fi
-        if [ "$(date +%s)" -ge "$deadline" ]; then
-          echo "$s: NOT there yet — git wants $want, cluster has desired=$desired ready=$ready (pushed? Argo synced?)" >&2
-          exit 1
-        fi
-        sleep "$POLL"
-      done
-    done ;;
-  *) die "usage: store-park.sh status | wake <store|all> | park <store|all> | wait <store|all>   (stores: $STORES)" ;;
+    # shellcheck disable=SC2086  # the store list is fixed words, split on purpose
+    wait_for $list ;;
+  *) die "usage: store-park.sh up <store|all> | down <store|all> | status | wake <store|all> | park <store|all> | wait <store|all>   (stores: $STORES)" ;;
 esac

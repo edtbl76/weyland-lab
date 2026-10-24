@@ -22,15 +22,14 @@ sequenceDiagram
     participant P as Prometheus rules
     participant TG as Telegram
     Note over SP,ST: Parked by default - frees about 9 GB (MemAvailable 2.7-6 to 12.0 GB)
-    O->>SP: wake cockroachdb (to hydrate or query it)
-    SP->>G: set replicas 1 (one line)
+    O->>SP: up cockroachdb (to hydrate or query it - one command, B232)
+    SP->>G: refuse unless on main, level with origin/main, manifest clean
+    SP->>G: set replicas 1, commit that one file, push
     SP->>DH: resume its schedule, read back, fingerprint unchanged
-    O->>G: push
     A->>ST: apply replicas 1 (a live kubectl scale would be reverted in about 3 min)
-    O->>SP: wait cockroachdb
     SP-->>O: Ready (1/1), exit 0, or exit 1 if not Ready in 10 min
     Note over P: its Down alert compares running to DESIRED, so a parked store stays silent
-    O->>SP: park cockroachdb, then push
+    O->>SP: down cockroachdb (commit, push, pause its schedule, wait until parked)
     SP->>DH: pause its schedule
     loop every scrape
         N->>P: memory stall pressure (PSI) and up

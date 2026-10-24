@@ -86,7 +86,7 @@ Behaviour is pinned by promtool unit tests on the real rule text (`scripts/tests
 `scripts/tests/fixtures/alert-rules/`), run in CI's shell-tests step (Alpine `prometheus` = promtool).
 
 **When `NodeMemoryThrashing` pages:** something just pushed mother over — check what started in the last minutes
-(a CI run, a CronJob, a woken store), and free memory: `bash scripts/store-park.sh park <store>` + push, or stop the job.
+(a CI run, a CronJob, a woken store), and free memory: `bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh down <store>`, or stop the job.
 **When `NodeFroze` pages:** a freeze already happened and recovered; look at MemAvailable and `pgmajfault` around it.
 
 **Night check (B199's 7-night acceptance)** — Grafana → Explore → Prometheus (agents: the Grafana MCP
@@ -135,31 +135,44 @@ not usage). Open: `LiteLLMEgressEnabled` / `BifrostSpendObserved` page every 4h 
 - **Dagster hydrates are on-demand only.** No schedule or sensor targets a `*_hydrate_job` (the nightly
   `*_land_schedule`s land data in the lake, not the stores). So a hydrate meets a parked store only when someone runs it,
   and the assets have no parked-store handling: that store's step fails on the connection. Wake the store first
-  (`scripts/store-park.sh wake <store>`, push, `wait`), and park it again after.
-- **Notebook 22** prints `PARKED` with the wake/wait/park commands and skips that store's cells (B225).
+  (`scripts/store-park.sh up <store>`), and park it again after (`down <store>`).
+- **Notebook 22** prints `PARKED` with the `up`/`down` commands and skips that store's cells (B225, B232).
 - **The query cookbooks, runbooks and demos** that name these stores carry a "parked by default: wake first" note
-  (2026-10-21); a Port "wake" of CockroachDB or MongoDB is reverted to 0 by `selfHeal` (B232 redesigns that path).
+  (2026-10-21); a Port "wake" of CockroachDB or MongoDB is reverted to 0 by `selfHeal`, so they point at `up` (B232).
 - **DataHub ingestion** for the three is PAUSED while parked (the watchdog lists them as `PARKED`).
 
 **ClickHouse is NOT parked** — Langfuse uses it as its live trace store (`k8s/langfuse/langfuse.yaml`).
 
-**Wake one** (e.g. to run a hydrate job or a notebook against it) — the script edits the one line in git; you push:
+**Wake one** (e.g. to run a hydrate job or a notebook against it) — ONE command (B232, 2026-10-24). It sets the
+replica line, commits ONLY that manifest (by explicit path, message `store-park: up cockroachdb (replicas 1)`), pushes,
+resumes the DataHub schedule and waits until the store is really Ready. **The owner runs it** (it does git); an agent
+hands over the command and never runs it:
 
 [rogueone]
 ```
-bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake cockroachdb
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh up cockroachdb
 ```
-Push the file it names, then wait until it is really Ready (exit 0 = Ready, 1 = not there within 10 min, 2 = could
-not ask the cluster):
+**Park it again** when you are done, the same way:
 
 [rogueone]
 ```
-bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wait cockroachdb
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh down cockroachdb
 ```
-`wake` and `park` also **resume / pause the store's DataHub ingestion schedule** in the same command (via
+Exit 0 = Ready (or parked), 1 = pushed but not there within 10 min, 2 = refused or could not tell. It **refuses**
+(exit 2, nothing edited or committed) when the branch is not `main`, when `main` is behind OR ahead of `origin/main`
+(its push must carry its own commit only, never your unpushed work), when it cannot fetch `origin`, or when the
+manifest has uncommitted changes of its own. Your other uncommitted or staged work is left alone. A rejected push exits
+2 with git's reason and leaves the commit local (never rebased, never forced); push it yourself and re-run. `up all`
+is one commit for all four and warns first (~9 GB together). Argo applies the push within ~3 min; `argocd app sync
+data-mesh` (or `superset`) skips that poll while `up` waits.
+
+The manual steps stay for an agent's hand-off or a partial run: `wake` / `park` edit the line only (you push), and
+`wait` blocks until the cluster matches git (exit 0 / 1 / 2 as above).
+
+`up`/`down` and `wake`/`park` also **resume / pause the store's DataHub ingestion schedule** in the same command (via
 `scripts/datahub_schedule.py`: GMS through the `datahub-gms-lan` NodePort `192.168.1.243:30818` and the token from the cluster Secret
 `weyland/datahub-token`, never printed; every change is read back, and `status` prints a config fingerprint so you can
-see the recipe came through untouched). **Park it again** the same way with `park` (then push and `wait`). `status` shows every store's git setting next to
+see the recipe came through untouched). `status` shows every store's git setting next to
 what is running; `all` works in place of a store name. Stores: `cassandra`, `mongodb`, `cockroachdb`,
 `superset-worker`. Tested in `scripts/tests/store-park.bats`. The store-scaler easy button does NOT stick (selfHeal
 reverts a live scale) — git is the only switch. While parked:

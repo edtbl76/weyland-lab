@@ -112,10 +112,10 @@ model {
 
         stores = zone "Tier-2 stores" {
           clickhouse = store "ClickHouse" "Columnar OLAP — native s3() ingest"
-          cassandra = store "Cassandra" "Wide-column — lastfm ~17M rows. PARKED by default (replicas 0, B199): wake with scripts/store-park.sh."
-          cockroach = store "CockroachDB" "Distributed SQL — brfss / nhis. PARKED by default (replicas 0, B199): wake with scripts/store-park.sh."
+          cassandra = store "Cassandra" "Wide-column — lastfm ~17M rows. PARKED by default (replicas 0, B199): wake with scripts/store-park.sh up (commit + push + wait, B232)."
+          cockroach = store "CockroachDB" "Distributed SQL — brfss / nhis. PARKED by default (replicas 0, B199): wake with scripts/store-park.sh up (commit + push + wait, B232)."
           mysql = store "MySQL" "Health datasets — 6 DBs / 32 tables; NodePort 30306; UNMESHED since B219 (server-first protocol: a PERMISSIVE sidecar swallowed the greeting)"
-          mongodb = store "MongoDB" "Document store — who_gho, OFF, aidlc-kb. PARKED by default (replicas 0, B199): wake with scripts/store-park.sh."
+          mongodb = store "MongoDB" "Document store — who_gho, OFF, aidlc-kb. PARKED by default (replicas 0, B199): wake with scripts/store-park.sh up (commit + push + wait, B232)."
           timescale = store "TimescaleDB" "Time-series hypertables"
           opensearch = store "OpenSearch" "Search — RAG BM25 index target; NodePort 30920 (rogueone only — security plugin off, B218)"
           musicbrainz = store "MusicBrainz Postgres" "Full mbdump — CDC source; NodePort 30544 (password, B218)"

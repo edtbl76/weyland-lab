@@ -1,10 +1,10 @@
 # Cassandra — query cookbook
 
-> **Parked by default (B199).** `cassandra` runs at `replicas: 0` to spare mother's RAM, so while it is parked `cassandra-0` does not exist and the connect steps below fail. Wake it, push the change, wait, and park it again when done (runbook `node-capacity.md` § Parked stores; `/home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh status` shows each store):
+> **Parked by default (B199).** `cassandra` runs at `replicas: 0` to spare mother's RAM, so while it is parked `cassandra-0` does not exist and the connect steps below fail. Wake it with one command (it commits, pushes and waits until Ready; the owner runs it, B232), and park it again when done (runbook `node-capacity.md` § Parked stores; `/home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh status` shows each store):
 > ```
-> bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake cassandra
+> bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh up cassandra
 > ```
-> Push, then `bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wait cassandra` (blocks until it is Ready). Afterwards: `bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh park cassandra`, and push.
+> Afterwards: `bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh down cassandra` (the same one command, back to parked).
 
 **Connect:** IntelliJ/DataGrip → Apache Cassandra driver, at the `cassandra-lan` NodePort `192.168.1.243:30942` (user/pass
 blank — no auth). In-pod: `kubectl -n data-mesh exec -it cassandra-0 -- cqlsh`.

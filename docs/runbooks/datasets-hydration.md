@@ -102,7 +102,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
 - **Targets (grid `MongoDB=Y`):** `who_gho` (nested JSON) + `open_food_facts` (doc per product). **Plus aidlc-kb**
   (the methodology corpus — NOT a grid dataset; added because scanning it BY FRONTMATTER is a real consumer
   that the vector RAG (semantic) and Neo4j (relationships) don't serve).
-- **Deploy:** **parked by default** (`replicas: 0` since B199, 2026-10-01; wake with `scripts/store-park.sh wake <store>` before a hydrate) `mongo:8` (`mongodb.data-mesh.svc:27017`, `k8s/data-mesh/mongodb.yaml`), user
+- **Deploy:** **parked by default** (`replicas: 0` since B199, 2026-10-01; wake with `scripts/store-park.sh up <store>` before a hydrate) `mongo:8` (`mongodb.data-mesh.svc:27017`, `k8s/data-mesh/mongodb.yaml`), user
   `weyland`/dev-pw, **authSource `admin`** (root user lives there — omitting it is the classic auth trap).
 - **Loaders:** two paths →
   - `datasets_health_mongodb_load` (the `mongo_allow` arm) — silver parquet → collection per file in db
@@ -126,7 +126,7 @@ constraint) — a `mysqld-exporter` is the follow-up. Same 7-point gate applies 
   + demonstrates the store + pg-wire + the built-in Admin UI; geo-partitioning is aspirational (not a data
   mismatch, the data fits).
 - **Deploy:** single-node `cockroachdb/cockroach:v24.2.4` **insecure** (`start-single-node --insecure` — no
-  TLS/auth, LAN + in-cluster only), **parked by default** (`replicas: 0` since B199, 2026-10-01; wake with `scripts/store-park.sh wake <store>` before a hydrate) (`cockroachdb.data-mesh.svc:26257` SQL, `:8080` UI). Admin UI at
+  TLS/auth, LAN + in-cluster only), **parked by default** (`replicas: 0` since B199, 2026-10-01; wake with `scripts/store-park.sh up <store>` before a hydrate) (`cockroachdb.data-mesh.svc:26257` SQL, `:8080` UI). Admin UI at
   **`cockroachdb.weyland.lab`** behind Keycloak forward-auth (the insecure UI has no login of its own, so
   forward-auth IS the gate). `k8s/data-mesh/cockroachdb.yaml`.
 - **Loader:** `datasets_health_cockroachdb_load` (`cockroach_allow={brfss, nhis}`) — DB per dataset, table per

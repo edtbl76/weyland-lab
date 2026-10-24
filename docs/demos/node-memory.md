@@ -31,13 +31,25 @@ bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh wake not-a-s
 unknown store 'not-a-store' — one of: cassandra mongodb cockroachdb superset-worker (or all)
 ```
 
+**3a. One command each way (B232, 2026-10-24).** `up` replaces wake, push, wait; `down` replaces park, push, wait.
+Each commits only the store's manifest and pushes it, so **the owner runs it** (an agent hands over the command):
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh up cockroachdb
+```
+Expected: `cockroachdb: replicas 0 -> 1 in …/data-mesh/cockroachdb.yaml`, `pushed: store-park: up cockroachdb (replicas 1)`,
+progress lines while Argo applies it, then `cockroachdb: Ready (1/1)` and exit 0. `git show --stat HEAD` lists that one
+file. Then the same with `down cockroachdb`, ending `cockroachdb: parked (0/0)`. The refusals (not on `main`; behind or
+ahead of `origin/main`; cannot fetch; the manifest already edited) each exit 2 before any edit, and a rejected push
+exits 2 with git's reason and the commit left local: 15 `up`/`down` cases in `store-park.bats`, run against real git
+(a scratch repo with a bare origin), not a git stub.
+
 **3. Wake, wait, park: the live drill.** RUN 2026-10-01/02 and recorded in the runbook's Parked stores section:
 `wake cockroachdb` changed one line; after the push, `wait` reported `Ready (1/1)` about 4 minutes after Argo applied
 it. The data survived parking (`brfss.brfss_2020` 212,705 rows). `park` plus a push then gave `parked (0/0)`. While it
 started, `CockroachdbDown` stayed pending, not firing, because the rule compares running to desired replicas.
 
 **4. The alerts behave as measured.** promtool replays them in CI: `scripts/tests/alert-rules.bats`, `parked-store-
-alerts.bats`, and `store-park.bats` (23 cases, all passing 2026-10-08). `NodeMemoryThrashing` fires on memory-stall
+alerts.bats`, and `store-park.bats` (23 cases, all passing 2026-10-08; 32 since B232's `up`/`down`, 2026-10-24). `NodeMemoryThrashing` fires on memory-stall
 pressure above 10% for 2 minutes; replayed over 13.5 days it fired 4 times, all at real freezes. `NodeFroze` fires once
 per scrape gap. A drill `NodeFroze` reached Telegram on 2026-10-02 (notifications sent 13,409 to 13,410, failed
 unchanged).
@@ -66,4 +78,5 @@ All seven nights were clean.
 - A real stall pages through Telegram within about 2 minutes; a clean night shows the four checks inside their lines.
 
 ## Cleanup / teardown
-A woken store is parked again with `store-park.sh park <store>`, a push and `wait`. The checks write nothing.
+A woken store is parked again with `store-park.sh down <store>` (one command: commit, push, wait; B232). The checks
+write nothing.

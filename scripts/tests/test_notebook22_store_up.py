@@ -1,5 +1,5 @@
-"""Notebook 22's store_up() (B225, 2026-10-20) — the guard that turns a PARKED store into a printed wake/wait/park
-instruction instead of a failed cell.
+"""Notebook 22's store_up() (B225, 2026-10-20) — the guard that turns a PARKED store into a printed up/down
+instruction (B232; it was wake/wait/park) instead of a failed cell.
 
 The function lives only in the notebook JSON, so it was never tested (the B225 DoD re-audit, 2026-10-21). These tests
 load the REAL source out of the notebook — no copy to drift — and pin its two outcomes. Note what it cannot tell apart:
@@ -42,7 +42,7 @@ def test_a_store_that_answers_is_up_and_prints_nothing(capsys):
 
 
 @pytest.mark.parametrize("exc", [ConnectionRefusedError("refused"), TimeoutError("timed out"), OSError("no route")])
-def test_a_store_that_does_not_answer_is_skipped_with_the_wake_wait_and_park_commands(capsys, exc):
+def test_a_store_that_does_not_answer_is_skipped_with_the_up_and_down_commands(capsys, exc):
     store_up = load_store_up()
 
     def probe():
@@ -51,8 +51,11 @@ def test_a_store_that_does_not_answer_is_skipped_with_the_wake_wait_and_park_com
     assert store_up("mongodb", probe) is False
     out = capsys.readouterr().out
     assert "PARKED (or down): mongodb" in out and type(exc).__name__ in out
-    for verb in ("wake", "wait", "park"):
+    # B232: one command each way (commit + push + wait), not the old wake / push / wait / park / push / wait
+    for verb in ("up", "down"):
         assert f"store-park.sh {verb} mongodb" in out, f"the {verb} command for mongodb is missing:\n{out}"
+    for old in ("wake", "wait", "park"):
+        assert f"store-park.sh {old} mongodb" not in out, f"the old multi-step '{old}' is still printed:\n{out}"
 
 
 def test_the_commands_use_the_absolute_store_park_path():

@@ -55,7 +55,7 @@ Per [store-scaler.md](store-scaler.md):
   body `{store, action}`; least-priv SA, sidecar disabled (plain HTTP).
 - **Scalable stores** (all `Deployment`, `Recreate`): `mysql` and `gizmosql` at replicas 1; **`cockroachdb` and `mongodb`
   are parked at replicas 0 in git since B199**, so a Port wake of either is reverted to 0 by `selfHeal` within ~3 min
-  (wake them with `scripts/store-park.sh wake <store>`; B232 redesigns this path). Run this demo against mysql or gizmosql.
+  (wake them with `scripts/store-park.sh up <store>`, one command: commit, push, wait; B232). Run this demo against mysql or gizmosql.
 - **Argo CD** — `https://argocd.weyland.lab` (the `data-mesh` app has `selfHeal: true` — relevant to the sleep
   half).
 - `kubectl` runs on **mother** (`emangini@mother`).

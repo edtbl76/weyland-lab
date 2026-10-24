@@ -41,8 +41,8 @@ sequenceDiagram
 - **store-scaler** — `services/store-scaler/`, receiver `http://store-scaler.data-mesh.svc.cluster.local/scale`, body `{store, action}`; least-priv SA, sidecar disabled (plain HTTP).
 - **Scalable stores** (all `Deployment`, `Recreate`): `mysql` and `gizmosql` at replicas 1; **`cockroachdb` and `mongodb`
   are parked at replicas 0 in git since B199 (2026-10-01)**, so for them the effect is reversed: a Port **wake** sets
-  replicas 1 and Argo `selfHeal` puts it back to 0 within ~3 min. Wake a parked store with `scripts/store-park.sh wake
-  <store>` (it edits git) instead; B232 redesigns this path.
+  replicas 1 and Argo `selfHeal` puts it back to 0 within ~3 min. Wake a parked store with `scripts/store-park.sh up
+  <store>` instead (one command: commit, push, wait; B232).
 - **Argo CD** — `https://argocd.weyland.lab` (the `data-mesh` app has `selfHeal: true` — relevant to the sleep half).
 - `kubectl` runs on **mother** (`emangini@mother`).
 
