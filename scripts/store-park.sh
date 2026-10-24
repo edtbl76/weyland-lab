@@ -76,7 +76,8 @@ argo_sync() {
   local app="$1" token fallback="— leaving it to Argo's own poll (~3 min)"
   command -v "$ARGOCD" >/dev/null || { echo "argo: no argocd CLI $fallback"; return 0; }
   if "$ARGOCD" app list --grpc-web -o name >/dev/null 2>&1; then
-    if "$ARGOCD" app sync "$app" --grpc-web --async >/dev/null 2>&1; then echo "argo: sync of $app requested (CLI session)"
+    if "$ARGOCD" app sync "$app" --grpc-web --async >/dev/null 2>&1; then
+      echo "argo: sync of $app requested (CLI session)"; SYNC_REQUESTED="$SYNC_REQUESTED $app"
     else echo "argo: sync of $app did not return cleanly (often a concurrent Argo operation) $fallback"; fi
     return 0
   fi
@@ -84,7 +85,7 @@ argo_sync() {
   token="$(grep '^ARGOCD_STORE_PARK_TOKEN=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'")"
   [ -n "$token" ] || { echo "argo: no CLI session, and no ARGOCD_STORE_PARK_TOKEN in $ENV_FILE $fallback"; return 0; }
   if ARGOCD_AUTH_TOKEN="$token" "$ARGOCD" app sync "$app" --server "$ARGO_SERVER" --plaintext --grpc-web --async >/dev/null 2>&1; then
-    echo "argo: sync of $app requested (store-park token)"
+    echo "argo: sync of $app requested (store-park token)"; SYNC_REQUESTED="$SYNC_REQUESTED $app"
   else
     echo "argo: sync of $app with the store-park token did not return cleanly (expired or refused token, or a concurrent Argo operation) $fallback"
   fi
@@ -180,7 +181,13 @@ wait_for() {
       fi
       n=$((n + 1))
       if [ $((n % PROGRESS_EVERY)) -eq 1 ] || [ "$PROGRESS_EVERY" -eq 1 ]; then
-        hint=""; [ "$desired" != "$want" ] && hint=" — Argo has not applied the push yet (argocd app sync $(app_of "$s") to skip the ~3 min poll)"
+        hint=""
+        if [ "$desired" != "$want" ]; then
+          case " $SYNC_REQUESTED " in
+            *" $(app_of "$s") "*) hint=" — sync requested, Argo is applying the push" ;;
+            *) hint=" — Argo has not applied the push yet (argocd app sync $(app_of "$s") to skip the ~3 min poll)" ;;
+          esac
+        fi
         echo "$s: waiting — git wants $want, cluster has desired=$desired ready=$ready$hint"
       fi
       if [ "$(date +%s)" -ge "$deadline" ]; then
@@ -194,6 +201,7 @@ wait_for() {
 
 cmd="${1:-}"; target="${2:-}"
 CHANGED=""
+SYNC_REQUESTED=""   # Argo apps argo_sync asked to sync this run (the wait's progress line stops advising a manual sync)
 case "$cmd" in
   status)
     names=(); for s in $STORES; do n="$(dh_name_of "$s")"; [ -n "$n" ] && names+=("$n"); done

@@ -90,6 +90,11 @@ admin CLI session; valid one year):
 ```
 printf 'ARGOCD_STORE_PARK_TOKEN=%s\n' "$(argocd account generate-token --account store-park --expires-in 8760h --grpc-web)" >> /home/edwardmangini/IdeaProjects/weyland/scripts/.env
 ```
+**Verified 2026-10-24** (Helm revision 2; `argocd account can-i` with the token, never printed): `get` and `sync` on
+`default/data-mesh` and `default/superset` yes; `sync` on `weyland-root`, `get` on `trino`, `delete` / `update` on
+`data-mesh`, `create` of an app and `update accounts` all no. A real `app sync data-mesh --async` with it returned 0,
+and Argo recorded the operation as `initiatedBy: store-park` (so every sync it makes is attributable). `argocd app get`
+with it is refused (that call also needs `projects, get`); `store-park.sh` never calls it, so the RBAC stays at two verbs.
 Rotate by running it again: the script reads the LAST `ARGOCD_STORE_PARK_TOKEN` line. List or revoke tokens with
 `argocd account get --account store-park` and `argocd account delete-token --account store-park <id>`. An expired or
 revoked token only costs speed: `up`/`down` print one `argo:` line and wait out Argo's ~3 min poll.

@@ -57,7 +57,28 @@ The two commits on `origin/main`, `4c6401b9` (up) and `282b754a` (down), each ho
 CockroachDB's config fingerprint still `7b77707637c5` (the recipe untouched). Most of each run was Argo's poll
 (about 3.5 min), so `up`/`down` now ask Argo to sync right after the push (an `argo: sync of data-mesh requested …`
 line; with the CLI session or the sync-only `store-park` token, never the admin password; best effort, falling back
-to the poll; 43 bats cases in all). The refusals (not on `main`; behind or
+to the poll; 45 bats cases in all).
+
+RUN 2026-10-24 again by the owner, with the sync (both paths ran live):
+```
+pushed: store-park: up cockroachdb (replicas 1)
+argo: sync of data-mesh requested (CLI session)
+cockroachdb: waiting — git wants 1, cluster has desired=0 ready=0 — …        (1 line; Argo applied it at the next check)
+…  (7 lines with desired=1 ready=0 while the pod started)
+cockroachdb: Ready (1/1)
+```
+```
+pushed: store-park: down cockroachdb (replicas 0)
+argo: sync of data-mesh requested (store-park token)
+cockroachdb: waiting — git wants 0, cluster has desired=1 ready=1 — …        (1 line)
+cockroachdb: parked (0/0)
+```
+Argo now applies the push within one 30-second check instead of about 3.5 minutes; `down` went from about 5 minutes to
+under one, and what is left of `up` is the pod starting. `down` ran almost two hours later, after the CLI session had
+expired, so it took the token path: Argo recorded that sync as `initiatedBy: store-park`. Commits `4e81e1bd` (up) and
+`a76a1fd3` (down) each hold only `cockroachdb.yaml`; `status` afterwards: `git=0  0/  datahub=paused`, fingerprint
+`7b77707637c5`. The run also showed the progress line still advising a manual sync after one was requested; it now
+says `sync requested, Argo is applying the push`. The refusals (not on `main`; behind or
 ahead of `origin/main`; cannot fetch; the manifest already edited) each exit 2 before any edit, and a rejected push
 exits 2 with git's reason and the commit left local: 15 `up`/`down` cases in `store-park.bats`, run against real git
 (a scratch repo with a bare origin), not a git stub.

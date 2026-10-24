@@ -372,6 +372,24 @@ pushed() { git -C "$T.origin" rev-list --count main; }
   [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
 }
 
+# Found in the live run 2026-10-24: after the sync was requested, the progress line still advised running it by hand.
+@test "once a sync is requested, the progress line says so instead of advising a manual sync" {
+  git_repo
+  run env KSTATE=0/ STORE_PARK_WAIT_TIMEOUT=0 bash "$S" up cockroachdb
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"argo: sync of data-mesh requested"* ]]
+  [[ "$output" == *"waiting — git wants 1, cluster has desired=0 ready=0 — sync requested, Argo is applying the push"* ]]
+  [[ "$output" != *"to skip the ~3 min poll"* ]]
+}
+
+@test "when no sync could be requested, the progress line still points at the manual sync" {
+  git_repo
+  printf 'OTHER_KEY=x\n' > "$T/env"
+  run env KSTATE=0/ STORE_PARK_WAIT_TIMEOUT=0 bash "$S" up cockroachdb
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"argocd app sync data-mesh to skip the ~3 min poll"* ]]
+}
+
 @test "a rotated token appended to scripts/.env takes over from the old one" {
   git_repo
   printf 'ARGOCD_STORE_PARK_TOKEN=tok-old\nARGOCD_STORE_PARK_TOKEN=tok-new\n' > "$T/env"
