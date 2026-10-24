@@ -14,7 +14,7 @@ spec:
   # PARKED by default — B199 (2026-10-01): mother runs at 72-75 of 78 GB and freezes from page-cache thrash; parking
   # the idle Tier-2 stores returns ~9 GB. Wake: set replicas: 1 here and push (Argo selfHeal reverts a live scale).
   # UNDO when new hardware lands — tracked in B134 (EMA-195) § Undo on hardware.
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate            # single-instance RWO — kill-old-before-new ([[k8s-rwo-recreate-strategy]])
   selector:
