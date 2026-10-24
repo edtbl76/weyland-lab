@@ -56,7 +56,8 @@ The two commits on `origin/main`, `4c6401b9` (up) and `282b754a` (down), each ho
 `k8s/data-mesh/cockroachdb.yaml`. Afterwards `status` showed every store `git=0`, `0/`, DataHub `paused`, with
 CockroachDB's config fingerprint still `7b77707637c5` (the recipe untouched). Most of each run was Argo's poll
 (about 3.5 min), so `up`/`down` now ask Argo to sync right after the push (an `argo: sync of data-mesh requested …`
-line; best effort, falling back to the poll; 9 more bats cases, 41 in all). The refusals (not on `main`; behind or
+line; with the CLI session or the sync-only `store-park` token, never the admin password; best effort, falling back
+to the poll; 43 bats cases in all). The refusals (not on `main`; behind or
 ahead of `origin/main`; cannot fetch; the manifest already edited) each exit 2 before any edit, and a rejected push
 exits 2 with git's reason and the commit left local: 15 `up`/`down` cases in `store-park.bats`, run against real git
 (a scratch repo with a bare origin), not a git stub.

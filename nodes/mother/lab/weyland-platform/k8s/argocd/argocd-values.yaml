@@ -7,6 +7,18 @@ global:
 configs:
   params:
     server.insecure: true        # Traefik does HTTPS; Argo serves HTTP internally
+  # B232 (2026-10-24) — `scripts/store-park.sh up|down` asks Argo to sync the store's app right after its push. The CLI
+  # reaches Argo only over plain HTTP (mother:30880; the TLS host is behind forward-auth), so it must NOT send the admin
+  # password there. It sends this account's API token instead (owner-generated into scripts/.env): it can sync and read
+  # the two apps that hold parked stores, nothing else, and it cannot log in to the UI.
+  cm:
+    accounts.store-park: apiKey
+  rbac:
+    policy.csv: |
+      p, store-park, applications, get, default/data-mesh, allow
+      p, store-park, applications, sync, default/data-mesh, allow
+      p, store-park, applications, get, default/superset, allow
+      p, store-park, applications, sync, default/superset, allow
 dex:
   enabled: false                 # no SSO yet (local admin); Keycloak/OIDC later (B1)
 notifications:

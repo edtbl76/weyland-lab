@@ -25,7 +25,7 @@ sequenceDiagram
     O->>SP: up cockroachdb (to hydrate or query it - one command, B232)
     SP->>G: refuse unless on main, level with origin/main, manifest clean
     SP->>G: set replicas 1, commit that one file, push
-    SP->>A: app sync --async (CLI session, or a token from the session API) - best effort, else the 3 min poll
+    SP->>A: app sync --async (CLI session, or the sync-only store-park token) - best effort, else the 3 min poll
     SP->>DH: resume its schedule, read back, fingerprint unchanged
     A->>ST: apply replicas 1 (a live kubectl scale would be reverted in about 3 min)
     SP-->>O: Ready (1/1), exit 0, or exit 1 if not Ready in 10 min

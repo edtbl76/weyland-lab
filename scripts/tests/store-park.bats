@@ -172,19 +172,20 @@ git_repo() {  # make $T a clone of a bare origin, everything committed and pushe
   printf 'dh\ndh.log\nbin/\nn\n' > "$T/.gitignore"
   git -C "$T" add -A && git -C "$T" commit -q -m init && git -C "$T" push -q origin main
   mkdir -p "$T/bin"
-  # kubectl: the Argo admin Secret read answers $KPW (unset = a default password); any other call answers $KSTATE
-  printf '#!/usr/bin/env bash\ncase "$*" in *argocd-initial-admin-secret*) printf %%s "${KPW-s3cret-pw}" ;; *) printf %%s "${KSTATE:-1/1}" ;; esac\n' \
-    > "$T/bin/kubectl"
+  # kubectl: logs every call (so a test can prove the Argo admin Secret is never read); answers $KSTATE
+  printf '#!/usr/bin/env bash\necho "$*" >> "$KUBE_LOG"; printf %%s "${KSTATE:-1/1}"\n' > "$T/bin/kubectl"
   # argocd: `app list` is the session check ($ARGO_SESSION=1 = live); `app sync` logs its args and the token it got
   printf '#!/usr/bin/env bash\nif [ "$2" = list ]; then [ "${ARGO_SESSION:-0}" = 1 ] || { echo "invalid session: token is expired" >&2; exit 20; }; exit 0; fi\necho "$* token=${ARGOCD_AUTH_TOKEN:-none}" >> "$ARGO_LOG"; exit "${ARGO_SYNC_RC:-0}"\n' \
     > "$T/bin/argocd"
-  # curl: the session API — logs its argv and its stdin separately, answers $CURL_BODY
-  printf '#!/usr/bin/env bash\necho "$*" >> "$CURL_ARGV"; cat >> "$CURL_STDIN"; printf %%s "${CURL_BODY-{\\"token\\":\\"tok-123\\"}}"\n' \
-    > "$T/bin/curl"
+  # curl: logs any call — nothing in up/down may reach for a session API or send a password
+  printf '#!/usr/bin/env bash\necho "$*" >> "$CURL_ARGV"; exit 1\n' > "$T/bin/curl"
   chmod +x "$T/bin/kubectl" "$T/bin/argocd" "$T/bin/curl"
-  export PATH="$T/bin:$PATH" STORE_PARK_POLL=0 ARGO_LOG="$T/argo.log" CURL_ARGV="$T/curl.argv" CURL_STDIN="$T/curl.stdin"
-  : > "$ARGO_LOG"; : > "$CURL_ARGV"; : > "$CURL_STDIN"
-  printf 'argo.log\ncurl.argv\ncurl.stdin\n' >> "$T/.git/info/exclude"
+  # the scoped store-park token, as the owner's generate-token command writes it into scripts/.env
+  printf 'OTHER_KEY=not-this-one\nARGOCD_STORE_PARK_TOKEN=tok-123\n' > "$T/env"
+  export PATH="$T/bin:$PATH" STORE_PARK_POLL=0 STORE_PARK_ENV="$T/env" \
+    ARGO_LOG="$T/argo.log" CURL_ARGV="$T/curl.argv" KUBE_LOG="$T/kube.log"
+  : > "$ARGO_LOG"; : > "$CURL_ARGV"; : > "$KUBE_LOG"
+  printf 'argo.log\ncurl.argv\nkube.log\nenv\n' >> "$T/.git/info/exclude"
   unset STORE_PARK_NO_KUBECTL
 }
 commits() { git -C "$T" rev-list --count HEAD; }
@@ -327,9 +328,10 @@ pushed() { git -C "$T.origin" rev-list --count main; }
 }
 
 # --- up / down skip Argo's ~3 min poll: sync right after the push (best effort, never a gate) ----------------------------
-# Owner, 2026-10-24: most of each live run was Argo's poll. With no live CLI session the script swaps the cluster's admin
-# password for a short-lived token through the session API — password on curl's STDIN, token in the sync's ENVIRONMENT,
-# neither on a command line nor in the output — and never touches the owner's saved CLI session.
+# Owner, 2026-10-24: most of each live run was Argo's poll. With no live CLI session the script uses the scoped
+# `store-park` Argo account's token (ARGOCD_STORE_PARK_TOKEN in scripts/.env: sync + get on data-mesh and superset only),
+# passed in the sync's ENVIRONMENT, never on a command line or in the output. It NEVER reads the admin password: Argo's
+# CLI port is plain HTTP, and a security review (2026-10-24) flagged an admin password sent there.
 
 @test "up syncs the store's Argo app right after the push, with the live CLI session" {
   git_repo
@@ -340,35 +342,51 @@ pushed() { git -C "$T.origin" rev-list --count main; }
   [[ "$output" == *"argo: sync of data-mesh requested (CLI session)"* ]]
 }
 
-@test "with no live session, up gets a token from the session API — password on stdin, token in the env, neither printed" {
+@test "with no live session, up syncs with the scoped store-park token — in the env, never an argument, never printed" {
   git_repo
   run bash "$S" up cockroachdb
   [ "$status" -eq 0 ]
-  grep -q '"password": "s3cret-pw"' "$CURL_STDIN"        # the password went in on stdin
-  ! grep -q "s3cret-pw" "$CURL_ARGV"                      # and never on curl's command line
-  grep -q "/api/v1/session" "$CURL_ARGV"
   grep -q "^app sync data-mesh .*--plaintext.* token=tok-123$" "$ARGO_LOG"
-  ! grep -q "tok-123" <(grep -v 'token=tok-123$' "$ARGO_LOG")   # the token is not an argument either
-  [[ "$output" != *"s3cret-pw"* && "$output" != *"tok-123"* ]]
-  [[ "$output" == *"argo: sync of data-mesh requested (token)"* ]]
+  ! grep -q "tok-123" <(sed 's/ token=tok-123$//' "$ARGO_LOG")   # the token is not an argument
+  [[ "$output" != *"tok-123"* ]]
+  [[ "$output" == *"argo: sync of data-mesh requested (store-park token)"* ]]
   [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
 }
 
-@test "the Argo Secret cannot be read: one line, then Argo's own poll, and up still succeeds" {
+@test "the admin password is never read and no session API is called, whichever path runs" {
   git_repo
-  run env KPW= bash "$S" up cockroachdb
+  bash "$S" up cockroachdb >/dev/null                      # token path
+  ARGO_SESSION=1 KSTATE=0/ bash "$S" down cockroachdb >/dev/null   # session path
+  ! grep -q "argocd-initial-admin-secret" "$KUBE_LOG"
+  ! grep -qi "secret" "$KUBE_LOG"
+  [ ! -s "$CURL_ARGV" ]
+}
+
+@test "no store-park token in scripts/.env: one line naming the key, then Argo's own poll, and up still succeeds" {
+  git_repo
+  printf 'OTHER_KEY=x\n' > "$T/env"
+  run bash "$S" up cockroachdb
   [ "$status" -eq 0 ]
-  [[ "$output" == *"argo: no CLI session, and cannot read Secret argocd/argocd-initial-admin-secret"*"Argo's own poll"* ]]
+  [[ "$output" == *"argo: no CLI session, and no ARGOCD_STORE_PARK_TOKEN in"*"Argo's own poll"* ]]
   [ ! -s "$ARGO_LOG" ]
   [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
 }
 
-@test "the session API refuses: one line naming it, then Argo's own poll, and up still succeeds" {
+@test "a rotated token appended to scripts/.env takes over from the old one" {
   git_repo
-  run env CURL_BODY='{"error":"Invalid username or password","code":16}' bash "$S" up cockroachdb
+  printf 'ARGOCD_STORE_PARK_TOKEN=tok-old\nARGOCD_STORE_PARK_TOKEN=tok-new\n' > "$T/env"
+  run bash "$S" up cockroachdb
   [ "$status" -eq 0 ]
-  [[ "$output" == *"argo: no CLI session, and the session API gave no token"*"Argo's own poll"* ]]
-  [ ! -s "$ARGO_LOG" ]
+  grep -q " token=tok-new$" "$ARGO_LOG"
+}
+
+@test "a refused or expired store-park token is one line, never a failure" {
+  git_repo
+  run env ARGO_SYNC_RC=20 bash "$S" up cockroachdb
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"argo: sync of data-mesh with the store-park token did not return cleanly"*"Argo's own poll"* ]]
+  [[ "$output" != *"tok-123"* ]]
+  [[ "$output" == *"cockroachdb: Ready (1/1)"* ]]
 }
 
 @test "a sync that does not return cleanly is one line, never a failure" {

@@ -68,6 +68,32 @@ Drive Argo with the `argocd` CLI on mother — never hand-patch the Application 
   against the new Secret checksum instead of a no-op patch). This is the canonical "remove the blocker FIRST"
   move — do NOT just re-sync on top of a wedged op.
 
+## Argo's own config (Helm values) and the `store-park` account (B232, 2026-10-24)
+Argo does not manage itself: it is the Helm release `argocd` (chart `argo-cd` 9.6.0), and
+`k8s/argocd/argocd-values.yaml` is its source of truth (the live `argocd-cm` / `argocd-rbac-cm` matched the release
+exactly on 2026-10-24). Apply a values change with the same chart version, never a newer one by accident. It restarts
+`argocd-server`, `argocd-repo-server` and `argocd-application-controller` (their `checksum/cm` changes) and re-runs the
+chart's `redis-secret-init` hook; Argo is unavailable for about a minute and the apps are not touched:
+
+[rogueone]
+```
+helm upgrade argocd argo-cd --repo https://argoproj.github.io/argo-helm --version 9.6.0 -n argocd -f /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/argocd/argocd-values.yaml
+```
+
+**The `store-park` account** is an API-token-only local account (no UI login) whose RBAC allows `get` and `sync` on
+the `data-mesh` and `superset` apps and nothing else. `scripts/store-park.sh up|down` syncs with its token when the
+owner's CLI session has expired, so the ADMIN password is never sent over the plain-HTTP CLI port (security review,
+2026-10-24). The owner generates the token straight into the gitignored `scripts/.env` (it is never printed; needs a live
+admin CLI session; valid one year):
+
+[rogueone]
+```
+printf 'ARGOCD_STORE_PARK_TOKEN=%s\n' "$(argocd account generate-token --account store-park --expires-in 8760h --grpc-web)" >> /home/edwardmangini/IdeaProjects/weyland/scripts/.env
+```
+Rotate by running it again: the script reads the LAST `ARGOCD_STORE_PARK_TOKEN` line. List or revoke tokens with
+`argocd account get --account store-park` and `argocd account delete-token --account store-park <id>`. An expired or
+revoked token only costs speed: `up`/`down` print one `argo:` line and wait out Argo's ~3 min poll.
+
 ## Operate (other)
 - Admin password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`
 - Onboard: drop an Application in `k8s/argocd/applications/`, push → `weyland-root` creates it (`argocd app get weyland-root --refresh` to pull now).

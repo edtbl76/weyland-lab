@@ -165,11 +165,12 @@ manifest has uncommitted changes of its own. Your other uncommitted or staged wo
 2 with git's reason and leaves the commit local (never rebased, never forced); push it yourself and re-run. `up all`
 is one commit for all four and warns first (~9 GB together). Right after the push it **asks Argo to sync**
 (`argocd app sync <app> --async`), so it does not wait out Argo's ~3 min poll (owner, 2026-10-24): with your live CLI
-session if there is one, otherwise with a short-lived token it gets from Argo's session API on `mother:30880` using the
-admin password in Secret `argocd/argocd-initial-admin-secret` (password on curl's stdin, token in the sync's
-environment, neither on a command line or printed; your saved CLI session is untouched). That step is best effort: if
-it cannot sync (no CLI, Secret unreadable, no token, a concurrent Argo operation) it prints one `argo:` line and the
-wait falls back to Argo's own poll; it never fails the command.
+session if there is one, otherwise with the scoped `store-park` Argo token (`ARGOCD_STORE_PARK_TOKEN` in
+`scripts/.env`; it can only read and sync `data-mesh` and `superset`; setup and rotation in `argocd.md` § The
+`store-park` account). The token goes in the sync's environment, never on a command line or printed, and the admin
+password is never used: Argo's CLI port is plain HTTP. That step is best effort: if it cannot sync (no CLI, no token,
+an expired token, a concurrent Argo operation) it prints one `argo:` line and the wait falls back to Argo's own poll;
+it never fails the command.
 
 The manual steps stay for an agent's hand-off or a partial run: `wake` / `park` edit the line only (you push), and
 `wait` blocks until the cluster matches git (exit 0 / 1 / 2 as above).
