@@ -13,7 +13,7 @@ langchain==1.3.14                # mlflow.langchain.autolog() needs the full pac
 langchain-openai==1.4.3
 langchain-mcp-adapters==0.3.1
 mcp==1.30.0                      # 1.24.0 in v23: PYSEC-2026-3481/3482/3483; 1.28.1: GHSA-84m7-p3x7-pcfv (2026-10-15)
-mlflow==3.16.1                   # 3.15.1 in v23: PYSEC-2026-3865
+mlflow==3.17.2                   # 3.15.1 in v23: PYSEC-2026-3865
 langfuse==4.14.3
 # CVE floor pins — transitive, raised past the v23 versions pip-audit flagged (2026-10-02)
 pyjwt==2.15.0                    # 2.13.0: PYSEC-2026-4142/4150/4151
