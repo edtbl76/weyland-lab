@@ -36,9 +36,26 @@ Each commits only the store's manifest and pushes it, so **the owner runs it** (
 ```
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/store-park.sh up cockroachdb
 ```
-Expected: `cockroachdb: replicas 0 -> 1 in …/data-mesh/cockroachdb.yaml`, `pushed: store-park: up cockroachdb (replicas 1)`,
-progress lines while Argo applies it, then `cockroachdb: Ready (1/1)` and exit 0. `git show --stat HEAD` lists that one
-file. Then the same with `down cockroachdb`, ending `cockroachdb: parked (0/0)`. The refusals (not on `main`; behind or
+RUN 2026-10-24 by the owner on rogueone, one command each way:
+```
+cockroachdb: replicas 0 -> 1 in nodes/mother/lab/weyland-platform/k8s/data-mesh/cockroachdb.yaml
+pushed: store-park: up cockroachdb (replicas 1)
+CockroachDB - Weyland: schedule changed -> 30 3 * * * America/New_York
+cockroachdb: waiting — git wants 1, cluster has desired=0 ready=0 — Argo has not applied the push yet (…)
+…  (7 lines while Argo polled, then 7 with desired=1 ready=0 while the pod started)
+cockroachdb: Ready (1/1)
+```
+```
+cockroachdb: replicas 1 -> 0 in nodes/mother/lab/weyland-platform/k8s/data-mesh/cockroachdb.yaml
+pushed: store-park: down cockroachdb (replicas 0)
+CockroachDB - Weyland: schedule changed -> paused
+…  (10 lines while Argo polled)
+cockroachdb: parked (0/0)
+```
+The two commits on `origin/main`, `4c6401b9` (up) and `282b754a` (down), each hold exactly one file,
+`k8s/data-mesh/cockroachdb.yaml`. Afterwards `status` showed every store `git=0`, `0/`, DataHub `paused`, with
+CockroachDB's config fingerprint still `7b77707637c5` (the recipe untouched). Most of each run was Argo's poll
+(about 3.5 min); `argocd app sync data-mesh` skips it. The refusals (not on `main`; behind or
 ahead of `origin/main`; cannot fetch; the manifest already edited) each exit 2 before any edit, and a rejected push
 exits 2 with git's reason and the commit left local: 15 `up`/`down` cases in `store-park.bats`, run against real git
 (a scratch repo with a bare origin), not a git stub.
