@@ -1222,6 +1222,30 @@ txn_stub_pod() {
   grep -q '/api/3.0/mlflow/gateway/endpoints/list' "$STUB_LOG"
 }
 
+# 2026-10-25: the 3.17.2 ship passed TXN on a LIST of endpoints while every gateway CALL failed (500 then 502: a
+# tracking-URI fallback, a one-worker self-call deadlock, then the private-upstream SSRF block). Listing proves the
+# DB and the mount; only a call proves the gateway works. The transaction now sends a real, guarded chat request.
+@test "TXN sends a REAL chat request through MLflow's gateway, not just a list" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-mlflow:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK 18 gateway endpoint(s); chat answered'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  grep -q '/gateway/mlflow/v1/chat/completions' "$STUB_LOG"
+  grep -q 'ollama-qwen25-7b' "$STUB_LOG"
+  grep -q '"choices"' "$STUB_LOG"
+}
+
+@test "TXN FAILS when the gateway lists endpoints but a chat call errors, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-mlflow:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_FAIL the gateway chat call returned HTTP 500: Gateway provider requires an HTTP(S) tracking URI'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-mlflow"* && "$output" == *"chat call"* ]]
+}
+
 @test "TXN FAILS when MLflow's gateway lists NO endpoints, named" {
   SHIP_IMAGES_LIB=1 source "$SHIP"
   printf '+ registry.weyland.lab/weyland-mlflow:git-9a4996c6\n' > "$STUB_DIR/d.diff"

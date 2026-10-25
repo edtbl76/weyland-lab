@@ -102,6 +102,28 @@ a trace pins the prompt version that produced each answer. Registered prompts (`
   class as the registry's presigned redirects ([remote-training.md](remote-training.md) § the registry).
   The guard that keeps this closed: `scripts/check-dockerfile-installs.sh` now reads k8s manifests too
   ([code-quality.md](code-quality.md)).
+- **MLflow 3.17 needs four server settings the 3.16 server did not (2026-10-25).** After 3.17.2 shipped, every AI
+  Gateway CALL failed while `/health`, the endpoint list and the ship's transaction all passed. Three causes, one after
+  another, each read from 3.17.2's own source before it was fixed:
+  1. **`MLFLOW_GATEWAY_URI=http://localhost:5000`.** The gateway routes guarded requests back through the server over
+     HTTP. `mlflow server` overwrites `MLFLOW_TRACKING_URI` with the backend-store URI (`gateway_utils.py`
+     `_resolve_gateway_uri`), so without the gateway variable every call was 500 "Gateway provider requires an HTTP(S)
+     tracking URI", and the error body echoed the DB URI. `MLFLOW_TRACKING_URI=http://localhost:5000` is set too (it
+     feeds the server's trace export).
+  2. **`--workers 2`.** A guardrail's judge calls the gateway on the same server (`gateway/guardrails.py`). With one
+     worker the request waited on itself: each attempt timed out at ~30 s into a 502, and the Ollama front door saw no
+     request at all. Two workers serve ONE guarded request at a time; more concurrency needs more workers (~1-1.5 GiB
+     each, 8Gi limit).
+  3. **`MLFLOW_GATEWAY_API_BASE_ALLOW_PRIVATE_IPS=true` + `MLFLOW_GATEWAY_API_BASE_ALLOWED_SCHEMES=http,https`.** 3.17's
+     SSRF policy allows public HTTPS upstreams only; the Ollama front door is `http://192.168.1.230:11434/v1`. 3.17 has
+     no host allowlist, so this restores exactly the private reach 3.16.1 had (its other fixes stay); who can define an
+     upstream is still bounded by `mlflow-front-door-only`. The scheme list is also checked when a secret is WRITTEN:
+     `register_gateway_endpoints.py` stores http api_bases. Proven on the image before it was pushed: without the
+     settings a secret is refused, with them a real chat to a private http Ollama answered 200.
+  Live after the fix: a guarded chat through `:30500` answered 200 "OK" (22 s, guardrails and judge included). Both
+  checks that missed it now make a real call: the ship's `txn_mlflow` and the upgrade drill (next bullet).
+  Not changed, worth knowing: the server logs `MLFLOW_CRYPTO_KEK_PASSPHRASE not set`; the gateway secrets are
+  encrypted with MLflow's default passphrase (as since B100). Setting one means re-encrypting every stored secret.
 - **Prove an upgrade on a restored copy FIRST (B227 follow-on, 2026-10-24).** Before the bump PR that moves the
   Deployment to a new MLflow version is merged, drill that CI-built image against the newest core dump:
 
@@ -114,8 +136,11 @@ a trace pins the prompt version that produced each answer. Registered prompts (`
   tables (runs, experiments, registry, endpoints, secrets, guardrails, budgets, …) before and after, then starts the
   upgraded server on the copy and asks `/health` and the gateway endpoint list. Exit 0 PASS · 1 a named problem
   (upgrade failed, a count moved, a table missing, no endpoints) · 2 it could not run. Nothing reaches the live
-  database. Tests: `scripts/tests/mlflow-upgrade-drill.bats`. The drill connects with the LIVE command's URI scheme,
-  read from `k8s/mlflow/mlflow.yaml`, so a driver choice that would break production breaks the drill too.
+  database. Tests: `scripts/tests/mlflow-upgrade-drill.bats`. The drill runs PRODUCTION's server config, read from
+  `k8s/mlflow/mlflow.yaml`: the URI scheme, the `--workers` count and every literal env value of the live container
+  (secret-sourced entries are never copied). Its verdict also needs a REAL guarded chat through the gateway, using the
+  restored copy's own endpoint and secret (`ollama-qwen25-7b`, free, local). Added 2026-10-25, after the drill passed
+  3.17.2 with its own config (one worker, no gateway env, endpoints only listed) while production's gateway failed.
   **First real run (2026-10-24, 3.16.1 → 3.17.2): it caught an outage.** 3.17.2's base ships SQLAlchemy 2.1, which maps
   a bare `postgresql://` to the psycopg v3 driver; the image has psycopg2, so `db upgrade` failed and the server would
   not have started. The manifest now says `postgresql+psycopg2://` (works on SQLAlchemy 2.0 and 2.1), and the re-run

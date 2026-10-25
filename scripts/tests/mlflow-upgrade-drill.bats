@@ -12,7 +12,7 @@ setup() {
     printf '%s\n' "dump: weyland-all-20261024.sql.gz" "extracted: 812345 lines" "restore errors: 0" \
       "alembic-before: b7e2c1a4d9f3" "counts-before: experiments=30 runs=465 endpoints=18 " \
       "image mlflow: 3.17.2" "upgrade: ok 41" "migration: b7e2c1a4d9f3 -> 75868b020152" \
-      "health: OK" "endpoints: 18" \
+      "health: OK" "endpoints: 18" "chat: ok ollama-qwen25-7b answered" \
       "alembic-after: dc11669786a5" "counts-after: experiments=30 runs=465 endpoints=18 "
   }
 }
@@ -23,7 +23,7 @@ verdict() { MLFLOW_DRILL_LIB=1 bash -c ". '$S'; drill_verdict '$1'"; }
   good > "$T/log"
   run verdict "$T/log"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  [[ "$output" == *"PASS: b7e2c1a4d9f3 -> dc11669786a5 in 41 s; counts unchanged; server answers, 18 gateway endpoint(s)"* ]]
+  [[ "$output" == *"PASS: b7e2c1a4d9f3 -> dc11669786a5 in 41 s; counts unchanged; server answers, 18 gateway endpoint(s); a real gateway chat answered"* ]]
 }
 
 @test "a failed upgrade is exit 1, named" {
@@ -108,6 +108,31 @@ scheme() { MLFLOW_DRILL_LIB=1 bash -c ". '$S'; db_scheme '$1'"; }
   run env MLFLOW_DRILL_LIB=1 bash -c ". '$S'; judge Pending '$T/log'"
   [ "$status" -eq 2 ]
   [[ "$output" == *"phase 'Pending'"* ]]
+}
+
+# 2026-10-25: the drill PASSED 3.17.2 and production's gateway then failed every call: the drill ran its own server
+# config (one worker, no gateway env) and never sent a request. It now runs the LIVE container's env values and worker
+# count, read from the manifest, and its verdict needs a real chat answer through the gateway.
+@test "the drill reads the live container's literal env values and worker count from the manifest" {
+  printf '%s\n' 'kind: Deployment' 'spec:' '  template:' '    spec:' '      containers:' '        - name: mlflow' \
+    '          args:' '            - >' '              mlflow server --host 0.0.0.0 --port 5000 --workers 2' \
+    '          env:' '            - name: MLFLOW_GATEWAY_URI' '              value: http://localhost:5000' \
+    '            - name: POSTGRES_PASSWORD' '              valueFrom:' '                secretKeyRef: {name: s, key: k}' \
+    '            - name: MLFLOW_GATEWAY_API_BASE_ALLOW_PRIVATE_IPS' '              value: "true"' > "$T/m.yaml"
+  run env MLFLOW_DRILL_LIB=1 bash -c ". '$S'; manifest_env '$T/m.yaml'"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"MLFLOW_GATEWAY_URI=http://localhost:5000"* ]]
+  [[ "$output" == *"MLFLOW_GATEWAY_API_BASE_ALLOW_PRIVATE_IPS=true"* ]]
+  [[ "$output" != *"POSTGRES_PASSWORD"* ]]                     # secret-sourced entries are never copied
+  run env MLFLOW_DRILL_LIB=1 bash -c ". '$S'; manifest_workers '$T/m.yaml'"
+  [ "$output" = "2" ]
+}
+
+@test "a drill whose gateway chat failed is exit 1, even with a clean upgrade" {
+  good | sed 's/^chat: ok .*/chat: FAILED HTTP 502/' > "$T/log"
+  run verdict "$T/log"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"the gateway did not answer a real chat request"* ]]
 }
 
 @test "the image argument is required and validated" {

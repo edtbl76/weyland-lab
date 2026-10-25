@@ -17,8 +17,10 @@ else
   echo "upgrade: FAILED"; tail -15 /tmp/upgrade.log; touch /shared/done; exit 1
 fi
 grep -E "Running upgrade" /tmp/upgrade.log | sed 's/^.*Running upgrade/migration:/' || true
+# Production's worker count and env (the wrapper copies the live container's literal env values into this container):
+# 3.17's guarded gateway calls itself, so a one-worker drill deadlocks where two workers do not.
 mlflow server --host 127.0.0.1 --port 5000 --backend-store-uri "$DB" --artifacts-destination /tmp/art \
-  --serve-artifacts --workers 1 > /tmp/server.log 2>&1 &
+  --serve-artifacts --workers "${MLFLOW_DRILL_WORKERS:?the wrapper passes the live --workers}" > /tmp/server.log 2>&1 &
 n=0
 until python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2)" 2>/dev/null \
       || [ "$n" -ge 90 ]; do sleep 2; n=$((n + 1)); done
@@ -27,4 +29,19 @@ echo "endpoints: $(python -c "
 import json, urllib.request
 d = json.load(urllib.request.urlopen('http://127.0.0.1:5000/api/3.0/mlflow/gateway/endpoints/list', timeout=20))
 print(len(d.get('endpoints') or []))" 2>&1 | tail -1)"
+# A REAL request through the gateway (guardrails + judge included) to the restored copy's own endpoint and secret:
+# the call that failed in production on 2026-10-25 while every list above passed.
+echo "chat: $(python -c "
+import json, urllib.request, urllib.error
+ep = 'ollama-qwen25-7b'
+req = urllib.request.Request('http://127.0.0.1:5000/gateway/mlflow/v1/chat/completions', headers={'Content-Type': 'application/json'},
+    data=json.dumps({'model': ep, 'max_tokens': 5, 'messages': [{'role': 'user', 'content': 'Reply with the word OK.'}]}).encode())
+try:
+    r = json.load(urllib.request.urlopen(req, timeout=170))
+    t = ((r.get('choices') or [{}])[0].get('message') or {}).get('content') or ''
+    print(('ok ' + ep + ' answered') if t.strip() else 'FAILED empty answer')
+except urllib.error.HTTPError as e:
+    print('FAILED HTTP', e.code, e.read().decode(errors='replace')[:160])
+except Exception as e:
+    print('FAILED', type(e).__name__, str(e)[:160])" 2>&1 | tail -1)"
 touch /shared/done

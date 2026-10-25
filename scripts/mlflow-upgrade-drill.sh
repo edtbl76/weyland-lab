@@ -35,10 +35,36 @@ drill_verdict() {
   grep -q '^health: OK$' "$log" || bad="${bad}; the upgraded server did not answer /health"
   n="$(sed -n 's/^endpoints: \([0-9][0-9]*\)$/\1/p' "$log" | head -1)"
   [ -n "$n" ] && [ "$n" -gt 0 ] || bad="${bad}; the upgraded server lists no gateway endpoints"
+  grep -q '^chat: ok ' "$log" || bad="${bad}; the gateway did not answer a real chat request"
   if [ -n "$bad" ]; then echo "DRILL FAILED${bad}"; return 1; fi
   from="$(sed -n 's/^alembic-before: //p' "$log" | head -1)"; to="$(sed -n 's/^alembic-after: //p' "$log" | head -1)"
   secs="$(sed -n 's/^upgrade: ok //p' "$log" | head -1)"
-  echo "PASS: ${from} -> ${to} in ${secs} s; counts unchanged; server answers, ${n} gateway endpoint(s)"
+  echo "PASS: ${from} -> ${to} in ${secs} s; counts unchanged; server answers, ${n} gateway endpoint(s); a real gateway chat answered"
+}
+
+# manifest_env <manifest> — the live mlflow container's LITERAL env values as NAME=VALUE lines (secret-sourced entries
+# are skipped, never copied). manifest_workers <manifest> — its `--workers N`. The drill runs production's config: on
+# 2026-10-25 a drill with its own config (one worker, no gateway env) passed 3.17.2 while production's gateway failed.
+manifest_env() {
+  python3 -c '
+import sys, yaml
+for doc in yaml.safe_load_all(open(sys.argv[1])):
+    if not doc or doc.get("kind") != "Deployment":
+        continue
+    for c in doc["spec"]["template"]["spec"]["containers"]:
+        if c.get("name") == "mlflow":
+            for e in c.get("env") or []:
+                if "value" in e:
+                    print(e["name"] + "=" + str(e["value"]))
+            sys.exit(0)
+sys.exit("no mlflow container in " + sys.argv[1])' "$1"
+}
+manifest_workers() {
+  local w
+  # the command only, never comments (the manifest's comments explain `--workers 1` vs 2)
+  w="$({ grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -oE -- '--workers [0-9]+' || true; } | awk '{print $2}' | sort -u)"
+  [ "$(printf '%s\n' "$w" | grep -c .)" -eq 1 ] || { echo "cannot tell the live --workers: not exactly one in $1"; return 2; }
+  printf '%s\n' "$w"
 }
 
 # db_scheme <manifest> — the ONE SQLAlchemy URI scheme the live MLflow command uses (postgresql, postgresql+psycopg2…).
@@ -71,6 +97,9 @@ IMAGE="${1:-}"
 for f in pg.sh mlflow.sh; do [ -r "$LIB/$f" ] || { echo "cannot read $LIB/$f" >&2; exit 2; }; done
 MANIFEST="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/nodes/mother/lab/weyland-platform/k8s/mlflow/mlflow.yaml"
 SCHEME="$(db_scheme "$MANIFEST")" || { echo "$SCHEME" >&2; exit 2; }
+WORKERS="$(manifest_workers "$MANIFEST")" || { echo "$WORKERS" >&2; exit 2; }
+LIVE_ENV="$(manifest_env "$MANIFEST")" || { echo "cannot read the live container env from $MANIFEST" >&2; exit 2; }
+echo "→ the live server: --workers ${WORKERS}; env $(printf '%s\n' "$LIVE_ENV" | cut -d= -f1 | tr '\n' ' ')(values as in the manifest)"
 echo "→ the live command connects as ${SCHEME}:// (from k8s/mlflow/mlflow.yaml); the drill uses the same"
 
 cleanup() {
@@ -84,7 +113,9 @@ kubectl -n "$NS" create configmap "$CM" --from-file=pg.sh="$LIB/pg.sh" --from-fi
 
 python3 -c '
 import json, sys
-image, pod, cm, scheme = sys.argv[1:]
+image, pod, cm, scheme, workers, live_env = sys.argv[1:]
+env = [{"name": "MLFLOW_DRILL_DB_SCHEME", "value": scheme}, {"name": "MLFLOW_DRILL_WORKERS", "value": workers}]
+env += [{"name": k, "value": v} for k, _, v in (l.partition("=") for l in live_env.splitlines() if l)]
 mounts = [{"name": "s", "mountPath": "/drill", "readOnly": True}, {"name": "shared", "mountPath": "/shared"}]
 print(json.dumps({"apiVersion": "v1", "kind": "Pod",
   "metadata": {"name": pod, "labels": {"app": pod, "sidecar.istio.io/inject": "false"}},
@@ -95,14 +126,14 @@ print(json.dumps({"apiVersion": "v1", "kind": "Pod",
        "resources": {"requests": {"memory": "256Mi", "cpu": "250m"}, "limits": {"memory": "2Gi"}},
        "volumeMounts": mounts + [{"name": "b", "mountPath": "/backup", "readOnly": True}]},
       {"name": "mlflow", "image": image, "imagePullPolicy": "IfNotPresent", "command": ["sh", "/drill/mlflow.sh"],
-       "env": [{"name": "MLFLOW_DRILL_DB_SCHEME", "value": scheme}],
+       "env": env,
        "resources": {"requests": {"memory": "512Mi", "cpu": "250m"}, "limits": {"memory": "4Gi"}},
        "volumeMounts": mounts}],
     "securityContext": {"fsGroup": 70},
     "volumes": [{"name": "b", "hostPath": {"path": "/mnt/minio/backups", "type": "Directory"}},
                 {"name": "s", "configMap": {"name": cm}},
                 {"name": "shared", "emptyDir": {}}]}}))
-' "$IMAGE" "$POD" "$CM" "$SCHEME" | kubectl -n "$NS" apply -f - >/dev/null
+' "$IMAGE" "$POD" "$CM" "$SCHEME" "$WORKERS" "$LIVE_ENV" | kubectl -n "$NS" apply -f - >/dev/null
 
 echo "→ drilling $IMAGE on a restored copy of the mlflow database (the restore streams ~2 GB; ~10 min)…"
 phase=""

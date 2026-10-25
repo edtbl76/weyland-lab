@@ -618,14 +618,27 @@ except Exception as e:
 txn_mlflow() {
   local pod="${1:?usage: txn_mlflow <pod>}"
   kubectl -n weyland exec "$pod" -- python3 -c '
-import json, urllib.request
+import json, urllib.request, urllib.error
 base = "http://mlflow.weyland.svc.cluster.local:5000"
 try:
     h = urllib.request.urlopen(base + "/health", timeout=25).read().decode().strip()
     if h != "OK":
         print("TXN_FAIL /health answered " + repr(h[:60])); raise SystemExit
     eps = json.load(urllib.request.urlopen(base + "/api/3.0/mlflow/gateway/endpoints/list", timeout=25)).get("endpoints") or []
-    print("TXN_OK " + str(len(eps)) + " gateway endpoint(s)" if eps else "TXN_FAIL the AI Gateway lists no endpoints")
+    if not eps:
+        print("TXN_FAIL the AI Gateway lists no endpoints"); raise SystemExit
+    # 2026-10-25: a LIST passed while every CALL failed (3.17.2). Send one real request through the gateway, guardrails
+    # and judge included, to the small local model (free; loads on rogueone in seconds).
+    req = urllib.request.Request(base + "/gateway/mlflow/v1/chat/completions", headers={"Content-Type": "application/json"},
+        data=json.dumps({"model": "ollama-qwen25-7b", "max_tokens": 5,
+                         "messages": [{"role": "user", "content": "Reply with the word OK."}]}).encode())
+    try:
+        reply = json.load(urllib.request.urlopen(req, timeout=170))
+    except urllib.error.HTTPError as e:
+        print("TXN_FAIL the gateway chat call returned HTTP " + str(e.code) + ": " + e.read().decode(errors="replace")[:140]); raise SystemExit
+    text = ((reply.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+    print("TXN_OK " + str(len(eps)) + " gateway endpoint(s); chat answered" if text.strip()
+          else "TXN_FAIL the gateway chat call answered with no content")
 except SystemExit:
     pass
 except Exception as e:

@@ -169,7 +169,13 @@ traversal, fixed 3.17.2; this server uses Postgres): an upgrade is now a lockfil
 `weyland-mlflow:git-b7008196`; a new `scripts/mlflow-upgrade-drill.sh` (restored copy of the real DB, 11 bats) caught
 an OUTAGE on its first run: 3.17's SQLAlchemy 2.1 maps a bare `postgresql://` to psycopg v3, which the image lacks. The
 manifest now says `postgresql+psycopg2://` and the drill reads that scheme from it; re-run PASS (migration 50 s, all 10
-counts unchanged, 18 endpoints). Ships via the bump PR after this lands. `filelock` held at 3.32.7 there (litellm
+counts unchanged, 18 endpoints). **Shipped 2026-10-25 (`git-859e602d`, drilled first) and then the gateway
+REGRESSED:** every gateway call failed while /health, the endpoint list and the ship's TXN passed. Three causes, fixed
+in turn from 3.17.2's own source: `MLFLOW_GATEWAY_URI` (the server overwrites the tracking URI; 500s), `--workers 2`
+(a guardrail's judge calls the same server; one worker deadlocked, 502s), and the private-upstream SSRF policy
+(`ALLOW_PRIVATE_IPS` + `http` scheme, proven on the image before the push; restores 3.16.1's reach only). The gateway was
+down about 70 min. Then a guarded chat answered 200. Both checks that missed it now make a REAL gateway call: the ship's
+`txn_mlflow`, and the drill, which also runs production's workers and env read from the manifest. `filelock` held at 3.32.7 there (litellm
 caps <4), accepted version-scoped. (2) **The overnight advisories**, by minimal pin edits instead of Dependabot's
 recompiles (which stripped provenance comments, and two of which would not resolve: `fastmcp-slim` 4.1.3 beside
 `fastmcp` 3.4.10, and scan-suite `opentelemetry-api` 1.45.1 against semgrep): filelock 4.2.1 in 15 lockfiles, mlflow
