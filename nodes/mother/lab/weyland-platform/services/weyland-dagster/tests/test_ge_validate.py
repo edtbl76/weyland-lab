@@ -4,15 +4,20 @@ The GE context is a FILE context on the ge-data PVC, so it outlives every run. T
 `get_validator(create_expectation_suite_with_name=...)`, which REFUSES an existing suite: the first run worked and every
 run after it died on its first table ("An ExpectationSuite named ge_iceberg_dbt_mart_country_health already exists"),
 seen on runs before and after B227's ship. These run in the isolated GE venv (requirements-ge.txt); the main Python lane
-has no great_expectations and skips them.
+has no great_expectations and skips them (collected with this project's other tests, so the lane still runs real
+tests here). Run them for real in the GE venv: runbooks/great-expectations.md § Tests.
 """
+import os
 import sqlite3
+import sys
 
 import pytest
 
 gx = pytest.importorskip("great_expectations")
 from great_expectations.profile.user_configurable_profiler import UserConfigurableProfiler  # noqa: E402
 
+# ge_validate.py lives in ge/ (the isolated venv runs it as a script), so import it by path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ge"))
 import ge_validate  # noqa: E402
 
 

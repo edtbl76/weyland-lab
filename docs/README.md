@@ -85,6 +85,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [service-mesh-istio.md](runbooks/service-mesh-istio.md) — Istio mesh (B8): install, sidecar injection, mTLS, Kiali (traces → Tempo), TCP-backend fix
 - [ship-images.md](runbooks/ship-images.md) — the ship loop (B135): `scripts/ship-images.sh` detect → build → tag-bump PR → three-condition gated merge → scoped Argo sync → FR1.5 tag verify + SMOKE probe/availability gate; `argocd`/`woodpecker-cli`/`gh` prerequisites, gate-failure recovery, 62 bats
 - [soda.md](runbooks/soda.md) — Soda data-quality scan for the marts (L5 Slice C)
+- [great-expectations.md](runbooks/great-expectations.md) — Great Expectations profiling + validation: run it, the rerun fix, its tests (B77b)
 - [storage-minio.md](runbooks/storage-minio.md) — MinIO object storage
 - [streaming.md](runbooks/streaming.md) — streaming tier — Redpanda + Avro producer + Debezium CDC
 - [superset.md](runbooks/superset.md) — Superset (B65 Tier-2 #3): ad-hoc BI/SQL over Trino, Keycloak OIDC
