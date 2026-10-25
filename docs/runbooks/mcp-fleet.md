@@ -15,7 +15,7 @@ real job — with one MCP server there is nothing to compose. All live in ns `we
 | k8s-mcp | `ghcr.io/containers/kubernetes-mcp-server:latest` | cluster read (pods/events/nodes) | `k8s-mcp:8080/mcp` | `--read-only` **+** SA→`view` ClusterRole (no Secrets) |
 | postgres-mcp | `crystaldba/postgres-mcp:0.3.0` | Postgres (operational + app cells) | `postgres-mcp:8000` (**SSE**) | `--access-mode=restricted` (Postgres READ ONLY txns) |
 | neo4j-mcp | `mcp/neo4j-cypher:latest` | graph / Cypher | `neo4j-mcp:8000/mcp/` | `NEO4J_READ_ONLY=true` (no write tool) |
-| datahub-mcp | `registry.weyland.lab/mcp-server-datahub:0.8` (self-built, hand-tagged; the tag is the IMAGE revision, not the package version; pinned in `services/mcp-server-datahub/requirements.txt`: mcp-server-datahub 0.6.0, mcp 1.30.0, PyJWT 2.15.0, aiohttp 3.14.5) | catalog search + lineage | `datahub-mcp:8000/mcp` | mutation tools disabled by default |
+| datahub-mcp | `registry.weyland.lab/mcp-server-datahub:0.9` (self-built, hand-tagged; the tag is the IMAGE revision, not the package version; pinned in `services/mcp-server-datahub/requirements.txt`: mcp-server-datahub 0.6.0, mcp 1.30.0, fastmcp 3.4.10, PyJWT 2.15.0, aiohttp 3.14.5; build below) | catalog search + lineage | `datahub-mcp:8000/mcp` | mutation tools disabled by default |
 
 Each proven via MCP `tools/list` (+ a real read call, and a write-denial probe where the server exposes a query tool).
 
@@ -37,6 +37,16 @@ Each proven via MCP `tools/list` (+ a real read call, and a write-denial probe w
 > (which reaches tools through the gateway, not a local `.mcp.json`) needed code navigation — and then only
 > a **read-only subset** (`find_symbol`, `find_referencing_symbols`, `get_symbols_overview`), never the
 > editing tools. See `docs/runbooks/code-intelligence.md` § Serena.
+
+**Rebuild datahub-mcp** (hand-tagged; the command was missing until 2026-10-25). List the tags and take the next
+FREE one (`curl -s https://registry.weyland.lab/v2/mcp-server-datahub/tags/list`), then on rogueone:
+
+[rogueone]
+```
+docker build -t registry.weyland.lab/mcp-server-datahub:<tag> /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/mcp-server-datahub && bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/mcp-server-datahub:<tag>
+```
+Then bump the tag in `k8s/mcp-servers/datahub-mcp.yaml` and push. The image must be in the registry BEFORE the
+manifest reaches Argo.
 
 ## Connectivity notes
 - **trino-mcp** → Trino directly (`trino.data-mesh.svc.cluster.local:8443`) as its own `mcp` login over HTTPS (B233,
