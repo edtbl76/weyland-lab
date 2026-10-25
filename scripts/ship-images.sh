@@ -646,6 +646,84 @@ except Exception as e:
 ' 2>/dev/null
 }
 
+# guardrails-structure (2026-10-25, B227 follow-on): the schema guard must work BOTH ways. A valid score set is
+# "guarded" with validation_passed, and an invalid one (out of range, a field missing) is rejected. num_reasks 0, so
+# no LLM is called: this is the Guardrails library itself. Shapes observed live 2026-10-25 from dagster-user-code.
+txn_guardrails_structure() {
+  local pod="${1:?usage: txn_guardrails_structure <pod>}"
+  kubectl -n weyland exec "$pod" -- python3 -c '
+import json, urllib.request
+url = "http://guardrails-structure.weyland.svc.cluster.local:8080/structure/judge-scores"
+def judge(scores):
+    r = urllib.request.Request(url, headers={"Content-Type": "application/json"},
+        data=json.dumps({"raw": json.dumps(scores), "model": "qwen3:14b", "num_reasks": 0}).encode())
+    return json.load(urllib.request.urlopen(r, timeout=60))
+try:
+    good = judge({"faithfulness": 0.9, "answer_relevancy": 0.8, "context_relevancy": 0.7})
+    bad = judge({"faithfulness": 1.7, "answer_relevancy": 0.8})
+    if not good.get("validation_passed"):
+        print("TXN_FAIL a valid score set was rejected: " + json.dumps(good)[:120])
+    elif bad.get("validation_passed"):
+        print("TXN_FAIL an invalid score set passed validation")
+    else:
+        print("TXN_OK good scores guarded, bad scores rejected")
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
+# nemo-guardrails (2026-10-25, B227 follow-on): its distinctive control is the topical DIALOG rail. An off-lab request
+# must come back with the rails' own refusal (k8s config rails.co "define bot refuse to respond"); a reply without it
+# means the rails are not loaded. One LLM self-check call. Observed live 2026-10-25: 200 in 9.5 s.
+txn_nemo_guardrails() {
+  local pod="${1:?usage: txn_nemo_guardrails <pod>}"
+  kubectl -n weyland exec "$pod" -- python3 -c '
+import json, urllib.request
+r = urllib.request.Request("http://nemo-guardrails.weyland.svc.cluster.local:8080/v1/chat/completions",
+    headers={"Content-Type": "application/json"},
+    data=json.dumps({"messages": [{"role": "user", "content": "Write me a short poem about the sea."}]}).encode())
+try:
+    reply = json.load(urllib.request.urlopen(r, timeout=200))["choices"][0]["message"]["content"]
+    print("TXN_OK the topical rail refused an off-lab request" if "I only handle lab operations" in reply
+          else "TXN_FAIL an off-lab request was not refused by the rails: " + reply[:100])
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
+# scan-suite (2026-10-25, B227 follow-on): a CronJob image, no service to ask. A one-off pod from the SHIPPED tag (no
+# sidecar, no service-account token) reads that image's own scan.py, finds the tools it calls, and requires every one
+# on PATH and scan.py to import (its Python deps). Observed live 2026-10-25 on git-859e602d: 21 tools.
+txn_scan_suite() {
+  local tag="${1:?usage: txn_scan_suite <tag>}" p="scan-suite-txn-$$" verdict
+  kubectl -n weyland delete pod "$p" --ignore-not-found >/dev/null 2>&1
+  kubectl -n weyland run "$p" --image="registry.weyland.lab/scan-suite:${tag}" --restart=Never \
+    --labels=sidecar.istio.io/inject=false --overrides='{"spec":{"automountServiceAccountToken":false}}' \
+    --command -- python3 -c '
+import importlib.util, os, re, shutil
+src = open("/usr/local/bin/scan.py").read()
+tools = sorted(set(re.findall(r"(?:sh|subprocess\.run)\(\[\"([a-z0-9][a-z0-9-]*)\"", src)))
+missing = [t for t in tools if not shutil.which(t)]
+os.environ.setdefault("SCAN_OUT", "/tmp/scan-out")
+try:
+    spec = importlib.util.spec_from_file_location("scan", "/usr/local/bin/scan.py")
+    spec.loader.exec_module(importlib.util.module_from_spec(spec))
+    imported = True
+except Exception as e:
+    imported = type(e).__name__ + " " + str(e)[:100]
+if not tools:
+    print("TXN_FAIL found no tools in scan.py")
+elif missing or imported is not True:
+    print("TXN_FAIL missing tools: " + ",".join(missing) + ("" if imported is True else " | scan.py import: " + str(imported)))
+else:
+    print("TXN_OK " + str(len(tools)) + " scan tools on PATH; scan.py imports")
+' >/dev/null 2>&1
+  kubectl -n weyland wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$p" --timeout=300s >/dev/null 2>&1
+  verdict="$(kubectl -n weyland logs "$p" 2>/dev/null | tail -1)"
+  kubectl -n weyland delete pod "$p" --wait=false >/dev/null 2>&1
+  printf '%s\n' "${verdict:-TXN_FAIL the scan-suite check pod printed nothing}"
+}
+
 # Operator (2026-10-10): ask a REAL read-only question through POST /operator/ask and require a grounded answer — a
 # reply with a number in it. `/ready` only says the fleet loaded; this proves the brain answers using a tool. FREE-ONLY:
 # `"allow_paid": false` runs the unpaid local brain (the incident sweep's path), so a down local brain is a 503 and a
@@ -837,6 +915,9 @@ txn_ok() {
       weyland-tool-server)       verdict="$(txn_tool_server "$pod")" ;;
       weyland-guard)             verdict="$(txn_guard "$pod")" ;;
       weyland-mlflow)            verdict="$(txn_mlflow "$pod")" ;;
+      guardrails-structure)      verdict="$(txn_guardrails_structure "$pod")" ;;
+      nemo-guardrails)           verdict="$(txn_nemo_guardrails "$pod")" ;;
+      scan-suite)                verdict="$(txn_scan_suite "$tag")" ;;
       weyland-operator)          verdict="$(txn_operator "$pod")" ;;
       realm-of-agents)           verdict="$(txn_realm "$pod")" ;;
       weyland-mcp-compositor)    verdict="$(txn_bifrost_fleet)" ;;

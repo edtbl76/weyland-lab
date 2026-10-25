@@ -465,8 +465,15 @@ PY
   stub_when_seen kubectl 'pr merge' \
     'registry.weyland.lab/scan-suite:git-2c73c898 registry.weyland.lab/weyland-flink:git-2c73c898' \
     'registry.weyland.lab/scan-suite:git-9a4996c6 registry.weyland.lab/weyland-flink:git-9a4996c6'
+  # 2026-10-25: scan-suite has a transaction now (a one-off pod; the verdict is its `kubectl logs`). Answer that one
+  # call the way the real check pod does (observed live: "TXN_OK 21 scan tools on PATH; scan.py imports") and hand
+  # every other kubectl call to the stub above, so this test still exercises FR1.5/NFR4.
+  mv "$STUB_DIR/kubectl" "$STUB_DIR/kubectl.inner"
+  printf '#!/usr/bin/env bash\ncase "$*" in *" logs "*) printf "kubectl %%s\\n" "$*" >> "%s"; echo "TXN_OK 21 scan tools on PATH; scan.py imports" ;; *) exec "%s" "$@" ;; esac\n' \
+    "$STUB_LOG" "$STUB_DIR/kubectl.inner" > "$STUB_DIR/kubectl"
+  chmod +x "$STUB_DIR/kubectl"
   run bash "$SHIP"
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 0 ] || { echo "$output" | tail -20; return 1; }
   # NFR4: never a blanket refresh across all 78 applications.
   not_called_with argocd '--all'
   # FR1.5: the rollout was asserted against the cluster, not against the repo or the PR.
@@ -1029,12 +1036,13 @@ txn_stub_pod() {
 @test "TXN NAMES an image it has no transaction for rather than silently passing it" {
   # Same discipline as smoke_ok: an unchecked image must never read as a verified one.
   SHIP_IMAGES_LIB=1 source "$SHIP"
-  printf '+ registry.weyland.lab/scan-suite:git-9a4996c6\n+ registry.weyland.lab/feast-server:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  # store-scaler: still without a transaction (scan-suite, the old example here, got one on 2026-10-25)
+  printf '+ registry.weyland.lab/store-scaler:git-9a4996c6\n+ registry.weyland.lab/feast-server:git-9a4996c6\n' > "$STUB_DIR/d.diff"
   txn_stub_pod
   stub_case kubectl 'exec' 0 'TXN_OK'
   run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"scan-suite"* ]]
+  [[ "$output" == *"store-scaler"* ]]
   [[ "$output" == *"no transaction"* ]]
 }
 
@@ -1255,6 +1263,65 @@ txn_stub_pod() {
   [ "$status" -ne 0 ]
   [[ "$output" == *"weyland-mlflow"* ]]
   [[ "$output" == *"no endpoints"* ]]
+}
+
+# 2026-10-25 (B227 follow-on): the last three images the ship named "no transaction defined, NOT verified". Each now
+# answers one, observed live first: guardrails-structure validates a good score set AND rejects a bad one; nemo-guardrails
+# refuses an off-lab request with its own rails' text (its distinctive dialog control); scan-suite is a CronJob image, so
+# a one-off pod from the SHIPPED tag reads its own scan.py's tool list and finds every tool on PATH and scan.py importing.
+@test "TXN checks guardrails-structure: a good score set passes AND a bad one is rejected" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/guardrails-structure:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK good scores guarded, bad scores rejected'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"no transaction"* ]]
+  grep -q '/structure/judge-scores' "$STUB_LOG"
+  grep -q 'validation_passed' "$STUB_LOG"
+}
+
+@test "TXN FAILS when guardrails-structure accepts an invalid score set, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/guardrails-structure:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_FAIL an invalid score set passed validation'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"guardrails-structure"* && "$output" == *"invalid score set"* ]]
+}
+
+@test "TXN checks nemo-guardrails: an off-lab request gets its rails' refusal" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/nemo-guardrails:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'exec' 0 'TXN_OK the topical rail refused an off-lab request'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ]
+  grep -q 'nemo-guardrails.weyland.svc.cluster.local:8080/v1/chat/completions' "$STUB_LOG"
+  grep -q 'I only handle lab operations' "$STUB_LOG"
+}
+
+@test "TXN checks scan-suite with a one-off pod from the SHIPPED tag" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/scan-suite:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'logs' 0 'TXN_OK 21 scan tools on PATH; scan.py imports'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" != *"no transaction"* ]]
+  grep -q 'registry.weyland.lab/scan-suite:git-9a4996c6' "$STUB_LOG"     # the shipped bytes, not whatever is deployed
+  grep -q 'shutil.which' "$STUB_LOG"
+}
+
+@test "TXN FAILS when the shipped scan-suite is missing a tool, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/scan-suite:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'logs' 0 'TXN_FAIL missing tools: trivy'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"scan-suite"* && "$output" == *"trivy"* ]]
 }
 
 @test "FLAG: a DISABLED weyland-ship-enabled HOLDS the ship (the only held verdict)" {

@@ -32,6 +32,17 @@ TARGETS = [
 ]
 
 
+def suite_validator(ctx, batch_request, suite_name):
+    """A validator on a FRESH, empty suite named `suite_name`, on every run.
+
+    The context is a FILE context on the ge-data PVC, so the suite from the last run is still there. The old call,
+    get_validator(create_expectation_suite_with_name=...), refuses an existing suite: every run after the first died on
+    its first table (B227 follow-on, 2026-10-25). add_or_update resets it to empty, so the profiler re-profiles the
+    table as it is now instead of piling new expectations onto old ones."""
+    ctx.add_or_update_expectation_suite(expectation_suite_name=suite_name)
+    return ctx.get_validator(batch_request=batch_request, expectation_suite_name=suite_name)
+
+
 def main():
     ctx = gx.get_context(mode="file", project_root_dir=DOCS_ROOT)
     # add_or_update, not add-then-get: the context is a FILE on the ge-data PVC, so a datasource created once kept its
@@ -50,7 +61,7 @@ def main():
         suite_name = f"ge_{aname}"
 
         # AUTO-PROFILE every column → a rich suite (GE's differentiator).
-        validator = ctx.get_validator(batch_request=br, create_expectation_suite_with_name=suite_name)
+        validator = suite_validator(ctx, br, suite_name)
         UserConfigurableProfiler(profile_dataset=validator).build_suite()
         validator.save_expectation_suite(discard_failed_expectations=False)
 
