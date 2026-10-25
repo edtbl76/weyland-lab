@@ -14,6 +14,7 @@ metadata:
   namespace: weyland
 data:
   rotate-kek-if-needed.sh: |
+    #!/bin/sh
     set -eu
     DB="${1:?usage: rotate-kek-if-needed.sh <backend-store-uri>}"
     NEW="${MLFLOW_CRYPTO_KEK_PASSPHRASE:?the Deployment sets the new passphrase from Secret mlflow-kek}"
