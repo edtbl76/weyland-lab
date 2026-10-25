@@ -96,6 +96,18 @@ spec:
             # the server's own port: nothing new is exposed.
             - name: MLFLOW_GATEWAY_URI
               value: http://localhost:5000
+            # mlflow 3.17's gateway SSRF policy (2026-10-25): public HTTPS upstreams only, by default. The lab's local
+            # models sit behind the Ollama front door at http://192.168.1.230:11434/v1 (private, plain http; B211's
+            # bearer token is the auth) and LiteLLM in-cluster, so EVERY call was refused ("not a public IP address").
+            # These two settings restore exactly the reach 3.16.1 had (no host allowlist exists in 3.17); 3.17's other
+            # fixes (e.g. CVE-2026-115886) stay. Who can define an upstream is still bounded by mlflow-front-door-only
+            # (rogueone + the listed pods). The scheme list also matters at WRITE time: register_gateway_endpoints.py
+            # stores http api_bases. Proven 2026-10-25 on this image: without them a secret is refused; with them a real
+            # chat to a private http Ollama answered 200.
+            - name: MLFLOW_GATEWAY_API_BASE_ALLOW_PRIVATE_IPS
+              value: "true"
+            - name: MLFLOW_GATEWAY_API_BASE_ALLOWED_SCHEMES
+              value: http,https
             - name: MLFLOW_TRACKING_URI
               value: http://localhost:5000
             - name: MLFLOW_S3_ENDPOINT_URL
