@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: dagster-webserver
-          image: registry.weyland.lab/weyland-dagster-base:git-5d0ce0cc
+          image: registry.weyland.lab/weyland-dagster-base:git-859e602d
           imagePullPolicy: IfNotPresent
           # Readiness = the webserver answers (2026-10-01). Without a probe a broken image went "Ready" the moment the
           # process started, so a rollout replaced the working pod before anything asked it a question.
