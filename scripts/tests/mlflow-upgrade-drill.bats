@@ -118,12 +118,17 @@ scheme() { MLFLOW_DRILL_LIB=1 bash -c ". '$S'; db_scheme '$1'"; }
     '          args:' '            - >' '              mlflow server --host 0.0.0.0 --port 5000 --workers 2' \
     '          env:' '            - name: MLFLOW_GATEWAY_URI' '              value: http://localhost:5000' \
     '            - name: POSTGRES_PASSWORD' '              valueFrom:' '                secretKeyRef: {name: s, key: k}' \
-    '            - name: MLFLOW_GATEWAY_API_BASE_ALLOW_PRIVATE_IPS' '              value: "true"' > "$T/m.yaml"
+    '            - name: MLFLOW_GATEWAY_API_BASE_ALLOW_PRIVATE_IPS' '              value: "true"' \
+    '            - name: MLFLOW_CRYPTO_KEK_PASSPHRASE' '              valueFrom:' \
+    '                secretKeyRef: {name: mlflow-kek, key: MLFLOW_CRYPTO_KEK_PASSPHRASE}' > "$T/m.yaml"
   run env MLFLOW_DRILL_LIB=1 bash -c ". '$S'; manifest_env '$T/m.yaml'"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  [[ "$output" == *"MLFLOW_GATEWAY_URI=http://localhost:5000"* ]]
-  [[ "$output" == *"MLFLOW_GATEWAY_API_BASE_ALLOW_PRIVATE_IPS=true"* ]]
-  [[ "$output" != *"POSTGRES_PASSWORD"* ]]                     # secret-sourced entries are never copied
+  [[ "$output" == *'{"name": "MLFLOW_GATEWAY_URI", "value": "http://localhost:5000"}'* ]]
+  [[ "$output" == *'{"name": "MLFLOW_GATEWAY_API_BASE_ALLOW_PRIVATE_IPS", "value": "true"}'* ]]
+  # MLflow's OWN secret-sourced settings are carried as the same Secret reference (the KEK passphrase: the drill must
+  # decrypt with production's key); the database credentials are never copied
+  [[ "$output" == *'"name": "MLFLOW_CRYPTO_KEK_PASSPHRASE", "valueFrom": {"secretKeyRef": {"name": "mlflow-kek"'* ]]
+  [[ "$output" != *"POSTGRES_PASSWORD"* ]]
   run env MLFLOW_DRILL_LIB=1 bash -c ". '$S'; manifest_workers '$T/m.yaml'"
   [ "$output" = "2" ]
 }
@@ -133,6 +138,16 @@ scheme() { MLFLOW_DRILL_LIB=1 bash -c ". '$S'; db_scheme '$1'"; }
   run verdict "$T/log"
   [ "$status" -eq 1 ]
   [[ "$output" == *"the gateway did not answer a real chat request"* ]]
+}
+
+@test "a failed KEK rotation is exit 1, even when everything else passed" {
+  { good; echo "kek: rotation FAILED"; } > "$T/log"
+  run verdict "$T/log"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"the KEK rotation failed"* ]]
+  { good; echo "kek: rotated 11 secret(s) from version 1 to 2"; } > "$T/log"
+  run verdict "$T/log"
+  [ "$status" -eq 0 ]
 }
 
 @test "the image argument is required and validated" {

@@ -122,8 +122,35 @@ a trace pins the prompt version that produced each answer. Registered prompts (`
      settings a secret is refused, with them a real chat to a private http Ollama answered 200.
   Live after the fix: a guarded chat through `:30500` answered 200 "OK" (22 s, guardrails and judge included). Both
   checks that missed it now make a real call: the ship's `txn_mlflow` and the upgrade drill (next bullet).
-  Not changed, worth knowing: the server logs `MLFLOW_CRYPTO_KEK_PASSPHRASE not set`; the gateway secrets are
-  encrypted with MLflow's default passphrase (as since B100). Setting one means re-encrypting every stored secret.
+- **The KEK: the gateway secrets' own key (B227 follow-on, 2026-10-25).** Until then every gateway secret (the Ollama
+  front-door token, the hosted API keys) was encrypted with MLflow's PUBLIC default passphrase, so anyone with a DB dump
+  could decrypt them. Now the server runs on `MLFLOW_CRYPTO_KEK_PASSPHRASE` from Secret `mlflow-kek` with
+  `MLFLOW_CRYPTO_KEK_VERSION=2`, and `k8s/mlflow/kek-rotate-configmap.yaml` re-encrypts the secrets ONCE at the start of
+  the server's command (`mlflow crypto rotate-kek`, v1 -> v2; it rotates only while a secret is still on v1, so a
+  restart never rotates again; the Deployment is Recreate, so no server runs during it, as MLflow requires). Proven on
+  the image (a secret made under the default key, rotated, then a real chat on the new key answered 200; without the
+  rotation the new key gave "Failed to decrypt secret"), then by the upgrade drill on a restored copy. Make the
+  Secret ONCE, before the manifest change, on rogueone (each prints nothing):
+  [rogueone]
+  ```
+  printf 'MLFLOW_CRYPTO_KEK_PASSPHRASE=%s\n' "$(python3 -c 'import secrets; print(secrets.token_urlsafe(36))')" >> /home/edwardmangini/IdeaProjects/weyland/scripts/.env
+  ```
+  [rogueone]
+  ```
+  kubectl -n weyland create secret generic mlflow-kek --from-env-file=<(grep '^MLFLOW_CRYPTO_KEK_PASSPHRASE=' /home/edwardmangini/IdeaProjects/weyland/scripts/.env) --dry-run=client -o yaml | kubectl apply -f -
+  ```
+  Check the stored value is not empty (expect 64: a 48-character passphrase, base64):
+  ```
+  kubectl -n weyland get secret mlflow-kek -o jsonpath='{.data.MLFLOW_CRYPTO_KEK_PASSPHRASE}' | wc -c
+  ```
+  Seal it into git, like the Ollama token (`model-serving-ollama.md` § Front door):
+  [rogueone]
+  ```
+  kubectl -n weyland annotate secret mlflow-kek sealedsecrets.bitnami.com/managed=true --overwrite && kubectl -n weyland get secret mlflow-kek -o yaml | kubeseal --format yaml > /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/weyland__mlflow-kek.yaml
+  ```
+  **Never lose or change it casually:** the gateway secrets are readable only with it. To change it, follow
+  MLflow's procedure with the CURRENT passphrase as the old one (`mlflow crypto rotate-kek`, then version 3);
+  restoring a dump from before 2026-10-25 needs the default passphrase and version 1 (`dr.md`).
 - **Prove an upgrade on a restored copy FIRST (B227 follow-on, 2026-10-24).** Before the bump PR that moves the
   Deployment to a new MLflow version is merged, drill that CI-built image against the newest core dump:
 

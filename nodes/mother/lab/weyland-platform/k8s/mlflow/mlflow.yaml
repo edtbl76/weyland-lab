@@ -67,7 +67,9 @@ spec:
             # worker the request waited on itself: every guarded call timed out at ~30 s into a 502 and nothing reached
             # Ollama. Two workers serve ONE guarded request at a time (the outer call holds one, its judge the other);
             # more concurrency needs more workers and ~1-1.5 GiB each against the 8Gi limit below.
+            # KEK first (B227 follow-on): re-encrypt the gateway secrets once, while no server is running (Recreate).
             - >
+              sh /opt/kek/rotate-kek-if-needed.sh "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow" &&
               mlflow db upgrade "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow" &&
               mlflow server --host 0.0.0.0 --port 5000
               --backend-store-uri "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"
@@ -124,6 +126,21 @@ spec:
                   key: secret_key
             - name: AWS_DEFAULT_REGION
               value: us-east-1
+            # B227 follow-on (2026-10-25): the gateway secrets' key. They were encrypted with MLflow's PUBLIC default
+            # passphrase; k8s/mlflow/kek-rotate-configmap.yaml re-encrypts them once (version 1 -> 2) at the start of
+            # the command below, and the server then runs on this passphrase. Secret mlflow-kek is made by the owner
+            # from scripts/.env (runbooks/mlflow.md § The KEK); losing it means re-entering every gateway secret.
+            - name: MLFLOW_CRYPTO_KEK_PASSPHRASE
+              valueFrom:
+                secretKeyRef:
+                  name: mlflow-kek
+                  key: MLFLOW_CRYPTO_KEK_PASSPHRASE
+            - name: MLFLOW_CRYPTO_KEK_VERSION
+              value: "2"
+          volumeMounts:
+            - name: kek-rotate
+              mountPath: /opt/kek
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /health
@@ -146,6 +163,10 @@ spec:
               # in-flight jobs. Only the LIMIT moves (request stays low = no scheduling reservation); node has
               # ~14Gi physical free. Revisit if a single heavy job still OOMs at 8Gi. See B99 / [[node-oom-forensics]].
               memory: 8Gi
+      volumes:
+        - name: kek-rotate
+          configMap:
+            name: mlflow-kek-rotate
 ---
 apiVersion: v1
 kind: Service

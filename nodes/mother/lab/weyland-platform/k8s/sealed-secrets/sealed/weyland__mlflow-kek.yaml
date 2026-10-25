@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: mlflow-kek
+  namespace: weyland
+spec:
+  encryptedData:
+    MLFLOW_CRYPTO_KEK_PASSPHRASE: AgChqrwFu20SHnqkFIE03VHJ3soVXAdbXqpQh4veLgMmNvvxqek33tTpLOMe/oVigLXCSWk7Zcidk+1sKWGBfbufkLaJuJDun+ITK9glr8gQax6txlR9RJz5jwbyeRNmYvY2iV8KHWH5+fr7muACv5a/ZfyGygvDXQLzbEJsHfkoYbwJ8oC7q8oHu9GRq3e+MNo/Jbl7gyAgyHF6iqOeD6Traqf524lhDyoaWf3YewbDBtP3L+r7OmbR+eUz6h/9pdvWfkJb3g76VTHPXPacbFf/biz9IuJCiMmR+ux37ag8RnXwAe/SZrcnK8XFQXeg0CwVDoJJa0giPKFvDH9pP+St0nmWKBlEzRqfmF4VW6Z0CGwTXTpVTSLDlRNDJ3KgAwoD+9SL2NMjqPVy7dxE6gzwflBr3AAV52idINrjcvmc4X/4a3V0lq5VPOrYHI5NVgTr52Kr0jpU/3xesWyh+JEljw1mfC+s39l7JVS8sU3iLjQOhSZgKmN5lnz+lYLaFvxF3yFF+RVguEU9ya5BF3LEfUawS0xLBLQLLXhO4ToRKaCXvPL5Uw4UuWGAfgRI/5plsEY+8bCVeIikgjzXGq7Pwjr7RnJ7QUf06iWHxwMNAeyiCuoCRC20mdKAYMtesNVlHr9xelhjAut6suUnaXlWE6UKBvPyMpNw+x7nrwfHDt8Z/Uulx9uqFbA5Dji9B5f/5fE+sqLoARysjDtNGLhAQX0Q0aYB0c6odoqr+GbtIIc/25HIkfOMbzXIx/11PbI=
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: mlflow-kek
+      namespace: weyland
+    type: Opaque

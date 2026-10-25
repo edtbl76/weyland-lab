@@ -36,6 +36,7 @@ drill_verdict() {
   n="$(sed -n 's/^endpoints: \([0-9][0-9]*\)$/\1/p' "$log" | head -1)"
   [ -n "$n" ] && [ "$n" -gt 0 ] || bad="${bad}; the upgraded server lists no gateway endpoints"
   grep -q '^chat: ok ' "$log" || bad="${bad}; the gateway did not answer a real chat request"
+  ! grep -qE '^kek: (rotation FAILED|MLFLOW_CRYPTO_KEK_VERSION must)' "$log" || bad="${bad}; the KEK rotation failed"
   if [ -n "$bad" ]; then echo "DRILL FAILED${bad}"; return 1; fi
   from="$(sed -n 's/^alembic-before: //p' "$log" | head -1)"; to="$(sed -n 's/^alembic-after: //p' "$log" | head -1)"
   secs="$(sed -n 's/^upgrade: ok //p' "$log" | head -1)"
@@ -47,7 +48,7 @@ drill_verdict() {
 # 2026-10-25 a drill with its own config (one worker, no gateway env) passed 3.17.2 while production's gateway failed.
 manifest_env() {
   python3 -c '
-import sys, yaml
+import json, sys, yaml
 for doc in yaml.safe_load_all(open(sys.argv[1])):
     if not doc or doc.get("kind") != "Deployment":
         continue
@@ -55,7 +56,11 @@ for doc in yaml.safe_load_all(open(sys.argv[1])):
         if c.get("name") == "mlflow":
             for e in c.get("env") or []:
                 if "value" in e:
-                    print(e["name"] + "=" + str(e["value"]))
+                    print(json.dumps({"name": e["name"], "value": str(e["value"])}))
+                elif e["name"].startswith("MLFLOW_") and "valueFrom" in e:
+                    # MLflow settings that come from a Secret (the KEK passphrase) as the SAME Secret reference: the
+                    # drill must decrypt with the production key. DB credentials (POSTGRES_*) are never copied.
+                    print(json.dumps({"name": e["name"], "valueFrom": e["valueFrom"]}))
             sys.exit(0)
 sys.exit("no mlflow container in " + sys.argv[1])' "$1"
 }
@@ -99,7 +104,7 @@ MANIFEST="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/nodes/mother/lab/weyl
 SCHEME="$(db_scheme "$MANIFEST")" || { echo "$SCHEME" >&2; exit 2; }
 WORKERS="$(manifest_workers "$MANIFEST")" || { echo "$WORKERS" >&2; exit 2; }
 LIVE_ENV="$(manifest_env "$MANIFEST")" || { echo "cannot read the live container env from $MANIFEST" >&2; exit 2; }
-echo "→ the live server: --workers ${WORKERS}; env $(printf '%s\n' "$LIVE_ENV" | cut -d= -f1 | tr '\n' ' ')(values as in the manifest)"
+echo "→ the live server: --workers ${WORKERS}; env $(printf '%s\n' "$LIVE_ENV" | python3 -c 'import json,sys; print(" ".join(json.loads(l)["name"] for l in sys.stdin if l.strip()))') (as in the manifest; Secret refs stay refs)"
 echo "→ the live command connects as ${SCHEME}:// (from k8s/mlflow/mlflow.yaml); the drill uses the same"
 
 cleanup() {
@@ -109,13 +114,20 @@ cleanup() {
 trap cleanup EXIT
 cleanup
 kubectl -n "$NS" wait --for=delete pod/"$POD" --timeout=120s >/dev/null 2>&1 || true
-kubectl -n "$NS" create configmap "$CM" --from-file=pg.sh="$LIB/pg.sh" --from-file=mlflow.sh="$LIB/mlflow.sh" >/dev/null
+# The SAME KEK-rotation script production runs at server start, taken from its ConfigMap (B227 follow-on).
+KEK_CM="$(dirname "$MANIFEST")/kek-rotate-configmap.yaml"
+KEK_SH="$(mktemp)"
+python3 -c 'import sys, yaml; open(sys.argv[2], "w").write(yaml.safe_load(open(sys.argv[1]))["data"]["rotate-kek-if-needed.sh"])' \
+  "$KEK_CM" "$KEK_SH" || { echo "cannot read the rotation script from $KEK_CM" >&2; exit 2; }
+kubectl -n "$NS" create configmap "$CM" --from-file=pg.sh="$LIB/pg.sh" --from-file=mlflow.sh="$LIB/mlflow.sh" \
+  --from-file=rotate-kek-if-needed.sh="$KEK_SH" >/dev/null
+rm -f "$KEK_SH"
 
 python3 -c '
 import json, sys
 image, pod, cm, scheme, workers, live_env = sys.argv[1:]
 env = [{"name": "MLFLOW_DRILL_DB_SCHEME", "value": scheme}, {"name": "MLFLOW_DRILL_WORKERS", "value": workers}]
-env += [{"name": k, "value": v} for k, _, v in (l.partition("=") for l in live_env.splitlines() if l)]
+env += [json.loads(l) for l in live_env.splitlines() if l]   # k8s env objects: literal values + MLFLOW_* Secret refs
 mounts = [{"name": "s", "mountPath": "/drill", "readOnly": True}, {"name": "shared", "mountPath": "/shared"}]
 print(json.dumps({"apiVersion": "v1", "kind": "Pod",
   "metadata": {"name": pod, "labels": {"app": pod, "sidecar.istio.io/inject": "false"}},

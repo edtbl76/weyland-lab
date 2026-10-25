@@ -10,6 +10,11 @@ i=0
 while [ ! -f /shared/ready ] && [ "$i" -lt 1200 ]; do sleep 1; i=$((i + 1)); done
 [ -f /shared/ready ] || { echo "upgrade: FAILED (the restore never finished)"; touch /shared/done; exit 1; }
 echo "image mlflow: $(python -c 'import mlflow; print(mlflow.__version__)')"
+# Production's start-up order: rotate the KEK if needed (the manifest's ConfigMap script, B227 follow-on), then migrate.
+if [ -n "${MLFLOW_CRYPTO_KEK_PASSPHRASE:-}" ]; then
+  # the script prints its own "kek: ..." verdict line, failure included (the drill's verdict reads it)
+  sh /drill/rotate-kek-if-needed.sh "$DB" 2>&1 | tail -3
+fi
 start=$(date +%s)
 if mlflow db upgrade "$DB" > /tmp/upgrade.log 2>&1; then
   echo "upgrade: ok $(( $(date +%s) - start ))"

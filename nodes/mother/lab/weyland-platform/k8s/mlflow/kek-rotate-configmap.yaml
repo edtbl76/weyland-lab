@@ -1,0 +1,33 @@
+# MLflow KEK rotation, run at the START of the server's own command (B227 follow-on, 2026-10-25). The gateway secrets
+# (Ollama front-door token, hosted API keys) were encrypted with MLflow's PUBLIC default passphrase
+# (mlflow.utils.crypto.DEFAULT_KEK_PASSPHRASE): anyone with a DB dump could decrypt them. MLflow's procedure
+# (server/constants.py): stop the server, set the OLD passphrase, `mlflow crypto rotate-kek --new-passphrase NEW`, then
+# run the server with the NEW passphrase and MLFLOW_CRYPTO_KEK_VERSION incremented. The Deployment is Recreate, so the
+# old server is gone when this runs. Idempotent: it rotates only while some secret is still on kek_version 1, so a
+# restart never rotates again. The new passphrase is the Deployment's MLFLOW_CRYPTO_KEK_PASSPHRASE (Secret mlflow-kek).
+# rotate-kek takes it as an argument (MLflow's CLI has no other way); that is visible only inside this container,
+# before the server starts. Proven first on a restored copy: scripts/mlflow-upgrade-drill.sh runs this same script.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mlflow-kek-rotate
+  namespace: weyland
+data:
+  rotate-kek-if-needed.sh: |
+    set -eu
+    DB="${1:?usage: rotate-kek-if-needed.sh <backend-store-uri>}"
+    NEW="${MLFLOW_CRYPTO_KEK_PASSPHRASE:?the Deployment sets the new passphrase from Secret mlflow-kek}"
+    [ "${MLFLOW_CRYPTO_KEK_VERSION:-}" = 2 ] || { echo "kek: MLFLOW_CRYPTO_KEK_VERSION must be 2" >&2; exit 2; }
+    left="$(python -c '
+    import sys, sqlalchemy as sa
+    with sa.create_engine(sys.argv[1]).connect() as c:
+        print(c.execute(sa.text("select count(*) from secrets where kek_version = 1")).scalar())' "$DB")"
+    if [ "$left" -gt 0 ]; then
+      old="$(python -c 'from mlflow.utils.crypto import DEFAULT_KEK_PASSPHRASE as d; print(d)')"
+      MLFLOW_CRYPTO_KEK_PASSPHRASE="$old" MLFLOW_CRYPTO_KEK_VERSION=1 \
+        mlflow crypto rotate-kek --new-passphrase "$NEW" --backend-store-uri "$DB" --yes >/tmp/kek-rotate.log 2>&1 \
+        || { echo "kek: rotation FAILED" >&2; tail -5 /tmp/kek-rotate.log >&2; exit 1; }
+      echo "kek: rotated $left secret(s) from version 1 to 2"
+    else
+      echo "kek: nothing to rotate (0 secrets on version 1)"
+    fi
