@@ -62,12 +62,17 @@ spec:
             # `postgresql+psycopg2://`, never a bare `postgresql://` (2026-10-24): SQLAlchemy 2.1 (mlflow 3.17's base)
             # maps the bare scheme to the psycopg v3 driver, which the image does not have, so the server would not start.
             # scripts/mlflow-upgrade-drill.sh caught it on a restored copy and reads this scheme from here.
+            # `--workers 2`, not 1 (2026-10-25, mlflow 3.17): a guardrail's judge now calls the gateway back over HTTP
+            # on THIS server (gateway/guardrails.py: base_url = {server_url}/gateway/mlflow/v1/chat/completions). With one
+            # worker the request waited on itself: every guarded call timed out at ~30 s into a 502 and nothing reached
+            # Ollama. Two workers serve ONE guarded request at a time (the outer call holds one, its judge the other);
+            # more concurrency needs more workers and ~1-1.5 GiB each against the 8Gi limit below.
             - >
               mlflow db upgrade "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow" &&
               mlflow server --host 0.0.0.0 --port 5000
               --backend-store-uri "postgresql+psycopg2://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@weyland-postgres.weyland.svc.cluster.local:5432/mlflow"
               --artifacts-destination s3://mlflow/ --serve-artifacts
-              --allowed-hosts '*' --cors-allowed-origins '*' --workers 1
+              --allowed-hosts '*' --cors-allowed-origins '*' --workers 2
           ports:
             - name: http
               containerPort: 5000
