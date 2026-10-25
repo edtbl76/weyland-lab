@@ -44,7 +44,7 @@ spec:
     spec:
       containers:
         - name: mlflow
-          image: registry.weyland.lab/weyland-mlflow:git-bfa17089  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root  (B227, 2026-10-24: CI-built FROM ghcr.io/mlflow/mlflow:v3.16.1 by digest + the frozen lockfile; the bump PR rewrites this git-<sha> tag. Version history: B47: 2.18.0 -> 3.14.0 cleared the 2025/2026 RCE CVEs; 2026-08-20: 3.14.0 -> 3.15.1 clears CVE-2026-64849, unauthenticated full-read SSRF in webhook delivery — this server has an un-authed LAN NodePort :30500, so the SSRF was reachable without credentials; 2026-10-17 B215: 3.15.1 -> 3.16.1 clears GHSA-h7x2-h6g9-p789 / CVE-2026-71211, the AI Gateway SSRF via an unvalidated api_base, <=3.15.2 — this server runs that gateway. 3 forward-only migrations, proven locally on a 3.15.1 DB)
+          image: registry.weyland.lab/weyland-mlflow:git-859e602d  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root  (B227, 2026-10-24: CI-built FROM ghcr.io/mlflow/mlflow:v3.16.1 by digest + the frozen lockfile; the bump PR rewrites this git-<sha> tag. Version history: B47: 2.18.0 -> 3.14.0 cleared the 2025/2026 RCE CVEs; 2026-08-20: 3.14.0 -> 3.15.1 clears CVE-2026-64849, unauthenticated full-read SSRF in webhook delivery — this server has an un-authed LAN NodePort :30500, so the SSRF was reachable without credentials; 2026-10-17 B215: 3.15.1 -> 3.16.1 clears GHSA-h7x2-h6g9-p789 / CVE-2026-71211, the AI Gateway SSRF via an unvalidated api_base, <=3.15.2 — this server runs that gateway. 3 forward-only migrations, proven locally on a 3.15.1 DB)
           imagePullPolicy: IfNotPresent
           # B47 hardening: drop priv-esc + seccomp (see arch)
           securityContext:
