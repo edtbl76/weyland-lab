@@ -83,10 +83,14 @@ spec:
                   name: mlflow-secret
                   key: POSTGRES_PASSWORD
             # S3 artifact store → MinIO (reuses the B37 MinIO secret in this ns).
-            # mlflow 3.17 (2026-10-25): the AI Gateway routes each request back through the tracking server and needs
-            # an HTTP(S) tracking URI. Unset, it fell back to the backend-store URI and EVERY gateway call returned 500
-            # ("Gateway provider requires an HTTP(S) tracking URI", the body echoing the DB URI). It also feeds the
-            # server's own trace export. Its own port: the server talks to itself, nothing new is exposed.
+            # mlflow 3.17 (2026-10-25): the AI Gateway routes each request back through the tracking server over HTTP.
+            # Without an HTTP URI EVERY gateway call returned 500 ("Gateway provider requires an HTTP(S) tracking URI",
+            # the body echoing the DB URI). `mlflow server` OVERWRITES MLFLOW_TRACKING_URI with the backend-store URI,
+            # so the gateway needs MLFLOW_GATEWAY_URI, which it reads first (genai/utils/gateway_utils.py
+            # _resolve_gateway_uri). MLFLOW_TRACKING_URI stays: it fixed the server's own trace export. Both point at
+            # the server's own port: nothing new is exposed.
+            - name: MLFLOW_GATEWAY_URI
+              value: http://localhost:5000
             - name: MLFLOW_TRACKING_URI
               value: http://localhost:5000
             - name: MLFLOW_S3_ENDPOINT_URL
