@@ -175,7 +175,12 @@ in turn from 3.17.2's own source: `MLFLOW_GATEWAY_URI` (the server overwrites th
 (a guardrail's judge calls the same server; one worker deadlocked, 502s), and the private-upstream SSRF policy
 (`ALLOW_PRIVATE_IPS` + `http` scheme, proven on the image before the push; restores 3.16.1's reach only). The gateway was
 down about 70 min. Then a guarded chat answered 200. Both checks that missed it now make a REAL gateway call: the ship's
-`txn_mlflow`, and the drill, which also runs production's workers and env read from the manifest. `filelock` held at 3.32.7 there (litellm
+`txn_mlflow`, and the drill, which also runs production's workers and env read from the manifest. **All live
+2026-10-25:** the 12 CI images shipped (`git-859e602d`, 9 TXN), plus hand-built weyland-agent v14, datahub-mcp 0.9,
+ray-head v14 and weyland-superset v1 (15 of 15 connections answer); rag-embed and basic-memory re-installed on
+rogueone (basic-memory's 246 notes byte-identical, its check 4/4); the GE job runs on setuptools 84.2.1 (its
+`ExpectationSuite ... already exists` error is pre-existing, the same before the ship). Dependabot closed 15 PRs
+superseded by these edits. Known exception recorded (owner): `qwen3-30b-a3b` `unsafe-echo` (`mlflow-gateway.md`). `filelock` held at 3.32.7 there (litellm
 caps <4), accepted version-scoped. (2) **The overnight advisories**, by minimal pin edits instead of Dependabot's
 recompiles (which stripped provenance comments, and two of which would not resolve: `fastmcp-slim` 4.1.3 beside
 `fastmcp` 3.4.10, and scan-suite `opentelemetry-api` 1.45.1 against semgrep): filelock 4.2.1 in 15 lockfiles, mlflow

@@ -83,6 +83,24 @@ The upload works (it is proxied). Off-cluster clients set `MLFLOW_ENABLE_PROXY_M
 through the server instead: the same round-trip from rogueone then printed `ok` (runbook `mlflow.md` § Gotchas). No lab
 code downloads artifacts from outside the cluster today.
 
+## RUN 2026-10-25 — MLflow 3.17.2 (B227 follow-on): drilled, shipped, gateway regression found and fixed
+
+`registry.weyland.lab/weyland-mlflow:git-859e602d` (3.17.2: CVE-2026-115886 and CVE-2026-53995 fixed). Before it
+shipped, `scripts/mlflow-upgrade-drill.sh` caught one outage on a restored copy (SQLAlchemy 2.1 picks psycopg v3 for a
+bare `postgresql://`; the manifest now says `postgresql+psycopg2://`). After it shipped the gateway's CALLS failed while
+every list passed; three settings fixed it (`runbooks/mlflow.md` § MLflow 3.17 needs four server settings).
+
+| Check | Result |
+|---|---|
+| Image / schema | `git-859e602d`, 0 restarts; Alembic `b7e2c1a4d9f3 -> dc11669786a5` (49 s on the drilled copy, all 10 counts unchanged) |
+| In the pod | mlflow 3.17.2, SQLAlchemy 2.1.5; `pip freeze` == lockfile (124); `pip check` clean |
+| Gateway, a real guarded call | `POST /gateway/mlflow/v1/chat/completions` (`ollama-qwen25-7b`) → **200 "OK"** (22 s, guardrails + judge) |
+| `verify_gateway_guardrails.py` | budget PASS; 15 PASS; Safety blocked `unsafe-echo` on 5 of 7; exit 1 from the recorded known exception only (`qwen3-30b-a3b` quotes the phrase while refusing, 1 of 3 runs; `mlflow-gateway.md`) |
+| Artifact round-trip in the pod | `OK`, `download: hi`; 18 gateway endpoints |
+| Ship transaction (now a real call) | `txn_mlflow` → `TXN_OK 18 gateway endpoint(s); chat answered` |
+| The drill, with production's config | `--workers 2` + the live env from the manifest: `chat: ok ollama-qwen25-7b answered`, PASS |
+| Clients on 3.17.2 | weyland-agent v14 (`/agent/ask`: 1,171-char answer, 5 sources), ray-head v14 (reads 30 experiments), operator + realm (ship TXN) |
+
 ## Cleanup / teardown
 
 Delete the smoke experiment (removes its runs from the backend store), then garbage-collect the
