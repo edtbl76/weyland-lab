@@ -18,14 +18,6 @@ hosts:
       status: keep
       rationale: B179 software-factory trial - parallel coding-agent supervisor (Linear issue -> worktree -> agent); keep
         until B179's verdict
-    - name: LM-Studio
-      kind: appimage
-      status: unreviewed
-      rationale: ''
-    - name: NexusMods.App
-      kind: appimage
-      status: unreviewed
-      rationale: ''
     - name: agda
       kind: apt
       status: system
@@ -125,6 +117,9 @@ hosts:
     - name: clang
       kind: apt
       status: system
+    - name: claude-desktop
+      kind: apt
+      status: system
     - name: clojure
       kind: apt
       status: system
@@ -222,6 +217,9 @@ hosts:
       kind: apt
       status: system
     - name: evince
+      kind: apt
+      status: system
+    - name: ffmpeg
       kind: apt
       status: system
     - name: findutils
@@ -1071,13 +1069,25 @@ hosts:
       kind: flatpak
       status: keep
       rationale: 'EMA-188 audit 2026-08-15: keep (OBS Studio)'
+    - name: acryldata/datahub-actions
+      kind: image
+      status: system
     - name: alpine
       kind: image
       status: system
     - name: alpine/k8s
       kind: image
       status: system
+    - name: alpine/openssl
+      kind: image
+      status: system
     - name: anchore/syft
+      kind: image
+      status: system
+    - name: apache/ranger
+      kind: image
+      status: system
+    - name: apachesuperset.docker.scarf.sh/apache/superset
       kind: image
       status: system
     - name: aquasec/trivy
@@ -1095,10 +1105,10 @@ hosts:
     - name: codescene/codescene-mcp
       kind: image
       status: system
-    - name: compositor-local
+    - name: contiker/contiki-ng
       kind: image
       status: system
-    - name: contiker/contiki-ng
+    - name: curlimages/curl
       kind: image
       status: system
     - name: cytopia/yamllint
@@ -1122,7 +1132,7 @@ hosts:
     - name: docker.redpanda.com/redpandadata/redpanda
       kind: image
       status: system
-    - name: gateway-local
+    - name: eclipse-temurin
       kind: image
       status: system
     - name: gcr.io/projectsigstore/cosign
@@ -1137,10 +1147,19 @@ hosts:
     - name: ghcr.io/ggml-org/llama.cpp
       kind: image
       status: system
+    - name: ghcr.io/google/osv-scanner
+      kind: image
+      status: system
     - name: ghcr.io/keploy/keploy
       kind: image
       status: system
+    - name: ghcr.io/mlflow/mlflow
+      kind: image
+      status: system
     - name: ghcr.io/sourcebot-dev/sourcebot
+      kind: image
+      status: system
+    - name: ghcr.io/tuannvm/mcp-trino
       kind: image
       status: system
     - name: ghcr.io/xampprocky/tokei
@@ -1170,6 +1189,9 @@ hosts:
     - name: hadolint/hadolint
       kind: image
       status: system
+    - name: httpd
+      kind: image
+      status: system
     - name: keploy/enterprise
       kind: image
       status: system
@@ -1188,7 +1210,7 @@ hosts:
     - name: maven
       kind: image
       status: system
-    - name: mcp-server-datahub
+    - name: maximhq/bifrost
       kind: image
       status: system
     - name: mcp/sonarqube
@@ -1203,6 +1225,9 @@ hosts:
     - name: moby/buildkit
       kind: image
       status: system
+    - name: mr3project/ranger
+      kind: image
+      status: system
     - name: nginx
       kind: image
       status: system
@@ -1210,6 +1235,9 @@ hosts:
       kind: image
       status: system
     - name: nvidia/cuda
+      kind: image
+      status: system
+    - name: ollama/ollama
       kind: image
       status: system
     - name: openpolicyagent/opa
@@ -1242,46 +1270,16 @@ hosts:
     - name: pytorch/pytorch
       kind: image
       status: system
+    - name: quay.io/jupyter/scipy-notebook
+      kind: image
+      status: system
     - name: rancher/kubectl
       kind: image
       status: system
-    - name: realm-of-agents
+    - name: rayproject/ray
       kind: image
       status: system
     - name: redis
-      kind: image
-      status: system
-    - name: registry.weyland.lab/finance-trainer
-      kind: image
-      status: system
-    - name: registry.weyland.lab/golden-python-fastapi
-      kind: image
-      status: system
-    - name: registry.weyland.lab/mcp-server-datahub
-      kind: image
-      status: system
-    - name: registry.weyland.lab/minio-client
-      kind: image
-      status: system
-    - name: registry.weyland.lab/scan-suite
-      kind: image
-      status: system
-    - name: registry.weyland.lab/weyland-agent
-      kind: image
-      status: system
-    - name: registry.weyland.lab/weyland-dagster-user-code
-      kind: image
-      status: system
-    - name: registry.weyland.lab/weyland-guard
-      kind: image
-      status: system
-    - name: registry.weyland.lab/weyland-mcp-compositor
-      kind: image
-      status: system
-    - name: registry.weyland.lab/weyland-operator
-      kind: image
-      status: system
-    - name: registry.weyland.lab/weyland-tool-server
       kind: image
       status: system
     - name: ruby
@@ -1299,6 +1297,9 @@ hosts:
     - name: sourcegraph/zoekt-webserver
       kind: image
       status: system
+    - name: squidfunk/mkdocs-material
+      kind: image
+      status: system
     - name: studio-controlroom_backend
       kind: image
       status: system
@@ -1311,7 +1312,10 @@ hosts:
     - name: studio-gearlist_backend
       kind: image
       status: system
-    - name: tool-server-u13-test
+    - name: swift
+      kind: image
+      status: system
+    - name: trinodb/trino
       kind: image
       status: system
     - name: ubuntu
@@ -1323,13 +1327,10 @@ hosts:
     - name: weyland-clef-flash
       kind: image
       status: system
-    - name: weyland-mcp-compositor
-      kind: image
-      status: system
-    - name: weyland-operator
-      kind: image
-      status: system
     - name: woodpeckerci/woodpecker-agent
+      kind: image
+      status: system
+    - name: woodpeckerci/woodpecker-cli
       kind: image
       status: system
     - name: woodpeckerci/woodpecker-server
@@ -1338,10 +1339,6 @@ hosts:
     - name: zricethezav/gitleaks
       kind: image
       status: system
-    - name: claude-code
-      kind: npm
-      status: unreviewed
-      rationale: ''
     - name: cli
       kind: npm
       status: keep
@@ -1362,26 +1359,14 @@ hosts:
       kind: npm
       status: keep
       rationale: 'owner review 2026-10-26: keep - used now and then'
-    - name: jsdom
-      kind: npm
-      status: unreviewed
-      rationale: ''
     - name: mermaid
       kind: npm
       status: keep
       rationale: 'owner review 2026-10-26: keep'
-    - name: node-red
-      kind: npm
-      status: unreviewed
-      rationale: ''
     - name: npm
       kind: npm
       status: keep
       rationale: 'owner review 2026-10-26: keep - bundled with Node'
-    - name: opencode-ai
-      kind: npm
-      status: unreviewed
-      rationale: ''
     - name: pi-coding-agent
       kind: npm
       status: keep
@@ -2517,27 +2502,27 @@ hosts:
     - name: core
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: core18
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: core20
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: core22
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: core24
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: core26
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: cups
       kind: snap
       status: keep
@@ -2573,11 +2558,11 @@ hosts:
     - name: gaming-graphics-core22
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: gaming-graphics-core24
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: gimp
       kind: snap
       status: keep
@@ -2589,19 +2574,19 @@ hosts:
     - name: gnome-3-28-1804
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: gnome-3-38-2004
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: gnome-42-2204
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: gnome-46-2404
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: go
       kind: snap
       status: keep
@@ -2613,11 +2598,11 @@ hosts:
     - name: gtk-common-themes
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: kf6-core24
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: kotlin
       kind: snap
       status: keep
@@ -2629,11 +2614,11 @@ hosts:
     - name: lxqt-support-core24
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: mesa-2404
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: musescore
       kind: snap
       status: keep
@@ -2669,15 +2654,15 @@ hosts:
     - name: snap-store
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: snapd
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: snapd-desktop-integration
       kind: snap
       status: keep
-      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
+      rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
     - name: spotify
       kind: snap
       status: keep
@@ -2690,10 +2675,6 @@ hosts:
       kind: snap
       status: keep
       rationale: 'EMA-188 audit 2026-08-15: keep'
-    - name: thunderbird
-      kind: snap
-      status: unreviewed
-      rationale: ''
     - name: zoom-client
       kind: snap
       status: keep
