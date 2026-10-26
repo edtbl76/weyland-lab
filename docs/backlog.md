@@ -201,7 +201,14 @@ venv; moved to `tests/` after CI #510's lane counted an all-skipped `ge/` dir as
 #512/#513); `ge_validate_job` re-run on the existing PVC: 80/106/153 expectations profiled, the demo's baseline, no
 `already exists`, 339 DataHub assertions. New runbook `great-expectations.md` (GE had a demo, no runbook). (5) **Ship
 TXNs** `txn_guardrails_structure`, `txn_nemo_guardrails` and `txn_scan_suite` (a real call, or a one-off pod from the
-shipped tag), all three passing live; the 5 images still without one are named in `ship-images.md`. (6) **MLflow KEK
+shipped tag), all three passing live. **(7) The last five, folded in (owner 2026-10-25: "yes, fold the TXNs in"):**
+every CI image now answers a real transaction on a ship, and a bats test fails when an `images.tsv` row has none.
+`store-scaler`: a one-off pod of the shipped tag as its own account (the 128Mi live pod was OOM-killed by an
+observation exec, about 15 s down, so the check never runs inside it); `weyland-rag-index`: a delete-only probe record
+all five stores apply and commit past; `weyland-flink`: every session job RUNNING and checkpointed after the check
+starts, jars + history served; `weyland-flink-py`: a real local PyFlink job in a one-off pod; `weyland-mcp-gateway`:
+no/forged tokens refused and the operator's own authenticated fleet call passing through (no borrowed credential).
+All five + the refactored scan-suite passed live; 150 bats (Red first); a no-verdict pod now names its state. (6) **MLflow KEK
 rotated:** the gateway's 11 secrets were encrypted with MLflow's public default passphrase. The server's start now runs
 `kek-rotate-configmap.yaml` (idempotent: only while a secret is on version 1), proven first by the drill on a restored
 copy; live: 11 secrets on version 2, a guarded chat 200, no default-passphrase warning, SealedSecret `mlflow-kek`

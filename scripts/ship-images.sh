@@ -691,15 +691,31 @@ except Exception as e:
 ' 2>/dev/null
 }
 
+# txn_oneoff <namespace> <pod> <image> <overrides-json> <python> — run <python> in a one-off pod of <image> (no sidecar)
+# and print its LAST log line, the verdict. For images with no service of their own to ask, or whose live pod is too small
+# to share (store-scaler). Overrides merge strategically, so a container entry named <pod> adds env/resources to the
+# generated container instead of replacing it.
+txn_oneoff() {
+  local ns="$1" p="$2" image="$3" overrides="$4" code="$5" verdict
+  kubectl -n "$ns" delete pod "$p" --ignore-not-found >/dev/null 2>&1
+  kubectl -n "$ns" run "$p" --image="$image" --restart=Never --labels=sidecar.istio.io/inject=false \
+    --override-type=strategic --overrides="$overrides" --command -- python3 -c "$code" >/dev/null 2>&1
+  kubectl -n "$ns" wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$p" --timeout="${SHIP_TXN_POD_TIMEOUT:-300}s" >/dev/null 2>&1
+  verdict="$(kubectl -n "$ns" logs "$p" 2>/dev/null | tail -1)"
+  # No verdict: say why (2026-10-25: a tag never built sat in ImagePullBackOff and the message only said "nothing").
+  [ -n "$verdict" ] || verdict="TXN_FAIL the ${p%-txn-*} check pod printed nothing (pod: $(kubectl -n "$ns" get pod "$p" \
+    -o jsonpath='{.status.phase} {.status.containerStatuses[0].state.waiting.reason}' 2>/dev/null || echo unreadable))"
+  kubectl -n "$ns" delete pod "$p" --wait=false >/dev/null 2>&1
+  printf '%s\n' "$verdict"
+}
+
 # scan-suite (2026-10-25, B227 follow-on): a CronJob image, no service to ask. A one-off pod from the SHIPPED tag (no
 # sidecar, no service-account token) reads that image's own scan.py, finds the tools it calls, and requires every one
 # on PATH and scan.py to import (its Python deps). Observed live 2026-10-25 on git-859e602d: 21 tools.
 txn_scan_suite() {
-  local tag="${1:?usage: txn_scan_suite <tag>}" p="scan-suite-txn-$$" verdict
-  kubectl -n weyland delete pod "$p" --ignore-not-found >/dev/null 2>&1
-  kubectl -n weyland run "$p" --image="registry.weyland.lab/scan-suite:${tag}" --restart=Never \
-    --labels=sidecar.istio.io/inject=false --overrides='{"spec":{"automountServiceAccountToken":false}}' \
-    --command -- python3 -c '
+  local tag="${1:?usage: txn_scan_suite <tag>}"
+  txn_oneoff weyland "scan-suite-txn-$$" "registry.weyland.lab/scan-suite:${tag}" \
+    '{"spec": {"automountServiceAccountToken": false}}' '
 import importlib.util, os, re, shutil
 src = open("/usr/local/bin/scan.py").read()
 tools = sorted(set(re.findall(r"(?:sh|subprocess\.run)\(\[\"([a-z0-9][a-z0-9-]*)\"", src)))
@@ -717,11 +733,243 @@ elif missing or imported is not True:
     print("TXN_FAIL missing tools: " + ",".join(missing) + ("" if imported is True else " | scan.py import: " + str(imported)))
 else:
     print("TXN_OK " + str(len(tools)) + " scan tools on PATH; scan.py imports")
-' >/dev/null 2>&1
-  kubectl -n weyland wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$p" --timeout=300s >/dev/null 2>&1
-  verdict="$(kubectl -n weyland logs "$p" 2>/dev/null | tail -1)"
-  kubectl -n weyland delete pod "$p" --wait=false >/dev/null 2>&1
-  printf '%s\n' "${verdict:-TXN_FAIL the scan-suite check pod printed nothing}"
+'
+}
+
+# store-scaler (2026-10-25, B227): the live pod is 128Mi and admits only the port-agent, and a second interpreter in it
+# was OOM-killed (an observation run, 2026-10-25), so the check runs from a one-off pod of the SHIPPED tag as the
+# store-scaler account with the LIVE allowlist. It sends the app a /scale for a store outside the allowlist (must be
+# refused, 400, naming the allowlist) straight into its ASGI app, and reads every allowlisted store's scale through the
+# account's own RBAC. Read-only: nothing is scaled. Observed live 2026-10-25: 4 stores.
+txn_store_scaler() {
+  local tag="${1:?usage: txn_store_scaler <tag>}" p="store-scaler-txn-$$" allow
+  allow="$(kubectl -n data-mesh get deploy store-scaler \
+    -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="SCALER_ALLOWED_STORES")].value}' 2>/dev/null)"
+  [ -n "$allow" ] || { printf 'TXN_FAIL could not read the live store-scaler allowlist\n'; return; }
+  txn_oneoff data-mesh "$p" "registry.weyland.lab/store-scaler:${tag}" \
+    '{"spec": {"serviceAccountName": "store-scaler", "containers": [{"name": "'"$p"'", "env": [{"name": "SCALER_ALLOWED_STORES", "value": "'"$allow"'"}], "resources": {"requests": {"cpu": "10m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}}}]}}' '
+import asyncio, json
+try:
+    import app
+    async def call(body):
+        sent, out = [False], {}
+        async def receive():
+            if sent[0]:
+                return {"type": "http.disconnect"}
+            sent[0] = True
+            return {"type": "http.request", "body": json.dumps(body).encode(), "more_body": False}
+        async def send(m):
+            if m["type"] == "http.response.start":
+                out["status"] = m["status"]
+            elif m["type"] == "http.response.body":
+                out["body"] = out.get("body", b"") + m.get("body", b"")
+        await app.app({"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "POST",
+                       "scheme": "http", "path": "/scale", "raw_path": b"/scale", "root_path": "", "query_string": b"",
+                       "headers": [(b"content-type", b"application/json")], "client": ("127.0.0.1", 1),
+                       "server": ("127.0.0.1", 8080)}, receive, send)
+        return out
+    r = asyncio.run(call({"store": "ship-txn-not-a-store", "replicas": 1}))
+    if r.get("status") != 400 or b"allowlist" not in r.get("body", b""):
+        print("TXN_FAIL a store outside the allowlist was not refused: " + str(r)[:120]); raise SystemExit
+    for s in sorted(app.ALLOWED_STORES):
+        app._apps.read_namespaced_deployment_scale(s, app.NAMESPACE)
+    print("TXN_OK allowlist enforced; read the scale of " + str(len(app.ALLOWED_STORES)) + " store(s) with the store-scaler account")
+except SystemExit:
+    pass
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+'
+}
+
+# weyland-rag-index (2026-10-25, B227): the five consumers have no endpoint, only a heartbeat. From inside one of them,
+# publish ONE delete record for a path no store holds (PROBE/ship-txn.md: every store deletes by source_path, so nothing
+# is removed), then wait until all five consumer groups commit PAST it. A consumer commits only after its store applied
+# the record (and crashes on a failed apply), so a commit past it is a real write through each store. Observed live
+# 2026-10-25: all five in 5 s.
+txn_rag_index() {
+  local p
+  p="$(kubectl -n data-mesh get pod -l app=rag-index-qdrant \
+    -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' 2>/dev/null | awk '{print $1}')"
+  [ -n "$p" ] || { printf 'TXN_FAIL no running rag-index-qdrant pod to publish the probe record from\n'; return; }
+  kubectl -n data-mesh exec "$p" -- python3 -c '
+import os, sys, time
+sys.path.insert(0, "/app")
+STORES = ("qdrant", "weaviate", "opensearch", "pgvector", "neo4j")
+try:
+    from confluent_kafka import SerializingProducer, TopicPartition, ConsumerGroupTopicPartitions
+    from confluent_kafka.admin import AdminClient
+    from confluent_kafka.schema_registry import SchemaRegistryClient
+    from confluent_kafka.schema_registry.avro import AvroSerializer
+    from confluent_kafka.serialization import StringSerializer
+    from schema import RAGCHUNK_SCHEMA, TOPIC
+    B = os.environ["REDPANDA_BOOTSTRAP"]
+    sp = "PROBE/ship-txn.md"
+    rec = {"source_path": sp, "op": "delete", "chunk_index": None, "chunk_title": None, "chunk_text": None,
+           "vector": None, "content_hash": None, "source_name": None, "kind": None, "run_id": "ship-txn"}
+    p = SerializingProducer({"bootstrap.servers": B, "key.serializer": StringSerializer("utf_8"),
+                             "value.serializer": AvroSerializer(SchemaRegistryClient({"url": os.environ["SCHEMA_REGISTRY_URL"]}), RAGCHUNK_SCHEMA)})
+    where = {}
+    def done(err, msg):
+        where["err"], where["tp"] = err, (msg.partition(), msg.offset()) if msg is not None else None
+    p.produce(topic=TOPIC, key=sp, value=rec, on_delivery=done)
+    p.flush(30)
+    if where.get("err") or not where.get("tp"):
+        print("TXN_FAIL could not publish the probe record: " + str(where.get("err"))[:120]); raise SystemExit
+    part, off = where["tp"]
+    admin = AdminClient({"bootstrap.servers": B})
+    pending, deadline = set(STORES), time.time() + 120
+    while pending and time.time() < deadline:
+        for s in sorted(pending):
+            g = "rag-index-" + s
+            got = admin.list_consumer_group_offsets([ConsumerGroupTopicPartitions(g, [TopicPartition(TOPIC, part)])])[g].result()
+            if got.topic_partitions[0].offset > off:
+                pending.discard(s)
+        if pending:
+            time.sleep(2)
+    print("TXN_OK all " + str(len(STORES)) + " stores applied and committed a probe record" if not pending
+          else "TXN_FAIL no commit past the probe record from: " + ",".join("rag-index-" + s for s in sorted(pending)))
+except SystemExit:
+    pass
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
+# weyland-flink (2026-10-25, B227): the session cluster. Its JobManager admits only the operator and Traefik on :8081 and
+# has curl but no python, so its REST is read from INSIDE it and decided here. Every FlinkSessionJob must be RUNNING and
+# complete a checkpoint AFTER this check starts (state written to MinIO through the new image; interval 60 s, so up to
+# SHIP_FLINK_CKPT_TIMEOUT, default 180 s), and the jar server (both job jars) and the history server must answer 200.
+# Observed live 2026-10-25: 2 jobs, both checkpointed within 31 s.
+txn_flink() {
+  local t0 jobs jm out verdict waited=0 timeout="${SHIP_FLINK_CKPT_TIMEOUT:-180}" interval="${SHIP_POLL_INTERVAL-10}"
+  t0="$(( $(date +%s) * 1000 ))"
+  jobs="$(kubectl -n data-mesh get flinksessionjob \
+    -o jsonpath='{range .items[*]}{.metadata.name} {.status.jobStatus.jobId}{"\n"}{end}' 2>/dev/null)"
+  jm="$(kubectl -n data-mesh get pod -l app=weyland-flink,component=jobmanager \
+    -o jsonpath='{.items[?(@.status.phase=="Running")].metadata.name}' 2>/dev/null | awk '{print $1}')"
+  [ -n "$jm" ] || { printf 'TXN_FAIL no running weyland-flink JobManager\n'; return; }
+  while :; do
+    out="$(printf '%s\n' "$jobs" | kubectl -n data-mesh exec -i "$jm" -- sh -c '
+while read -r n id; do
+  [ -n "$n" ] || continue
+  echo "== $n ${id:--}"
+  [ -n "$id" ] || { echo; echo; continue; }
+  curl -s --max-time 10 "localhost:8081/jobs/$id" | tr -d "\n"; echo
+  curl -s --max-time 10 "localhost:8081/jobs/$id/checkpoints" | tr -d "\n"; echo
+done
+printf JARS
+for u in http://flink-jars.data-mesh.svc.cluster.local/sql-runner.jar http://flink-jars.data-mesh.svc.cluster.local/health-job.jar http://flink-history.data-mesh.svc.cluster.local:8082/jobs/overview; do
+  printf " %s" "$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$u")"
+done
+echo' 2>/dev/null)"
+    verdict="$(printf '%s\n' "$out" | python3 -c '
+import json, sys
+t0, lines = int(sys.argv[1]), sys.stdin.read().splitlines()
+names, bad, waiting = [], [], []
+for i, l in enumerate(lines):
+    if not l.startswith("== "):
+        continue
+    _, name, jid = l.split()
+    names.append(name)
+    try:
+        job, ck = json.loads(lines[i + 1]), json.loads(lines[i + 2])
+    except Exception:
+        bad.append(name + " has no job id or no REST answer (" + jid + ")"); continue
+    if job.get("state") != "RUNNING":
+        bad.append(name + " is " + str(job.get("state") or job.get("errors"))); continue
+    if (((ck.get("latest") or {}).get("completed") or {}).get("latest_ack_timestamp") or 0) <= t0:
+        waiting.append(name)
+codes = next((l.split()[1:] for l in lines if l.startswith("JARS")), [])
+if not names:
+    print("TXN_FAIL no FlinkSessionJob to check")
+elif bad:
+    print("TXN_FAIL " + "; ".join(bad))
+elif codes != ["200", "200", "200"]:
+    print("TXN_FAIL the jar server (2 jars) and history server answered: " + (" ".join(codes) or "nothing"))
+elif waiting:
+    print("TXN_WAIT no checkpoint since the ship yet: " + ",".join(waiting))
+else:
+    print("TXN_OK " + str(len(names)) + " session job(s) RUNNING, each checkpointed since the ship; jars + history served")
+' "$t0")"
+    case "$verdict" in TXN_WAIT*) ;; *) break ;; esac
+    if [ "$waited" -ge "$timeout" ]; then verdict="TXN_FAIL${verdict#TXN_WAIT}"; break; fi
+    sleep "$interval"
+    waited=$((waited + interval))
+    [ "$interval" = "0" ] && waited=$((waited + 1))   # make progress even at interval 0 (tests)
+  done
+  printf '%s\n' "${verdict:-TXN_FAIL no Flink verdict}"
+}
+
+# weyland-flink-py (2026-10-25, B227): the PyFlink job runs on demand (an app-mode FlinkDeployment you apply, run and
+# delete, outside Argo), so a ship deploys nothing to ask. A one-off pod of the SHIPPED tag checks the job's files and
+# connector jars, compiles music_tier.py, and runs a real local PyFlink batch job: the Python-to-JVM bridge is what breaks
+# on a pin change. Observed live 2026-10-25: [2, 4, 6] in 14 s.
+txn_flink_py() {
+  local tag="${1:?usage: txn_flink_py <tag>}" p="flink-py-txn-$$"
+  txn_oneoff data-mesh "$p" "registry.weyland.lab/weyland-flink-py:${tag}" \
+    '{"spec": {"automountServiceAccountToken": false, "containers": [{"name": "'"$p"'", "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"memory": "1536Mi"}}}]}}' '
+import glob, os, py_compile
+need = ["/opt/flink/opt/flink-python-1.20.1.jar", "/opt/flink/usrlib/music_tier.py"]
+missing = [p for p in need if not os.path.exists(p)]
+missing += [g for g in ("/opt/flink/lib/flink-sql-connector-kafka-*.jar", "/opt/flink/lib/flink-sql-avro-confluent-registry-*.jar")
+            if not glob.glob(g)]
+try:
+    if missing:
+        print("TXN_FAIL missing from the image: " + ",".join(missing)); raise SystemExit
+    py_compile.compile("/opt/flink/usrlib/music_tier.py", cfile="/tmp/music_tier.pyc", doraise=True)
+    from pyflink.table import EnvironmentSettings, TableEnvironment
+    t = TableEnvironment.create(EnvironmentSettings.in_batch_mode())
+    with t.execute_sql("SELECT x * 2 FROM (VALUES (1), (2), (3)) AS v(x)").collect() as rows:
+        got = sorted(r[0] for r in rows)
+    print("TXN_OK a local PyFlink job ran (" + str(got) + "); job file compiles" if got == [2, 4, 6]
+          else "TXN_FAIL the local PyFlink job returned " + str(got))
+except SystemExit:
+    pass
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+'
+}
+
+# weyland-mcp-gateway (2026-10-25, B227): two halves, and no borrowed credential. (1) The gateway must REFUSE a
+# /mcp-fleet call with no token and one with a forged token (401; a fail-open proxy forwards both). (2) An authenticated
+# call must pass through: the operator makes one with its OWN token on every fleet tool call, and txn_operator's
+# namespaces question can be answered only by a fleet tool, so that answer crossed this gateway. Observed live
+# 2026-10-25: /health ok, no token 401.
+txn_mcp_gateway() {
+  local pod="${1:?usage: txn_mcp_gateway <pod>}" auth op
+  auth="$(kubectl -n weyland exec "$pod" -- python3 -c '
+import json, urllib.request, urllib.error
+G = "http://weyland-mcp-gateway.weyland.svc.cluster.local:8080"
+def code(headers):
+    body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}).encode()
+    try:
+        return urllib.request.urlopen(urllib.request.Request(G + "/mcp-fleet", data=body,
+            headers=dict({"Content-Type": "application/json"}, **headers)), timeout=20).status
+    except urllib.error.HTTPError as e:
+        return e.code
+try:
+    h = urllib.request.urlopen(G + "/health", timeout=20).read().decode().strip()
+    none, forged = code({}), code({"Authorization": "Bearer eyJhbGciOiJSUzI1NiJ9.e30.c2hpcC10eG4"})
+    if h != "ok":
+        print("TXN_FAIL /health answered " + repr(h[:60]))
+    elif none != 401:
+        print("TXN_FAIL a request with no token was answered " + str(none))
+    elif forged != 401:
+        print("TXN_FAIL a request with a forged token was answered " + str(forged))
+    else:
+        print("TXN_OK no token and a forged token both refused (401)")
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null)"
+  case "$auth" in
+    TXN_OK*) ;;
+    *) printf '%s\n' "${auth:-TXN_FAIL the gateway auth check printed nothing}"; return ;;
+  esac
+  op="$(txn_operator "$pod")"
+  case "$op" in
+    TXN_OK*) printf 'TXN_OK refuses no/forged tokens; the operator'"'"'s authenticated fleet call passed through\n' ;;
+    *) printf 'TXN_FAIL the authenticated pass-through (the operator'"'"'s fleet call) failed: %s\n' "${op:-no answer}" ;;
+  esac
 }
 
 # Operator (2026-10-10): ask a REAL read-only question through POST /operator/ask and require a grounded answer — a
@@ -918,6 +1166,11 @@ txn_ok() {
       guardrails-structure)      verdict="$(txn_guardrails_structure "$pod")" ;;
       nemo-guardrails)           verdict="$(txn_nemo_guardrails "$pod")" ;;
       scan-suite)                verdict="$(txn_scan_suite "$tag")" ;;
+      store-scaler)              verdict="$(txn_store_scaler "$tag")" ;;
+      weyland-rag-index)         verdict="$(txn_rag_index)" ;;
+      weyland-flink)             verdict="$(txn_flink)" ;;
+      weyland-flink-py)          verdict="$(txn_flink_py "$tag")" ;;
+      weyland-mcp-gateway)       verdict="$(txn_mcp_gateway "$pod")" ;;
       weyland-operator)          verdict="$(txn_operator "$pod")" ;;
       realm-of-agents)           verdict="$(txn_realm "$pod")" ;;
       weyland-mcp-compositor)    verdict="$(txn_bifrost_fleet)" ;;

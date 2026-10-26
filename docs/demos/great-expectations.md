@@ -19,6 +19,11 @@ browsable Data Docs at `ge-docs.weyland.lab`. On-demand (a Dagster Job) so it co
    the very data they were profiled from. The op is **advisory** — it exits 0, never failing the job; failing
    expectations just show red.
 
+   **Re-runnable (fixed 2026-10-25, B227):** every run after the first used to die on its first table with
+   `ExpectationSuiteError: ... already exists` (the suites persist on the PVC). RUN 2026-10-25 on `git-66b9cd58`,
+   with the previous suites still on the PVC: the three lines above exactly, 339 assertions, no error. Commands and the
+   fix: [runbooks/great-expectations.md](../runbooks/great-expectations.md).
+
 ## Verify — one pane, three sources
 
 - **DataHub** — open `iceberg.dbt.mart_country_health` → **Quality → Assertions**. GE's per-column expectations

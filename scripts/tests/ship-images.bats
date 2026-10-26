@@ -467,10 +467,13 @@ PY
     'registry.weyland.lab/scan-suite:git-9a4996c6 registry.weyland.lab/weyland-flink:git-9a4996c6'
   # 2026-10-25: scan-suite has a transaction now (a one-off pod; the verdict is its `kubectl logs`). Answer that one
   # call the way the real check pod does (observed live: "TXN_OK 21 scan tools on PATH; scan.py imports") and hand
-  # every other kubectl call to the stub above, so this test still exercises FR1.5/NFR4.
+  # every other kubectl call to the stub above, so this test still exercises FR1.5/NFR4. weyland-flink got one too (B227):
+  # its session jobs, JobManager and REST answers, in the shapes observed live.
   mv "$STUB_DIR/kubectl" "$STUB_DIR/kubectl.inner"
-  printf '#!/usr/bin/env bash\ncase "$*" in *" logs "*) printf "kubectl %%s\\n" "$*" >> "%s"; echo "TXN_OK 21 scan tools on PATH; scan.py imports" ;; *) exec "%s" "$@" ;; esac\n' \
-    "$STUB_LOG" "$STUB_DIR/kubectl.inner" > "$STUB_DIR/kubectl"
+  printf '== cdc-demo-live 4416\n{"state":"RUNNING"}\n{"latest":{"completed":{"latest_ack_timestamp":99999999999999}}}\nJARS 200 200 200\n' \
+    > "$STUB_DIR/flink-rest.out"
+  printf '#!/usr/bin/env bash\ncase "$*" in *" logs "*) printf "kubectl %%s\\n" "$*" >> "%s"; echo "TXN_OK 21 scan tools on PATH; scan.py imports" ;; *"get flinksessionjob"*) echo "cdc-demo-live 4416" ;; *"component=jobmanager"*) echo "weyland-flink-jm" ;; *" exec -i "*) cat "%s" ;; *) exec "%s" "$@" ;; esac\n' \
+    "$STUB_LOG" "$STUB_DIR/flink-rest.out" "$STUB_DIR/kubectl.inner" > "$STUB_DIR/kubectl"
   chmod +x "$STUB_DIR/kubectl"
   run bash "$SHIP"
   [ "$status" -eq 0 ] || { echo "$output" | tail -20; return 1; }
@@ -1036,14 +1039,24 @@ txn_stub_pod() {
 @test "TXN NAMES an image it has no transaction for rather than silently passing it" {
   # Same discipline as smoke_ok: an unchecked image must never read as a verified one.
   SHIP_IMAGES_LIB=1 source "$SHIP"
-  # store-scaler: still without a transaction (scan-suite, the old example here, got one on 2026-10-25)
-  printf '+ registry.weyland.lab/store-scaler:git-9a4996c6\n+ registry.weyland.lab/feast-server:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  # Every images.tsv image has one since 2026-10-25 (B227), so a future image stands in here.
+  printf '+ registry.weyland.lab/some-new-image:git-9a4996c6\n+ registry.weyland.lab/feast-server:git-9a4996c6\n' > "$STUB_DIR/d.diff"
   txn_stub_pod
   stub_case kubectl 'exec' 0 'TXN_OK'
   run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"store-scaler"* ]]
+  [[ "$output" == *"some-new-image"* ]]
   [[ "$output" == *"no transaction"* ]]
+}
+
+@test "TXN coverage: every image CI builds (images.tsv) has a transaction in txn_ok" {
+  # Keeps the 2026-10-25 gap closed: a new images.tsv row without a txn_ok arm fails here, not on a ship.
+  local imgs arms missing
+  imgs="$(grep -v '^#' "$REPO_ROOT/scripts/ci/images.tsv" | cut -f1 | grep . | sort -u)"
+  arms="$(awk '/^txn_ok\(\)/,/^}/' "$SHIP" | grep -oE '^ +[a-z0-9|-]+\)' | tr -d ' )' | tr '|' '\n' | sort -u)"
+  [ -n "$imgs" ] && [ -n "$arms" ]
+  missing="$(comm -23 <(printf '%s\n' "$imgs") <(printf '%s\n' "$arms"))"
+  [ -z "$missing" ] || { echo "images with no transaction: $missing"; return 1; }
 }
 
 @test "TXN fails closed when there is no pod to run the transaction from" {
@@ -1314,6 +1327,18 @@ txn_stub_pod() {
   grep -q 'shutil.which' "$STUB_LOG"
 }
 
+@test "TXN names WHY a one-off check pod printed nothing (its phase and waiting reason)" {
+  # Found 2026-10-25: a tag never built left the pod in ImagePullBackOff, and the verdict only said "printed nothing".
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/scan-suite:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'logs' 0 ''
+  stub_case kubectl 'status.phase' 0 'Pending ImagePullBackOff'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"scan-suite"* && "$output" == *"ImagePullBackOff"* ]]
+}
+
 @test "TXN FAILS when the shipped scan-suite is missing a tool, named" {
   SHIP_IMAGES_LIB=1 source "$SHIP"
   printf '+ registry.weyland.lab/scan-suite:git-9a4996c6\n' > "$STUB_DIR/d.diff"
@@ -1322,6 +1347,188 @@ txn_stub_pod() {
   run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
   [ "$status" -ne 0 ]
   [[ "$output" == *"scan-suite"* && "$output" == *"trivy"* ]]
+}
+
+# 2026-10-25 (B227, folded in by the owner): the last five images. Each probe was run live first (shapes in the comments
+# above each txn_* in ship-images.sh).
+@test "TXN checks store-scaler from a one-off pod of the SHIPPED tag, as the store-scaler account" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/store-scaler:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'get deploy store-scaler' 0 'cockroachdb,mongodb,mysql,gizmosql'
+  stub_case kubectl 'logs' 0 'TXN_OK allowlist enforced; read the scale of 4 store(s) with the store-scaler account'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" != *"no transaction"* ]]
+  grep -q 'registry.weyland.lab/store-scaler:git-9a4996c6' "$STUB_LOG"
+  grep -q '"serviceAccountName": "store-scaler"' "$STUB_LOG"
+  grep -q 'ship-txn-not-a-store' "$STUB_LOG"
+  grep -q 'cockroachdb,mongodb,mysql,gizmosql' "$STUB_LOG"     # the LIVE allowlist, not the code default
+}
+
+@test "TXN never runs a second interpreter inside the live store-scaler pod (128Mi; it was OOM-killed once)" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/store-scaler:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'logs' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  ! grep -E '^kubectl .*exec.*store-scaler' "$STUB_LOG"
+}
+
+@test "TXN FAILS when the shipped store-scaler does not refuse a store outside its allowlist, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/store-scaler:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'logs' 0 'TXN_FAIL a store outside the allowlist was not refused'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"store-scaler"* && "$output" == *"allowlist"* ]]
+}
+
+@test "TXN checks weyland-rag-index: a probe record every store applies and commits past" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-rag-index:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'get pod -l app=rag-index-qdrant' 0 'rag-index-qdrant-abc'
+  stub_case kubectl 'exec' 0 'TXN_OK all 5 stores applied and committed a probe record'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -q 'exec rag-index-qdrant-abc' "$STUB_LOG"
+  grep -q 'PROBE/ship-txn.md' "$STUB_LOG"
+  grep -q '"op": "delete"' "$STUB_LOG"                         # delete-only: nothing is left in any store
+  grep -q 'list_consumer_group_offsets' "$STUB_LOG"
+  for s in qdrant weaviate opensearch pgvector neo4j; do grep -q "\"$s\"" "$STUB_LOG"; done
+}
+
+@test "TXN FAILS when a rag-index store never commits past the probe record, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-rag-index:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'get pod -l app=rag-index-qdrant' 0 'rag-index-qdrant-abc'
+  stub_case kubectl 'exec' 0 'TXN_FAIL no commit past the probe record from: rag-index-neo4j'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-rag-index"* && "$output" == *"rag-index-neo4j"* ]]
+}
+
+@test "TXN FAILS closed when no rag-index pod is running to publish from" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-rag-index:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'get pod -l app=rag-index-qdrant' 0 ''
+  stub_case kubectl 'exec' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-rag-index"* && "$output" == *"no running rag-index"* ]]
+}
+
+# weyland-flink: the JobManager admits only its operator and Traefik on :8081, so the REST is read from inside it (curl;
+# the image has no python) and decided here. Shapes observed live 2026-10-25.
+flink_stub() { # flink_stub <cdc state> <cdc ack ms> <jars line>
+  stub_case kubectl 'get flinksessionjob' 0 "$(printf 'cdc-demo-live 4416\nhealth-state-risk 2b94')"
+  stub_case kubectl 'get pod -l app=weyland-flink,component=jobmanager' 0 'weyland-flink-jm'
+  stub_case kubectl 'exec' 0 "$(printf '== cdc-demo-live 4416\n{"state":"%s"}\n{"latest":{"completed":{"latest_ack_timestamp":%s}}}\n== health-state-risk 2b94\n{"state":"RUNNING"}\n{"latest":{"completed":{"latest_ack_timestamp":99999999999999}}}\n%s' "$1" "$2" "$3")"
+}
+
+@test "TXN checks weyland-flink: every session job RUNNING and checkpointed since the ship, jars + history served" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-flink:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  flink_stub RUNNING 99999999999999 'JARS 200 200 200'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -q 'exec -i weyland-flink-jm' "$STUB_LOG"
+  grep -q 'flink-jars.data-mesh.svc.cluster.local/health-job.jar' "$STUB_LOG"
+  grep -q 'flink-history.data-mesh.svc.cluster.local:8082' "$STUB_LOG"
+}
+
+@test "TXN FAILS weyland-flink when a job checkpoints nothing after the ship, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-flink:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  flink_stub RUNNING 1000 'JARS 200 200 200'
+  SHIP_FLINK_CKPT_TIMEOUT=0 SHIP_POLL_INTERVAL=0 run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-flink"* && "$output" == *"cdc-demo-live"* && "$output" == *"checkpoint"* ]]
+}
+
+@test "TXN FAILS weyland-flink when a session job is not RUNNING, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-flink:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  flink_stub FAILED 99999999999999 'JARS 200 200 200'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"cdc-demo-live is FAILED"* ]]
+}
+
+@test "TXN FAILS weyland-flink when the jar server stops serving a job jar" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-flink:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  flink_stub RUNNING 99999999999999 'JARS 200 404 200'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-flink"* && "$output" == *"404"* ]]
+}
+
+@test "TXN checks weyland-flink-py with a real local PyFlink job in a one-off pod of the SHIPPED tag" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-flink-py:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'logs' 0 'TXN_OK a local PyFlink job ran ([2, 4, 6]); job file compiles'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -q 'registry.weyland.lab/weyland-flink-py:git-9a4996c6' "$STUB_LOG"
+  grep -q 'in_batch_mode' "$STUB_LOG"
+  grep -q 'music_tier.py' "$STUB_LOG"
+}
+
+@test "TXN FAILS when the shipped weyland-flink-py cannot run a PyFlink job, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-flink-py:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'logs' 0 'TXN_FAIL Py4JJavaError no java gateway'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-flink-py"* && "$output" == *"Py4JJavaError"* ]]
+}
+
+# weyland-mcp-gateway: two halves, no borrowed credential. The gateway must refuse a request with no token AND one with
+# a forged token (a fail-open proxy forwards both); and an authenticated call must pass through, which the operator makes
+# with its own token on every fleet tool call (txn_operator's namespaces question reaches the fleet only via /mcp-fleet).
+@test "TXN checks weyland-mcp-gateway: refuses no/forged tokens AND passes the operator's call through" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-mcp-gateway:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'mcp-fleet' 0 'TXN_OK no token and a forged token both refused (401)'
+  stub_case kubectl 'operator/ask' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -q 'weyland-mcp-gateway.weyland.svc.cluster.local:8080' "$STUB_LOG"
+  grep -q 'operator/ask' "$STUB_LOG"
+}
+
+@test "TXN FAILS weyland-mcp-gateway when it forwards an unauthenticated request, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-mcp-gateway:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'mcp-fleet' 0 'TXN_FAIL a request with no token was answered 200'
+  stub_case kubectl 'operator/ask' 0 'TXN_OK'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-mcp-gateway"* && "$output" == *"no token"* ]]
+}
+
+@test "TXN FAILS weyland-mcp-gateway when the authenticated pass-through fails, named" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf '+ registry.weyland.lab/weyland-mcp-gateway:git-9a4996c6\n' > "$STUB_DIR/d.diff"
+  txn_stub_pod
+  stub_case kubectl 'mcp-fleet' 0 'TXN_OK no token and a forged token both refused (401)'
+  stub_case kubectl 'operator/ask' 0 'TXN_FAIL no number in the reply: the fleet is unreachable'
+  run txn_ok 'git-9a4996c6' "$STUB_DIR/d.diff"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"weyland-mcp-gateway"* && "$output" == *"pass-through"* ]]
 }
 
 @test "FLAG: a DISABLED weyland-ship-enabled HOLDS the ship (the only held verdict)" {
