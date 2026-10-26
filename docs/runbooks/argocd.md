@@ -57,7 +57,7 @@ Drive Argo with the `argocd` CLI on mother — never hand-patch the Application 
 `operation:null` / label-selector tricks silently no-op) and never fall back to UI click-paths.
 - **Login** at the LAN NodePort `mother:30880` (`argocd-server-lan`, B135 — the public `argocd.weyland.lab` sits behind
   forward-auth and refuses a CLI login; the CLI context is named `mother:30880`):
-  `argocd login mother:30880 --username admin --password "$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)" --insecure --grpc-web`
+  `argocd login mother:30880 --username admin --password "$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)" --plaintext --grpc-web` (`--plaintext`: 30880 serves plain HTTP; see [ship-images.md](ship-images.md))
 - **Status / diff:** `argocd app get <app>` · `argocd app diff <app>`
 - **Refresh (re-pull git head) + sync:** `argocd app sync <app>` (add `--prune` to remove orphans)
 - **Unwedge a stuck sync** — symptom: SYNC STATUS sits on *"waiting for healthy state of …"* and a changed
