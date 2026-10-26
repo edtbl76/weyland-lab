@@ -7,12 +7,12 @@ hosts:
     packages:
     - name: bruno
       kind: appimage
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'owner review 2026-10-26: keep - the lab''s API client (bruno/weyland collection, api-client-bruno-keploy.md)'
     - name: Cursor
       kind: appimage
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep (Cursor; kept in the audit''s apt pass)'
     - name: emdash
       kind: appimage
       status: keep
@@ -1069,8 +1069,8 @@ hosts:
       status: system
     - name: com.obsproject.Studio
       kind: flatpak
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep (OBS Studio)'
     - name: alpine
       kind: image
       status: system
@@ -1344,52 +1344,52 @@ hosts:
       rationale: ''
     - name: cli
       kind: npm
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'owner review 2026-10-26: keep - @lightdash/cli (lightdash.md deploy/login)'
     - name: cline
       kind: npm
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'owner review 2026-10-26: keep - Cline harness (multi-harness.md)'
     - name: codex
       kind: npm
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'owner review 2026-10-26: keep - Codex harness, the codex on PATH'
     - name: corepack
       kind: npm
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'owner review 2026-10-26: keep - bundled with Node'
     - name: firebase-tools
       kind: npm
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'owner review 2026-10-26: keep - used now and then'
     - name: jsdom
       kind: npm
       status: unreviewed
       rationale: ''
     - name: mermaid
       kind: npm
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'owner review 2026-10-26: keep'
     - name: node-red
       kind: npm
       status: unreviewed
       rationale: ''
     - name: npm
       kind: npm
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'owner review 2026-10-26: keep - bundled with Node'
     - name: opencode-ai
       kind: npm
       status: unreviewed
       rationale: ''
     - name: pi-coding-agent
       kind: npm
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'owner review 2026-10-26: keep - Pi harness, the pi on PATH'
     - name: yarn
       kind: npm
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'owner review 2026-10-26: keep - used now and then'
     - name: absl-py
       kind: pip
       status: system
@@ -2484,8 +2484,8 @@ hosts:
       status: system
     - name: 1password
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: altair
       kind: snap
       status: keep
@@ -2496,208 +2496,208 @@ hosts:
       rationale: AppImage->deb utility; used when installing software
     - name: bare
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: bcc
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: canonical-livepatch
       kind: snap
       status: keep
       rationale: live kernel-CVE patching; valued (0 patches applied so far)
     - name: cmake
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: code
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: core
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: core18
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: core20
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: core22
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: core24
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: core26
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: cups
       kind: snap
       status: keep
       rationale: prints regularly; snap is current so the 2024 CUPS CVEs are patched
     - name: dcgm
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: ddgr
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: dosbox-x
       kind: snap
       status: keep
       rationale: retro gaming, actively used
     - name: drawio
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: ffmpeg-2404
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: firefox
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: firmware-updater
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: gaming-graphics-core22
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: gaming-graphics-core24
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: gimp
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: glow
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: gnome-3-28-1804
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: gnome-3-38-2004
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: gnome-42-2204
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: gnome-46-2404
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: go
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: graalvm-jdk
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: gtk-common-themes
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: kf6-core24
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: kotlin
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: kubectl
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: lxqt-support-core24
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: mesa-2404
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: musescore
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: nvtop
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: obsidian
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: postman
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: qbittorrent-arnatious
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: rstudio
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: scummvm
       kind: snap
       status: keep
       rationale: retro gaming, actively used
     - name: slack
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: snap-store
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: snapd
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: snapd-desktop-integration
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15'
     - name: spotify
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: steam
       kind: snap
       status: keep
       rationale: occasional gaming — NOT during GPU training (VRAM contention)
     - name: sublime-text
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: thunderbird
       kind: snap
       status: unreviewed
       rationale: ''
     - name: zoom-client
       kind: snap
-      status: unreviewed
-      rationale: ''
+      status: keep
+      rationale: 'EMA-188 audit 2026-08-15: keep'
     - name: basic-memory
       kind: uv-tool
       status: keep

@@ -157,9 +157,13 @@ in `scripts/.env` as `KUMA_INVENTORY_PUSH_URL`, then
 
 ## Notes / gotchas
 
-- **rogueone is seeded** from the 2026-08-15 audit (the documented KEEPs); its remaining `unreviewed` items are
-  the review queue. Many are snap platform runtimes (`core*`, `gnome-*`, `gtk-*`, `mesa-*`) — bulk `keep`
-  (rationale "snap platform/runtime"); the rest are apps needing a per-item call.
+- **rogueone is fully curated (2026-10-26).** It was seeded from the 2026-08-15 audit (EMA-188, comment of
+  2026-08-16; `~/rogueone-snap-cleanup.md`) but only 7 of that audit's KEEPs were transcribed, so 65 approved or
+  never-reviewed items sat `unreviewed` for two months. Now: the audit's snap/flatpak KEEPs and the snap runtimes
+  (`core*`, `gnome-*`, `gtk-*`, `mesa-*`: "snap platform/runtime") carry its rationale, and the 17 collected only
+  after it (npm globals, AppImages, the thunderbird snap) were reviewed one by one with the owner: 10 kept, 7
+  uninstalled (thunderbird, LM Studio, NexusMods, and the npm copies of claude-code, opencode-ai, jsdom, node-red).
+  A new `unreviewed` item is now genuinely new.
 - **mother / weyland** are inventoried by running the collector against them (SSH) — mostly apt + container
   images (`crictl`/`ctr` on the k3s node), far fewer discretionary items than the desktop.
 - **Do not curate apt/pip individually** — that is the 578-item baseline the `system` bulk-tag exists to avoid.
