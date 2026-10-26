@@ -5,7 +5,8 @@
 #
 # WHAT IT DOES each run:
 #   1. Emit + read-back verify the COMMITTED catalog to Port (keeps Port tracking the accepted SoT; reuses the
-#      B169 verify gate; emit deletes entities the SoT dropped). Non-fatal to the scan, but a failure turns Kuma down.
+#      B169 verify gate; emit deletes entities the SoT dropped). Read from the origin/main worktree below, never the
+#      live checkout (sync_port). Non-fatal to the scan, but a failure turns Kuma down.
 #   2. For each REACHABLE host: `collect | machine_inventory.py merge --prune` — reconcile the catalog (add new
 #      installs, drop uninstalls, preserve your keep/remove decisions). This runs inside an ISOLATED git
 #      worktree off origin/main, so your working checkout is never touched. An UNREACHABLE host is SKIPPED,
@@ -103,6 +104,20 @@ open_or_update_pr() {
   fi
 }
 
+# sync_port <sot> — emit <sot> to Port and read it back (B169). <sot> is the COMMITTED catalog (the origin/main
+# worktree's copy), never the live checkout: on 2026-10-26 a `git pull` landed mid-run, emit read the pre-merge file
+# and verify the merged one (Port 925 vs SoT 921, heartbeat down), and the checkout would equally publish uncommitted
+# edits to Port as if accepted. Non-zero on a missing Port env (nothing synced) or a failed emit/verify.
+sync_port() {
+  local sot="${1:?usage: sync_port <sot-file>}"
+  if [ ! -f "$PORT_ENV" ]; then
+    echo "!! $PORT_ENV missing — Port not synced" >&2; return 1
+  fi
+  # shellcheck disable=SC1090  # PORT_ENV is a runtime path (gitignored .env), not a constant to follow
+  ( set -a; . "$PORT_ENV"; set +a
+    MACHINE_INV_SOT="$sot" $INV_CMD emit all && MACHINE_INV_SOT="$sot" $INV_CMD verify all )
+}
+
 main() {
   local dry=0; [ "${1:-}" = "--dry-run" ] && dry=1
   cd "$REPO_ROOT" || { echo "!! cannot cd to $REPO_ROOT" >&2; return 1; }
@@ -113,20 +128,8 @@ main() {
   # shellcheck disable=SC1091
   [ -f "$REPO_ROOT/scripts/.env" ] && { set -a; . "$REPO_ROOT/scripts/.env"; set +a; }
 
-  # 1) keep Port synced with the ACCEPTED (committed) catalog + read-back verify (B169). Never blocks the scan.
-  # A failure no longer blocks the scan but DOES reach Kuma (it used to be stdout-only, so verify failed every night
-  # unseen until 2026-09-30). A missing PORT_ENV on a real run is itself a failure — nothing was synced.
-  local port_failed=0
-  if [ "$dry" = "0" ]; then
-    # shellcheck disable=SC1090  # PORT_ENV is a runtime path (gitignored .env), not a constant to follow
-    if [ ! -f "$PORT_ENV" ]; then
-      echo "!! $PORT_ENV missing — Port not synced" >&2; port_failed=1
-    elif ! ( set -a; . "$PORT_ENV"; set +a; $INV_CMD emit all && $INV_CMD verify all ); then
-      echo "!! emit/verify reported an issue (see above) — continuing to the scan" >&2; port_failed=1
-    fi
-  fi
-
-  # isolated worktree off origin/main so the live checkout is never dirtied
+  # isolated worktree off origin/main so the live checkout is never dirtied — and never READ: steps 1 and 2 both
+  # use this snapshot, so a pull or an edit in the checkout mid-run cannot split them.
   git fetch -q origin "$BASE" || echo "⚠ could not fetch origin/$BASE — reconciling against local $BASE" >&2
   local wt; wt="$(mktemp -d)/wt"
   # Detached — a dry run creates NO branch in your repo; the branch is cut only when we open the PR.
@@ -134,6 +137,14 @@ main() {
     || git worktree add -q --detach "$wt" "$BASE"
   # shellcheck disable=SC2064
   trap "git -C '$REPO_ROOT' worktree remove --force '$wt' >/dev/null 2>&1 || true" RETURN
+
+  # 1) keep Port synced with the ACCEPTED (committed) catalog + read-back verify (B169), BEFORE step 2 reconciles
+  # the worktree copy. Never blocks the scan, but a failure DOES reach Kuma (it used to be stdout-only, so verify
+  # failed every night unseen until 2026-09-30). A missing PORT_ENV on a real run is itself a failure.
+  local port_failed=0
+  if [ "$dry" = "0" ] && ! sync_port "$wt/machine-inventory.yaml"; then
+    echo "!! emit/verify reported an issue (see above) — continuing to the scan" >&2; port_failed=1
+  fi
 
   # 2) reconcile each REACHABLE host into the worktree's SoT (unreachable → skipped, never pruned)
   local unreachable="" h

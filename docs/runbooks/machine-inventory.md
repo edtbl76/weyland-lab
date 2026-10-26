@@ -123,7 +123,9 @@ machine-inv-drift.{service,timer}`, ~03:45 NY, `Persistent=true` so a missed run
 auth, and `PR_TOKEN` / Port creds / `KUMA_INVENTORY_PUSH_URL` in `scripts/.env` — no key in the cluster. Each run:
 
 1. **emit + verify** the committed SoT → Port (keeps Port tracking the accepted catalog; the B169 read-back gate).
-   A failure no longer only prints: it turns the heartbeat `down` (step 6).
+   A failure no longer only prints: it turns the heartbeat `down` (step 6). The catalog is read from the job's
+   `origin/main` worktree, never your checkout (fixed 2026-10-26: a `git pull` mid-run made emit and verify read
+   different files, Port 925 vs SoT 921, heartbeat down; the checkout would also have published uncommitted edits).
 2. For each **reachable** host, `collect | machine_inventory.py merge --prune` **inside an isolated git worktree**
    off `origin/main` (your working checkout is never touched). `--prune` reconciles removals too. An
    **unreachable** host is **skipped, never pruned** — merge refuses empty stdin, so a host it could not scan can

@@ -105,3 +105,40 @@ setup() {
   run decide_signal 0 "" "none" 0 0 0
   [[ "$output" == up*"clean, all hosts reachable"* ]]
 }
+
+# sync_port (2026-10-26): Port is synced from the COMMITTED catalog (the origin/main worktree), never the live checkout.
+# The live one moved under a run that day: emit read the pre-merge file, a `git pull` landed, verify read the merged one
+# (Port 925 vs SoT 921, heartbeat down). It would also publish uncommitted edits to Port as if accepted.
+sync_stub() { # sync_stub <verify-rc> — an INV_CMD that logs "<verb> <MACHINE_INV_SOT>" and fails verify with <rc>
+  export SYNC_LOG="$BATS_TEST_TMPDIR/inv.log" SYNC_VERIFY_RC="$1"
+  printf '#!/usr/bin/env bash\necho "$1 ${MACHINE_INV_SOT:-unset}" >> "$SYNC_LOG"\n[ "$1" = verify ] && exit "$SYNC_VERIFY_RC"\nexit 0\n' \
+    > "$BATS_TEST_TMPDIR/inv"
+  chmod +x "$BATS_TEST_TMPDIR/inv"
+  INV_CMD="$BATS_TEST_TMPDIR/inv"
+  PORT_ENV="$BATS_TEST_TMPDIR/port.env"; : > "$PORT_ENV"
+}
+
+@test "sync_port: emits AND verifies the catalog it is given (the origin/main worktree), not the live checkout" {
+  sync_stub 0
+  run sync_port "/wt/machine-inventory.yaml"
+  [ "$status" -eq 0 ]
+  grep -qx 'emit /wt/machine-inventory.yaml' "$SYNC_LOG"
+  grep -qx 'verify /wt/machine-inventory.yaml' "$SYNC_LOG"
+  ! grep -q 'unset' "$SYNC_LOG"
+}
+
+@test "sync_port: a failed read-back verify is a failure, never a pass" {
+  sync_stub 1
+  run sync_port "/wt/machine-inventory.yaml"
+  [ "$status" -ne 0 ]
+  grep -qx 'verify /wt/machine-inventory.yaml' "$SYNC_LOG"   # it got as far as verifying: the failure is verify's
+}
+
+@test "sync_port: a missing Port env is a failure (nothing was synced)" {
+  sync_stub 0
+  PORT_ENV="$BATS_TEST_TMPDIR/absent.env"
+  run sync_port "/wt/machine-inventory.yaml"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Port not synced"* ]]
+  [ ! -s "$SYNC_LOG" ]
+}
