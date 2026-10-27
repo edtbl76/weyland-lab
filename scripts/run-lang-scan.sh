@@ -302,17 +302,16 @@ scan_node() {
   run_tool eslint          "$root" npx npx --no-install eslint . || rc=2
   run_tool npm-audit       "$root" npm npm audit --audit-level=high || rc=2
   run_tool license-checker "$root" npx npx --no-install license-checker --summary || rc=2
-  # tsc / next lint are CAPABILITY-driven, not lane-driven: the four node lanes share one repo-wide
+  # tsc is CAPABILITY-driven, not lane-driven: the four node lanes share one repo-wide
   # discovery glob, so a plain-JS project (e.g. golden-paths/node/express) is discovered under the
   # typescript/react/nextjs lanes too. Gating on the lane would demand a tsconfig + Next on an Express
   # app; gating on what the project actually IS runs the right scanners wherever it is discovered.
-  # A Next.js project is type-checked by `next build` and linted by `next lint`, never by bare tsc
-  # (which needs next-env.d.ts + .next/types from a build); so tsc is for the non-Next TS projects.
+  # A Next.js project is type-checked by `next build`, never by bare tsc (which needs next-env.d.ts +
+  # .next/types from a build); so tsc is for the non-Next TS projects. Its lint is the `eslint .` step
+  # above: Next.js 16 removed `next lint` (2026-10-27), and the Next rule set now comes from
+  # eslint-config-next's flat config in the project's eslint.config.mjs.
   if [ -f "$root/tsconfig.json" ] && ! grep -q '"next"[[:space:]]*:' "$root/package.json" 2>/dev/null; then
     run_tool tsc "$root" npx npx --no-install tsc --noEmit || rc=2
-  fi
-  if [ -f "$root/package.json" ] && grep -q '"next"[[:space:]]*:' "$root/package.json"; then
-    run_tool next-lint "$root" npx npx --no-install next lint || rc=2
   fi
   return $rc
 }

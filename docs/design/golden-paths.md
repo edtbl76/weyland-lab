@@ -94,9 +94,10 @@ two fail-open bugs in `run-lang-scan.sh`, both fixed + pinned by `scripts/tests/
 (1) `run_tool`'s "missing scanner" guard matched only old npm strings, so current npm's
 `npx canceled due to missing packages` read as a finding instead of `LANE BROKEN`; (2) `scan_node`/
 `scan_rust`/`scan_java` returned only the LAST tool's status (no `set -e`), masking an earlier missing
-scanner — now they aggregate. `scan_node`'s `tsc`/`next lint` are CAPABILITY-driven (tsconfig / a `next`
-dep) not lane-driven, so a plain-JS path discovered under the TS/React/Next lanes isn't asked for a
-tsconfig or Next. Every golden path carries the estate's eslint config + scan devDeps and scans clean.
+scanner — now they aggregate. `scan_node`'s `tsc` is CAPABILITY-driven (a tsconfig and no `next` dep)
+not lane-driven, so a plain-JS path discovered under the TS/React/Next lanes isn't asked for a
+tsconfig. (`next lint` was dropped 2026-10-27: Next.js 16 removed it, and the Next rules now run in the
+`eslint .` step through the project's `eslint.config.mjs`.) Every golden path carries the estate's eslint config + scan devDeps and scans clean.
 
 ## Ephemeral-Job harness
 
