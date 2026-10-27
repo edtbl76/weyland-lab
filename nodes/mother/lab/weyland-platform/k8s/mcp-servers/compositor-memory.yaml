@@ -28,7 +28,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: weyland-mcp-compositor
-          image: registry.weyland.lab/weyland-mcp-compositor:git-859e602d   # lockstep with compositor.yaml (scripts/ci/images.tsv)
+          image: registry.weyland.lab/weyland-mcp-compositor:git-8f00b968   # lockstep with compositor.yaml (scripts/ci/images.tsv)
           ports:
             - { name: http, containerPort: 8000 }
           env:
