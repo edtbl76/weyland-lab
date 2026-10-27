@@ -11,5 +11,5 @@ path = "src/main.rs"
 
 [dependencies]
 rocket = { version = "0.5", features = ["json"] }
-prometheus = "0.13"
+prometheus = "0.14"
 serde_json = "1"

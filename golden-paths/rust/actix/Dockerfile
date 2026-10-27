@@ -3,7 +3,8 @@ FROM rust:1-slim AS build
 WORKDIR /app
 COPY Cargo.toml Cargo.lock* ./
 COPY src ./src
-RUN cargo build --release
+# --locked (2026-10-26): build exactly the committed Cargo.lock, never a fresh resolution.
+RUN cargo build --release --locked
 FROM debian:bookworm-slim
 WORKDIR /app
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin appuser \
