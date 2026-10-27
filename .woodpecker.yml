@@ -707,7 +707,9 @@ steps:
       - bash scripts/run-lang-tests.sh react-native
       # headless bundle smoke — prove the Expo app actually bundles for web (expo export). node_modules
       # already installed by the test dispatch above (same step, same pod → workspace persists).
-      - cd golden-paths/mobile/react-native && npm run bundle && cd -
+      # CI=true (2026-10-27): Woodpecker sets CI=woodpecker, and Expo SDK 58's CLI reads CI as a strict boolean
+      # (`GetEnv.NoBoolean: woodpecker is not a boolean`, CI #528). Reproduced locally with CI=woodpecker; CI=true bundles.
+      - cd golden-paths/mobile/react-native && CI=true npm run bundle && cd -
 
   - name: test-flutter
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " flutter ")'}]
