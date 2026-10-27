@@ -12,7 +12,7 @@ anyio==4.15.1
 asgiref==3.12.1
 asyncer==0.0.18
 attrs==26.1.0
-Authlib==1.8.0
+Authlib==1.9.0
 avro==1.12.2
 avro-gen3==0.7.16
 beartype==0.22.9
