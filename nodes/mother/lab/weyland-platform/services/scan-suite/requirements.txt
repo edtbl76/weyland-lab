@@ -65,7 +65,7 @@ Markdown==3.10.3
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
 mdurl==0.1.2
-msgpack==1.2.2
+msgpack==1.2.3
 multidict==6.9.1   # B214: GHSA-54p9-h82j-f925
 mypy==1.14.1
 mypy_extensions==1.1.0
