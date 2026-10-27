@@ -18,7 +18,7 @@ argon2-cffi-bindings==25.1.0
 asgiref==3.12.1
 attrs==26.1.0
 audioread==3.1.0
-Authlib==1.7.2
+Authlib==1.9.0     # 2026-10-27: GHSA-6v38-4h7w-rj9h (critical, JWS JSON with empty signatures verified as valid; fixed 1.9.0)
 avro==1.12.1
 avro-gen3==0.7.16
 babel==2.18.0

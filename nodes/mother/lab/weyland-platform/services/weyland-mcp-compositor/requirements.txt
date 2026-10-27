@@ -4,7 +4,7 @@ aiofile==3.11.1
 annotated-types==0.8.0
 anyio==4.14.2
 attrs==26.1.0
-authlib==1.7.2
+authlib==1.9.0     # 2026-10-27: GHSA-6v38-4h7w-rj9h (critical, JWS JSON with empty signatures verified as valid; fixed 1.9.0)
 beartype==0.22.9
 cachetools==7.1.6
 caio==0.9.25

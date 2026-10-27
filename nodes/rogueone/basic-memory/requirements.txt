@@ -16,7 +16,7 @@ annotated-types==0.8.0
 anyio==4.15.1
 asyncpg==0.31.0
 attrs==26.1.0
-Authlib==1.8.0
+Authlib==1.9.0     # 2026-10-27: GHSA-6v38-4h7w-rj9h (critical, JWS JSON with empty signatures verified as valid; fixed 1.9.0)
 basic-memory==0.23.2
 beartype==0.22.9
 cachetools==7.2.0
