@@ -41,6 +41,12 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   file + package/rule/CVE, never on a line number. **Exit 0** nothing new · **1** new findings, listed (fix, or accept
   a phantom with a documented reason) · **2** a report missing or unreadable in either run (not "nothing new").
   B211's DoD run (2026-10-15, `2026-10-14T19-18-00Z` → `2026-10-15T04-17-42Z`): 0 new in every tool.
+  **It also lists what is STANDING (2026-10-26):** every OSV finding left in a lockfile outside `golden-paths/`, new or
+  not (`osv standing in production lockfiles: N`), and any N > 0 is exit 1. osv applies `osv-scanner.toml` before
+  writing `osv.json`, so what remains is unaccepted: fix it, or accept it there with a reason and an expiry. Why: a
+  diff never re-raises a finding present in both runs. weyland-dagster's PyJWT and soupsieve (6 advisories, 2 high)
+  sat in `osv.json` from 2026-09-04 to 2026-10-26 while every DoD scan read "0 new"; GitHub's Dependabot alerts showed
+  them all along (`gh api repos/edtbl76/weyland-lab/dependabot/alerts` lists those).
 - **Kubescape C-0236 is accepted (2026-10-22, owner "yes").** "Verify image signature" checks each image against cosign
   public keys set in kubescape's controls-config. None are set, so every workload fails it by construction: the
   `2026-10-21T19-06-15Z` suite showed 123 new C-0236 findings with nothing in the repo changed. Our own key would pass

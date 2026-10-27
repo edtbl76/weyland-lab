@@ -50,6 +50,49 @@ def test_an_unreadable_report_cannot_compare(monkeypatch):
     assert scan_diff.main(["scan-diff.py", "old", "new"]) == 2
 
 
+# --- standing production findings (2026-10-26) ----------------------------------------------------------------------
+# A diff only sees what is NEW, so a finding present in both runs never surfaced again: weyland-dagster's PyJWT and
+# soupsieve sat in osv.json from 2026-09-04 to 2026-10-26 while every DoD scan read "0 new". osv applies
+# osv-scanner.toml before writing osv.json, so anything still in it is UNACCEPTED; outside golden-paths/ (the B88
+# sample apps, triaged on their own) that must be zero. Paths as the suite writes them (a clone under /src).
+
+def _osv(*findings):
+    return {"results": [{"source": {"path": path, "type": "lockfile"}, "packages": [
+        {"package": {"name": pkg, "version": "1"}, "vulnerabilities": [{"id": vid}]}]} for path, pkg, vid in findings]}
+
+
+def test_standing_lists_unaccepted_production_lockfile_findings_and_skips_golden_paths():
+    rep = _osv(("/src/nodes/mother/lab/weyland-platform/services/weyland-dagster/requirements.txt", "soupsieve",
+                "GHSA-836r-79rf-4m37"),
+               ("/src/golden-paths/frontend/vue/package-lock.json", "vite", "GHSA-xxxx-1111-2222"))
+    assert scan_diff.standing_production(rep) == [
+        ("/src/nodes/mother/lab/weyland-platform/services/weyland-dagster/requirements.txt", "soupsieve",
+         "GHSA-836r-79rf-4m37")]
+
+
+def test_a_standing_production_finding_fails_even_when_it_is_not_new(monkeypatch, capsys):
+    prod = ("/src/nodes/mother/lab/weyland-platform/services/weyland-dagster/requirements.txt", "PyJWT",
+            "GHSA-x33g-cr3x-6449")
+    runs = {"old": _empty(), "new": _empty()}
+    runs["old"]["osv.json"] = _osv(prod)
+    runs["new"]["osv.json"] = _osv(prod)
+    monkeypatch.setattr(scan_diff, "fetch", lambda run, name: runs[run][name])
+    assert scan_diff.main(["scan-diff.py", "old", "new"]) == 1
+    out = capsys.readouterr().out
+    assert "osv: 0 new" in out                                   # the diff alone would have passed
+    assert "standing in production lockfiles: 1" in out and "PyJWT" in out
+
+
+def test_standing_golden_path_findings_alone_do_not_fail(monkeypatch, capsys):
+    gp = ("/src/golden-paths/frontend/vue/package-lock.json", "vite", "GHSA-xxxx-1111-2222")
+    runs = {"old": _empty(), "new": _empty()}
+    runs["old"]["osv.json"] = _osv(gp)
+    runs["new"]["osv.json"] = _osv(gp)
+    monkeypatch.setattr(scan_diff, "fetch", lambda run, name: runs[run][name])
+    assert scan_diff.main(["scan-diff.py", "old", "new"]) == 0
+    assert "standing in production lockfiles: 0" in capsys.readouterr().out
+
+
 def test_new_findings_exit_1_and_none_exit_0(monkeypatch):
     runs = {"old": _empty(), "same": _empty(), "worse": _empty()}
     runs["worse"]["bandit.json"] = {"results": [{"filename": "x.py", "test_id": "B602", "issue_severity": "HIGH"}]}

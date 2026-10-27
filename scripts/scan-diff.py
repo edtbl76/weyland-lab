@@ -6,8 +6,13 @@ findings only, keyed on what identifies a finding (file, package, rule or CVE: n
 
 usage:  python3 scripts/scan-diff.py <old-run> <new-run>
         a run is an archive prefix under s3://scan-reports/, e.g. 2026-10-14T19-18-00Z (one per repo per run;
-        run-scan-suite.sh prints each repo's). Exit 0 nothing new · 1 new critical/high findings, listed · 2 could not
-        compare (a report missing or unreadable in either run: an unreadable report is not "nothing new").
+        run-scan-suite.sh prints each repo's). Exit 0 nothing new and nothing standing · 1 new critical/high findings,
+        or a STANDING unaccepted OSV finding in a production lockfile, listed · 2 could not compare (a report missing
+        or unreadable in either run: an unreadable report is not "nothing new").
+
+A diff alone never re-raises a finding present in both runs, so it also lists every OSV finding left in a lockfile
+outside golden-paths/ (2026-10-26: weyland-dagster's PyJWT and soupsieve sat there from 2026-09-04 behind "0 new").
+osv applies osv-scanner.toml before writing osv.json, so whatever remains is unaccepted: fix it or accept it there.
 Runbook: docs/runbooks/code-quality.md.
 """
 import json
@@ -32,6 +37,12 @@ def trivy(d):
 def osv(d):
     return {(r["source"]["path"], p["package"]["name"], v["id"])
             for r in d.get("results") or [] for p in r.get("packages") or [] for v in p.get("vulnerabilities") or []}
+
+
+def standing_production(d):
+    """Every OSV finding (any severity) in a lockfile outside golden-paths/: unaccepted, since osv already applied
+    osv-scanner.toml. The golden paths are the B88 sample apps, triaged on their own."""
+    return sorted(f for f in osv(d) if "/golden-paths/" not in "/" + f[0].lstrip("/"))
 
 
 def bandit(d):
@@ -141,7 +152,11 @@ def main(argv):
         for a in added:
             print("   +", " | ".join(str(x) for x in a))
         added_any |= bool(added)
-    return 1 if added_any else 0
+    standing = standing_production(new["osv.json"])
+    print(f"osv standing in production lockfiles: {len(standing)} (unaccepted; fix or accept in osv-scanner.toml)")
+    for s in standing:
+        print("   !", " | ".join(str(x) for x in s))
+    return 1 if added_any or standing else 0
 
 
 if __name__ == "__main__":

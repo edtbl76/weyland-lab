@@ -263,6 +263,10 @@ manifest** runs the relevant scan and **triages the result before "done":**
   (Trivy / KSV — rule-id + why), `osv-scanner.toml` (dependency CVEs), or a **bare `# nosemgrep: <rule-id>`** (Semgrep —
   rule-id ONLY; prose after `nosemgrep:` suppresses nothing). Never leave a new high un-triaged, and never blanket-
   suppress to make a number green.
+- **…and zero STANDING unaccepted findings in production lockfiles** (2026-10-26). `scripts/scan-diff.py` also lists
+  every OSV finding left outside `golden-paths/`, new or not, and exits 1 on any. A diff alone never re-raises a
+  finding present in both runs: weyland-dagster's PyJWT/soupsieve (2 high) sat behind "0 new" for seven weeks while
+  GitHub's Dependabot alerts showed them. Fix it, or accept it in `osv-scanner.toml` with a reason and an expiry.
 - **Re-scan after fixes** so Port reflects the true state — a `202` from the ingest URL is queue-acceptance, **not**
   proof of an entity. "Scanned once and ignored" is not done.
 - **RBAC / SA hardening guard (B95).** Any change touching a `ServiceAccount`, `RoleBinding`, `ClusterRoleBinding`, or
