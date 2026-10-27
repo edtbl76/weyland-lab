@@ -11,7 +11,8 @@ bundle exec rake test:selfcheck                    # the deliberate failure (pro
 bash scripts/run-lang-tests.sh ruby                # the CI lane runs this golden path as its fixture
 ```
 
-Layout: `Gemfile` (rails + puma; rake + rubocop in the test group); `config/` the minimal boot
+Layout: `Gemfile` (rails + puma; rake + rubocop in the test group) + a committed `Gemfile.lock` (the image builds it
+`frozen`, and osv-scanner can only see gems through it; 2026-10-26); `config/` the minimal boot
 (`application.rb` sets `api_only`, a fixed lab `secret_key_base`, stdout logging, and cleared host
 allowlist — no per-environment files needed); `app/controllers/golden_controller.rb` serves the whole
 contract; `config.ru` is the puma/Rack entrypoint. Metrics = a hand-rolled Prometheus text endpoint at

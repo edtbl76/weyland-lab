@@ -11,7 +11,8 @@ bundle exec rake test:selfcheck                    # the deliberate failure (pro
 bash scripts/run-lang-tests.sh ruby                # the CI lane runs this alongside the Rails fixture
 ```
 
-Layout: `Gemfile` (sinatra + puma + rackup; rack-test + minitest + rubocop in the test group);
+Layout: `Gemfile` (sinatra + puma + rackup; rack-test + minitest + rubocop in the test group) + a committed
+`Gemfile.lock` (the image builds it `frozen`, and osv-scanner can only see gems through it; 2026-10-26);
 `app.rb` is a modular `Sinatra::Base` subclass so the same object serves (via `config.ru`) and is
 tested in-process; host authorization is cleared (`permitted_hosts: []`) so the LAN canary accepts any
 Host. Metrics = a hand-rolled Prometheus text endpoint at `/metrics`. The deliberately-failing test

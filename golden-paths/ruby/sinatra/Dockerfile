@@ -4,11 +4,14 @@ FROM ruby:3.3-slim AS build
 WORKDIR /app
 # build-essential compiles native gem extensions (puma has a C extension).
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*
-COPY Gemfile ./
+COPY Gemfile Gemfile.lock ./
 # `without development test` keeps rubocop and the test-only gems out of the runtime bundle. The ruby
 # image sets BUNDLE_APP_CONFIG=/usr/local/bundle, so this setting lands in /usr/local/bundle/config
 # (copied whole into the runtime stage) and `bundle exec` honours it there — no /app/.bundle involved.
-RUN bundle config set --local without "development test" && bundle install --jobs 4
+# `frozen` (2026-10-26): install exactly the committed Gemfile.lock and fail if the Gemfile disagrees, instead of
+# re-resolving on every build (there was no lockfile, so osv-scanner never saw these gems).
+RUN bundle config set --local without "development test" && bundle config set --local frozen true \
+    && bundle install --jobs 4
 
 FROM ruby:3.3-slim
 WORKDIR /app
