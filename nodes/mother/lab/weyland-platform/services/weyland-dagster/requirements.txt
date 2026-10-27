@@ -213,7 +213,7 @@ pydantic==2.13.4
 pydantic_core==2.46.4
 Pygments==2.20.0
 pyiceberg==0.11.1
-PyJWT==2.14.0
+PyJWT==2.15.0      # 2026-10-26: GHSA-x33g-cr3x-6449, GHSA-42vr-xj54-vc7v (fixed 2.15.0)
 pylance==8.0.0
 pymongo==4.18.2
 PyMySQL==1.2.0
@@ -253,7 +253,7 @@ six==1.17.0
 smmap==5.0.3
 snowplow-tracker==1.1.0
 soundfile==0.14.0
-soupsieve==2.6     # beautifulsoup4's CSS-selector engine (transitive; pinned for the offline build)
+soupsieve==2.9     # beautifulsoup4's CSS-selector engine (transitive; pinned for the offline build). 2026-10-26: 2.6 -> 2.9 for GHSA-836r-79rf-4m37, GHSA-2wc2-fm75-p42x, GHSA-gjv8-xp57-g29c, GHSA-j934-xhv5-fg8f
 soxr==1.1.0
 spinners==0.0.24
 SQLAlchemy==2.0.51
