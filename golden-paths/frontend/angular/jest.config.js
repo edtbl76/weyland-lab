@@ -7,7 +7,7 @@ module.exports = {
   transform: {
     '^.+\\.ts$': [
       'ts-jest',
-      { tsconfig: { module: 'commonjs', target: 'ES2020', esModuleInterop: true, strict: true } },
+      { tsconfig: { module: 'commonjs', target: 'ES2020', esModuleInterop: true, strict: true, rootDir: '.' } },
     ],
   },
 };

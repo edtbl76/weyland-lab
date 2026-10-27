@@ -1,6 +1,9 @@
 # Golden path — Frontend / Angular
 
-Blessed paved-road Angular 20 SPA (20.3 — moved from 19 on 2026-10-01: Angular 19 gets no security fixes; 7 high CVEs in `@angular/*` 19.2 are fixed only from 20.3). **Runnable · ephemeral · extendable.** Satisfies the frontend
+Blessed paved-road Angular 22 SPA (22.2, TypeScript 6.0, jest 30 — moved from 20.3 on 2026-10-27: Angular 21's
+build tooling still shipped vulnerable undici, and 22 needs TS 6 and jest 30 (build-angular's peer). `overrides`
+pins `vite` to 8.3.5 because `@angular/build` 22.2.4 pins the vulnerable 8.3.0 exactly; drop it once Angular's own
+pin moves past 8.3.2. Earlier: 19 → 20.3 on 2026-10-01, 19 got no security fixes). **Runnable · ephemeral · extendable.** Satisfies the frontend
 adaptation of the golden-path contract ([docs/design/golden-paths.md](../../../docs/design/golden-paths.md)):
 the demo route renders the greeting, and the contract endpoints `/health` `/ready` `/metrics` `/hello`
 are served by a tiny stdlib static server (the "sidecar route" the adapted contract allows).
