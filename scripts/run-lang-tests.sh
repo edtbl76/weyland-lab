@@ -133,7 +133,7 @@ test_glob_for() {
     # B164 mobile CLIENTS need globs DISTINCT from the service lanes they would otherwise collide
     # with. react-native shares package.json + *.test.tsx with the node lanes, so its test file is
     # named *.rn.test.tsx (still matched by jest's default *.test.tsx discovery) and this glob keys
-    # on that infix — otherwise the react-native lane would discover vite-react/nextjs/remix and run
+    # on that infix — otherwise the react-native lane would discover vite-react/nextjs/react-router and run
     # jest on them as if they were Expo apps. flutter's widget_test.dart is already distinct from the
     # dart golden path's contract_test.dart, so `flutter test` never targets the dart/shelf service.
     react-native)                      echo "*.rn.test.tsx" ;;

@@ -1,8 +1,8 @@
 #!/bin/sh
-# Ephemeral smoke (Frontend/Remix) — start remix-serve, poll /ready, assert /hello's payload and the
+# Ephemeral smoke (Frontend/React Router) — start react-router-serve, poll /ready, assert /hello's payload and the
 # SSR-rendered demo route both carry the greeting, exit.
 set -u
-PORT=8080 ./node_modules/.bin/remix-serve ./build/server/index.js &
+PORT=8080 ./node_modules/.bin/react-router-serve ./build/server/index.js &
 pid=$!
 for _ in $(seq 1 60); do
   curl -sf http://127.0.0.1:8080/ready >/dev/null 2>&1 && break

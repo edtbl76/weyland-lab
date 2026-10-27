@@ -3,7 +3,7 @@
 Twenty-one **blessed, paved-road service templates** — one framework-agnostic **contract** (`GET /health` `/ready`
 `/metrics` (Prometheus) `/hello`), many frameworks: Python (FastAPI/Flask/Litestar/Django) · Java
 (Spring Boot/Quarkus/Micronaut) · Go (net/http/Gin/Echo/Fiber) · Rust (Axum/Actix-web/Rocket) · Node
-(Express/Fastify/NestJS) · Frontend (Next.js/Remix/Vite+React/Astro). Each is **runnable + ephemeral +
+(Express/Fastify/NestJS) · Frontend (Next.js/React Router (Remix until 2026-10-27)/Vite+React/Astro). Each is **runnable + ephemeral +
 extendable**: it carries a lane test + a deliberate-fail selfcheck + a coverage baseline + a non-root multi-stage
 Dockerfile + a run-to-completion smoke Job + an onboarding-declaration template, so `scripts/new-service.sh
 <lang>/<framework> <name>` scaffolds a service that already passes the estate's gates. The golden paths also

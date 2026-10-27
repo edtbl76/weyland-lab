@@ -10,3 +10,4 @@ build
 .angular
 next-env.d.ts
 tsconfig.tsbuildinfo
+.react-router

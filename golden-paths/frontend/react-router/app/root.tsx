@@ -1,4 +1,4 @@
-import { Links, Meta, Outlet, Scripts } from '@remix-run/react';
+import { Links, Meta, Outlet, Scripts } from 'react-router';
 
 export default function App() {
   return (
@@ -6,7 +6,7 @@ export default function App() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>golden-frontend-remix</title>
+        <title>golden-frontend-react-router</title>
         <Meta />
         <Links />
       </head>

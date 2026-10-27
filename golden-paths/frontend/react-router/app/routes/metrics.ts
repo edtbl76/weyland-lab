@@ -1,4 +1,4 @@
-// Remix resource route — GET /metrics. Prometheus exposition of the shared registry.
+// Resource route — GET /metrics. Prometheus exposition of the shared registry.
 import { registry } from '../lib/metrics';
 
 export const loader = async () =>

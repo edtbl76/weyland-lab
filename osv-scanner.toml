@@ -58,6 +58,16 @@ id = "GHSA-86w9-cpqp-85rv"
 ignoreUntil = 2027-01-02
 reason = "node-forge <=1.4.0 (CVE-2026-85393 / CVE-2026-33894): RSA PKCS#1 v1.5 verification accepts extra nested DigestAlgorithm. No fixed release (1.4.0 is latest). Only in the react-native golden-path sample's dev tooling; nothing verifies untrusted signatures. Accepted 2026-10-02."
 
+# zod 3.25.76 in the react-native golden path (2026-10-27, Expo SDK 58). Version-scoped: no other lockfile has 3.25.76
+# today (angular/astro/nextjs carry the fixed 4.6.6+), and the entry stops matching the moment Expo moves zod.
+[[PackageOverrides]]
+name = "zod"
+version = "3.25.76"
+ecosystem = "npm"
+vulnerability.ignore = true
+effectiveUntil = 2027-01-27
+reason = "golden-paths/mobile/react-native only (GHSA-mrhx-c7xc-m3w5 / CVE-2023-54404: memory exhaustion validating an oversized array with an unconstrained array schema; fixed only in zod 4.6.6). zod comes from @expo/cli 58.1.15, Expo's newest developer CLI, which pins the zod 3 line; it validates local project config at dev/build time, is not in the app bundle, and never parses outside input. The only 'fix' npm offers is a downgrade to Expo 54. Re-check when @expo/cli moves to zod 4. Accepted 2026-10-27."
+
 # REMOVED 2026-10-17 (B215): the GHSA-g6cj-pr64-35w5 acceptance (cryptography 49.0.0 in realm-of-agents). FIXED, not
 # re-accepted: the MLflow server and the Realm moved to 3.16.1 together, which lifts mlflow 3.15's cap, and the Realm
 # now pins cryptography 50.0.2.

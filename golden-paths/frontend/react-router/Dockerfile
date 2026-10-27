@@ -1,5 +1,5 @@
-# Golden path Frontend/Remix. Multi-stage: remix vite:build → alpine runtime (remix-serve).
-# buildkit → registry.weyland.lab/golden-frontend-remix.
+# Golden path Frontend/React Router (Remix until 2026-10-27). Multi-stage: react-router build → alpine runtime (react-router-serve).
+# buildkit → registry.weyland.lab/golden-frontend-react-router.
 FROM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./

@@ -3,6 +3,13 @@
 Blessed paved-road **Expo** (React Native) app. **Buildable · testable · extendable.** Satisfies the
 **B164 mobile ADAPTED contract** ([docs/design/golden-paths.md](../../../docs/design/golden-paths.md)).
 
+**Expo SDK 58** (React Native 0.88, React 19.3, jest 30, TypeScript 6.0) since 2026-10-27; it was SDK 52, whose
+tooling carried 34 advisories. Versions are the set `npx expo install --check` expects. Keep it that way: bump `expo`,
+then align everything else with `npx expo install --fix`, and if npm refuses, set the versions it lists by hand.
+TypeScript 6 no longer includes `@types/*` automatically, so `tsconfig.json` names `jest` in `types` (with
+`@types/jest` installed) for the tests' `test`/`expect` globals. One accepted finding: `zod` 3.25.76, which `@expo/cli`
+(the dev CLI) pins; see `osv-scanner.toml`.
+
 ## A mobile app is a CLIENT, not an HTTP service
 
 The framework-agnostic golden-path contract (`/health` `/ready` `/metrics` `/hello` + a Dockerfile +

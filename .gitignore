@@ -211,7 +211,8 @@ golden-paths/node/*/dist/
 golden-paths/node/*/.next/
 
 # B153 golden-path Frontend services — same policy: package-lock.json committed, everything a build
-# regenerates ignored. dist=Vite/Astro, build=Remix, .next+next-env.d.ts=Next.js, .astro=Astro cache.
+# regenerates ignored. dist=Vite/Astro, build=React Router (Remix until 2026-10-27), .next+next-env.d.ts=Next.js,
+# .astro=Astro cache, .react-router=React Router's generated route types.
 golden-paths/frontend/*/node_modules/
 golden-paths/frontend/*/coverage/
 golden-paths/frontend/*/dist/
@@ -219,6 +220,7 @@ golden-paths/frontend/*/build/
 golden-paths/frontend/*/.next/
 golden-paths/frontend/*/.astro/
 golden-paths/frontend/*/.angular/
+golden-paths/frontend/*/.react-router/
 golden-paths/frontend/*/next-env.d.ts
 
 # B160 golden-path Elixir services — deps/ (fetched deps) and _build/ (compiled beam) are the mix
