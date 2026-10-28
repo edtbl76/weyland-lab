@@ -73,7 +73,7 @@ jsonschema==4.26.0
 jsonschema-path==0.5.0
 jsonschema-specifications==2025.9.1
 keyring==25.7.0
-litellm==1.91.5
+litellm==1.100.4
 logfire==5.2.0   # 2026-10-22: 5.1.1 capped the OTLP exporter <1.45.0; 5.2.0 allows the 1.45.1 fix (GHSA-xcq7-p3pf-p88h)
 loguru==0.7.3
 Mako==1.4.3
