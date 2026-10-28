@@ -43,20 +43,16 @@ Accepted 2026-08-20.
 # no durable deployment, no production data). Accepted by advisory ID, not by package version, so a NEW advisory on the
 # same version still fires; `ignoreUntil` forces a re-check on 2027-01-02.
 
-[[IgnoredVulns]]
-id = "GHSA-vfj7-8cjw-p6xm"
-ignoreUntil = 2027-01-02
-reason = "braces <=3.0.3 (CVE-2026-93687): stack-exhaustion DoS on deeply nested brace patterns. No fixed release (3.0.3 is latest). Build-time glob tooling in 8 golden-path sample apps; no untrusted patterns reach it. Accepted 2026-10-02."
+# REMOVED 2026-10-28 (GHSA-vfj7-8cjw-p6xm, unused in a full-repo osv run): braces: the golden-path lockfiles no longer carry an affected version.
+
+# REMOVED 2026-10-28 (GHSA-ch52-4w7c-c8xp, unused in a full-repo osv run): http-cache-semantics: the astro/angular upgrades moved past it.
+
+# REMOVED 2026-10-28 (GHSA-86w9-cpqp-85rv, unused in a full-repo osv run): node-forge: Expo SDK 58 brings 1.4.2, outside the affected range.
 
 [[IgnoredVulns]]
-id = "GHSA-ch52-4w7c-c8xp"
-ignoreUntil = 2027-01-02
-reason = "http-cache-semantics <=4.2.0 (CVE-2026-93748): max-stale can disclose cross-user cached responses. No fixed release (4.2.0 is latest). Only in the astro + angular golden-path samples, single-user fixtures with no shared cache. Accepted 2026-10-02."
-
-[[IgnoredVulns]]
-id = "GHSA-86w9-cpqp-85rv"
-ignoreUntil = 2027-01-02
-reason = "node-forge <=1.4.0 (CVE-2026-85393 / CVE-2026-33894): RSA PKCS#1 v1.5 verification accepts extra nested DigestAlgorithm. No fixed release (1.4.0 is latest). Only in the react-native golden-path sample's dev tooling; nothing verifies untrusted signatures. Accepted 2026-10-02."
+id = "GHSA-gcqx-w48m-w2h4"
+ignoreUntil = 2027-01-28
+reason = "deepmerge 4.2.0-4.3.1 (mergeObject() prototype poisoning of returned objects). No fixed release: 4.3.1 is the latest, unchanged since 2023-03. Only in golden-path sample lockfiles (8 npm samples), pulled in by jest-config (test-time config merging) and, in react-native, by @expo/config (merging the local app.json at build time); both merge local, trusted config, never outside input. No production lockfile is npm. Accepted 2026-10-28."
 
 # zod 3.25.76 in the react-native golden path (2026-10-27, Expo SDK 58). Version-scoped: no other lockfile has 3.25.76
 # today (angular/astro/nextjs carry the fixed 4.6.6+), and the entry stops matching the moment Expo moves zod.
@@ -77,20 +73,9 @@ id = "GO-2026-5932"
 ignoreUntil = 2027-04-12
 reason = "golang.org/x/crypto/openpgp is unmaintained (GO-2026-5932, no fixed release). Flagged at MODULE level on the golden-path echo and gin samples, which import other x/crypto packages but never openpgp; the scan's govulncheck (symbol-level reachability) reports 0 for both. Re-check on expiry, or sooner if a sample starts using openpgp. Accepted 2026-10-12 (B179 DoD scan)."
 
-[[IgnoredVulns]]
-id = "GHSA-8mgp-746c-j5xp"
-ignoreUntil = 2027-01-16
-reason = "nltk 3.10.x — 3.10.4 in weyland-agent since 2026-10-24, still affected: no fixed release (CVE-2026-81726 / PYSEC-2026-3740): model-artifact APIs (TransitionParser.train/parse, AveragedPerceptron.save/load, PerceptronTagger.save_to_json, save_maxent_params) bypass nltk's path security. No fixed release (last_affected 3.10.3). weyland-agent gets nltk only through llama-index-core (nltk>=3.9.3); nothing in its image outside nltk itself calls those APIs (grep of site-packages, 2026-10-16), and the agent never loads or saves an nltk model from a caller-supplied path. Bump as soon as nltk ships a fix. Accepted 2026-10-16 (B214)."
+# REMOVED 2026-10-28 (GHSA-8mgp-746c-j5xp, unused in a full-repo osv run): nltk: OSV corrected the range to <=3.10.3; weyland-agent pins 3.10.4.
 
-[[IgnoredVulns]]
-id = "GHSA-h35f-9h28-mq5c"
-ignoreUntil = 2027-04-16
-reason = "setuptools <83 (CVE-2026-59890 / PYSEC-2026-3447): MANIFEST.in exclusions bypassed when building an sdist on macOS APFS/HFS+ (NFC/NFD name collision). Does not apply here: every image runs on Linux and none builds an sdist. Kept below 83 on purpose in scan-suite only (82+ drops pkg_resources, which semgrep 1.90's opentelemetry-instrumentation imports); the Dagster GE/Soda venvs moved to 84.2.1 on 2026-10-24 (B227 follow-on: GE imports pkg_resources only in its CLI, which ge_validate.py never loads). Accepted 2026-10-16 (B214)."
-
-# ---- B214 (2026-10-16): VERSION-SCOPED overrides. Each matches one exact package version, so the same advisory
-# elsewhere in the repo (another version, another lockfile) is still reported. Proven against osv-scanner 1.9.1:
-# protobuf 4.25.9 suppressed while 4.23.4 in another directory still reported its 4 advisories.
-
+# REMOVED 2026-10-28 (GHSA-h35f-9h28-mq5c, unused in a full-repo osv run): setuptools: no lockfile pins an affected version any more.
 
 [[IgnoredVulns]]
 id = "HSEC-2023-0007"
