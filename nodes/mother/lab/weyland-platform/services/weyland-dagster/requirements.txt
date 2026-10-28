@@ -18,7 +18,7 @@ argon2-cffi-bindings==25.1.0
 asgiref==3.12.1
 attrs==26.1.0
 audioread==3.1.0
-Authlib==1.9.0     # 2026-10-27: GHSA-6v38-4h7w-rj9h (critical, JWS JSON with empty signatures verified as valid; fixed 1.9.0)
+Authlib==1.9.1     # 2026-10-27: GHSA-6v38-4h7w-rj9h (critical, empty JWS JSON signatures, fixed 1.9.0) + the same day's empty-HMAC-key JWS/JWT forgery (high, fixed 1.9.1)
 avro==1.12.1
 avro-gen3==0.7.16
 babel==2.18.0
@@ -69,7 +69,7 @@ Deprecated==1.3.1
 deprecation==2.1.0
 dill==0.3.9
 dlt==1.29.0
-dnspython==2.8.0
+dnspython==2.9.0     # 2026-10-27: dns.name.from_wire_parser() excessive CPU (high, fixed 2.9.0)
 docker==7.2.0
 docstring_parser==0.18.0
 durationpy==0.10
@@ -150,7 +150,7 @@ mlflow-skinny==3.14.0
 mmh3==5.2.1
 more-itertools==10.8.0
 mpmath==1.3.0
-msgpack==1.2.1
+msgpack==1.2.3     # 2026-10-27: unbounded memory leak in the C extension (high, fixed 1.2.3)
 multidict==6.9.1
 multiprocess==0.70.17
 multitasking==0.0.13     # B113 Phase 4 — yfinance async download helper
@@ -215,7 +215,7 @@ Pygments==2.20.0
 pyiceberg==0.11.1
 PyJWT==2.15.0      # 2026-10-26: GHSA-x33g-cr3x-6449, GHSA-42vr-xj54-vc7v (fixed 2.15.0)
 pylance==8.0.0
-pymongo==4.18.2
+pymongo==4.18.3     # 2026-10-27: out-of-bounds read decoding malformed BSON (high, fixed 4.18.3)
 PyMySQL==1.2.0
 pyparsing==3.3.2
 pyroaring==1.1.0

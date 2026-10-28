@@ -4,7 +4,7 @@ aiofile==3.11.1
 annotated-types==0.8.0
 anyio==4.14.2
 attrs==26.1.0
-authlib==1.9.0     # 2026-10-27: GHSA-6v38-4h7w-rj9h (critical, JWS JSON with empty signatures verified as valid; fixed 1.9.0)
+authlib==1.9.1     # 2026-10-27: GHSA-6v38-4h7w-rj9h (critical, empty JWS JSON signatures, fixed 1.9.0) + the same day's empty-HMAC-key JWS/JWT forgery (high, fixed 1.9.1)
 beartype==0.22.9
 cachetools==7.1.6
 caio==0.9.25
@@ -13,7 +13,7 @@ cffi==2.1.0
 click==8.4.2
 cryptography==50.0.0
 cyclopts==4.22.2
-dnspython==2.8.0
+dnspython==2.9.0     # 2026-10-27: dns.name.from_wire_parser() excessive CPU (high, fixed 2.9.0)
 docstring-parser==0.18.0
 email-validator==2.3.0
 exceptiongroup==1.3.1

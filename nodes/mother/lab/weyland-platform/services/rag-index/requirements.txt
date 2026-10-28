@@ -1,7 +1,7 @@
 annotated-types==0.7.0
 anyio==4.14.2
 attrs==26.1.0
-Authlib==1.9.0     # 2026-10-27: GHSA-6v38-4h7w-rj9h (critical, JWS JSON with empty signatures verified as valid; fixed 1.9.0)
+Authlib==1.9.1     # 2026-10-27: GHSA-6v38-4h7w-rj9h (critical, empty JWS JSON signatures, fixed 1.9.0) + the same day's empty-HMAC-key JWS/JWT forgery (high, fixed 1.9.1)
 avro==1.12.1
 cachetools==7.1.4
 certifi==2026.10.19
