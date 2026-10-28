@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: rag-index
-          image: registry.weyland.lab/weyland-rag-index:git-8f00b968
+          image: registry.weyland.lab/weyland-rag-index:git-8b76894c
           imagePullPolicy: IfNotPresent
           # Readiness = connected to the store + subscribed + the poll loop passed in the last 60s (heartbeat.py).
           # Without it Ready meant only "PID 1 is alive" and ship-images' SMOKE gate refused the rollout.
