@@ -141,7 +141,9 @@ PYSEC id). The run still exited 1 because of what IS new: trivy's 3 were accepta
 never mirrored into `.trivyignore`, and trivy-images' 227 were the 2026-10-27/28 advisories in deployed images (211
 weyland-jupyter kernel headers under the 2026-10-17 decision, msgpack in pip's own vendored copy, guava/snappy inside
 third-party jars, go-jose in the trivy binary). Each was fixed (ray-head msgpack, health-job guava, kubescape go-jose)
-or accepted with a PURL-scoped entry and an expiry in `.trivyignore-images.yaml`. The negative case is pinned by
+or accepted with a PURL-scoped entry and an expiry in `.trivyignore-images.yaml`. After the ship (`git-251cc06d`,
+ray-head v15) the re-scan `2026-10-28T19-45-55Z` diffed clean: `0 new` in every tool, trivy-images `228 gone`, osv
+standing `0`, exit **0**. The negative case is pinned by
 `scripts/tests/test_scan_diff.py` (a standing production finding fails even when it is not new; golden-path ones alone
 do not).
 
