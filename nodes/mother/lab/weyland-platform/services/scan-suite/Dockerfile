@@ -35,7 +35,9 @@ RUN go get golang.org/x/net@v0.60.0 google.golang.org/grpc@v1.83.2 && go build -
 WORKDIR /src/vuln
 RUN go get golang.org/x/mod@v0.40.0 && go build -o /out/govulncheck ./cmd/govulncheck
 WORKDIR /src/kubescape
-RUN go get golang.org/x/image@v0.45.0 golang.org/x/net@v0.60.0 && go build -o /out/kubescape .
+# 2026-10-28: + go-jose/v4 4.1.6 (CVE-2026-116587, JWK RSA-key parsing DoS; kubescape v4.0.17 still pins 4.1.4) and
+# x/net 0.60.0 -> 0.62.0 (GO-2026-6860/6866).
+RUN go get golang.org/x/image@v0.45.0 golang.org/x/net@v0.62.0 github.com/go-jose/go-jose/v4@v4.1.6 && go build -o /out/kubescape .
 
 FROM python:3.12-slim
 ENV DEBIAN_FRONTEND=noninteractive

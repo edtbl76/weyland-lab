@@ -103,6 +103,7 @@ CVE-2026-112394 exp:2027-01-22
 CVE-2026-112395 exp:2027-01-22
 CVE-2026-112396 exp:2027-01-22
 CVE-2026-112397 exp:2027-01-22
+CVE-2026-112398 exp:2027-01-22
 CVE-2026-112399 exp:2027-01-22
 CVE-2026-112400 exp:2027-01-22
 CVE-2026-112401 exp:2027-01-22
@@ -134,3 +135,13 @@ CVE-2026-96643 exp:2027-01-22
 CVE-2026-96644 exp:2027-01-22
 CVE-2026-96778 exp:2027-01-22
 GHSA-78g4-xqwv-q3g8 exp:2027-01-22
+
+# ---- 2026-10-28 (B227 item 8): mirrors of osv-scanner.toml's version-scoped acceptances, which the SOURCE trivy scan does
+# not read. This file is id-only, so the scope lives in osv-scanner.toml; each id belongs to that one package.
+# zod 3.25.76 in golden-paths/mobile/react-native (GHSA-mrhx-c7xc-m3w5): pinned by @expo/cli, Expo's dev CLI, which
+# validates local project config only; the fix is zod 4, which Expo has not adopted.
+CVE-2023-54404 exp:2027-01-27
+# litellm 1.91.5 in nodes/rogueone/basic-memory: both advisories are in the LiteLLM PROXY SERVER, which basic-memory never
+# runs (client library only); basic-memory 0.23.2 requires litellm<1.92.0 and 0.24.x rewrites notes (held).
+CVE-2026-114612 exp:2027-01-27
+GHSA-g5ff-637f-6q2m exp:2027-01-27

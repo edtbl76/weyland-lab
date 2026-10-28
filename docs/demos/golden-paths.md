@@ -96,6 +96,31 @@ builds from a **fresh mktemp context** (identical per-language Dockerfiles were 
 incremental context sync — `golden-go-fiber` had been building `golden-go-echo`'s source); and the Java runtime
 stage copies `smoke.sh` from the context, not the build stage.
 
+## Validated live again — CI #530 (2026-10-27), after the B227 dependency sweep
+
+Every golden path's dependencies moved that week (Dependabot showed 242 alerts; the samples held most of them): Ruby
+puma 7.2 with committed `Gemfile.lock`s, Rust prometheus 0.14 (actix without default features), Go x/net 0.62, Next
+16, vitest 5, Astro 7, Angular 22 (TypeScript 6, jest 30), **Remix migrated to React Router 8** (`frontend/react-router`),
+Expo SDK 58. The full fixture matrix then ran (CI #530, the first green run with all of it); its `golden-path-smoke`:
+
+```
+== frontend/react-router ==   ... > react-router build ... SMOKE OK: image serves + SSR-renders
+== ruby/rails ==              SMOKE OK: image serves
+== rust/actix ==              SMOKE OK: image serves
+...
+OK — all 44 golden path(s) served in-cluster and were torn down.
+```
+
+The Expo app is a client with no smoke Job; the same run's `test-react-native` exported its web bundle (`Exported:
+dist`), after `CI=true` was set on that step (Expo 58's CLI rejects Woodpecker's `CI=woodpecker` as a boolean, CI
+#528). The go x/net bump re-ran its own lane (CI #534: `test-go` + echo/gin smoke green). End state on
+2026-10-28: a full-repo `osv-scanner` run exits 0, and the one accepted sample finding with no upstream fix
+(deepmerge 4.3.1, test/build-time config merging) is recorded in `osv-scanner.toml`.
+
+Two build bugs the sweep surfaced, both fixed: the six frontend Dockerfiles `COPY . .` after `npm ci` with no
+`.dockerignore`, so a local checkout's `node_modules` overwrote the fresh install (a local Next 16 build shipped Next
+15); and `.react-router/` (generated route types) is now ignored by git and the image build.
+
 ## Negative case — watched failing (the exit contract is real)
 
 The exerciser is fail-closed, and it was watched failing repeatedly on the road to green — a step nobody has

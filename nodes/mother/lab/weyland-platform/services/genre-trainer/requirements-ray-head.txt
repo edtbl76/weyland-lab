@@ -32,6 +32,7 @@ minio==7.2.20
 mlflow==3.17.2   # B214: 3.15.0 fixed 5 advisories but not the AI Gateway SSRF (GHSA-h7x2-h6g9-p789, <=3.15.2); 3.16.1 = genre-trainer's pin
 mlflow-skinny==3.17.2
 mlflow-tracing==3.17.2
+msgpack==1.2.3     # 2026-10-28: the base image ships 1.1.2 with the C extension (CVE-2026-114613, unbounded memory leak; fixed 1.2.3)
 narwhals==2.24.0
 pillow==13.0.0
 prettytable==3.18.0

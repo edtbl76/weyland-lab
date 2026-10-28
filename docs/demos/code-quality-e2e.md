@@ -117,6 +117,34 @@ The finding is named by manifest and data key (an inline script is named `<manif
 fail-closed cases (no k8s dir, an unparseable manifest, the extractor failing, zero scripts, no shellcheck, shellcheck
 itself erroring → exit 2) are in `scripts/tests/configmap-shellcheck.bats` (12 cases).
 
+### Standing findings, not just new ones (B227, RUN 2026-10-28)
+
+A diff never re-raises a finding present in both runs, so weyland-dagster's PyJWT and soupsieve sat in `osv.json` from
+2026-09-04 while every DoD scan read "0 new" (GitHub's Dependabot showed them all along). `scan-diff.py` now also lists
+every OSV finding left in a lockfile outside `golden-paths/` and exits 1 on any. Triage the latest run against the one
+before it:
+
+[rogueone]
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/scan-diff.py 2026-10-27T03-05-58Z 2026-10-28T15-33-24Z
+```
+Output (RUN 2026-10-28, after the advisory sweep; abridged):
+```
+osv: 0 new, 146 gone
+trivy: 3 new, 40 gone
+trivy-images: 227 new, 32 gone
+osv standing in production lockfiles: 0 (unaccepted; fix or accept in osv-scanner.toml)
+```
+`osv standing … 0` is the new line: no unaccepted dependency finding in any production lockfile. Against the
+2026-10-26 `osv.json`, before the dagster fix, the same function listed 12 (PyJWT and soupsieve, each by GHSA and
+PYSEC id). The run still exited 1 because of what IS new: trivy's 3 were acceptances made in `osv-scanner.toml` but
+never mirrored into `.trivyignore`, and trivy-images' 227 were the 2026-10-27/28 advisories in deployed images (211
+weyland-jupyter kernel headers under the 2026-10-17 decision, msgpack in pip's own vendored copy, guava/snappy inside
+third-party jars, go-jose in the trivy binary). Each was fixed (ray-head msgpack, health-job guava, kubescape go-jose)
+or accepted with a PURL-scoped entry and an expiry in `.trivyignore-images.yaml`. The negative case is pinned by
+`scripts/tests/test_scan_diff.py` (a standing production finding fails even when it is not new; golden-path ones alone
+do not).
+
 ## Expected result
 
 - **9** `security_scan` entities in Port (one per tool), each with severity counts; **20** `code_hotspot` entities
