@@ -1285,6 +1285,9 @@ hosts:
     - name: ruby
       kind: image
       status: system
+    - name: rust
+      kind: image
+      status: system
     - name: semgrep/semgrep
       kind: image
       status: system
