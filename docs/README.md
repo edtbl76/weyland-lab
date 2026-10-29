@@ -24,6 +24,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [agent-platform-design.md](concepts/agent-platform-design.md) — Hermes agent design, MCP seam, A2A
 - [data-schema.md](concepts/data-schema.md) — RAG (4 backends) + eval store schemas, ground-truth-validated
 - [multi-harness.md](concepts/multi-harness.md) — the harness layer (Claude Code, Codex, OpenCode, Pi, Open WebUI, operator), what they share, shared memory (B182, TBD)
+- [software-factory.md](concepts/software-factory.md) — the agent conveyor decision: Emdash ADOPTED (B179); Warp Factories, OpenHands and Delta (B210, 2026-10-29) DON'T ADOPT, with the trial runs and re-open triggers
 
 ## runbooks/ — the *how* (per service)
 

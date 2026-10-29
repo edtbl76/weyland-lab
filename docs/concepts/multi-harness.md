@@ -22,7 +22,7 @@ bottleneck ([runbooks/coding-agents.md](../runbooks/coding-agents.md)).
 
 **Supervisor (B179, adopted 2026-10-12):** Emdash runs the harnesses unattended. Its `agent-ready-nightly` automation
 starts Claude Code on the oldest `agent-ready` Linear issue at 04:00 in a fresh worktree, push off. The harness still
-reads `AGENTS.md`, so the rules above apply unchanged ([runbooks/software-factory.md](../runbooks/software-factory.md)).
+reads `AGENTS.md`, so the rules above apply unchanged ([runbooks/software-factory.md](../runbooks/software-factory.md)). Delta (delta.dev, B210) was evaluated as an alternative on 2026-10-29 and rejected: no unattended runs, no header-auth MCP, and code + keys on its cloud ([concepts/software-factory.md](software-factory.md) § Delta).
 
 ## Editors — where the harnesses run
 

@@ -14,6 +14,7 @@ cost per PR.
 | **The factory pattern** | **ADOPT THE CONCEPT** | Two ideas are worth taking: the pipeline as version-controlled config, and cost per PR as a measured number. |
 | **Emdash** | **ADOPT — the lab's conveyor (owner, 2026-10-12)** | Runs 1–4 and 6: Claude Code via Emdash met every criterion (7–9 min a task, $0 on the subscription), picks its own work (the oldest `agent-ready` issue, checked with `issue-readiness.sh` first) and runs on schedule with nobody there. **Conditions:** Emdash stays running on rogueone (no app, no run; a missed run catches up on launch); push stays OFF, so a person reviews each run's local branch before anything reaches GitHub; each run's local worktree + branch is cleared periodically. |
 | **OpenHands** | **DON'T ADOPT (owner, 2026-10-12)** | The only $0 route is a local model, and on this hardware it failed (run 5: 77 min, no tests, 7 of 25 skills deleted and 4 rewritten with invented text, while reporting success). A hosted model makes every run metered spend. Torn down. |
+| **Delta** (delta.dev, Zed team, beta) | **DON'T ADOPT (owner, 2026-10-29: "it's a no-go")** | B210. $0 Personal tier and a Linux build, but it cannot do the two things Emdash does for the lab: **no unattended runs** (no `claude -p`, SDK or cloud sessions) and **no reach to the lab's MCP servers** (no local servers; no remote server that needs a bearer token or API-key header, which is how Bifrost `/mcp` authenticates). And it keeps every attached repo's code and commits plus your provider API keys on its Cloudflare backend, with no local-only mode and **telemetry and crash dumps (which can contain thread content) that cannot be disabled**. Judged from its documentation; the trial run was not made, because the run itself is the upload. See § Delta below. |
 
 **The lab already has every stage except the orchestration.** Triage: `scripts/issue-readiness.sh` (B190). Spec:
 AI-DLC v2's stages. Implement: Claude Code / Codex / OpenCode on the subscriptions. Review: PR-Agent, CodeRabbit,
@@ -85,9 +86,41 @@ not obvious); "auto-approve" maps to Claude Code's bypass mode, which needs one 
 is an acceptable result. The owner's B86/B159 deferrals (new hardware) are the longer answer: a larger card changes
 this section.
 
+## Delta (B210, 2026-10-29)
+
+Delta is a "collaborative agent workspace" from the Zed team, in beta: a **thread** keeps an agent conversation, its
+checkout and edits, and the decision history together, recorded continuously in DeltaDB (deltas beneath git) and
+shared with teammates, who review line by line. The question (EMA-297) was whether it beats Emdash on something
+concrete. Everything below is from Delta's own pages, read 2026-10-29; it is beta, so re-read before relying on it.
+
+| Question | Delta Personal ($0) | Emdash (the lab's conveyor) |
+|---|---|---|
+| **Cost** | $0, no stated seat or usage cap; Pro ($10/month, 2-week trial) is out | $0 |
+| **Linux** | yes: x64 and ARM64 tarballs, or a Nix flake | yes (AppImage) |
+| **Unattended runs** | **no**: the Claude Code plugin "doesn't support Claude Code cloud sessions, print mode (`claude -p`), or SDK sessions yet"; sync covers sessions started interactively | **yes**: `agent-ready-nightly` at 04:00, runs 3, 4 and 6 above |
+| **The lab's MCP servers** | **no**: no local MCP servers, and no remote ones that need a manually supplied bearer token or API key. Bifrost `/mcp` (key header) and the local Basic Memory server are both excluded; only no-auth or OAuth servers, configured in Delta's own settings | the harness's own config (Bifrost, memory, Linear) |
+| **Harnesses** | Claude Code through a plugin (`claude plugin install delta@zed-industries`, Claude Code 2.1.303+); Pi "coming soon"; anything else is a plugin you build | Claude Code, Codex, OpenCode and others |
+| **Where the code goes** | Delta's servers store "the Git objects for repositories attached to your threads, including commits and file contents", on Cloudflare (R2, Durable Objects, KV, D1), "processed globally"; **no local-only, self-hosted or offline mode** is documented | stays on rogueone; push is off |
+| **Credentials** | model-provider API keys are account settings that **sync through Delta's servers** (encrypted local cache per device) | the subscriptions' own login on rogueone |
+| **Telemetry** | product-usage telemetry with "no setting to disable telemetry"; Sentry crash reports can include a memory dump containing thread content, and that cannot be disabled either. Code and conversations are not used for training | none from the conveyor |
+| **Review** | line-anchored review threads with verdicts; changes land by pushing a branch to `local` or `origin`, then an ordinary PR | GitHub PRs plus the B106 review stack |
+
+**Verdict: DON'T ADOPT.** Its one distinctive feature, multiplayer review of an agent's work, matters least to a
+one-person lab, and it loses on the two things the conveyor depends on: running with nobody there, and the lab's
+MCP fleet. The data location is then a third, independent reason: attaching a repository uploads it, and the provider
+keys and crash dumps go with it under telemetry that cannot be turned off. That is the class of thing that also counted
+against Vibe Kanban (phones home).
+
+**Why no trial run.** EMA-297 asked for one real issue run end to end, "or a documented reason why it couldn't be".
+The trial would itself be the upload: a lab repository and a provider key on Delta's servers, under non-optional
+telemetry, which the spec reserved for the owner as a data-location decision. And no trial result could change the
+verdict, because headless runs and header-auth MCP are documented as unsupported. Nothing was installed.
+
 ## Re-open when
 
-A paid tier becomes acceptable, or new hardware gives a local coding model room beside the operator's.
+A paid tier becomes acceptable, or new hardware gives a local coding model room beside the operator's. **Delta:** when
+its docs show headless runs (`claude -p` / SDK sessions) AND remote MCP servers with header auth, AND either a
+local-only storage mode or a telemetry opt-out. All three are needed: any one alone leaves a reason to stay with Emdash.
 
 ## Sources
 
@@ -98,3 +131,8 @@ A paid tier becomes acceptable, or new hardware gives a local coding model room 
 - [Warp: open-source client, proprietary AI cloud](https://www.opentechhub.io/warp/)
 - [Top self-hosted open-source AI coding agents](https://www.openhands.dev/blog/open-source-ai-coding-agents)
 - [Open-source Warp alternatives](https://openalternative.co/alternatives/warp)
+- Delta, all read 2026-10-29: [pricing](https://delta.dev/pricing), [home](https://delta.dev),
+  [download](https://delta.dev/download), [data storage](https://delta.dev/docs/privacy-and-security/data-storage),
+  [privacy](https://delta.dev/docs/privacy-and-security/privacy), [Delta and Git](https://delta.dev/docs/concepts/delta-and-git),
+  [Claude Code plugin](https://delta.dev/docs/cli/claude-code), [MCP servers](https://delta.dev/docs/agents/mcp),
+  [review and sync](https://delta.dev/docs/agents/review-and-sync)
