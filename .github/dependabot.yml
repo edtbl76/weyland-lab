@@ -84,6 +84,8 @@ updates:
         versions: [">=12.0.0"]
       - dependency-name: "httplib2"   # apache-beam 2.48 caps it; Flink 2.x lifts
         versions: [">=0.23.0"]
+      - dependency-name: "dnspython"   # 2.9.0 needs Python >=3.11; the image runs 3.10 (B227, accepted in osv-scanner.toml)
+        versions: [">=2.9.0"]
 
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/k8s/jupyterhub/singleuser"
@@ -295,6 +297,8 @@ updates:
     ignore:
       - dependency-name: "pillow"   # fastembed (every release through 0.9.0) caps pillow<13; the store holds Markdown only
         versions: [">=13.0.0"]
+      - dependency-name: "litellm"   # basic-memory 0.23.2 requires litellm<1.92.0 (B227, accepted in osv-scanner.toml)
+        versions: [">=1.92.0"]
 
   - package-ecosystem: "pip"
     directory: "/nodes/rogueone/services/gpu-inference/clef-flash"
