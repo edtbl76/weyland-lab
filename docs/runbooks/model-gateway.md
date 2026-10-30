@@ -219,6 +219,16 @@ kubectl -n weyland exec deploy/litellm -c litellm -- python -c 'import os,json,u
 set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && kubectl -n weyland exec -i deploy/litellm -c litellm -- python -c 'import os,sys,json,urllib.request as u; r=u.Request("http://localhost:4000/key/block",data=json.dumps({"key":sys.stdin.read().strip()}).encode(),headers={"Authorization":"Bearer "+os.environ["LITELLM_MASTER_KEY"],"Content-Type":"application/json"}); print(u.urlopen(r).status)' <<< "$OJAY_FLOYD_LITELLM_KEY"
 ```
 
+Unblock (the same command against `/key/unblock`):
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && kubectl -n weyland exec -i deploy/litellm -c litellm -- python -c 'import os,sys,json,urllib.request as u; r=u.Request("http://localhost:4000/key/unblock",data=json.dumps({"key":sys.stdin.read().strip()}).encode(),headers={"Authorization":"Bearer "+os.environ["LITELLM_MASTER_KEY"],"Content-Type":"application/json"}); print(u.urlopen(r).status)' <<< "$OJAY_FLOYD_LITELLM_KEY"
+```
+
+Live 2026-10-30: `ojay-floyd` key blocked → its call 401 while another key on `wl-private-rag` and `wl-local` stayed 200;
+unblocked → 200 again.
+
 ## 2. Smoke tests (on mother)
 
 Pull the master key from the secret (no placeholder):
