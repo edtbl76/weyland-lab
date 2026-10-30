@@ -181,9 +181,12 @@ Behaviour measured in Docker on the cluster's image digest (2026-10-29):
 | Postgres DOWN | master key + already-used keys keep working (scope still enforced); unknown keys 503; a block cannot be applied until the DB is back. Pod stays Ready (readinessProbe = `/health/liveliness`); `LiteLLMDatabaseDisconnected` fires after 5 min |
 
 **Create the database + secret (owner, once).** One command: the password is generated, used and sealed without being
-printed.
+printed. Run it on **rogueone**: `kubeseal` reaches the controller from there and the repo checkout is there (mother has
+no checkout at this path; the first attempt, 2026-10-30, created the role but could not write the sealed file). To
+re-key an existing role, replace `CREATE ROLE litellm LOGIN PASSWORD '$LPW'; CREATE DATABASE litellm OWNER litellm;`
+with `ALTER ROLE litellm WITH LOGIN PASSWORD '$LPW';` and restart LiteLLM after the new sealed file syncs.
 
-[mother]
+[rogueone]
 ```
 LPW="$(openssl rand -hex 24)" && kubectl -n weyland exec -i deploy/weyland-postgres -c postgres -- sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres' <<< "CREATE ROLE litellm LOGIN PASSWORD '$LPW'; CREATE DATABASE litellm OWNER litellm;" && kubectl -n weyland create secret generic litellm-db --from-literal=DATABASE_URL="postgresql://litellm:$LPW@weyland-postgres.weyland.svc.cluster.local:5432/litellm" --dry-run=client -o yaml | kubeseal --format yaml > /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/weyland__litellm-db.yaml; unset LPW
 ```
