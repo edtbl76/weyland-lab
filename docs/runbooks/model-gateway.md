@@ -164,6 +164,58 @@ private alias in `configmap.yaml`, and make rogueone the private fallback (`{"wl
 then run the valve-off test. The fallback must name a model rogueone can hold (16 GB VRAM): a model bigger than that on
 the new box needs a smaller model on the rogueone rung, or the backup is too slow to use.
 
+## 1d. Per-app keys — LiteLLM virtual keys (B234)
+
+An app gets its OWN key, scoped to the aliases it may call, with its own usage log and its own revocation, instead of
+the shared master key. Virtual keys live in the `litellm` database on core Postgres (`DATABASE_URL` from SealedSecret
+`weyland/litellm-db`); LiteLLM runs its Prisma migrations at start. LiteLLM is meshed for this (Postgres is STRICT mTLS).
+Behaviour measured in Docker on the cluster's image digest (2026-10-29):
+
+| Check | Result |
+|---|---|
+| key on an allowed alias | 200 |
+| key on an alias outside its list | 403 `key not allowed to access model` |
+| request-body `fallbacks: ["wl-default"]` on a private alias | 403, nothing sent hosted |
+| `/key/info` · `/spend/logs` | spend + per-request tokens, by key alias; refused calls logged as failures |
+| `/key/block` one key | that key 401, every other key unaffected |
+| Postgres DOWN | master key + already-used keys keep working (scope still enforced); unknown keys 503; a block cannot be applied until the DB is back. Pod stays Ready (readinessProbe = `/health/liveliness`); `LiteLLMDatabaseDisconnected` fires after 5 min |
+
+**Create the database + secret (owner, once).** One command: the password is generated, used and sealed without being
+printed.
+
+[mother]
+```
+LPW="$(openssl rand -hex 24)" && kubectl -n weyland exec -i deploy/weyland-postgres -c postgres -- sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres' <<< "CREATE ROLE litellm LOGIN PASSWORD '$LPW'; CREATE DATABASE litellm OWNER litellm;" && kubectl -n weyland create secret generic litellm-db --from-literal=DATABASE_URL="postgresql://litellm:$LPW@weyland-postgres.weyland.svc.cluster.local:5432/litellm" --dry-run=client -o yaml | kubeseal --format yaml > /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/weyland__litellm-db.yaml; unset LPW
+```
+Commit + push the sealed file; Argo applies it and rolls LiteLLM.
+
+**Mint an app's key (owner).** Generated inside the pod with its own master key, appended to `scripts/.env`, never
+printed. For OJay Floyd (private lanes only):
+
+[rogueone]
+```
+K="$(kubectl -n weyland exec deploy/litellm -c litellm -- python -c 'import os,json,urllib.request as u; r=u.Request("http://localhost:4000/key/generate",data=json.dumps({"key_alias":"ojay-floyd","models":["wl-private-rag","wl-private-reason"],"metadata":{"app":"ojay-floyd","issue":"B234"}}).encode(),headers={"Authorization":"Bearer "+os.environ["LITELLM_MASTER_KEY"],"Content-Type":"application/json"}); print(json.load(u.urlopen(r))["key"])')" && printf 'OJAY_FLOYD_LITELLM_KEY=%s\n' "$K" >> /home/edwardmangini/IdeaProjects/weyland/scripts/.env; unset K
+```
+
+**Check a key** (allowed alias 200, forbidden alias 403):
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && for m in wl-private-rag wl-default; do curl -s -o /dev/null -w "$m %{http_code}\n" -m 180 -H "Authorization: Bearer $OJAY_FLOYD_LITELLM_KEY" -H 'Content-Type: application/json' -d "{\"model\":\"$m\",\"max_tokens\":200,\"messages\":[{\"role\":\"user\",\"content\":\"Reply with: ok\"}]}" http://192.168.1.243:30400/v1/chat/completions; done
+```
+
+**Usage of one key** / **revoke one key** (inside the pod, master key never printed; `block` → `unblock` reverses it):
+
+[rogueone]
+```
+kubectl -n weyland exec deploy/litellm -c litellm -- python -c 'import os,json,urllib.request as u; r=u.Request("http://localhost:4000/key/list?key_alias=ojay-floyd&return_full_object=true",headers={"Authorization":"Bearer "+os.environ["LITELLM_MASTER_KEY"]}); [print(k["key_alias"],k["spend"],k["models"],k.get("blocked")) for k in json.load(u.urlopen(r))["keys"]]'
+```
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && kubectl -n weyland exec -i deploy/litellm -c litellm -- python -c 'import os,sys,json,urllib.request as u; r=u.Request("http://localhost:4000/key/block",data=json.dumps({"key":sys.stdin.read().strip()}).encode(),headers={"Authorization":"Bearer "+os.environ["LITELLM_MASTER_KEY"],"Content-Type":"application/json"}); print(u.urlopen(r).status)' <<< "$OJAY_FLOYD_LITELLM_KEY"
+```
+
 ## 2. Smoke tests (on mother)
 
 Pull the master key from the secret (no placeholder):

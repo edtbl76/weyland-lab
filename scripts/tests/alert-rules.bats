@@ -39,6 +39,12 @@ for f in files:
                         ann[r["alert"]] = r.get("annotations", {})
 yaml.safe_dump({"groups": groups}, open(f"{T}/rules.yaml", "w"))
 t = yaml.safe_load(open(test_path))
+# PyYAML reads a bare `values: 0x15` as the HEX integer 21, not "0 repeated 15 times" — the scenario silently becomes a
+# different one (found 2026-10-30, B234: a "status 0" case passed only because it saw 21). Every series must be a string.
+for case in t["tests"]:
+    for s in case.get("input_series", []):
+        if not isinstance(s["values"], str):
+            sys.exit(f"{test_path}: values {s['values']!r} for {s['series']} did not parse as a string - quote it")
 for case in t["tests"]:
     for art in case["alert_rule_test"]:
         if art["alertname"] not in ann:
@@ -73,4 +79,8 @@ PY
 
 @test "the two spend alerts partition paid egress without double-counting (promtool test rules)" {
   promtool_test spend.test.yaml litellm/prometheusrule.yaml bifrost/prometheusrule.yaml
+}
+
+@test "the LiteLLM database alert fires on a sustained 503, not on a blip or a down gateway (promtool test rules)" {
+  promtool_test litellm-db.test.yaml litellm/prometheusrule.yaml monitoring/blackbox-exporter.yaml
 }

@@ -1,0 +1,64 @@
+# promtool unit tests for LiteLLMDatabaseDisconnected (B234, 2026-10-30). LiteLLM keeps virtual keys + spend logs in a
+# `litellm` database on core Postgres. Its readiness probe was moved to /health/liveliness so a Postgres outage does not
+# pull the whole gateway out of service (measured in Docker 2026-10-29: with the DB stopped, /health/readiness answers
+# 503 {"db":"disconnected"} while the master key and already-cached keys keep working, and unknown keys are refused 503).
+# This alert keeps that outage visible: a dedicated blackbox probe (job litellm-db) reads /health/readiness, and 503 =
+# LiteLLM is up but its database is not. Status 0 (LiteLLM itself down) is the ingress probe's job, not this alert's.
+# The weyland-blackbox WeylandEndpointDown alert is scoped to its own job, so this probe never double-fires as
+# "endpoint down". Run by scripts/tests/alert-rules.bats.
+rule_files:
+- rules.yaml
+evaluation_interval: 1m
+tests:
+- name: 'LiteLLMDatabaseDisconnected: readiness 503 for 10m fires'
+  interval: 1m
+  input_series:
+  - series: probe_http_status_code{job="litellm-db",instance="http://192.168.1.243:30400/health/readiness"}
+    values: 503x15
+  - series: probe_success{job="litellm-db",instance="http://192.168.1.243:30400/health/readiness"}
+    values: "0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: LiteLLMDatabaseDisconnected
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: litellm-db
+        instance: http://192.168.1.243:30400/health/readiness
+  - eval_time: 10m
+    alertname: WeylandEndpointDown
+    exp_alerts: []
+- name: 'LiteLLMDatabaseDisconnected: a 3-minute blip stays silent'
+  interval: 1m
+  input_series:
+  - series: probe_http_status_code{job="litellm-db",instance="http://192.168.1.243:30400/health/readiness"}
+    values: 200x3 503x3 200x9
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: LiteLLMDatabaseDisconnected
+    exp_alerts: []
+- name: 'LiteLLMDatabaseDisconnected: LiteLLM itself down (status 0) is not a database alert'
+  interval: 1m
+  input_series:
+  - series: probe_http_status_code{job="litellm-db",instance="http://192.168.1.243:30400/health/readiness"}
+    values: "0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: LiteLLMDatabaseDisconnected
+    exp_alerts: []
+- name: 'WeylandEndpointDown still fires for the ingress probes'
+  interval: 1m
+  input_series:
+  - series: probe_success{job="weyland-blackbox",instance="https://litellm.weyland.lab"}
+    values: "0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WeylandEndpointDown
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: weyland-blackbox
+        instance: https://litellm.weyland.lab
+      exp_annotations:
+        summary: "Endpoint https://litellm.weyland.lab is DOWN"
+        description: "Blackbox probe to https://litellm.weyland.lab has failed for >5m (SSL/DNS/HTTP)."

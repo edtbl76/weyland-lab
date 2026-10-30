@@ -35,3 +35,18 @@ spec:
           annotations:
             summary: "LiteLLM direct-to-provider routes spent > $1 in 24h (spend Bifrost cannot see)"
             description: "Paid spend on a LiteLLM route that bypasses Bifrost (claude-haiku, anthropic/*, gemini/*, gemini-pro, openrouter/*). The usual source is the operator's Telegram chat failing over to claude-haiku while rogueone's Ollama is busy or down (check operator_brain_selected_total{brain=\"haiku\"}). Break it down: sum by (requested_model) (increase(litellm_spend_metric_total{api_provider!~\"openai|ollama_chat\"}[24h]))"
+    # B234 (2026-10-30) — LiteLLM keeps virtual keys + spend logs in the `litellm` DB on core Postgres. The pod's
+    # readinessProbe is /health/liveliness, so a Postgres outage does NOT pull the gateway out of service (the master key
+    # and already-cached keys keep working; unknown keys are refused 503). This keeps that outage visible: the litellm-db
+    # blackbox Probe (probe.yaml) reads /health/readiness, and 503 = LiteLLM up, database disconnected. Status 0 (LiteLLM
+    # itself down) is the weyland-blackbox ingress probe's job. Tested: scripts/tests/fixtures/alert-rules/litellm-db.test.yaml.
+    - name: litellm-database
+      rules:
+        - alert: LiteLLMDatabaseDisconnected
+          expr: probe_http_status_code{job="litellm-db"} == 503
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "LiteLLM is up but its database is disconnected"
+            description: "/health/readiness has answered 503 for 5m. While it lasts: new or unknown virtual keys are refused, a key cannot be revoked (/key/block needs the DB), and spend logs are not written; the master key and already-used keys keep working. Check core Postgres (weyland-postgres) and the litellm pod's istio-proxy (Postgres is STRICT mTLS). Body: curl -s http://192.168.1.243:30400/health/readiness"

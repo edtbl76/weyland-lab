@@ -29,6 +29,13 @@ data:
           preferred_ip_protocol: ip4
           tls_config:
             insecure_skip_verify: true
+      # B234 — a health endpoint whose non-200 IS the signal (LiteLLM /health/readiness: 503 = database disconnected).
+      http_ready:
+        prober: http
+        timeout: 10s
+        http:
+          valid_status_codes: [200]
+          preferred_ip_protocol: ip4
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -161,8 +168,10 @@ spec:
   groups:
     - name: blackbox-uptime
       rules:
+        # Scoped to the ingress job (2026-10-30, B234): the litellm-db Probe fails on purpose when LiteLLM's DATABASE is
+        # down, which has its own alert (LiteLLMDatabaseDisconnected); unscoped, it would also page as "endpoint DOWN".
         - alert: WeylandEndpointDown
-          expr: probe_success == 0
+          expr: probe_success{job="weyland-blackbox"} == 0
           for: 5m
           labels: { severity: warning }
           annotations:

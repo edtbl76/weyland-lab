@@ -1,0 +1,22 @@
+# B234 (2026-10-30) — reads LiteLLM's /health/readiness, which answers 503 {"db":"disconnected"} when the `litellm`
+# database on core Postgres is unreachable. The pod's own readinessProbe deliberately does NOT use that path (a Postgres
+# outage would take every lane down); this Probe + LiteLLMDatabaseDisconnected (prometheusrule.yaml) keep the outage
+# visible instead. Via the LAN NodePort: the blackbox pod resolves names with LAN DNS, not cluster DNS.
+# Module http_ready (monitoring/blackbox-exporter.yaml) accepts 200 only.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: litellm-db
+  namespace: monitoring
+  labels: { release: monitoring }   # matches the stack's default probeSelector
+spec:
+  jobName: litellm-db
+  interval: 60s
+  scrapeTimeout: 15s
+  module: http_ready
+  prober:
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+  targets:
+    staticConfig:
+      static:
+        - http://192.168.1.243:30400/health/readiness

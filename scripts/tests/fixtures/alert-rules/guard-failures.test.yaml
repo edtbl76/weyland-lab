@@ -37,7 +37,7 @@ tests:
   interval: 1m
   input_series:
   - series: tool_server_guard_failures_total{job="weyland-tool-server",hook="act",cause="timeout"}
-    values: 0x20
+    values: "0x20"
   alert_rule_test:
   - eval_time: 12m
     alertname: GuardCallsFailing

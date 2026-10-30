@@ -1,4 +1,7 @@
-# B26 — LiteLLM egress proxy. Stateless; the cut-off valve scales this to 0 (see valve.sh).
+# B26 — LiteLLM egress proxy; the cut-off valve scales this to 0 (see valve.sh).
+# B234 (2026-10-30): no longer stateless — virtual keys (per-app keys, scoped to aliases) + spend logs live in the
+# `litellm` database on core Postgres (DATABASE_URL, SealedSecret litellm-db). Backed up by the core pg_dumpall
+# (docs/dr.md). LiteLLM runs its own Prisma migrations at start, so a LiteLLM image bump is also a schema migration.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,10 +18,13 @@ spec:
     metadata:
       labels:
         app: litellm
+        # B234 — core Postgres is STRICT mTLS, so a client must be in the mesh or its connection is reset (opaque
+        # ECONNRESET). Inbound stays PERMISSIVE, so un-meshed callers (Traefik, notebooks, rogueone) are unaffected.
+        sidecar.istio.io/inject: "true"
       annotations:
         # LiteLLM reads configmap.yaml only at start. Bump this with a config change so Argo rolls the pod itself
         # (no hand `rollout restart`). 2026-10-22: B222 wl-judge -> qwen3:14b, new wl-local lane.
-        weyland.lab/litellm-config-rev: "2026-10-29-b234-private-lanes"
+        weyland.lab/litellm-config-rev: "2026-10-30-b234-virtual-keys-db"
     spec:
       containers:
         - name: litellm
@@ -62,6 +68,13 @@ spec:
                 secretKeyRef:
                   name: litellm-secrets
                   key: LITELLM_MASTER_KEY
+            # B234 — the `litellm` database on core Postgres (virtual keys + spend logs). Created by the owner per
+            # docs/runbooks/model-gateway.md § 1d; sealed as k8s/sealed-secrets/sealed/weyland__litellm-db.yaml.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-db
+                  key: DATABASE_URL
             # B17 DoD: the realm-llm Bifrost VK — wl-agentic egresses THROUGH Bifrost so it records provider cost/usage
             # + per-VK attribution (no LiteLLM DB). Create the secret out-of-band (see the register/DoD steps).
             - name: BIFROST_REALM_VK
@@ -95,9 +108,13 @@ spec:
               port: 4000
             initialDelaySeconds: 20
             periodSeconds: 30
+          # B234 — NOT /health/readiness: that answers 503 whenever the database is disconnected, so a core Postgres
+          # outage would pull the ONLY replica out of the Service and take every lane down, although LiteLLM still serves
+          # the master key and already-used keys (measured in Docker 2026-10-29). The DB outage is alerted instead:
+          # probe.yaml + LiteLLMDatabaseDisconnected.
           readinessProbe:
             httpGet:
-              path: /health/readiness
+              path: /health/liveliness
               port: 4000
             initialDelaySeconds: 10
             periodSeconds: 15
