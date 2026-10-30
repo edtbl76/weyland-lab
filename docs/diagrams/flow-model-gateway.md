@@ -6,7 +6,9 @@ Hosted-model calls go through **LiteLLM on mother**, never direct from clients. 
 on network / 5xx / 429 / timeout down to a free, always-on rung. **Hosted lanes egress THROUGH Bifrost**
 (2026-08-01): `LiteLLM → Bifrost → provider` (Anthropic `claude-haiku-4-5` / Groq `gpt-oss-120b` / opencode-zen
 `kimi-k3` / Gemini / xAI); Bifrost records provider cost/tokens/latency + per-VK attribution (`realm-llm` VK). The
-**local Ollama lanes** (`wl-rag`/`wl-reason`/`wl-judge`) stay **DIRECT** to rogueone and never leave the box. See
+**local Ollama lanes** (`wl-rag`/`wl-reason`/`wl-judge`) stay **DIRECT** to rogueone, but they are local-FIRST: each
+falls back to a hosted rung when Ollama is down. Only the **private lanes** (`wl-private-rag`/`wl-private-reason`, B234)
+never leave the LAN: no fallback, so they fail closed. See
 [llm-routing.md](../llm-routing.md), [runbooks/model-gateway.md](../runbooks/model-gateway.md).
 
 ```mermaid

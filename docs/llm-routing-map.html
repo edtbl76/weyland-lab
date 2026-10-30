@@ -157,7 +157,7 @@
         {role:"fallback", prov:"cerebras", model:"gpt-oss-120b", tier:"funded", badges:["tools","fast"]},
         {role:"fallback", prov:"gemini", model:"2.5-flash", tier:"free", badges:["tools"]},
       ]},
-      { alias:"wl-rag", purpose:"Retrieval-grounded generation (private)", chain:[
+      { alias:"wl-rag", purpose:"Retrieval-grounded generation — local-first, NOT private (falls back to hosted)", chain:[
         {role:"primary", prov:"ollama", model:"gpt-oss:20b", tier:"free", badges:["local"]},
         {role:"fallback", prov:"groq", model:"gpt-oss-120b", tier:"free", badges:["hosted"]},
         {role:"fallback", prov:"gemini", model:"2.5-flash", tier:"free", badges:["hosted"]},
@@ -177,6 +177,12 @@
       ]},
       { alias:"wl-judge-oss", purpose:"Stronger local judge (B103/B190) — Langfuse online evaluators; no fallback", chain:[
         {role:"primary", prov:"ollama", model:"gpt-oss:20b-judge", tier:"free", badges:["local","8K ctx","no fallback"]},
+      ]},
+      { alias:"wl-private-rag", purpose:"Private lane (B234) — never leaves the LAN; fails closed when Ollama is down", chain:[
+        {role:"primary", prov:"ollama", model:"gpt-oss:20b", tier:"free", badges:["local","private","no fallback"]},
+      ]},
+      { alias:"wl-private-reason", purpose:"Private lane (B234) — deep reasoning that never leaves the LAN; fails closed", chain:[
+        {role:"primary", prov:"ollama", model:"qwen3:30b-a3b", tier:"free", badges:["local","private","no fallback"]},
       ]},
       { alias:"wl-search", purpose:"Web-grounded answers", chain:[
         {role:"primary", prov:"perplexity", model:"sonar", tier:"funded", badges:["web"]},

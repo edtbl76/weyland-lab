@@ -6,6 +6,12 @@ timeout — server-side and transparent. Left node = primary; each `→` is the 
 Hosted rungs egress **through Bifrost** (LiteLLM → Bifrost → provider) for per-VK cost/usage attribution; the
 local **Ollama** lanes (`wl-rag` · `wl-reason` · `wl-judge` · `wl-judge-oss`) stay direct to rogueone.
 
+**Local-first is not private.** `wl-rag`, `wl-reason` and `wl-judge` fall back to HOSTED rungs when rogueone's Ollama
+is down or busy, silently. A prompt that must never leave the lab's hardware goes to a **private lane** (B234):
+`wl-private-rag` · `wl-private-reason` reach only self-hosted Ollama on an allowlisted LAN host and have **no
+fallback**, so the call errors instead. CI enforces it (`scripts/check-private-lanes.py`); runbook
+[model-gateway.md § 1c](runbooks/model-gateway.md#1c-private-lane--wl-private--b234).
+
 Every chain has a **free, always-on** rung so a call lands for $0 — usually the primary, and `wl-search` now carries a
 free `wl-default` (groq) tail as its guaranteed lander (a non-web answer, but it always returns). The chat lanes keep
 free rungs while escalating to funded providers before that tail; the media lane `wl-tts` grounds on its free
@@ -44,6 +50,10 @@ flowchart LR
   wjdg(["wl-judge"]):::alias --> wjdg1["ollama · qwen3:14b (local)"]:::free --> wjdg2["groq · gpt-oss-120b"]:::free --> wjdg3["gemini · 2.5-flash"]:::free
   wloc(["wl-local"]):::alias --> wloc1["ollama · qwen2.5:7b-operator (local, no fallback)"]:::free
   wjos(["wl-judge-oss"]):::alias --> wjos1["ollama · gpt-oss:20b-judge (local, no fallback)"]:::free
+
+  %% Private lane (B234) — never leaves the LAN; no fallback, fails closed
+  wprg(["wl-private-rag"]):::alias --> wprg1["ollama · gpt-oss:20b (rogueone, private, fails closed)"]:::free
+  wprr(["wl-private-reason"]):::alias --> wprr1["ollama · qwen3:30b-a3b (rogueone, private, fails closed)"]:::free
   wsch(["wl-search"]):::alias --> wsch1["perplexity · sonar (web)"]:::funded --> wsch2["xai · grok-4.5 (web)"]:::funded --> wsch3["groq · gpt-oss-120b"]:::free
 
   %% Media — text-to-speech (audio_speech endpoint, not chat)

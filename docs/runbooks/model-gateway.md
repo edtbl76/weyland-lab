@@ -65,7 +65,7 @@ Clients send a **use-case alias** as the `model` and LiteLLM routes it to a prim
 | `wl-default` / `wl-speed` | groq `gpt-oss-120b` (free) | → gemini-flash → anthropic *(speed: → cerebras → gemini)* |
 | `wl-coding` | opencode-zen `kimi-k3` (funded, tools) | → anthropic → deepseek → groq |
 | `wl-agentic` | anthropic `claude-haiku-4.5` (tools) | → openai → cerebras → gemini |
-| `wl-rag` | ollama local `gpt-oss:20b` | → groq → gemini |
+| `wl-rag` | ollama local `gpt-oss:20b`: local-FIRST, **not private** (B234: it falls back to hosted when Ollama is down; use `wl-private-rag` for a prompt that must stay on the LAN) | → groq → gemini |
 | `wl-judge` | ollama local `qwen3:14b` (B222, 2026-10-22: the judge the MLflow gateway's held-out tests passed; was `qwen2.5:7b-operator`, which failed them). 4096-token window, so keep a judge prompt under ~16K chars | → groq → gemini |
 | `wl-local` | ollama local `qwen2.5:7b-operator` (the operator's resident 32K build): the Realm's free-only brain (B222) | none: no fallback, so it never spends |
 | `wl-reason` | ollama `qwen3:30b-a3b` (local) | → deepseek-reasoner → groq |
@@ -130,6 +130,39 @@ out=asyncio.run(r.acompletion(model="wl-rag", messages=[{"role":"user","content"
 print("served by:", out._hidden_params.get("api_base"))   # -> https://api.groq.com/... (wl-default rung)
 PY
 ```
+
+## 1c. Private lane — `wl-private-*` (B234)
+
+A prompt sent to a `wl-private-*` alias **never leaves the lab's own hardware**. It is served by self-hosted Ollama on
+an allowlisted LAN host, and when that host is down the call **fails** (HTTP 500 `APIConnectionError`) instead of
+falling back to a hosted provider. The `wl-*` local lanes above are only local-FIRST: `wl-rag`, `wl-reason` and
+`wl-judge` all fall back to hosted.
+
+| Alias | Target | Fallback |
+|---|---|---|
+| `wl-private-rag` | ollama `gpt-oss:20b` on rogueone | none: fails closed |
+| `wl-private-reason` | ollama `qwen3:30b-a3b` on rogueone | none: fails closed |
+
+**The guard.** `scripts/check-private-lanes.py` (CI repo-guards, `scripts/tests/private-lanes.bats`) fails the build if a
+private alias targets anything but `ollama_chat/`/`ollama/` on a host in `scripts/ci/private-lane-hosts.yaml`, or can
+reach a hosted model any other way: a `fallbacks` / `context_window_fallbacks` / `content_policy_fallbacks` rule to a
+non-private alias, a router-wide `default_fallbacks` (it applies to every alias), a wildcard `model_name` that matches
+`wl-private-*`, or a `model_group_alias`. A fallback to ANOTHER private alias is allowed. No private alias at all is
+exit 2, not a pass.
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/check-private-lanes.py /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/litellm/configmap.yaml
+```
+
+**Served locally** (rogueone; the key is read from `scripts/.env`, never printed):
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && curl -s -m 180 -H "Authorization: Bearer $LITELLM_API_KEY" -H 'Content-Type: application/json' -d '{"model":"wl-private-rag","max_tokens":200,"messages":[{"role":"user","content":"Reply with exactly: ok"}]}' http://192.168.1.243:30400/v1/chat/completions
+```
+A call loads that model on rogueone (`OLLAMA_MAX_LOADED_MODELS=1`), so the operator's model reloads on its next call.
+
+**Adding a host (the new GPU box).** Add its address to `scripts/ci/private-lane-hosts.yaml`, add its deployment to the
+private alias in `configmap.yaml`, and make rogueone the private fallback (`{"wl-private-rag": ["wl-private-rag-rogueone"]}`),
+then run the valve-off test. The fallback must name a model rogueone can hold (16 GB VRAM): a model bigger than that on
+the new box needs a smaller model on the rogueone rung, or the backup is too slow to use.
 
 ## 2. Smoke tests (on mother)
 

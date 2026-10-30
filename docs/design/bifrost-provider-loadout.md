@@ -73,7 +73,7 @@ IS expressible as a normal routing rule (CEL var confirmed) but wasn't trigger-t
 | `wl-speed` | groq/openai/gpt-oss-120b | free hosted, fast |
 | `wl-coding` | opencode-zen/kimi-k3 | coding specialist + tool-capable |
 | `wl-agentic` | anthropic/claude-haiku-4-5 | reliable cheap tool-calling |
-| `wl-rag` | ollama/gpt-oss:20b | free local (private) |
+| `wl-rag` | ollama/gpt-oss:20b | free local-first; NOT private, falls back to hosted (B234: private = `wl-private-*`) |
 | `wl-reason` | ollama/qwen3:30b-a3b | free local reasoning |
 | `wl-judge` | ollama/qwen3:14b | free local judge (qwen2.5:7b until B222, 2026-10-22) |
 | `wl-local` | ollama/qwen2.5:7b-operator | the Realm's free-only brain, no fallback (B222) |
