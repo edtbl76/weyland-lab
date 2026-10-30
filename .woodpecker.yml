@@ -709,7 +709,10 @@ steps:
       # already installed by the test dispatch above (same step, same pod → workspace persists).
       # CI=true (2026-10-27): Woodpecker sets CI=woodpecker, and Expo SDK 58's CLI reads CI as a strict boolean
       # (`GetEnv.NoBoolean: woodpecker is not a boolean`, CI #528). Reproduced locally with CI=woodpecker; CI=true bundles.
-      - cd golden-paths/mobile/react-native && CI=true npm run bundle && cd -
+      # --max-workers 2 (2026-10-30, B234): Metro starts one worker per visible CPU, and this step runs under the
+      # woodpecker ns LimitRange's 2Gi default, so on mother the bundle was OOM-killed (exit 137: nightly #546, #549).
+      # Measured in node:24 capped at 2Gi: default workers -> killed at 2048 MiB; --max-workers 2 -> exported, peak 1652 MiB.
+      - cd golden-paths/mobile/react-native && CI=true npm run bundle -- --max-workers 2 && cd -
 
   - name: test-flutter
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " flutter ")'}]
