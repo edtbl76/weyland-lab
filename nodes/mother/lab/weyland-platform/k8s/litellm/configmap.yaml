@@ -71,7 +71,9 @@ data:
           model: openai/anthropic/claude-haiku-4-5   # Bifrost's routable Anthropic Haiku ID (NOT claude-4.5-haiku, which is a display alias Bifrost 403s)
           api_base: http://bifrost.weyland.svc.cluster.local:8080/v1
           api_key: os.environ/BIFROST_REALM_VK
-      - model_name: wl-rag            # retrieval-grounded gen · free local (private)
+      # NOT private: wl-rag is local-FIRST and falls back to hosted (router_settings.fallbacks) when rogueone's Ollama is
+      # down or busy. The RAG notebooks rely on that. A prompt that must stay on the LAN uses wl-private-rag (B234).
+      - model_name: wl-rag            # retrieval-grounded gen · free local-first, falls back to hosted
         litellm_params:
           model: ollama_chat/gpt-oss:20b
           api_base: http://192.168.1.230:11434
@@ -100,6 +102,19 @@ data:
       - model_name: wl-judge-oss      # B103 eval — stronger free-local judge (gpt-oss:20b) for Langfuse ONLINE evaluators
         litellm_params:                # (high-volume production sampling, $0) + B190 research. Golden-set runs use haiku.
           model: ollama_chat/gpt-oss:20b-judge
+          api_base: http://192.168.1.230:11434
+
+      # B234 PRIVATE LANE — a prompt sent here never leaves the lab's own hardware. Self-hosted Ollama on an allowlisted
+      # LAN host ONLY, and NO fallback to a hosted provider: when Ollama is down the call fails (fail closed). A fallback
+      # may only go to another wl-private-* alias (e.g. the new GPU box primary, rogueone behind it). Enforced in CI by
+      # scripts/check-private-lanes.py, which also rejects a router-wide default_fallbacks. docs/runbooks/model-gateway.md.
+      - model_name: wl-private-rag    # retrieval-grounded gen · private (never leaves the LAN) · fails closed
+        litellm_params:
+          model: ollama_chat/gpt-oss:20b
+          api_base: http://192.168.1.230:11434
+      - model_name: wl-private-reason # deep reasoning · private (never leaves the LAN) · fails closed
+        litellm_params:
+          model: ollama_chat/qwen3:30b-a3b
           api_base: http://192.168.1.230:11434
       - model_name: wl-search         # web-grounded · perplexity sonar (via Bifrost; id is perplexity/sonar, NOT the /v1/models perplexity/perplexity/sonar which 400s invalid_model)
         litellm_params:

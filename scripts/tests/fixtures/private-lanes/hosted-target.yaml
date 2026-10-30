@@ -1,0 +1,5 @@
+data:
+  config.yaml: |
+    model_list:
+      - model_name: wl-private-rag
+        litellm_params: {model: openai/groq/openai/gpt-oss-120b, api_base: "http://bifrost.weyland.svc.cluster.local:8080/v1"}
