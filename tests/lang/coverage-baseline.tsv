@@ -8,7 +8,7 @@ python:golden-paths/python/litestar	100
 python:golden-paths/python/django	100
 go:golden-paths/go/nethttp	86.7
 go:golden-paths/go/gin	92.3
-go:golden-paths/go/echo	86.7
+go:golden-paths/go/echo	91.7
 go:golden-paths/go/fiber	91.7
 javascript:golden-paths/node/express	100
 javascript:golden-paths/node/fastify	100.00

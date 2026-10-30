@@ -15,7 +15,9 @@ set -euo pipefail
 DB="${1:-}"; shift || true
 [ -n "$DB" ] && [ "$#" -gt 0 ] || { echo "usage: $0 <database> <table>..." >&2; exit 2; }
 case "$DB" in *[!a-z0-9_]*) echo "database name must be [a-z0-9_]: $DB" >&2; exit 2;; esac
-for t in "$@"; do case "$t" in *[!a-z0-9_]*) echo "table name must be [a-z0-9_]: $t" >&2; exit 2;; esac; done
+# Mixed case allowed (B234: LiteLLM's Prisma tables are CamelCase, e.g. LiteLLM_VerificationToken); the name is quoted in
+# the count query below, which this character set keeps safe (no quote can reach it).
+for t in "$@"; do case "$t" in *[!A-Za-z0-9_]*) echo "table name must be [A-Za-z0-9_]: $t" >&2; exit 2;; esac; done
 
 NS=weyland
 POD=pg-restore-drill
@@ -43,7 +45,7 @@ psql -h /tmp -U postgres -q -f /tmp/db.sql >/dev/null 2>/tmp/err || true
 echo "restore errors: \$(grep -c ERROR /tmp/err || true)"
 grep ERROR /tmp/err | head -5 || true
 for t in $*; do
-  printf '%s=%s ' "\$t" "\$(psql -h /tmp -U postgres -d $DB -tAc "select count(*) from \$t" 2>/dev/null || echo MISSING)"
+  printf '%s=%s ' "\$t" "\$(psql -h /tmp -U postgres -d $DB -tAc "select count(*) from \\"\$t\\"" 2>/dev/null || echo MISSING)"
 done; echo
 pg_ctl -D /tmp/pg -w stop >/dev/null
 EOF

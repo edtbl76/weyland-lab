@@ -66,7 +66,7 @@ model {
       ai = zone "AI / RAG serving plane" {
         toolServer = component "weyland-tool-server" "FastAPI boundary — RAG retrieval, /context/ask, /evals, /pipeline, /mcp, guardrails"
         dagster = component "Dagster" "Orchestrator (cross-cutting) — RAG, evals, catalog, datasets, dbt, DataHub emit"
-        litellm = gateway "LiteLLM" "Use-case router (B111) — wl-* aliases + server-side fallback chains over the hosted-model fleet (gated egress)"
+        litellm = gateway "LiteLLM" "Use-case router (B111) — wl-* aliases + server-side fallback chains over the hosted-model fleet (gated egress). B234: private lanes wl-private-* (allowlisted LAN Ollama only, no fallback, fail closed; CI guard check-private-lanes.py) + per-app virtual keys in its litellm DB on core Postgres (meshed for STRICT mTLS)"
         openWebui = component "Open WebUI" "Browser voice/chat — chat -> Ollama, STT -> whisper"
         operator = component "weyland-operator" "B66 operator agent — LangGraph ReAct over tool-server read+act + MCP fleet; Telegram long-poll, Postgres session, app-level act confirm-step. Brain = local qwen2.5:7b primary (curated flat toolset) with Haiku health-failover. B45 incident sweep: reads firing Prometheus ALERTS off the critical path, enriches (logs+pods) and Telegram-digests, enrich-only. Replaces Hermes."
         pg = store "Postgres + pgvector" "Spine store — rag_chunks, eval_*, model_catalog. STRICT mTLS"
@@ -318,6 +318,8 @@ model {
   weyland.mother.ai.openWebui -> weyland.mother.ai.nemoGuardrails "guarded weyland-operator model (OpenAI connection)"
   weyland.mother.ai.nemoGuardrails -> rogueone.ollama "rails LLM + main completion (gpt-oss:20b)"
   weyland.mother.ai.litellm -> hostedModels "egress: wl-* routed + fallback"
+  weyland.mother.ai.litellm -> weyland.mother.ai.pg "virtual keys + spend logs (B234) — the litellm DB; meshed, STRICT mTLS; DR via the core pg_dumpall"
+  weyland.mother.ai.litellm -> rogueone.ollama "local lanes (local-first) + private lanes wl-private-* (no fallback, fail closed, B234)"
   weyland.mother.ai.openWebui -> rogueone.ollama "chat /v1"
   weyland.mother.ai.openWebui -> weyland.whisper "STT /v1/audio/transcriptions"
   weyland.mother.ai.neodash -> weyland.mother.ai.neo "Bolt (browser-side)"

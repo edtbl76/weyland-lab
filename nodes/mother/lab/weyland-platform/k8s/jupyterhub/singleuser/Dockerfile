@@ -33,6 +33,11 @@ RUN pip install --no-cache-dir -r /tmp/requirements-lake.txt \
 # try to load a missing extension, so the build fails if that file survives.
 RUN pip uninstall -y nbclassic \
     && test ! -e /opt/conda/etc/jupyter/jupyter_server_config.d/nbclassic.json
+# 2026-10-30 (B234 Pillar 7): conda-rattler-solver + py-rattler removed. py-rattler 0.26 bundles the zip crate 8.6.0
+# (CVE-2026-115905 critical, -115907/8/9 high); the fix is py-rattler 0.28.1 and no conda-rattler-solver release accepts
+# it (0.2.0 needs <0.27). Unused: this conda runs the libmamba solver. --force removes just those two.
+RUN conda remove -y --force conda-rattler-solver py-rattler && mamba clean -afy \
+    && conda config --show solver | grep -q libmamba
 COPY notebooks/ /opt/examples/
 RUN chmod -R a+rX /opt/examples
 USER ${NB_UID}

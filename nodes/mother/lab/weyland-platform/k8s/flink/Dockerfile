@@ -28,7 +28,10 @@ ARG FLINK_VER=1.20.1
 ARG MAVEN=https://repo1.maven.org/maven2
 
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# 2026-10-30 (B234 Pillar 7): `apt-get upgrade` picks up Ubuntu fixes published after the flink base tag (libbrotli1
+# CVE-2026-111497 -> 1.0.9-2ubuntu0.1), the same pattern as jupyterhub/singleuser and ranger.
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Enable the built-in S3 filesystem (Hadoop) as a plugin — for state.checkpoints.dir / savepoints on s3://.
 # The jar ships in /opt/flink/opt; a plugin dir isolates its classpath.

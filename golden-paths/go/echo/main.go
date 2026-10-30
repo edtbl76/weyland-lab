@@ -3,9 +3,10 @@
 package main
 
 import (
+	"log"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -22,11 +23,9 @@ func init() { prometheus.MustRegister(helloHits) }
 // Router builds the contract server (implements http.Handler, so tests drive it with httptest).
 func Router() *echo.Echo {
 	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
-	e.GET("/health", func(c echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ok"}) })
-	e.GET("/ready", func(c echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ready"}) })
-	e.GET("/hello", func(c echo.Context) error {
+	e.GET("/health", func(c *echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ok"}) })
+	e.GET("/ready", func(c *echo.Context) error { return c.JSON(http.StatusOK, map[string]string{"status": "ready"}) })
+	e.GET("/hello", func(c *echo.Context) error {
 		helloHits.Inc()
 		return c.JSON(http.StatusOK, map[string]string{"service": serviceName, "message": "hello, weyland"})
 	})
@@ -34,7 +33,4 @@ func Router() *echo.Echo {
 	return e
 }
 
-func main() {
-	e := Router()
-	e.Logger.Fatal(e.Start(":8080"))
-}
+func main() { log.Fatal(Router().Start(":8080")) }

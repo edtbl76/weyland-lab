@@ -9,6 +9,7 @@ setup() {
   cat > "$T/bin/kubectl" <<'SH'
 #!/bin/sh
 case "$*" in
+  *"create configmap"*) for a in "$@"; do case "$a" in --from-file=drill.sh=*) cp "${a#--from-file=drill.sh=}" "$STUB_DIR/drill.sh";; esac; done;;
   *"get pod"*"jsonpath"*) printf '%s' "${STUB_PHASE:-Succeeded}";;
   *" logs "*) printf '%b' "${STUB_LOG:-}";;
 esac
@@ -17,7 +18,20 @@ SH
   chmod +x "$T/bin/kubectl"
   # no real waiting in tests
   printf '#!/bin/sh\nexit 0\n' > "$T/bin/sleep"; chmod +x "$T/bin/sleep"
-  export PATH="$T/bin:$PATH"
+  export PATH="$T/bin:$PATH" STUB_DIR="$T"
+}
+
+@test "a mixed-case table (Prisma's LiteLLM_VerificationToken) is accepted and counted QUOTED" {
+  # B234: LiteLLM's tables are Prisma CamelCase. Unquoted, Postgres folds the name to lowercase and reports MISSING.
+  STUB_LOG='restore errors: 0\nLiteLLM_VerificationToken=1 \n' run bash "$SCRIPT" litellm LiteLLM_VerificationToken
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -q 'from \\"\$t\\"' "$T/drill.sh" || { echo "count query not quoted:"; grep -n "count" "$T/drill.sh"; return 1; }
+}
+
+@test "a table name with a quote or space is refused, exit 2" {
+  run bash "$SCRIPT" litellm 'x" ; drop'
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"table name must be"* ]]
 }
 
 @test "no table names is a usage error, exit 2" {

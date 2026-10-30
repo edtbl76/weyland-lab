@@ -24,6 +24,11 @@ per consumer**, so a leak means revoking one key and touching one system.
 | `REGISTRY_PUSH_USER` / `REGISTRY_PUSH_PASSWORD` | lab-owned · the registry's push identity (B211) | **Traefik** (basic auth on `registry-push.weyland.lab`), `docker login` on rogueone and CI's push | hashed with `openssl passwd -apr1` into Secret `weyland/registry-push-auth` (`users`), sealed (`seal-secrets.sh` allow-list); exact commands in [write-surfaces.md](write-surfaces.md) § Registry | change both in `scripts/.env`, re-create + re-seal `registry-push-auth`, then `docker login registry-push.weyland.lab` again |
 | `TRINO_PW_<ID>` (14: `DBT`, `CUBE`, `DATAHUB`, `DATAHUB_COVERAGE`, `MCP`, `PROMETHEUS`, `NOTEBOOK`, `ANALYST`, `PERF`, `LIGHTDASH`, `SUPERSET`, `EMANGINI`, `RANGER`) | lab-owned · generated (`scripts/trino-credentials.sh generate`) · one Trino login per caller (B233, 2026-10-23) | **Trino** (checks the bcrypt hash in `password.db`); each caller logs in as its own identity — table in [trino.md](trino.md) § Authentication | `trino-credentials.sh apply` → Secret `<ns>/trino-<id>` (`username`/`password`) for the 9 in-cluster callers, sealed (`seal-secrets.sh` allow-list); typed into Lightdash, Superset, DataGrip and (via `ranger_setup.py`) Ranger | [trino.md](trino.md) § Authentication, *Rotate a login* (`generate --rotate <id>`) |
 | `TRINO_SHARED_SECRET` | lab-owned · generated · Trino internal communication (required once an authenticator is on) | **Trino** | Secret `data-mesh/trino-auth` (`TRINO_SHARED_SECRET`, beside `password.db` and the mkcert `tls.pem`), sealed | same section |
+| `OJAY_FLOYD_LITELLM_KEY` | lab-owned · a LiteLLM **virtual key** (alias `ojay-floyd`, B234, 2026-10-30), scoped to `wl-private-rag` + `wl-private-reason` only | **OJay Floyd** → LiteLLM | minted inside the litellm pod with its master key and appended to `.env` without printing ([model-gateway.md](model-gateway.md) § 1d); stored hashed in the `litellm` database | § LiteLLM virtual keys |
+
+Not in `.env`: the **`litellm` database password** (core Postgres role `litellm`, B234). It is generated, set and sealed in
+one command and never printed, so it exists only inside SealedSecret `weyland/litellm-db` (`DATABASE_URL`). Re-key it
+with § 1d's `ALTER ROLE` variant ([model-gateway.md](model-gateway.md)).
 
 Not provider keys, listed so nobody hunts for them: Open WebUI's `OPENAI_API_KEY` is the dummy `nemo-guardrails`
 (it talks to the guardrails service); the eval scripts set `OPENAI_API_KEY` to `gateway`/`ollama`; Codex uses a ChatGPT
@@ -55,6 +60,11 @@ set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && p
 ```
 It patches ONLY that key — `litellm-secrets` holds others (master key, Langfuse) that a `create secret` would drop.
 Commit + push the sealed file, wait for Synced, then `kubectl -n weyland rollout restart deploy/litellm`.
+
+### LiteLLM virtual keys (per-app, B234)
+A leaked app key is revoked alone: `/key/block` on that key ([model-gateway.md](model-gateway.md) § 1d, *revoke one
+key*; measured 2026-10-30 — the blocked key 401, every other key unaffected). Then mint a replacement with § 1d's mint
+command, after deleting the old `OJAY_FLOYD_LITELLM_KEY=` line from `scripts/.env` (the command appends).
 
 ### MLflow gateway
 ```

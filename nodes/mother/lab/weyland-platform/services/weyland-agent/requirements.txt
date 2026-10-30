@@ -81,10 +81,10 @@ langchain-core==1.6.3
 langchain-openai==1.6.2
 langchain-protocol==0.0.19
 langfuse==4.15.2
-langgraph==1.2.11
+langgraph==1.2.14
 langgraph-checkpoint==4.2.0
 langgraph-prebuilt==1.1.0
-langgraph-sdk==0.4.4
+langgraph-sdk==0.4.6
 langsmith==0.12.4
 llama-index-core==0.14.24
 llama-index-instrumentation==0.6.0

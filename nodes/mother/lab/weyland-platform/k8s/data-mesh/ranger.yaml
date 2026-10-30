@@ -1,5 +1,7 @@
-# Apache Ranger Admin (L5 — data-plane authz for Trino). Image registry.weyland.lab/ranger:2.6.0-ubuntu24-r1 (B221,
+# Apache Ranger Admin (L5 — data-plane authz for Trino). Image registry.weyland.lab/ranger:2.6.0-ubuntu24-r2 (B221,
 # 2026-10-20): the mr3project/ranger:2.6.0 Ranger tree copied unchanged onto Ubuntu 24.04 (services/ranger/Dockerfile).
+# r2 (2026-10-30, B234 Pillar 7) = r1 rebuilt --no-cache so its apt-get upgrade re-ran (libbrotli1 1.1.0-2ubuntu0.1,
+# CVE-2026-111497); trivy 100 -> 99 HIGH+CRITICAL, 0 new. Roll back = r1.
 # Policy DB = weyland-postgres (ns weyland) DB `ranger`, role `rangeradmin` (pre-created).
 # Meshed (istio sidecar) so it can reach STRICT-mTLS Postgres. Audit deferred (audit_store empty) — Slice A
 # refinement wires the shared ES later. UI on :6080; ingress added after we validate it in-cluster.
@@ -195,7 +197,7 @@ spec:
         # repo). The ConfigMap mount is read-only, so render here — copy the template + sed each @@TOKEN@@ into the
         # writable emptyDir the main container mounts as key/.
         - name: render-install-props
-          image: registry.weyland.lab/ranger:2.6.0-ubuntu24-r1
+          image: registry.weyland.lab/ranger:2.6.0-ubuntu24-r2
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args:
@@ -214,7 +216,7 @@ spec:
           # Python 3.12 + pgjdbc 42.7.14, Solr dropped — 0 HIGH/CRITICAL OS findings (was 178 frozen on Debian 11); the
           # 266 left are Ranger's own bundled jars. Roll back = 2.6.0-py3-r2 here AND in render-install-props, and
           # SQL_CONNECTOR_JAR back to postgresql-42.3.2.jar (the old image has only that driver).
-          image: registry.weyland.lab/ranger:2.6.0-ubuntu24-r1   # services/ranger/Dockerfile
+          image: registry.weyland.lab/ranger:2.6.0-ubuntu24-r2   # services/ranger/Dockerfile
           imagePullPolicy: IfNotPresent            # local ctr-imported image (same pattern as the dagster image)
           command: ["/bin/bash", "-c"]
           args:

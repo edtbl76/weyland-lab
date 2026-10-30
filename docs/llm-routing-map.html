@@ -93,10 +93,15 @@
       network&nbsp;/&nbsp;5xx&nbsp;/&nbsp;429&nbsp;/&nbsp;timeout &mdash; server-side, transparent.</p>
     <p class="sub" style="margin-top:10px"><b>Provider egress &rarr; Bifrost (2026-08-01):</b> the hosted lanes now
       egress <i>through</i> <b>Bifrost</b> (LiteLLM &rarr; Bifrost &rarr; provider), so every funded call is recorded
-      with cost&nbsp;/&nbsp;tokens&nbsp;/&nbsp;latency and attributed to the <code>realm-llm</code> virtual key &mdash; no
-      LiteLLM DB. LiteLLM still owns the aliases and the fallback chains below; the <b>local Ollama</b> lanes
+      with cost&nbsp;/&nbsp;tokens&nbsp;/&nbsp;latency and attributed to the <code>realm-llm</code> virtual key. LiteLLM still owns the
+      aliases and the fallback chains below; the <b>local Ollama</b> lanes
       (<code>wl-rag</code>&nbsp;&middot;&nbsp;<code>wl-reason</code>&nbsp;&middot;&nbsp;<code>wl-judge</code>&nbsp;&middot;&nbsp;<code>wl-judge-oss</code>) stay direct
-      to rogueone.</p>
+      to rogueone, but the first three are local-<i>first</i>: they fall back to hosted rungs.</p>
+    <p class="sub" style="margin-top:10px"><b>Private lanes + per-app keys (B234, 2026-10-30):</b>
+      <code>wl-private-rag</code>&nbsp;&middot;&nbsp;<code>wl-private-reason</code> reach only self-hosted Ollama on an
+      allowlisted LAN host and have <b>no fallback</b>, so a prompt sent there never leaves the lab's hardware; with Ollama
+      down the call errors. Apps get their own LiteLLM <b>virtual key</b> (kept in the <code>litellm</code> database on
+      core Postgres), scoped to the aliases they may call, with their own usage and revocation.</p>
     <p class="sub" style="margin-top:10px"><b>Not on this map &mdash; decision models (B174, 2026-10-07):</b> the operator's
       incident-sweep <b>shadow</b> calls a decision model (typed choice, not text) on the Jev / SystemOne API, direct from
       <code>weyland-operator</code>: <b>Jev</b> at <code>api.typesafe.ai</code> (paid from the owner's prepaid TypeSafe credit,

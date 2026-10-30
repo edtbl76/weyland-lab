@@ -143,6 +143,14 @@ falling back to a hosted provider. The `wl-*` local lanes above are only local-F
 | `wl-private-rag` | ollama `gpt-oss:20b` on rogueone | none: fails closed |
 | `wl-private-reason` | ollama `qwen3:30b-a3b` on rogueone | none: fails closed |
 
+**Decisions (owner, 2026-10-29).** *Targets:* self-hosted Ollama only. No paid provider qualifies today: the bar is terms
+that prohibit both training AND human review, and a commercial API that still allows limited retention / trust-and-safety
+review fails the second half, so no provider terms are relied on (nothing to re-check when they change). The new GPU box
+becomes the primary when it arrives, rogueone its private fallback. *`wl-rag`:* behaviour kept (local-first, hosted
+fallback), label corrected — the RAG notebooks (`60_`, `61_`, `63_`) and the prompt-registry labels rely on that fallback.
+*Keys:* LiteLLM virtual keys on core Postgres (§ 1d), because local calls never pass through Bifrost, so a Bifrost key
+could neither scope nor attribute them; B217 (short-lived credentials) builds on this rather than repeating it.
+
 **The guard.** `scripts/check-private-lanes.py` (CI repo-guards, `scripts/tests/private-lanes.bats`) fails the build if a
 private alias targets anything but `ollama_chat/`/`ollama/` on a host in `scripts/ci/private-lane-hosts.yaml`, or can
 reach a hosted model any other way: a `fallbacks` / `context_window_fallbacks` / `content_policy_fallbacks` rule to a
@@ -158,6 +166,11 @@ python3 /home/edwardmangini/IdeaProjects/weyland/scripts/check-private-lanes.py 
 set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && curl -s -m 180 -H "Authorization: Bearer $LITELLM_API_KEY" -H 'Content-Type: application/json' -d '{"model":"wl-private-rag","max_tokens":200,"messages":[{"role":"user","content":"Reply with exactly: ok"}]}' http://192.168.1.243:30400/v1/chat/completions
 ```
 A call loads that model on rogueone (`OLLAMA_MAX_LOADED_MODELS=1`), so the operator's model reloads on its next call.
+
+**Failure modes, all closed.** A model swap that runs past the client timeout surfaces as an error, never a fallback
+(there is none to take). LiteLLM is ONE replica, so a gateway outage also fails private requests closed. Valve-off test
+and its recorded run: [demos/model-gateway.md § Private lane fails closed](../demos/model-gateway.md#private-lane-fails-closed-b234).
+Verified 2026-10-30 with rogueone's Ollama stopped: both private aliases 500, Bifrost upstream requests over the window 0.
 
 **Adding a host (the new GPU box).** Add its address to `scripts/ci/private-lane-hosts.yaml`, add its deployment to the
 private alias in `configmap.yaml`, and make rogueone the private fallback (`{"wl-private-rag": ["wl-private-rag-rogueone"]}`),

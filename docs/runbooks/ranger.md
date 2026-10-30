@@ -16,7 +16,7 @@
 
 ## Architecture
 
-Ranger Admin 2.6.0 (JVM/Tomcat; image `registry.weyland.lab/ranger:2.6.0-ubuntu24-r1` since B221: the Ranger tree
+Ranger Admin 2.6.0 (JVM/Tomcat; image `registry.weyland.lab/ranger:2.6.0-ubuntu24-r2` (r1 since B221; r2 2026-10-30: the libbrotli1 fix): the Ranger tree
 from `mr3project/ranger:2.6.0` on Ubuntu 24.04 LTS + Temurin Java 8 + Python 3.12, see `services/ranger/Dockerfile`)
 with policy DB in **weyland-postgres**
 (`ranger` DB, role `rangeradmin`). Trino 468 has a **native** Ranger access control plugin

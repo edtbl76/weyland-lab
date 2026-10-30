@@ -75,7 +75,12 @@ singleuser:
     # Proven: pip check clean, the toolkit imports, a matplotlib→pillow render, the server's /api 200. Roll back = tag: v4.
     # v6 (2026-10-22, later): + GitPython 3.2.1 and nbconvert 7.17.2 (base 3.2.0 / 7.17.1; advisories of 2026-10-21/22).
     # Proven: pip check clean, a notebook converted to HTML, git imports, /api 200. Roll back = tag: v5.
-    tag: v6
+    # v7 (2026-10-30, B234 Pillar 7): Brotli 1.2.1 (CVE-2026-111497 critical) pinned in requirements-lake.txt,
+    # conda-rattler-solver + py-rattler removed (bundled zip crate 8.6.0: CVE-2026-115905 critical + 3 high; unused, the
+    # solver is libmamba), apt-get upgrade re-run (libbrotli1 1.2.0-3ubuntu0.1; built --no-cache: a cached upgrade layer
+    # had kept the old package). Proven: pip check clean, the toolkit imports, conda solves, the server /api 200; trivy
+    # 275 -> 269 HIGH+CRITICAL, 0 new. Roll back = tag: v6.
+    tag: v7
     pullPolicy: IfNotPresent
   storage:
     capacity: 2Gi

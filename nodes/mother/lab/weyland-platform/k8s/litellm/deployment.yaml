@@ -76,7 +76,7 @@ spec:
                   name: litellm-db
                   key: DATABASE_URL
             # B17 DoD: the realm-llm Bifrost VK — wl-agentic egresses THROUGH Bifrost so it records provider cost/usage
-            # + per-VK attribution (no LiteLLM DB). Create the secret out-of-band (see the register/DoD steps).
+            # + per-VK attribution (provider cost stays in Bifrost; B234 LiteLLM DB = virtual keys only). Create the secret out-of-band (see the register/DoD steps).
             - name: BIFROST_REALM_VK
               valueFrom:
                 secretKeyRef:
