@@ -16,17 +16,18 @@ has several ways to send a request for an alias somewhere else, and each one is 
   usage: check-private-lanes.py <litellm configmap.yaml>
   EXIT: 0 every private lane holds · 1 a violation (each named) · 2 cannot check (unreadable, or no private alias).
 
-Adding a host (e.g. the new GPU box): add it to ALLOWED_HOSTS, then run the valve-off test in
-docs/runbooks/model-gateway.md § Private lane.
+The allowlist lives in scripts/ci/private-lane-hosts.yaml. Adding a host (e.g. the new GPU box): add it there, then run
+the valve-off test in docs/runbooks/model-gateway.md § Private lane.
 """
 import fnmatch
+import os
 import sys
 from urllib.parse import urlparse
 
 import yaml
 
 PRIVATE_PREFIX = "wl-private-"
-ALLOWED_HOSTS = {"192.168.1.230": "rogueone"}
+HOSTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ci", "private-lane-hosts.yaml")
 OLLAMA_PREFIXES = ("ollama_chat/", "ollama/")
 FALLBACK_KEYS = ("fallbacks", "context_window_fallbacks", "content_policy_fallbacks")
 
@@ -35,7 +36,7 @@ def is_private(name):
     return isinstance(name, str) and name.startswith(PRIVATE_PREFIX)
 
 
-def check_targets(private_entries):
+def check_targets(private_entries, allowed_hosts):
     bad = []
     for entry in private_entries:
         name = entry["model_name"]
@@ -45,8 +46,8 @@ def check_targets(private_entries):
             bad.append(f"{name}: target {model!r} is not self-hosted Ollama")
             continue
         host = urlparse(str(params.get("api_base", ""))).hostname
-        if host not in ALLOWED_HOSTS:
-            bad.append(f"{name}: api_base host {host!r} is not on the LAN allowlist {sorted(ALLOWED_HOSTS)}")
+        if host not in allowed_hosts:
+            bad.append(f"{name}: api_base host {host!r} is not on the LAN allowlist {sorted(allowed_hosts)}")
     return bad
 
 
@@ -56,26 +57,43 @@ def check_wildcards(model_list):
             if any(c in str(e.get("model_name", "")) for c in "*?[") and fnmatch.fnmatch(probe, e["model_name"])]
 
 
+def fallback_pairs(block, key):
+    """Every (source, target) pair in one fallback list: [{"src": ["t1", "t2"]}, ...]."""
+    return [(src, t) for rule in block.get(key) or [] for src, targets in (rule or {}).items() for t in targets or []]
+
+
+def check_section_fallbacks(section, block):
+    bad = [f"{section}.{key}: {src} -> {t}" for key in FALLBACK_KEYS for src, t in fallback_pairs(block, key)
+           if is_private(src) and not is_private(t)]
+    bad += [f"{section}.default_fallbacks applies to every alias, private ones included: {t}"
+            for t in block.get("default_fallbacks") or [] if not is_private(t)]
+    return bad
+
+
+def check_group_aliases(router_settings):
+    aliases = router_settings.get("model_group_alias") or {}
+    return [f"router_settings.model_group_alias: {src} -> {dst.get('model') if isinstance(dst, dict) else dst}"
+            for src, dst in aliases.items() if is_private(src)]
+
+
 def check_fallbacks(settings):
     bad = []
     for section in ("router_settings", "litellm_settings"):
-        block = settings.get(section) or {}
-        for key in FALLBACK_KEYS:
-            for rule in block.get(key) or []:
-                for src, targets in (rule or {}).items():
-                    if is_private(src):
-                        bad += [f"{section}.{key}: {src} -> {t}" for t in targets or [] if not is_private(t)]
-        bad += [f"{section}.default_fallbacks applies to every alias, private ones included: {t}"
-                for t in block.get("default_fallbacks") or [] if not is_private(t)]
-    aliases = (settings.get("router_settings") or {}).get("model_group_alias") or {}
-    bad += [f"router_settings.model_group_alias: {src} -> {dst.get('model') if isinstance(dst, dict) else dst}"
-            for src, dst in aliases.items() if is_private(src)]
-    return bad
+        bad += check_section_fallbacks(section, settings.get(section) or {})
+    return bad + check_group_aliases(settings.get("router_settings") or {})
 
 
 def main(argv):
     if len(argv) != 2:
         print("usage: check-private-lanes.py <litellm configmap.yaml>")
+        return 2
+    try:
+        with open(HOSTS_FILE) as fh:
+            allowed_hosts = {str(k): v for k, v in yaml.safe_load(fh)["hosts"].items()}
+        if not allowed_hosts:
+            raise ValueError(f"{HOSTS_FILE} lists no hosts")
+    except Exception as exc:
+        print(f"cannot read the private-lane host allowlist: {exc}")
         return 2
     try:
         with open(argv[1]) as fh:
@@ -90,13 +108,13 @@ def main(argv):
     if not private:
         print("no wl-private-* alias found — the guard is checking nothing")
         return 2
-    bad = check_targets(private) + check_wildcards(model_list) + check_fallbacks(settings)
+    bad = check_targets(private, allowed_hosts) + check_wildcards(model_list) + check_fallbacks(settings)
     if bad:
         print("private lane violation(s):")
         print("\n".join(f"  {b}" for b in bad))
         return 1
     names = sorted({e["model_name"] for e in private})
-    hosts = sorted({ALLOWED_HOSTS[urlparse(e["litellm_params"]["api_base"]).hostname] for e in private})
+    hosts = sorted({allowed_hosts[urlparse(e["litellm_params"]["api_base"]).hostname] for e in private})
     print(f"OK — {len(names)} private alias(es) {names}, {len(private)} deployment(s), all self-hosted Ollama on "
           f"{hosts}, no route or fallback to a hosted provider")
     return 0

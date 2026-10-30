@@ -1,0 +1,5 @@
+# B234 — the LAN hosts a wl-private-* LiteLLM alias may target (self-hosted Ollama only). Read by
+# scripts/check-private-lanes.py. Adding a host (e.g. the new GPU box): add it here, then run the valve-off test in
+# docs/runbooks/model-gateway.md § Private lane. Keys are the api_base hostnames; values name the machine.
+hosts:
+  192.168.1.230: rogueone
