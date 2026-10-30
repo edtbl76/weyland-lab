@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: litellm-db
+  namespace: weyland
+spec:
+  encryptedData:
+    DATABASE_URL: AgBEYnt9+NzBN2WGEwqYOdstBDT9SFHA6XvYhkfRQWtpNfY/A69wkkAkafjiWwnp0sAGcFflFvg4l34reQVM2E5bUhUQaZC71NGW1EJukeFkNrD5Syo7oST3r/sAf3pWG8bu4ihyKNMcQGuiBuflp2DFfngqndES08I5EQObH6QIFVLYVbJB0m4uqUb9xf2nCkDAPoahPoB70UkJ8DSPANUj6BbUPF0NnC0x0ATDWoIha03RKTXZaS76ZQEdzx72NT+VgSThLN+JrBJBDky2vhUUusLkdgihrP7vxGirOKpywBTEUWLVMj2rdedZAljqjt/6k4inXbt0K98/u0cCH9HNb5EydC9wE9tp9Y6G/bAkCuHTaDIcwpoLZJTuoonFhk9woRzTS1V9UJtTHkr+oZfWl42sWd5jg9vSlmDaaqJ+FLDpcxT8FQIZNflBYS8d3LkTh4C1I7OSSFSvb38Y8G1BDy+ZJHa7ZlQCXi2ZuOeY/LP/7iIqMQqD5qYeRV3knr5PEU6CBjnFbpOADOsNTNbFwQiVOoqgogyE10xD5UZ3QniFpp3RrRj5wAevsngVf0v8hMhjtUuAbyFPdI7rZ6yijEpuhKG65NAOI7fszrtdp01OMYjld8g/IIY/osJaUUFkq/LRMi15NKdBKP2JH2lHNjxaSWJFLVpY/l8licnVkBWNLxS5AL0oBjDxCIsdyzve2tdSBUWM2gr5chk+3ED5uYXybkMV/QOqC8lzbjz4TlV9rUiC8NQq4YeVBEqqkIxjA/kmj9kdrSGYEML8p1ehsdbfAM6DtLeuVJr9PWemAB27COgmBR30S3X3dzCk29EHFMrJFZX1mHydGAaoW81T498e5XuReFEnKgKf6A==
+  template:
+    metadata:
+      name: litellm-db
+      namespace: weyland
