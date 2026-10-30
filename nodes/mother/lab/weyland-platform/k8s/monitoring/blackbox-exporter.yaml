@@ -29,6 +29,7 @@ data:
           preferred_ip_protocol: ip4
           tls_config:
             insecure_skip_verify: true
+      # Adding/changing a module? Bump weyland.lab/blackbox-config-rev on the Deployment below, or it is never loaded.
       # B234 — a health endpoint whose non-200 IS the signal (LiteLLM /health/readiness: 503 = database disconnected).
       http_ready:
         prober: http
@@ -49,6 +50,11 @@ spec:
   template:
     metadata:
       labels: { app: blackbox-exporter }
+      annotations:
+        # blackbox-exporter reads blackbox.yml only at start; a ConfigMap edit alone leaves the old modules loaded (a new
+        # module answers /probe with 400, so its targets go up=0 with no probe_* series). Bump this with every modules
+        # change so Argo rolls the pod. Found 2026-10-30 (B234: http_ready was 400 for the litellm-db Probe).
+        weyland.lab/blackbox-config-rev: "2026-10-30-b234-http-ready"
     spec:
       # LAN DNS — identical to uptime-kuma, so forward-auth *.weyland.lab targets resolve + respond correctly.
       dnsPolicy: "None"
@@ -177,6 +183,17 @@ spec:
           annotations:
             summary: "Endpoint {{ $labels.instance }} is DOWN"
             description: "Blackbox probe to {{ $labels.instance }} has failed for >5m (SSL/DNS/HTTP)."
+        # A probe the exporter cannot RUN (unknown/unloaded module = HTTP 400 from /probe, or the exporter unreachable)
+        # leaves up=0 and NO probe_* series, so neither probe_success==0 nor absent(probe_success) — which needs EVERY
+        # probe gone — fires. Found 2026-10-30 (B234): the new http_ready module was never loaded and the litellm-db
+        # Probe sat at up=0, silent. One rule per Probe job; add a new Probe's jobName here.
+        - alert: BlackboxProbeScrapeFailing
+          expr: up{job=~"weyland-blackbox|litellm-db"} == 0
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Blackbox probe {{ $labels.job }} cannot run against {{ $labels.instance }}"
+            description: "The blackbox exporter could not execute this probe for >10m (up=0, no probe_* series): usually a module missing from the LOADED config (bump weyland.lab/blackbox-config-rev after editing blackbox.yml) or the exporter down. Check: kubectl -n monitoring exec deploy/blackbox-exporter -- wget -q -O- \"http://127.0.0.1:9115/probe?module=<module>&target=<target>\""
         # Meta-monitor: a dead blackbox-exporter means probe_success stops existing, so `==0` would silently never
         # fire. absent() catches the blind spot.
         - alert: BlackboxProbesMissing

@@ -62,3 +62,30 @@ tests:
       exp_annotations:
         summary: "Endpoint https://litellm.weyland.lab is DOWN"
         description: "Blackbox probe to https://litellm.weyland.lab has failed for >5m (SSL/DNS/HTTP)."
+- name: 'BlackboxProbeScrapeFailing: a probe the exporter cannot run (unknown module = 400, up 0) fires'
+  interval: 1m
+  input_series:
+  - series: up{job="litellm-db",instance="http://192.168.1.243:30400/health/readiness",namespace="monitoring"}
+    values: "0x15"
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: BlackboxProbeScrapeFailing
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: litellm-db
+        instance: http://192.168.1.243:30400/health/readiness
+        namespace: monitoring
+      exp_annotations:
+        summary: "Blackbox probe litellm-db cannot run against http://192.168.1.243:30400/health/readiness"
+- name: 'BlackboxProbeScrapeFailing: a working probe (up 1) and a non-probe job are silent'
+  interval: 1m
+  input_series:
+  - series: up{job="litellm-db",instance="http://192.168.1.243:30400/health/readiness",namespace="monitoring"}
+    values: "1x15"
+  - series: up{job="litellm",instance="10.42.0.108:4000"}
+    values: "0x15"
+  alert_rule_test:
+  - eval_time: 12m
+    alertname: BlackboxProbeScrapeFailing
+    exp_alerts: []
