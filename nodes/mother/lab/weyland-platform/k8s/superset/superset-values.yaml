@@ -12,7 +12,7 @@
 # (runbooks/superset.md § The image). One block: the web pod, the parked worker and the init job all use it.
 image:
   repository: registry.weyland.lab/weyland-superset
-  tag: v3   # v3 (2026-10-27, later) = v2 + Authlib 1.9.1 (empty-HMAC-key JWS forgery). v2 (2026-10-27) = v1 + Authlib 1.9.0 (GHSA-6v38-4h7w-rj9h, critical; Superset's Keycloak sign-in uses it)
+  tag: v4   # v4 (2026-10-30, B234 Pillar 7) = v3 + joserfc 1.7.6 (GHSA-9pg5-8c7x-5hfx); superset 6.1.0 imports with it. v3 (2026-10-27, later) = v2 + Authlib 1.9.1 (empty-HMAC-key JWS forgery). v2 (2026-10-27) = v1 + Authlib 1.9.0 (GHSA-6v38-4h7w-rj9h, critical; Superset's Keycloak sign-in uses it)
   pullPolicy: IfNotPresent
 
 postgresql:
