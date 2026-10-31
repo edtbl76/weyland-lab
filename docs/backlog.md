@@ -1898,9 +1898,11 @@ platform now. Revisit for the one net-new (online eval on *production* traces) w
 
 **Recommendation:** graduate **RDF / Fuseki** to a real build when a semantic-graph / SPARQL need surfaces (the KB taxonomy is the natural trigger); keep **Ignite / Tarantool / Derby / Firebird** parked-but-recorded (available, not committed); treat the **[NO]** and **~** buckets as **closed with rationale** so they aren't re-litigated. **Re-eval trigger** (as B67): a concrete need the committed stack can't meet.
 
-### B86 — Spec-driven framework SELECTOR: evaluate BMAD · AI-DLC · OpenSpec · Spec Kit, then recommend one (or none) per project — **HIGH (re-scoped 2026-10-09, Linear EMA-76) — DEFERRED 2026-10-09**
+### B86 — Spec-driven framework SELECTOR: evaluate BMAD · AI-DLC · OpenSpec · Spec Kit, then recommend one (or none) per project — **HIGH (re-scoped 2026-10-09, Linear EMA-76) — DEFERRED 2026-10-09, UN-DEFERRED 2026-10-31 (the bake-off; B86.1 stays deferred until it lands)**
 
 **DEFERRED 2026-10-09 (owner): "it may need hardware."** The bake-off waits for that; scope, sections and the B86.1 design stand. Linear `parked:deferred` on EMA-76 and EMA-290.
+
+**UN-DEFERRED 2026-10-31 (owner: "do the bake-off").** The hardware concern was the SELECTOR's (B86.1): it reads prompts and PRDs that may be private, so its extraction step must run locally. B234 (done 2026-10-31) supplies that lane, `wl-private-*` (LAN Ollama only, no fallback, own virtual key). The bake-off runs lab tasks in Claude Code and needs no new hardware. `parked:deferred` removed from EMA-76; B86.1 (EMA-290) stays deferred until this bake-off produces its calibration table, and measures there whether rogueone's models handle real PRD lengths.
 
 **RE-SCOPED 2026-10-09 (owner).** Not "choose one framework" and not "borrow notations into AI-DLC": evaluate the four
 major spec-driven frameworks on equal footing, then build a **selector** that reads a prompt or a PRD and says which
