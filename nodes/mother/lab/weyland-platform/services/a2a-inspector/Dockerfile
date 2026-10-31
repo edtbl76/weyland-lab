@@ -12,8 +12,12 @@ FROM registry.weyland.lab/a2a-inspector:v1@sha256:06b0d76b603fb3c4cb21d3e4548d85
 WORKDIR /app
 # pipefail: the grep below is the check that the lock really moved; a failing step must fail the build.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN uv lock --upgrade-package certifi --upgrade-package pyjwt \
-    && grep -A1 '^name = "certifi"' uv.lock | grep -q 'version = "2026.10.19"' \
+# v5 (2026-10-31, B234): pyasn1 too (v1 locked 0.6.1; GHSA-2qm8-x737-gmw5 et al., 4 HIGH, fixed in 0.6.5). The certifi
+# check is now ">= 2026.10.19", not an exact match: --upgrade-package resolves the NEWEST certifi (2026.10.23 today), so
+# the exact check failed closed on every rebuild once a newer certifi shipped.
+RUN uv lock --upgrade-package certifi --upgrade-package pyjwt --upgrade-package pyasn1 \
+    && grep -A1 '^name = "certifi"' uv.lock | grep -qE 'version = "(2026\.10\.(19|2[0-9]|3[01])|2026\.1[12]\.[0-9]+|20(2[7-9]|[3-9][0-9])\.[0-9]+\.[0-9]+)"' \
+    && grep -A1 '^name = "pyasn1"' uv.lock | grep -qE 'version = "0\.6\.([5-9]|[1-9][0-9])"' \
     && grep -A1 '^name = "pyjwt"' uv.lock | grep -qE 'version = "2\.(1[4-9]|[2-9][0-9])\.' \
     && uv sync --locked
 WORKDIR /app/backend
