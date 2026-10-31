@@ -1135,6 +1135,9 @@ hosts:
     - name: eclipse-temurin
       kind: image
       status: system
+    - name: flink
+      kind: image
+      status: system
     - name: gcr.io/projectsigstore/cosign
       kind: image
       status: system
@@ -1280,6 +1283,60 @@ hosts:
       kind: image
       status: system
     - name: redis
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/finance-trainer
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/genre-trainer
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/mcp-server-datahub
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/ranger
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/ray-head
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/weyland-agent
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/weyland-jupyter
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/weyland-superset
+      kind: image
+      status: system
+    - name: registry.weyland.lab/a2a-inspector
+      kind: image
+      status: system
+    - name: registry.weyland.lab/finance-trainer
+      kind: image
+      status: system
+    - name: registry.weyland.lab/genre-trainer
+      kind: image
+      status: system
+    - name: registry.weyland.lab/mcp-server-datahub
+      kind: image
+      status: system
+    - name: registry.weyland.lab/ranger
+      kind: image
+      status: system
+    - name: registry.weyland.lab/ray-head
+      kind: image
+      status: system
+    - name: registry.weyland.lab/store-scaler
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-agent
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-jupyter
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-superset
       kind: image
       status: system
     - name: ruby
