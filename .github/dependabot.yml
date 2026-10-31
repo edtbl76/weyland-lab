@@ -154,6 +154,11 @@ updates:
       security-and-patches:
         applies-to: security-updates
         patterns: ["*"]
+    # 2026-10-30 (B234): mirrors osv-scanner.toml — litellm caps filelock<4.0, so 4.2.1 is ResolutionImpossible here
+    # (accepted 2026-10-24, B227 follow-on). PR #287 re-proposed it; closed.
+    ignore:
+      - dependency-name: "filelock"   # litellm caps it; lift with a litellm release that allows filelock 4
+        versions: [">=4.0.0"]
 
   - package-ecosystem: "pip"
     directory: "/nodes/mother/lab/weyland-platform/services/mcp-server-datahub"

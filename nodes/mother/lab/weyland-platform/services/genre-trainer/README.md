@@ -55,7 +55,7 @@ bash scripts/push-image.sh registry.weyland.lab/genre-trainer:v10   # pushes via
 ## Run (on rogueone)
 
 ```
-DOCKER_HOST=unix:///var/run/docker.sock docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v9 --source silver
+DOCKER_HOST=unix:///var/run/docker.sock docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v10 --source silver
 ```
 
 That's the **entire** run — no creds, no endpoint env. Three parts carry it:
@@ -85,7 +85,7 @@ Append `--tune` for a **Ray Tune** sweep on a local Ray cluster (rogueone's core
 each its own MLflow run, the best config retrained + registered. Publish the Ray Dashboard **loopback-only** (it's
 unauthenticated → its Jobs API is RCE):
 ```
-DOCKER_HOST=unix:///var/run/docker.sock docker run --rm --shm-size=2g -p 127.0.0.1:8265:8265 -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v9 --source silver --tune --trials 100
+DOCKER_HOST=unix:///var/run/docker.sock docker run --rm --shm-size=2g -p 127.0.0.1:8265:8265 -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v10 --source silver --tune --trials 100
 ```
 Watch at `http://localhost:8265` (rogueone, while it runs) + MLflow `genre-classifier` (persistent). Measured: the
 sweep beat the single fit — **f1 0.312 / acc 0.329** vs 0.305 / 0.321.

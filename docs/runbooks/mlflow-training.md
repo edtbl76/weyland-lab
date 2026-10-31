@@ -130,7 +130,7 @@ kubectl -n weyland exec deploy/ray-head -- ray job submit --address http://local
 ```
 Or run the standalone container on rogueone (see [services/genre-trainer/README.md](https://github.com/edtbl76/weyland-lab/blob/main/nodes/mother/lab/weyland-platform/services/genre-trainer/README.md)):
 ```
-docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v9 --source silver
+docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v10 --source silver
 ```
 Re-run after the Spotify silver changes — each run is a new tracked experiment run + a new registered model
 version. For `--source feast`, first materialize the Dagster `genre_feast_training_set` asset (the meshed

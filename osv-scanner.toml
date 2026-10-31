@@ -54,6 +54,25 @@ id = "GHSA-gcqx-w48m-w2h4"
 ignoreUntil = 2027-01-28
 reason = "deepmerge 4.2.0-4.3.1 (mergeObject() prototype poisoning of returned objects). No fixed release: 4.3.1 is the latest, unchanged since 2023-03. Only in golden-path sample lockfiles (8 npm samples), pulled in by jest-config (test-time config merging) and, in react-native, by @expo/config (merging the local app.json at build time); both merge local, trusted config, never outside input. No production lockfile is npm. Accepted 2026-10-28."
 
+# ---- 2026-10-31 (B234 Pillar 7) — minimatch + glob in the npm golden paths, NO USABLE FIX (owner: accept, 90 days) ----
+# Both advisories were published 2026-10-30. minimatch: every version below 11.0.1 is affected, with no 3.x/9.x/10.x
+# backport. glob: 9.0.0 up to 14.0.2. Every golden path carries minimatch 3.1.5 under glob 7.2.3, which jest's coverage
+# chain (babel-plugin-istanbul -> test-exclude) and license-checker require. Tested 2026-10-30 on golden-paths/node/express
+# with npm overrides minimatch 11.0.3 + glob 14.0.3: plain jest and eslint still pass, but `jest --coverage` dies
+# (babel-plugin-istanbul TypeError, 0 tests run) and license-checker crashes, so forcing the fix breaks the CI lanes.
+# In 9 of 10 paths both packages are devDependencies only; in react-native they come from the Expo CLI/bundler that
+# builds the static web bundle, not from the served app. No production lockfile is npm.
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-01-29
+reason = "minimatch < 11.0.1 (DoS via globparts amplification). Golden-path npm lockfiles only, as test/lint/build tooling: minimatch 3.1.5 under glob 7 (jest coverage, license-checker) has no fixed release on its major, and forcing 11.x breaks jest --coverage + license-checker (tested 2026-10-30). Patterns come from the repo's own config, never outside input. LIFT when jest's coverage chain (babel-plugin-istanbul / test-exclude) moves to glob 14+. Accepted 2026-10-31 (B234)."
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2027-01-29
+reason = "glob 9.0.0-14.0.1 (AbortSignal cancellation bypass allows post-timeout traversal). Golden-path npm lockfiles only (glob 10.5/13.0.6 in angular, vue, react-native: build/test tooling and the Expo CLI); no caller passes an AbortSignal over untrusted paths. Fixed in 14.0.2, but those parents pin glob 10/13 and drag minimatch 9/10 (see GHSA-g3hv-75wg-m249, same blocker). LIFT with the same tooling upgrade. Accepted 2026-10-31 (B234)."
+
 # zod 3.25.76 in the react-native golden path (2026-10-27, Expo SDK 58). Version-scoped: no other lockfile has 3.25.76
 # today (angular/astro/nextjs carry the fixed 4.6.6+), and the entry stops matching the moment Expo moves zod.
 [[PackageOverrides]]

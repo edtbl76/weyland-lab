@@ -86,7 +86,7 @@ proto-plus==1.29.0
 protobuf==7.36.2
 py-spy==0.4.2
 pyarrow==25.0.1
-pyasn1==0.6.4
+pyasn1==0.6.5
 pyasn1_modules==0.4.2
 pycparser==3.11
 pycryptodome==4.0.1

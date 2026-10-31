@@ -341,7 +341,7 @@ kubectl -n weyland exec deploy/ray-head -- ray job submit --address http://local
 # v9 (2026-10-27) is current = v8 + msgpack 1.2.3 (unbounded memory leak, high). v8 (2026-10-19): the B218 NodePort entrypoint + skops trusted types. The next build is v10.
 docker build -t registry.weyland.lab/genre-trainer:v10 <path-to-genre-trainer>
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/genre-trainer:v10   # B211: pushes via the authenticated host
-docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v9 --source silver
+docker run --rm -v $HOME/.kube/config:/root/.kube/config:ro --add-host mother:192.168.1.243 registry.weyland.lab/genre-trainer:v10 --source silver
 ```
 Then `mlflow.weyland.lab` → experiment `genre-classifier`, model `genre_classifier`.
 

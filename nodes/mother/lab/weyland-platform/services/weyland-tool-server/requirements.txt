@@ -95,7 +95,7 @@ prometheus_client==0.26.0
 protobuf==6.33.6
 psycopg2-binary==2.9.13
 py-key-value-aio==0.4.6
-pyasn1==0.6.4
+pyasn1==0.6.5
 pyasn1_modules==0.4.2
 pycparser==3.11
 pydantic==2.14.1

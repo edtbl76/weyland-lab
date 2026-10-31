@@ -205,7 +205,7 @@ psycopg-binary==3.3.4
 psycopg-pool==3.3.1
 psycopg2-binary==2.9.12
 pyarrow==25.0.0
-pyasn1==0.6.4
+pyasn1==0.6.5
 pyasn1_modules==0.4.2
 pycparser==3.0
 pycryptodome==3.23.0
