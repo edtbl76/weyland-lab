@@ -1898,11 +1898,53 @@ platform now. Revisit for the one net-new (online eval on *production* traces) w
 
 **Recommendation:** graduate **RDF / Fuseki** to a real build when a semantic-graph / SPARQL need surfaces (the KB taxonomy is the natural trigger); keep **Ignite / Tarantool / Derby / Firebird** parked-but-recorded (available, not committed); treat the **[NO]** and **~** buckets as **closed with rationale** so they aren't re-litigated. **Re-eval trigger** (as B67): a concrete need the committed stack can't meet.
 
-### B86 — Spec-driven framework SELECTOR: evaluate BMAD · AI-DLC · OpenSpec · Spec Kit, then recommend one (or none) per project — **HIGH (re-scoped 2026-10-09, Linear EMA-76) — DEFERRED 2026-10-09, UN-DEFERRED 2026-10-31 (the bake-off; B86.1 stays deferred until it lands)**
+### B86 — Spec-driven framework SELECTOR: evaluate BMAD · AI-DLC · OpenSpec · Spec Kit, then recommend one (or none) per project — **DONE 2026-11-02 · HIGH (re-scoped 2026-10-09, Linear EMA-76) — DEFERRED 2026-10-09, UN-DEFERRED 2026-10-31; the bake-off has landed, and B86.1 (EMA-290) is still deferred pending the owner's go**
+
+**DONE 2026-11-02 — the measured bake-off.** 72 judged implementation runs: 4 lab tasks (3 replays of real lab work + 1 vague brief) x 6 arms (plain Claude Code, AI-DLC 2.6.18, AI-DLC 2.11.2, BMAD 6.12.4, OpenSpec 1.16.0, Spec Kit 1.2.5) x 3 runs, Opus 5.5, each in a sandbox that denies the lab repo, judged by hidden behaviour judges. Plus 37 follow-on changes by plain Claude Code (24 with the framework's documents, 13 without) and 42 read-only reviews. **Verdict:** no framework produced better results than plain Claude Code; pass rate and quality (mutation score of the trial's own tests) are the same in every arm; every framework costs more (exact stratified permutation, Holm): OpenSpec 1.35x, Spec Kit 1.6x, BMAD 2.6x, AI-DLC 2.6.18 4.6x, AI-DLC 2.11.2 10.9x. The documents make later changes 12% cheaper (p = 0.04), so they pay back after ~4 (OpenSpec) to ~38 (AI-DLC) later changes. Spec-as-oracle is not measurable in this repo: two designs (36 + 6 reviews) found every planted defect without the documents, because intent also lives in shared config, runbooks and committed rules. **Selector rules for B86.1:** default plain Claude Code; OpenSpec for an area with repeated change; nothing heavier at lab scale. **Owner decisions on the way:** keep AI-DLC as a studied framework, keep the lab on 2.6.18, and keep other versions in their own pinned folders (see the version note below). **Found and fixed:**
+- OpenSpec 1.16.0 crashed on the trials' Node 18; the 7 affected runs were re-run on Node 24.
+- Missing framework runtimes (bun, uv, the OpenSpec CLI): runs archived and re-run, and every runner now flags `command not found`.
+- The first docs ablation was contaminated: its repos were copied from a working tree that already held the answer. Rebuilt from the base commit, with a judge check that the base fails.
+- The AI-DLC 2.11 driver over-replied after a final status.
+- Every invalid run is archived with its reason under the work dir's `invalid/`.
+
+Lessons in memory: [[bakeoff-framework-runtime-missing]], [[bakeoff-derived-repo-contamination]], [[aidlc-version-policy]].
+
+**DoD (recorded 2026-11-02, per pillar; repo tooling, per `definition-of-done.md` § Applying this to REPO TOOLING):**
+1. **Docs:**
+   - `docs/concepts/spec-driven-frameworks.md` rewritten from the measured runs, with the verdict, the 24-cell trial table, answers to the four questions, findings and threats to validity; the 2026-08-11 desk evaluation is kept as history.
+   - New runbook `docs/runbooks/sdd-frameworks.md`: self-test, prerequisites, base-snapshot rebuild, build, install, run, judge, quality, follow-on, ablation, stats, restore, and adding a framework or version.
+   - `eval/sdd-bakeoff/README.md`.
+   - `arch.md` §8c: the version policy, the matrix row re-stated with measured numbers, a measured-verdict paragraph, and the flows-table row.
+   - `runbooks/aidlc-workflow.md` § Version policy.
+2. **Diagrams:** sequence diagram `docs/diagrams/flow-sdd-bakeoff.md`, plus a flowchart in the concept doc. LikeC4 is N/A: repo tooling, nothing deployed.
+3. **Demo:** `docs/demos/sdd-bakeoff.md`, ledger #114, every step RUN 2026-11-02.
+   - Self-test: 11/11 bats.
+   - Negative case: the driver's stop rule removed gives `not ok 2`, exit 1.
+   - `analyze.py` from the repo copy reproduces `results/analysis.txt` byte for byte.
+   - Engine proof: `5 matching call(s)`.
+4. **Cleanup:** everything a run writes goes to the work dir outside the repo (`SDD_BAKEOFF_HOME`); the self-test writes only to the bats temp dir. The work dir's old code copies were moved to its `trash/` once the repo copy reproduced every output.
+5. **Tracking:** EMA-76 criteria ticked against evidence (criteria 1 and 3 amended to what was done), then Done; `check-linear-sync.sh` clean; memory `spec-driven-frameworks-b86` updated.
+6. **Ops:** run by hand, on demand. A full run spends real usage, so it is never in CI or on a timer (runbook). The free self-test runs in CI's bats step.
+7. **Scans:**
+   - Every harness script is now in CI's `shellcheck` step: clean at warning.
+   - `scripts/tests/sdd-bakeoff.bats` (11, TDD: Red seen before each seam) plus a discovery test in `lang-tests.bats`.
+   - The full CI bats suite passes, 1205/1205.
+   - Repo-guards all pass; `woodpecker-cli lint` valid.
+   - Sonar has nothing to analyse: `eval/**` is excluded, and shell and bats are not analysed.
+8. **Cascades:**
+   - `run-lang-tests.sh` excludes `eval/sdd-bakeoff/`, because its judges' `test_*.py` files would otherwise run as a project and fail.
+   - The CI shellcheck line covers the harness.
+   - Updated `arch.md` and the AI-DLC runbook; new demo ledger row.
+   - Memory updated: `spec-driven-frameworks-b86`, `MEMORY.md`, two new notes.
+   - B86.1's calibration input now exists.
+   - The `install_frameworks.sh` gap: `build_trials.sh` named it, but it did not exist. Now written.
+9. **DR:** `dr.md` row "SDD bake-off evidence". The results folders were added to rogueone's restic (`backup-paths.conf`), and a restore drill restored on-demand snapshot `8471f2e7` to scratch: 663 files, byte-identical, 99.3 MiB. Trial repos, `invalid/` and the trial login are deliberately excluded, with the reasons stated in the row.
 
 **DEFERRED 2026-10-09 (owner): "it may need hardware."** The bake-off waits for that; scope, sections and the B86.1 design stand. Linear `parked:deferred` on EMA-76 and EMA-290.
 
 **UN-DEFERRED 2026-10-31 (owner: "do the bake-off").** The hardware concern was the SELECTOR's (B86.1): it reads prompts and PRDs that may be private, so its extraction step must run locally. B234 (done 2026-10-31) supplies that lane, `wl-private-*` (LAN Ollama only, no fallback, own virtual key). The bake-off runs lab tasks in Claude Code and needs no new hardware. `parked:deferred` removed from EMA-76; B86.1 (EMA-290) stays deferred until this bake-off produces its calibration table, and measures there whether rogueone's models handle real PRD lengths.
+
+**AI-DLC VERSION ARM ADDED + VERSION POLICY 2026-11-02 (owner: "make it so", then "yes").** The lab's AI-DLC (2.6.18) is 1,703 commits behind upstream's v2.11.2, so a sixth arm ran 2.11.2 (12 runs + 4 follow-ons; copy-channel install, sha256-verified). 2.11.2 refuses a standing "take the default" instruction, so it ran under a click-through driver that answers each gate in a new turn (6-10 replies per change). Result: 10.9x plain Claude Code's cost, 2.4x 2.6.18's (p < 0.001), 12/12 pass, no quality difference. **Decision:** keep AI-DLC (SDD frameworks are a subject of study here), keep the lab on 2.6.18, and keep every other version in its own pinned project folder; never two versions in one checkout. Recorded in `docs/runbooks/aidlc-workflow.md` § Version policy and `arch.md` §8c.
 
 **RE-SCOPED 2026-10-09 (owner).** Not "choose one framework" and not "borrow notations into AI-DLC": evaluate the four
 major spec-driven frameworks on equal footing, then build a **selector** that reads a prompt or a PRD and says which

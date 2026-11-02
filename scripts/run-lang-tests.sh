@@ -250,6 +250,11 @@ is_excluded() {
     # (test-python failed exactly this way, 2026-09-10). Same rationale as selfcheck/.
     */eval/coding-agents/*)
       return 0 ;;
+    # The SDD bake-off harness (B86) ships hidden JUDGES under eval/sdd-bakeoff/reference/judge*-<task>/: their
+    # test_*.py judge a trial's service (SERVICE_DIR) and have nothing to test standalone. Its decision logic is
+    # tested by scripts/tests/sdd-bakeoff.bats instead.
+    */eval/sdd-bakeoff/*)
+      return 0 ;;
     # B164 mobile CLIENTS. react-native (package.json + *.test.tsx) and flutter (pubspec.yaml +
     # *_test.dart) share their manifests with the node and dart SERVICE lanes; without this the dart
     # lane would run `dart test` on the Flutter app and the node lanes would run `npm test` on the

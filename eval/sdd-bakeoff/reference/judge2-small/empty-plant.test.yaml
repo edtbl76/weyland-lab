@@ -1,0 +1,15 @@
+# Judge plant (follow-on small): passes ONLY because the series has no samples (values is an empty string) — with
+# probe_success=0 for 15m the endpoint-down alert WOULD fire. A harness that refuses empty values must fail it.
+rule_files:
+- rules.yaml
+evaluation_interval: 1m
+tests:
+- name: 'plant: an empty series value'
+  interval: 1m
+  input_series:
+  - series: probe_success{job="weyland-blackbox",instance="https://plant-empty.weyland.lab"}
+    values: ""
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WeylandEndpointDown
+    exp_alerts: []

@@ -115,9 +115,43 @@ Three deliberate deviations from stock v2. Each has bitten once; each is load-be
 
 ---
 
+## Version policy: the lab stays on 2.6.18; other versions live beside it (decided 2026-11-02, B86)
+
+Upstream now cuts real v2 releases (**v2.11.2**, 2026-10-28; 1,703 commits past our pin). The re-evaluation this
+section used to ask for has been done, and the answer is **don't upgrade the lab**. The B86 bake-off ran 2.11.2 against
+2.6.18 on the same four lab tasks (3 runs each, Opus 5.5, results in `/home/edwardmangini/sdd-bakeoff/results/analysis.txt`):
+
+| AI-DLC | Cost vs plain Claude Code | Wall time | Pass | Human replies per change |
+|---|---|---|---|---|
+| 2.6.18 (this pin) | 4.6x | 3.1x | 11/12 | 0 (accepts a standing "take the default") |
+| 2.11.2 | 10.9x (2.4x 2.6.18, p < 0.001) | 6.3x | 12/12 | 6-10 (refuses anything but a real human turn) |
+
+No quality difference was measured (mutation score +0.044 vs 2.6.18, p = 0.06). So the lab's everyday workflow keeps
+2.6.18, and **AI-DLC is kept**: spec-driven frameworks are a subject of study here, not only a tool.
+
+**Several versions, one per project folder.** AI-DLC serves one version per project, because its engine is that
+project's `.claude/` tree. 2.11 has a native installer that keeps many versions per machine
+(`~/.local/share/aidlc/versions/`, `aidlc use <version>`), and each project pins one with a committed `.aidlc-version`
+(`aidlc config --pin <version>`). So:
+- **weyland** = 2.6.18, copied files (it predates the installer). Never mix a second version into this checkout.
+- **Every other version** = its own pinned project folder, the way the bake-off builds its arms (`trials/*-aidlc` on
+  2.6.18, `trials/*-aidlc211` on 2.11.2, built by `build_aidlc211.sh` with upstream's copy-channel steps).
+- **Not** two harnesses in this checkout on two versions: they would share one `aidlc/` workspace, whose format differs
+  between the versions.
+- Installing the native `aidlc` installer, or downloading any other release, is external code: ask the owner first,
+  naming the version and destination.
+
+**2.11.2 cannot run unattended.** Its guard accepts an answer only in a real human turn, and `AIDLC_UNATTENDED=1` does
+not change that (it only stops automated prompts from counting as a person). Driving it needs a person, or a driver
+that resumes the session with each reply (the bake-off's click-through driver in `run_trial.sh`).
+
 ## Upgrading the pin
 
-v2 is a **branch, not a tagged release** (upstream's latest tag is v1.0.1), so we pin a commit and move deliberately.
+Upstream now publishes v2 release tags; take a tagged release's copy runtime (`aidlc-copy-runtime-X.Y.Z.tar.gz`,
+sha256 checked) rather than a branch commit. **Re-run the bake-off arm on a new version before moving this pin.** The
+steps below describe the original branch-commit pin.
+
+v2 was a **branch, not a tagged release** when pinned (upstream's latest tag was v1.0.1), so we pinned a commit and move deliberately.
 
 1. Pull the upstream repo and check out the new `v2` commit.
 2. Regenerate the harness tree: `bun scripts/package.ts` (in the upstream clone) — **never hand-edit `dist/`**.

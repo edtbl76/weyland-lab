@@ -1,0 +1,7 @@
+data:
+  config.yaml: |
+    model_list:
+      - model_name: wl-private-rag
+        litellm_params: {model: ollama_chat/gpt-oss:20b, api_base: "http://192.168.1.230:11434"}
+    router_settings:
+      default_fallbacks: ["gemini-flash"]

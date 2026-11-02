@@ -1,193 +1,192 @@
-# Spec-Driven Dev Frameworks vs the Method (B86)
+# Spec-Driven Development Frameworks: the measured bake-off (B86)
 
-**Four external spec-driven / agentic-development frameworks — OpenSpec, GitHub Spec Kit, BMAD-METHOD, and AWS Kiro —
-evaluated against weyland's own AIDLC *Method*.** This is a *research/maturity* evaluation (B86): map what each does, where
-it overlaps or diverges from the Method's stages, and decide whether any patterns are worth cross-pollinating. **No
-commitment to adopt any tool** — the output is this comparison + a decision matrix.
+**Four spec-driven frameworks, AI-DLC (two versions), BMAD, OpenSpec and Spec Kit, measured against plain Claude Code on
+this lab's own work.** This page replaces the 2026-08-11 desk evaluation (kept below as [History](#history-the-2026-08-11-desk-evaluation)),
+which compared feature lists. The bake-off ran each framework on real lab tasks and judged the outcome, its quality, how
+maintainable it was, and what its documents were worth.
 
-> Data current as of **2026-08-11** (four parallel web-research passes). Versions/stars/prices move fast — see
-> [Provenance & freshness](#provenance-freshness) for the caveats.
+> Measured 2026-10-31 to 2026-11-02, one model (Claude Opus 5.5): 72 judged implementation runs, 37 judged follow-on
+> changes (24 with the framework's documents, 13 without) and 42 read-only reviews. Harness: `eval/sdd-bakeoff/`;
+> runbook: [runbooks/sdd-frameworks.md](../runbooks/sdd-frameworks.md). Kiro stays excluded ($0 violation: managed AWS,
+> Bedrock lock-in, capped free tier).
 
-> ### ⚠ The incumbent changed (B133, 2026-08-20)
->
-> This page evaluates the four contenders against **"the Method"** — weyland's bespoke fork of AWS AI-DLC. The Method
-> has since been **retired**: the lab migrated to **AWS AI-DLC v2** clean (`awslabs/aidlc-workflows` `v2`, pinned
-> `4d0968f`), because maintaining the fork cost a re-port on every upstream release. See
-> [arch.md §8c](../arch.md#8c-development-lifecycle-ai-dlc-v2-b133).
->
-> **What survives:** the *core finding* is unchanged, and if anything stronger. The coverage asymmetry was never about
-> the fork — it was about **lifecycle vs coding-workflow**, and AI-DLC v2 spans the same full arc (33 stages across
-> Ideation → Inception → Construction → **Operation**, with the learning loop back). The four contenders still cluster
-> in the boxed middle band. **Cross-pollination, not migration** remains the call, and **Kiro is still disqualified**
-> on the same $0 / Bedrock-lock grounds — now doubly so, since v2 gives us the AWS lifecycle *without* the managed tier.
->
-> **What changed:** wherever this page says "keep the Method as the spine," read **"keep AI-DLC v2 as the spine."** The
-> B126 follow-up (borrow delta specs / EARS / constitution / context-engineered unit files) now targets v2's stage
-> files under `.claude/aidlc-common/stages/` rather than the Method's rule tree — and is *easier*, since v2's
-> `core/` → `dist/<harness>/` packaging is an explicit customization seam the fork never had.
+## Verdict
 
-## Bottom line up front
+**No framework produced better results than plain Claude Code, and every one cost more.** Pass rate and code quality were
+the same in every arm; only cost, time and the value of the documents differ.
 
-- **They solve a *smaller* problem than the Method.** All four are **coding workflows** that live in the
-  **requirements → design → tasks → implementation** middle of the arc. The Method is a **delivery lifecycle** that also
-  owns the **discovery front-end** (whether to build) and the **operations/telemetry/continuous-discovery tail** (learn →
-  loop back). None of the four touch either end.
-- **So the payoff is *cross-pollination, not migration*.** The interesting borrow is their **artifact discipline** — not
-  their lifecycle. Four concrete candidates: **delta specs** (OpenSpec), a **machine-checked constitution + consistency
-  gates** (Spec Kit), **EARS-notation requirements + steering files** (Kiro), and **self-contained story files /
-  context-engineering** (BMAD).
-- **$0 / self-host fit:** OpenSpec, Spec Kit, BMAD are **MIT, agent-agnostic, self-hostable** → trial-friendly on a $0 LAN
-  lab. **Kiro is disqualified as a *tool*** — managed AWS, Bedrock-locked, no BYOK, capped free tier — though its
-  *patterns* still travel.
-- **Recommendation:** keep the Method as the spine; **adopt the artifact notations** (delta-spec sections, EARS, a
-  checkable baseline "constitution"); optionally **trial OpenSpec or Spec Kit on one small unit** to feel the discipline.
-  Do **not** narrow the Method to match these tools, and do **not** adopt Kiro.
+| Arm | Cost vs plain | Wall time | Pass | Documents pay back the extra cost after | Use it for |
+|---|---|---|---|---|---|
+| **Plain Claude Code** | 1x | 1x | 12/12 | n/a | **The default.** |
+| **OpenSpec** 1.16.0 | 1.35x | 1.05x (n.s.) | 11/12 | ~4 later changes | An area that will keep changing. Drive its apply step explicitly. |
+| **Spec Kit** 1.2.5 | 1.6x | 1.6x | 12/12 | ~6 | Works; OpenSpec does the same job for less. |
+| **BMAD** 6.12.4 | 2.6x | 2.1x | 12/12 | ~20 | Not worth it at this scale. |
+| **AI-DLC** 2.6.18 (the lab's) | 4.6x | 3.1x | 11/12 | ~38 | Not worth it as a default; kept as a subject of study. |
+| **AI-DLC** 2.11.2 (current release) | 10.9x | 6.3x | 12/12 | n/a | Not for this lab: 2.4x the cost of 2.6.18, 6-10 human approvals per change. |
 
-## The contenders
+Every cost and time effect is significant except the one marked n.s.: exact permutation test stratified by task, Holm-corrected
+across the five framework arms. Pass rates do not differ (p = 1.0). No arm's own tests catch more planted mutations than
+plain Claude Code's (best p = 0.19 after correction).
 
-| | One-liner | Origin | License / cost | Self-host? |
-|---|---|---|---|---|
-| **The Method** (AIDLC) ⚠️ *retired B133* | Full consulting-delivery lifecycle: discovery → construction → operations, looped | weyland (user IP, `.methodaidlc/`) | private IP | ✅ (it's local rules) |
-| **AWS AI-DLC v2** *(the incumbent since B133)* | Same full arc, upstream-maintained: 33 stages / 5 phases / 14 agents + gates + learning loop | awslabs/aidlc-workflows (`v2`, `4d0968f`) | Apache-2.0, $0 | ✅ (local `.claude/` + `bun`) |
-| **OpenSpec** | Spec-first change proposals with **delta specs**, agent-agnostic | Fission-AI | MIT, $0 | ✅ |
-| **GitHub Spec Kit** | `/specify → /plan → /tasks → /implement` pipeline with a **constitution** | GitHub | MIT, $0 | ✅ |
-| **BMAD-METHOD** | **Role-agents** (analyst/PM/architect/SM/dev/QA) + sharded story files | BMad Code, LLC | MIT, $0 | ✅ |
-| **Kiro** | Agentic **IDE** with spec flow + **steering files** + **agent hooks** | AWS | **paid tiers, Bedrock-locked** | ❌ |
+**For the selector (B86.1):** default to plain Claude Code; recommend OpenSpec when the PRD describes an area that will see
+repeated change; recommend nothing heavier for lab-scale work. Those rules come from the table above, not from a model's
+opinion (the B190 lesson).
 
-## The core finding: coverage asymmetry
+## The trial table
 
-The Method spans the whole arc and loops; the four external tools cluster tightly in the middle.
+Every cell is 3 runs; passes are counted, the rest are medians over the cell. Generated by
+`eval/sdd-bakeoff/cell_table.py` (also `results/cells.tsv` in the work dir). Cost is the USD equivalent the CLI
+reports for the subscription's usage. **Questions** are framework questions put to a person: zero for every arm that
+accepts the unattended "take the default" policy, and AI-DLC 2.11.2's gate replies. **Framework docs** are the
+framework documents the trial authored.
 
-The Method covers the entire arc (Discovery → Operate) **and** the loop back; the four external tools all cluster in the
-boxed middle band:
+| Task | Arm | Pass | Cost (USD equiv) | Wall (min) | Output tokens (k) | Questions | Framework docs |
+|---|---|---|---|---|---|---|---|
+| small | plain Claude Code | 3/3 | 0.48 | 2 | 7 | 0 | 0 |
+| small | AI-DLC 2.6.18 | 3/3 | 3.53 | 7 | 48 | 0 | 12 |
+| small | AI-DLC 2.11.2 | 3/3 | 9.41 | 14 | 84 | 6 | 24 |
+| small | BMAD 6.12.4 | 3/3 | 1.29 | 4 | 21 | 0 | 0 |
+| small | OpenSpec 1.16.0 | 3/3 | 0.87 | 2 | 12 | 0 | 6 |
+| small | Spec Kit 1.2.5 | 3/3 | 1.06 | 4 | 17 | 0 | 8 |
+| brown | plain Claude Code | 3/3 | 1.17 | 4 | 24 | 0 | 0 |
+| brown | AI-DLC 2.6.18 | 3/3 | 4.95 | 19 | 75 | 0 | 12 |
+| brown | AI-DLC 2.11.2 | 3/3 | 11.35 | 30 | 134 | 7 | 22 |
+| brown | BMAD 6.12.4 | 3/3 | 2.45 | 15 | 46 | 0 | 2 |
+| brown | OpenSpec 1.16.0 | 3/3 | 1.60 | 7 | 31 | 0 | 6 |
+| brown | Spec Kit 1.2.5 | 3/3 | 1.79 | 5 | 35 | 0 | 8 |
+| green | plain Claude Code | 3/3 | 1.17 | 4 | 21 | 0 | 0 |
+| green | AI-DLC 2.6.18 | 3/3 | 5.11 | 11 | 74 | 0 | 12 |
+| green | AI-DLC 2.11.2 | 3/3 | 10.99 | 22 | 126 | 8 | 22 |
+| green | BMAD 6.12.4 | 3/3 | 2.10 | 6 | 35 | 0 | 2 |
+| green | OpenSpec 1.16.0 | 3/3 | 1.80 | 5 | 29 | 0 | 6 |
+| green | Spec Kit 1.2.5 | 3/3 | 1.88 | 5 | 32 | 0 | 8 |
+| vague | plain Claude Code | 3/3 | 1.88 | 14 | 33 | 0 | 0 |
+| vague | AI-DLC 2.6.18 | 2/3 | 6.43 | 28 | 93 | 0 | 13 |
+| vague | AI-DLC 2.11.2 | 3/3 | 15.61 | 46 | 168 | 8 | 22 |
+| vague | BMAD 6.12.4 | 3/3 | 6.76 | 19 | 115 | 0 | 2 |
+| vague | OpenSpec 1.16.0 | 2/3 | 1.94 | 5 | 33 | 0 | 6 |
+| vague | Spec Kit 1.2.5 | 3/3 | 2.54 | 14 | 40 | 0 | 8 |
+
+The two failures:
+- **vague / AI-DLC 2.6.18:** its tests use a GNU-only `sed` form that the CI image's BusyBox doesn't support, so its
+  CI step goes red.
+- **vague / OpenSpec:** stopped after the propose step without implementing.
+
+BMAD's 0 to 2 documents reflect its quick path: on the small task it wrote none.
+
+## The four questions B86 asked
+
+1. **Per task shape, which arm delivers a passing result at the lowest cost?** Plain Claude Code on all four: the small
+   fix, the brownfield feature, the greenfield service and the vague brief. OpenSpec is the cheapest framework on every
+   shape, and on the vague brief it comes within 3% of plain Claude Code (1.94 vs 1.88).
+2. **Where does a framework's overhead not pay off?** Everywhere at this scale. The overhead buys documents, and the
+   documents save about 12% on each later change. That pays back only for OpenSpec (after ~4 changes) and Spec Kit
+   (~6) on an area that keeps changing.
+3. **Which project facts change the winner?** In this data, none changed it: plain Claude Code won every shape. Two facts
+   change the cost of being wrong:
+   - **Size and vagueness** multiply the heavy frameworks' overhead: BMAD went from 2.7x on the small fix to 3.6x on
+     the vague brief.
+   - **Expected future change** is the only fact that earns documents back.
+
+   For the selector, those are the features: expected change frequency first, then size.
+4. **Does AI-DLC's scope cover small-to-large well enough to make a second framework redundant?** No, in the other
+   direction. On the small fix it auto-selected its lightest scope, `bugfix`, in all 3 runs, and still cost 7x plain
+   Claude Code on a two-file change (3.53 vs 0.48). A second,
+   lighter framework (OpenSpec) is the one worth keeping for spec-worthy work.
+
+## How it was measured
 
 ```mermaid
 flowchart LR
-  D["Discovery /<br/>Opportunity<br/>whether to build"] --> R["Requirements"] --> DES["Design"] --> T["Tasks"] --> I["Implementation"] --> TE["Test exec"] --> DEP["Deploy"] --> O["Operate /<br/>Learn"]
-  O -.loop back.-> D
-  subgraph EXT["OpenSpec · Spec Kit · BMAD · Kiro all live in this band"]
-    R
-    DES
-    T
-    I
-  end
+  T["4 lab tasks<br/>(3 replays + 1 vague brief)"] --> R1["Round 1<br/>each arm x 3 runs"]
+  R1 --> J1["Hidden judge<br/>(behaviour only)"]
+  R1 --> Q["Layer 1: quality<br/>ruff, lizard, radon,<br/>mutation of own tests"]
+  R1 --> F["Layer 2: follow-on change<br/>by plain Claude Code"]
+  F --> A["Docs ablation<br/>same follow-on,<br/>framework docs removed"]
+  R1 --> O["Spec as oracle<br/>planted defect,<br/>read-only reviewer"]
 ```
 
-**Lifecycle coverage** (✅ owned · ⚠️ partial · — absent):
+- **Tasks** (each rebuilt from a `git archive` of the commit before the real fix, so no later commit is visible):
+  - **small:** the alert-rules.bats PyYAML hex guard.
+  - **brown:** the B234 private-lane guard and its aliases.
+  - **green:** the store-scaler service, built from nothing.
+  - **vague:** a two-sentence brief ("accept expiries").
+- **Arms:** each framework installed by its own installer at a pinned version, plus plain Claude Code. Same model, task
+  text, caps, unattended answer policy and sandbox for every arm. The sandbox gives each trial a fresh config dir, no MCP
+  servers, no read access to the lab repo or home dirs, and a registry-only network allowlist.
+- **Judging:** hidden reference judges, validated to pass the real solution and fail the base. They check behaviour and
+  exit codes, never wording. The vague judge is reason-aware: a planted expiry counts as caught only when the failing check
+  names it.
+- **Replication:** 3 runs per cell (60 runs across the five original arms, 12 more for AI-DLC 2.11.2), run 2 at a time in
+  a seeded shuffled order, so no arm always ran first or last.
+- **AI-DLC 2.11.2** refuses a standing "take the default" instruction: its guard takes an answer only from a real human
+  turn. It ran under a click-through driver that resumes the session with "Yes - take the recommended option" at each gate.
+  That is how 2.11 is meant to be used, but it is a different protocol from the other arms.
 
-| Stage of the arc | OpenSpec | Spec Kit | BMAD | Kiro | **Method** |
-|---|:---:|:---:|:---:|:---:|:---:|
-| Discovery / Opportunity (*whether* to build) | — | — | ⚠️ analyst brief | — | **✅✅** |
-| Requirements | ✅ | ✅ | ✅ | ✅ (EARS) | ✅ |
-| Design (tech + UX/service) | ✅ | ✅ | ✅ | ✅ | ✅ (UX **+** service) |
-| Tasks / decomposition | ✅ | ✅ | ✅ | ✅ | ✅ (units) |
-| Implementation | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Test **execution** / QA | ⚠️ spec-validate only | ⚠️ encouraged, not run | ⚠️ QA *review*, not exec | ⚠️ via hooks | ✅ Build & Test |
-| Deploy / release | — | — | — | ⚠️ AWS deploy actions | ✅ Deployment |
-| Operate / telemetry / **learn-loop** | — | — | — | — | **✅✅** Outcome Telemetry → Continuous Discovery |
+## What the documents are worth
 
-The pattern is unambiguous: **the externals are coding workflows; the Method is a delivery lifecycle.** BMAD reaches
-slightly upstream (an analyst "brief") and Kiro slightly downstream (AWS deploy actions), but neither owns the *whether-to-
-build* decision or the *learn-and-loop* tail.
+| Measure | Result |
+|---|---|
+| **Docs ablation** (13 valid pairs) | The same follow-on change, by plain Claude Code, cost **12% more** without the framework's documents (geometric mean, exact sign-flip p = 0.04). Every follow-on passed either way. |
+| **Spec as oracle v1** (36 reviews) | A read-only reviewer found a planted single-site defect in **36/36** cases, with or without documents. Framework documents were opened in 1 review. |
+| **Spec as oracle v2** (intent defects) | A mechanical rule found only 3 of 16 outputs where a value could be changed consistently in code and tests, and only 1 was valid. All 6 reviews found the defect without documents. |
 
-## Decision matrix
+The oracle result says something about this repo, not only the frameworks: the intended values also live in shared config,
+fixtures, runbooks and committed rules, so a framework's documents are never the only record of intent. Their measurable
+value here is the 12% saving on later changes: about $0.10 per change, against $0.38 to $3.83 of extra cost up front.
 
-| Axis | OpenSpec | Spec Kit | BMAD | Kiro | **Method** |
-|---|---|---|---|---|---|
-| **Named stages** | explore→propose→review→apply→verify→archive | constitution→specify→(clarify)→plan→(checklist)→tasks→(analyze)→implement→converge | v6: Analysis→Planning→Solutioning→Implementation (SM→Dev→QA loop) | Requirements→Design→Tasks→Implementation | Pre-Inception→Inception→Construction→Operations (many sub-stages) |
-| **Agent / role model** | single agent + human gate | single agent + human gate | **role-agents** hand off 1 doc each | single agent, spec/vibe + supervised/autopilot modes | **human team ownership** per stage + PM gates |
-| **Human gates** | review-before-code | clarify/checklist/analyze | PO-validate + per-story approval | per-phase approval (skippable in Quick Spec) | **"Wait for Explicit Approval"** at every stage |
-| **Iteration / change model** | **delta specs** (ADDED/MODIFIED/REMOVED) | new numbered feature branch/dir | new epic/stories | new spec dir | **Iteration 0 (full) vs N (delta-only)** |
-| **Governance / standards** | forkable workflow *schemas* | **constitution** (machine-checked) | checklists/templates | **steering files** (mode-scoped) | always-enforced baseline + **3 knowledge repos** + extensions |
-| **Tooling surface** | CLI + injected slash-cmds (30+ assistants) | `specify` CLI + slash-cmds (30+) | `npx bmad-method` + persona invokes + web bundles | **full IDE** (Code-OSS fork) + CLI (ACP) | Markdown rules driving any assistant (here: Claude Code) |
-| **Brownfield strength** | **strong** (delta model) | moderate | weaker (greenfield-leaning) | moderate | strong (Reverse-Engineering stage) |
-| **Audit trail / traceability** | spec files | artifacts + branches | doc chain (no trace DB) | `.kiro/` markdown | **`audit.md` + `aidlc-state.md` + plan checkboxes** |
-| **$0 / self-host** | ✅ MIT, self-host | ✅ MIT, self-host | ✅ MIT, self-host | ❌ AWS/Bedrock, paid | ✅ local |
-| **Distinctive** | delta specs; forkable schemas | constitution; consistency gates | role-agent orchestration; context-engineered story files; expansion modules | steering files; agent hooks; EARS; IDE-native persisted specs | full lifecycle + discovery + ops loop + team ownership + knowledge repos |
+## Findings beyond the scores
 
-## Per-framework notes
+- **OpenSpec's propose step can halt unattended work.** In 1 of its 12 valid runs (and 1 run later archived for the
+  Node 18 crash) the agent read `/opsx:propose` as "planning only" and stopped before implementing, despite the
+  instruction to continue. Name the apply step explicitly.
+- **Runtimes matter and fail silently.** OpenSpec 1.16.0 needs Node 22.12 or later; on Node 18 `openspec new change`
+  crashed in every run, and the agents worked around it by hand. AI-DLC needs `bun`, and BMAD needs `uv`. A trial whose
+  framework engine never ran still passes, so prove the engine ran before reading a result.
+- **OpenSpec sends anonymous usage telemetry by default.** Its CLI says so on first use (opt out with
+  `OPENSPEC_TELEMETRY=0`). The trial sandbox's network allowlist blocked it; anywhere private PRDs are involved (the
+  B86.1 selector), set the opt-out.
+- **AI-DLC 2.11 is built for a person at the keyboard.** Its human-turn guard is a feature (the plan you approve is the plan
+  that runs), and `AIDLC_UNATTENDED=1` does not lift it; it only stops automated prompts counting as a person.
+- **Quality is a property of the model, not the framework.** Mutation scores of the trials' own tests ran 0.78 to 1.0,
+  with every arm's range overlapping plain Claude Code's (0.83 to 1.0) and no significant difference. In round 1 Spec Kit
+  produced the most complex code and BMAD the lowest maintainability index on the vague task; those two were observed,
+  not tested for significance.
 
-### OpenSpec (Fission-AI · MIT · v1.8.0, ~64k★)
-Spec-first change workflow: `/opsx:propose` generates a change folder (`proposal.md` / `design.md` / `tasks.md` + **delta
-specs**), a human reviews before code, `/opsx:apply` implements, `/opsx:archive` merges the deltas into the canonical
-`specs/`. **Distinctive: delta specs** — sections `ADDED` / `MODIFIED` / `REMOVED Requirements` describe only what changes,
-purpose-built for brownfield. Covers requirements→implementation; **skips test-exec, deploy, ops.** Single-agent + human
-gate.
+## Threats to validity
 
-### GitHub Spec Kit (GitHub · MIT · v0.16.x, ~120k★)
-The most-adopted of the four. Command pipeline `constitution → specify → (clarify) → plan → (checklist) → tasks →
-(analyze) → implement → converge`, writing `spec.md` / `plan.md` / `research.md` / `data-model.md` / `contracts/` /
-`tasks.md` under numbered feature dirs. **Distinctive: the `constitution`** — persistent, versioned project principles that
-every later phase is *checked against* — plus dedicated **clarify / analyze consistency gates**. Covers
-requirements→implementation; **skips deploy/ops**; doesn't run tests.
+- **One model, lab-scale tasks:** 4 tasks, the largest a small service. A framework built for multi-team, multi-week
+  delivery could earn its overhead on work this bake-off does not contain.
+- **Small cells:** 3 runs per cell. Pass rates sit near the ceiling, so the bake-off can't show a framework raising them.
+- **Docs ablation, one run per pair:** every docs-kept follow-on ran earlier in the day than its docs-removed twin.
+- **Different protocol for AI-DLC 2.11.2:** each gate reply resumes the session, which may add cost of its own.
+- **Harness errors found and fixed during the run**, each archived under the work dir's `invalid/` with its reason:
+  - OpenSpec's Node 18 crash.
+  - The missing runtimes.
+  - A contaminated first ablation, whose repos already held the answer.
+  - The 2.11 driver over-replying after a final status.
 
-### BMAD-METHOD (BMad Code, LLC · MIT · v6.x, ~52k★)
-The closest structural cousin to the Method. **Role-agents** — Analyst → PM → Architect → PO → Scrum Master → Dev → QA/Test
-Architect — each emitting **one hand-off document** (`brief.md` → `prd.md` → `architecture.md` → sharded epics/stories →
-code). **Distinctive: context-engineered story files** (the SM bakes full context + architecture into each story so the Dev
-agent needs no other memory) + **document sharding** + **expansion modules**. Human gates at PO-validation and per-story
-approval. **Thin on test-exec/CI/deploy.** (v6 is a four-phase rewrite of the v4 two-phase model; the planning→story-loop
-mechanic is unchanged.)
+## History: the 2026-08-11 desk evaluation
 
-### Kiro (AWS · paid, Bedrock-locked · GA 2026)
-An agentic **IDE** (Code-OSS fork): spec flow `requirements.md` (**EARS notation**) → `design.md` → `tasks.md` under
-`.kiro/specs/`, plus **steering files** (`.kiro/steering/*.md`, mode-scoped Always/Conditional/Manual/Auto) as persistent
-project memory and **agent hooks** (`.kiro/hooks/*.json`, event-triggered automation that can *block* actions). Widest
-coverage of the four (reaches into AWS deploy), but **disqualified for a $0 lab**: managed AWS, **no BYOK**, Bedrock-locked,
-capped 50-credit free tier, real use $20–200/mo. Its *patterns* (steering, EARS, hooks) are the takeaway, not the tool.
+Before the bake-off, B86 compared the frameworks' feature lists against the lab's then-workflow (the bespoke "Method",
+retired for AI-DLC v2 in B133). Its core finding was **coverage asymmetry**: OpenSpec, Spec Kit, BMAD and Kiro are
+*coding workflows* in the requirements-to-implementation band, while AI-DLC is a *delivery lifecycle* that also owns
+discovery (whether to build) and operations (learn, then loop back). Its recommendation was to keep AI-DLC as the spine and
+borrow artifact notations: delta specs (OpenSpec), a checkable constitution (Spec Kit), EARS requirements (Kiro), and
+context-engineered unit files (BMAD).
 
-## Cross-pollination: what's worth borrowing into the Method
+The bake-off measured what that desk evaluation could only infer. The coverage asymmetry is real, and on lab-scale work it
+is overhead: none of the extra lifecycle produced a better outcome. **"Keep AI-DLC as the spine" is withdrawn as a default.**
+Use plain Claude Code, use OpenSpec where specs pay back, and keep AI-DLC as a studied framework
+([runbooks/aidlc-workflow.md § Version policy](../runbooks/aidlc-workflow.md#version-policy-the-lab-stays-on-2618-other-versions-live-beside-it-decided-2026-11-02-b86)).
 
-The Method already *has* a stage for everything these do — the value is in **sharper artifact conventions**:
+| | Origin | License / cost | Self-host |
+|---|---|---|---|
+| **AWS AI-DLC v2** | awslabs/aidlc-workflows | Apache-2.0, $0 | yes (local `.claude/` + `bun`) |
+| **OpenSpec** | Fission-AI | MIT, $0 | yes |
+| **GitHub Spec Kit** | GitHub | MIT, $0 | yes |
+| **BMAD-METHOD** | BMad Code, LLC | MIT, $0 | yes |
+| **Kiro** | AWS | paid tiers, Bedrock-locked | no (excluded) |
 
-1. **Delta-spec notation (OpenSpec) → the Method's Iteration-N delta.** The Method already runs Iteration N as
-   delta-only; borrowing explicit **`ADDED` / `MODIFIED` / `REMOVED`** sections in the Requirements/Application-Design
-   artifacts would make each iteration's change surface machine-diffable and unambiguous. Lowest-friction, highest-fit
-   borrow. See [[feedback-track-live-state]].
-2. **A checkable "constitution" (Spec Kit) + consistency gates.** The Method's always-enforced **baseline** + knowledge
-   repos are the equivalent of a constitution, but they're enforced by prose review. Adding a Spec-Kit-style **`analyze`
-   pass** (cross-artifact consistency: requirements ↔ design ↔ units) and a *checklist* rendering of the baseline rules
-   would harden the gates without changing the workflow.
-3. **EARS notation (Kiro) in Requirements Analysis.** A near-free formalism ("WHEN <trigger> THE SYSTEM SHALL <response>")
-   that improves testability/traceability — a natural fit for the Method's Requirements Analysis stage.
-4. **Context-engineered unit files (BMAD).** The Method's Units/User-Stories could bake full context + design references
-   into each unit file so an implementing agent needs no external memory — directly useful for agentic code-generation.
-
-## What NOT to adopt — where the Method already wins
-
-- **Don't narrow the Method to a coding workflow.** Its unique value is exactly what none of the four have: the
-  **discovery front-end** (Opportunity Framing → Validated Intent — *whether* to build), the **operations/telemetry →
-  continuous-discovery loop**, **engagement archetypes**, the **three knowledge repositories**, and the **audit trail**
-  (`audit.md` / `aidlc-state.md`). These are delivery-lifecycle concerns the tools simply don't model.
-- **Don't replace human team ownership with AI role-agents wholesale.** BMAD's persona hand-offs are attractive, but the
-  Method's per-stage **team ownership + Program-Management gates** are a *governance* model, not an execution trick. BMAD
-  could optionally be instantiated *inside* a stage to draft an artifact, but it isn't a substitute for the gate model.
-- **Don't adopt Kiro.** $0 violation + Bedrock lock-in + not self-hostable — a hard no for this lab. Borrow the patterns,
-  not the product. See [[feedback-zero-budget]].
-
-## Recommendation
-
-1. **Keep the Method as the spine.** It is a superset — a delivery lifecycle, not a coding workflow.
-2. **Adopt the artifact notations** (items 1–4 above) into the relevant Method stages — cheap, additive, no workflow change.
-3. **Optionally trial OpenSpec or Spec Kit on a single small unit** to feel the artifact discipline first-hand ($0, MIT,
-   agent-agnostic, reversible). Prefer OpenSpec for its brownfield delta model on an existing codebase; Spec Kit for its
-   constitution + consistency gates.
-4. **No tool migration, no Kiro.**
-
-## Provenance & freshness
-
-Compiled from four parallel web-research passes (2026-08-11). Figures move fast — verify before quoting:
-
-- **OpenSpec** v1.8.0, ~64.6k★ (two fetches agreed, but high for a ~1-yr repo — sanity-check). MCP support *unconfirmed*
-  (CLI + injected slash-commands is the delivery path). Workflow recently rebuilt into the `/opsx:` namespace — older
-  tutorials may show legacy commands.
-- **Spec Kit** v0.16.x (~Aug 2026), ~120k★. Commands recently renamed to the **`speckit.`** prefix; the "9-article
-  constitution" is a *customizable template*, not fixed rules.
-- **BMAD** v6.x (~v6.8.0, ~May 2026), ~52k★. **v4 two-phase** framing (widely cited) vs **v6 four-phase** scale-adaptive —
-  pin the matrix to v6; the underlying planning→story-loop is unchanged. "QA" is v6's "Test Architect" module.
-- **Kiro** GA in 2026 (exact date conflicts: ~Mar–May 2026), Pro tier **$20/user/mo** (some reviews cite $19 — trust $20).
-  Model lineup shifts fast; treat version numbers as point-in-time.
-
-Related: [[aidlc-v2-migration]] (the Method → AI-DLC v2 cutover that superseded this page's incumbent),
-[[methodaidlc-user-authored]] (the Method was the user's own IP), [[feedback-zero-budget]].
-Backlog: B86 (this eval), B126 (borrow the notations), B133 (the v2 migration).
+Related memory: [[spec-driven-frameworks-b86]], [[aidlc-version-policy]], [[bakeoff-framework-runtime-missing]],
+[[bakeoff-derived-repo-contamination]]. Backlog: B86 (this evaluation), B86.1 (the selector), B133 (the v2 migration).

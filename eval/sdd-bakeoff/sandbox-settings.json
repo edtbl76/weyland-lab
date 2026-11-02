@@ -1,0 +1,26 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "autoAllowBashIfSandboxed": true,
+    "filesystem": {
+      "denyRead": ["~/.ssh", "~/.aws", "~/.kube", "~/.docker", "~/.claude", "~/.config", "~/.local/share", "~/agent-memory", "~/IdeaProjects", "~/Documents"],
+      "allowRead": ["/home/edwardmangini/sdd-bakeoff/toolbox"]
+    },
+    "network": {
+      "allowedDomains": ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org", "github.com", "codeload.github.com", "objects.githubusercontent.com", "raw.githubusercontent.com"]
+    }
+  },
+  "permissions": {
+    "blockReadsOutsideWorkingDirectories": true,
+    "deny": [
+      "Read(//home/edwardmangini/IdeaProjects/**)",
+      "Edit(//home/edwardmangini/IdeaProjects/**)",
+      "Write(//home/edwardmangini/IdeaProjects/**)",
+      "Read(//home/edwardmangini/agent-memory/**)",
+      "Read(//home/edwardmangini/.ssh/**)",
+      "Read(//home/edwardmangini/.claude/**)"
+    ]
+  }
+}

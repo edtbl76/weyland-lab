@@ -194,6 +194,18 @@ teardown() {
   [ "$(echo "$output" | grep -c 'eval/coding-agents')" -eq 0 ]   # the eval fixture is NOT a project
 }
 
+@test "the SDD bake-off's hidden judges are never discovered as a project (B86)" {
+  # eval/sdd-bakeoff/reference/judge*-<task>/ hold test_*.py files that judge a TRIAL's service (SERVICE_DIR); run
+  # standalone they have nothing to test and fail. Same class as the coding-agent fixtures above.
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/eval/sdd-bakeoff/reference/judge-green"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/eval/sdd-bakeoff/reference/judge-green/test_contract.py"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python --list-roots
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | grep -c 'eval/sdd-bakeoff')" -eq 0 ]   # the judges are NOT a project
+}
+
 @test "multiple real project roots are all discovered, not just the first" {
   mkdir -p "$SANDBOX/fix/go" "$SANDBOX/scan/a" "$SANDBOX/scan/b"
   printf 'module fixture\ngo 1.22\n' > "$SANDBOX/fix/go/go.mod"

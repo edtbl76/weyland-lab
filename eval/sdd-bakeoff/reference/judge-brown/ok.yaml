@@ -1,0 +1,13 @@
+data:
+  config.yaml: |
+    model_list:
+      - model_name: wl-default
+        litellm_params: {model: openai/groq/openai/gpt-oss-120b, api_base: "http://bifrost.weyland.svc.cluster.local:8080/v1"}
+      - model_name: wl-private-rag
+        litellm_params: {model: ollama_chat/gpt-oss:20b, api_base: "http://192.168.1.230:11434"}
+      - model_name: wl-private-reason
+        litellm_params: {model: ollama_chat/qwen3:30b-a3b, api_base: "http://192.168.1.230:11434"}
+    router_settings:
+      fallbacks:
+        - {"wl-default": ["gemini-flash"]}
+        - {"wl-private-rag": ["wl-private-reason"]}

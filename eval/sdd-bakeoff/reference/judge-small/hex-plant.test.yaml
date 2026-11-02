@@ -1,0 +1,15 @@
+# Judge plant (bake-off small fix): passes ONLY because PyYAML reads the bare 0x15 as hex 21 — with probe_success=0 the
+# endpoint-down alert WOULD fire. A fixed harness must refuse this fixture instead of running it.
+rule_files:
+- rules.yaml
+evaluation_interval: 1m
+tests:
+- name: 'plant: a bare hex-looking series value'
+  interval: 1m
+  input_series:
+  - series: probe_success{job="weyland-blackbox",instance="https://plant.weyland.lab"}
+    values: 0x15
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WeylandEndpointDown
+    exp_alerts: []

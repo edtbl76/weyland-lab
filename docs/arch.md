@@ -1057,6 +1057,11 @@ structured-development workflow: **33 stages / 5 phases / 14 agents**, an approv
 learning system that promotes human corrections into persistent rules. Invoked **on demand** with `/aidlc`; it does
 **not** ambiently govern ordinary conversational work.
 
+**Version policy (2026-11-02, B86).** The lab stays on 2.6.18 although upstream ships v2.11.2: in the B86 bake-off
+2.11.2 cost 2.4x as much as 2.6.18 and needed 6-10 human replies per change, for no measured quality gain. Other
+AI-DLC versions live beside the lab, one pinned project folder each (AI-DLC serves one version per project), never
+mixed into this checkout. Details: [runbooks/aidlc-workflow.md](runbooks/aidlc-workflow.md#version-policy-the-lab-stays-on-2618-other-versions-live-beside-it-decided-2026-11-02-b86).
+
 **How the engine is shaped.** v2 is *not* a prompt library — it is a deterministic forwarding loop around a
 TypeScript engine. The orchestrator asks `aidlc-orchestrate.ts next` what to do, receives exactly **one typed
 directive** (`run-stage`, `ask`, `load-steering`, `print`, `error`, `done`, `parked`, `invoke-swarm`), executes that
@@ -1073,9 +1078,17 @@ evaluated the external spec-driven field. The comparison that decided it:
 |---|---|---|---|---|
 | **AWS AI-DLC v2** (chosen) | 33 stages / 5 phases / 14 agents, gates + learning loop | **$0 fork tax** — upstream is the source; pin a commit | on-demand, scope-adaptive (7-stage `bugfix` → 33-stage `enterprise`) | ✅ **adopted** |
 | **The Method** (incumbent) | v1 AI-DLC + consulting overlay | **high** — every AWS release forced a re-port | mob rituals / team-ownership / engagement archetypes are ceremony for one person | ❌ retired |
-| **OpenSpec / Spec Kit / BMAD** (B86) | coding-workflow scope — delta specs, constitution gate, context files | low | narrower than a lifecycle; **notations worth borrowing** | ➖ cross-pollinate (B126), don't migrate |
+| **OpenSpec / Spec Kit / BMAD** (B86) | coding-workflow scope — delta specs, constitution gate, context files | low | narrower than a lifecycle; measured 2026-11: 1.35x / 1.6x / 2.6x plain Claude Code's cost, same pass rate and quality | ➖ OpenSpec where specs pay back; not a default |
 | **Kiro** | managed lifecycle | low | **$0 violation** — managed AWS / Bedrock-locked / no BYOK | ❌ rejected |
 | **No framework** | — | zero | the DoD gate + backlog already carry the quality bar | ➖ baseline |
+
+**Measured since (B86 bake-off, 2026-11-02).** The table above was the adoption decision, made from feature lists. The
+bake-off then ran every framework on four lab tasks, three runs each, against plain Claude Code. No framework produced
+better results; AI-DLC 2.6.18 cost 4.6x plain Claude Code and 2.11.2 cost 10.9x. AI-DLC stays installed as a studied
+framework (version policy above), and the default for lab work is plain Claude Code, with OpenSpec where an area keeps
+changing. Verdict, method and limits: [concepts/spec-driven-frameworks.md](concepts/spec-driven-frameworks.md);
+harness `eval/sdd-bakeoff/`, runbook [runbooks/sdd-frameworks.md](runbooks/sdd-frameworks.md), flow
+[diagrams/flow-sdd-bakeoff.md](diagrams/flow-sdd-bakeoff.md).
 
 **The tradeoff, stated honestly.** The fork tax was the whole problem: maintaining a private overlay meant every
 upstream release became a merge project, and the overlay's *substance* — what actually drove quality here — turned
@@ -1224,6 +1237,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Control/ops | Coding agents — dev → agent → direct provider (B15) | [flow-coding-agents.md](diagrams/flow-coding-agents.md) |
 | Control/ops | Multi-harness — Linear issue → Codex / Claude Code → Linear MCP + Bifrost (shared memory planned, B182) | [flow-multi-harness.md](diagrams/flow-multi-harness.md) |
 | Control/ops | AI-DLC workflow — `/aidlc` forwarding loop (next → directive → stage → report) (B133) | [flow-aidlc-workflow.md](diagrams/flow-aidlc-workflow.md) |
+| Control/ops | SDD framework bake-off — one sandboxed trial → hidden judge → stats, with the AI-DLC 2.11 click-through driver (B86) | [flow-sdd-bakeoff.md](diagrams/flow-sdd-bakeoff.md) |
 | Control/ops | model_catalog refresh (B26) | [flow-model-catalog.md](diagrams/flow-model-catalog.md) |
 | Control/ops | Roadmap-sync -> Hermes Kanban (B27) | [flow-roadmap-sync.md](diagrams/flow-roadmap-sync.md) |
 | Control/ops | Alerting (B5) | [flow-alerting.md](diagrams/flow-alerting.md) |
