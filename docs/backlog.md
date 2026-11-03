@@ -2087,7 +2087,12 @@ Untested facts are caveats, never rules: discovery, several teams, large scale, 
    - The new virtual key is inventoried in both key lists.
    - The rules cite `cells.tsv` / `analysis.txt` from B86.
    - Any future rule change needs new trial evidence (runbook).
-   - Bifrost prompt/skill distribution, deliberately not done: the backlog made it a decision for after the CLI works, so it's the owner's call.
+   - Bifrost skill distribution: the backlog left it for after the CLI worked. **Done 2026-11-02 on the owner's go** ("let's make it a skill as well"):
+     - The new skill `select-sdd-framework` makes an agent run the real selector, never its own opinion; pass on caveats and ask about unknowns; and never report a pick after exit 2.
+     - Found on the way: the `use-model-gateway` skill said every lane has a fallback, stale since B234. Corrected to name the private lanes (no fallback, fail closed).
+     - Tests: 2 Red-first tests in `test_bifrost_skills.py`, 26 passing.
+     - Shipped: CI #568 green, then `ship-images.sh` made `git-94e2807e` live and smoke-verified.
+     - Published: the owner ran the registrar (`1 created, 1 updated, 24 unchanged, 0 failed. 26 skills total.`), and the served bundle `/api/skills/serve/all/download.zip` holds both skills.
 9. **DR:** N/A, no new state. The rules and code are in git. The key's hash is in the `litellm` database on core Postgres, which has its own `dr.md` row; the key value is in `scripts/.env`, under the existing `.env` escrow row. A lost key is re-minted with § 1d.
 
 **UN-DEFERRED 2026-11-02, design amended to the measured evidence (owner chose option A: "Yeah go").** B86's bake-off landed. Two changes to the design below follow from it:

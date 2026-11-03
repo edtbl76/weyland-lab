@@ -282,7 +282,7 @@ attach runtime-registered clients ("failed to get MCP client: not found"). Retir
 4. (no step — the restart the old `attach_bifrost_vk_mcp.py` needed is gone)
 5. re-authorize Hugging_Face + Linear in the UI (OAuth grant is interactive).
 6. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts/register_bifrost_prompts.py`  (Prompt Repository; its last line is the count — 2026-10-21: `101 prompts across 12 folders`, all unchanged)
-7. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts/register_bifrost_skills.py`  (Skills Repository, lab/generic Agent Skills; 2026-10-21: `0 created, 0 updated, 25 unchanged, 0 failed. 25 skills total.`)
+7. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts/register_bifrost_skills.py`  (Skills Repository, lab/generic Agent Skills; 2026-11-02: `1 created, 1 updated, 24 unchanged, 0 failed. 26 skills total.` (B86.1 added `select-sdd-framework`); 2026-10-21: `0 created, 0 updated, 25 unchanged, 0 failed. 25 skills total.`)
 8. ~~`python3 scripts/register_aidlc_skills.py | …`~~ — ⛔ **RETIRED (B133, 2026-08-20). Do not run.** It read the
    Method rule tree (`.methodaidlc/.method-rule-details/`), which the AIDLC-v2 migration removed, so it now exits
    without emitting a loader. Its 52 AIDLC stage/ritual/extension procedures **remain registered** in Bifrost from

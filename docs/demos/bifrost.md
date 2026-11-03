@@ -211,7 +211,9 @@ failed read or write is exit 1. Flow: [diagrams/flow-prompt-federation.md](../di
 kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts/register_bifrost_skills.py
 kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts/register_bifrost_prompts.py
 ```
-RUN 2026-10-21: `0 created, 0 updated, 25 unchanged, 0 failed. 25 skills total.` and `0 created, 0 updated, 101
+RUN 2026-11-02 (B86.1, after the `select-sdd-framework` skill was added and `use-model-gateway` corrected):
+`1 created, 1 updated, 24 unchanged, 0 failed. 26 skills total.` (`use-model-gateway -> 1.0.1`); the served bundle
+`/api/skills/serve/all/download.zip` then held both. RUN 2026-10-21: `0 created, 0 updated, 25 unchanged, 0 failed. 25 skills total.` and `0 created, 0 updated, 101
 unchanged, 0 conflict, 0 failed. 101 prompts across 12 folders.`, both exit 0.
 
 **2. The update, conflict and failure paths.** These are shown against stubbed Bifrost responses, not live, on

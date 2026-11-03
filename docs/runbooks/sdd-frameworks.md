@@ -54,6 +54,11 @@ Features: {"change_kind": "change_existing", "size": "small", "problem_settled":
   and `unknown` once.
 - Treat the pick as stable, but read the unknowns and caveats, not only the pick.
 
+**For coding agents:** the Bifrost skill `select-sdd-framework` carries this command and how to read the report, so
+any agent with the lab's skills (Claude Code, Codex) runs the selector instead of answering from its own opinion. Its
+source is `services/weyland-dagster/scripts/register_bifrost_skills.py`; a change there ships with the Dagster image
+and is published by that registrar ([mcp-gateway.md](mcp-gateway.md)).
+
 **Changing the rules:** only with new trial evidence. Re-run the bake-off arm (below), regenerate the trial table, and
 cite the new runs in the rule. Bump `version:` in the rules file.
 
