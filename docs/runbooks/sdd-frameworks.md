@@ -9,6 +9,53 @@ The code is in the repo (`eval/sdd-bakeoff/`, the `C` root). Everything a run pr
 (`SDD_BAKEOFF_HOME`, default `/home/edwardmangini/sdd-bakeoff`, the `B` root), outside the repo, because the sandbox
 denies trials any read of `~/IdeaProjects`.
 
+## Pick a framework for a project (the selector, B86.1)
+
+Give it a prompt or a PRD; it recommends a spec-driven framework, or none, with its reasons. An LLM only extracts a
+fixed feature record from the document; the rules in `scripts/sdd-selector-rules.yaml` decide, each citing the bake-off
+evidence it rests on ([flow](../diagrams/flow-sdd-selector.md)). The document is read on the **private lane**
+`wl-private-rag`: LAN Ollama only, no fallback (B234), so a private PRD never leaves the LAN. It uses its own virtual
+key, `SDD_SELECTOR_LITELLM_KEY` ([model-gateway.md](model-gateway.md) § 1d).
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && LITELLM_API_BASE=http://192.168.1.243:30400 python3 /home/edwardmangini/IdeaProjects/weyland/scripts/select_sdd_framework.py /path/to/prd.md
+```
+
+Use `-` in place of the path to read stdin, and add `--json` for the machine-readable report. To decide from a feature
+record you wrote yourself, with no model call (free), use `--features <record.json>`.
+
+- **Reads:** 3, about 25 s each on rogueone. A field counts only when all three agree; otherwise it is `unknown` and
+  listed as read inconsistently. The call loads `gpt-oss:20b` on rogueone, so the operator's model reloads on its next
+  call.
+- **Exit codes:** `0` means a recommendation. `2` means no recommendation: no key, no `LITELLM_API_BASE`, the model is
+  unreachable, an answer is malformed, or the document is empty. **Never a default pick on failure.**
+- **The report:** the pick and the runner-up; the rule that fired, with its evidence and trial count; the cost band of
+  the nearest measured task; caveats for facts no trial covered; and the facts read as unknown, which are what to
+  clarify.
+
+Example (RUN 2026-11-02, `scripts/tests/fixtures/sdd-selector/brownfield-recurring-prd.md`):
+
+```
+Pick: OpenSpec
+Runner-up: plain Claude Code (no framework)
+Why (rule repeated-change, 25 trial(s)): the area will keep changing: OpenSpec is the cheapest framework on every measured task, and framework documents make each later change about 12% cheaper, so OpenSpec's extra cost pays back after about 4 later changes
+  evidence: docs ablation: 13 pairs, follow-on cost x1.12 without the documents, exact sign-flip p = 0.04 (analysis.txt)
+  evidence: trial table: OpenSpec the cheapest framework on small, brown, green and vague (cells.tsv)
+Cost band: nearest measured task 'small': this pick $0.87 median, 3/3 passed; plain Claude Code $0.48
+Features: {"change_kind": "change_existing", "size": "small", "problem_settled": "settled", "expected_change": "recurring", "teams": "one", "risk": "normal", "existing_specs": "none", "named_framework": "none"}  (rules v1)
+```
+
+**Measured stability (2026-11-02):** 8 documents, each run twice: the four B86 task briefs and the four fixtures in
+`scripts/tests/fixtures/sdd-selector/`.
+- The **pick was the same on both runs, 16 of 16**, and it was the one the evidence supports for every document.
+- The **feature record was identical for 7 of 8**. The drift: `vague-idea.md` read `expected_change` as `one_off` once
+  and `unknown` once.
+- Treat the pick as stable, but read the unknowns and caveats, not only the pick.
+
+**Changing the rules:** only with new trial evidence. Re-run the bake-off arm (below), regenerate the trial table, and
+cite the new runs in the rule. Bump `version:` in the rules file.
+
 ## Self-test (free: no agent, no docker inside, no network)
 
 [rogueone]

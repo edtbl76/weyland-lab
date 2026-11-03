@@ -1,0 +1,105 @@
+# B86.1 — the spec-driven framework selector's rules (read by scripts/select_sdd_framework.py).
+#
+# An LLM only EXTRACTS the feature record below from a prompt or PRD; these rules decide (the B190 lesson: an LLM
+# readiness SCORE predicted outcomes no better than chance). Every rule cites the B86 bake-off evidence it rests on,
+# and a fact no trial covered is a CAVEAT, never a rule. Re-score only with new trial evidence (eval/sdd-bakeoff).
+# Source: docs/concepts/spec-driven-frameworks.md (measured 2026-10-31..11-02, Opus 5.5, 3 runs per cell).
+version: 1
+measured: 2026-11-02
+
+# The fixed feature record. Every field allows `unknown`; nothing is guessed.
+features:
+  change_kind: [new_code, change_existing, unknown]          # greenfield vs brownfield
+  size: [one_line, small, medium, large, unknown]            # one_line = a one-line fix; small = a few files; medium = one service or feature; large = several services
+  problem_settled: [settled, unsettled, unknown]             # is the problem itself still being discovered?
+  expected_change: [one_off, recurring, unknown]             # will this area keep changing after this work? (operational lifetime)
+  teams: [one, several, unknown]
+  risk: [normal, regulated, unknown]                         # compliance, safety, money
+  existing_specs: [none, present, unknown]                   # spec documents already exist for this area
+  named_framework: [none, aidlc, bmad, openspec, speckit, unknown]   # a framework the document itself asks for
+
+# The bake-off's cells (cells.tsv): runs, passes, median cost (USD equivalent).
+calibration:
+  small:
+    none: {runs: 3, passes: 3, cost: 0.48}
+    aidlc: {runs: 3, passes: 3, cost: 3.53}
+    bmad: {runs: 3, passes: 3, cost: 1.29}
+    openspec: {runs: 3, passes: 3, cost: 0.87}
+    speckit: {runs: 3, passes: 3, cost: 1.06}
+  brown:
+    none: {runs: 3, passes: 3, cost: 1.17}
+    aidlc: {runs: 3, passes: 3, cost: 4.95}
+    bmad: {runs: 3, passes: 3, cost: 2.45}
+    openspec: {runs: 3, passes: 3, cost: 1.60}
+    speckit: {runs: 3, passes: 3, cost: 1.79}
+  green:
+    none: {runs: 3, passes: 3, cost: 1.17}
+    aidlc: {runs: 3, passes: 3, cost: 5.11}
+    bmad: {runs: 3, passes: 3, cost: 2.10}
+    openspec: {runs: 3, passes: 3, cost: 1.80}
+    speckit: {runs: 3, passes: 3, cost: 1.88}
+  vague:
+    none: {runs: 3, passes: 3, cost: 1.88}
+    aidlc: {runs: 3, passes: 2, cost: 6.43}
+    bmad: {runs: 3, passes: 3, cost: 6.76}
+    openspec: {runs: 3, passes: 2, cost: 1.94}
+    speckit: {runs: 3, passes: 3, cost: 2.54}
+
+# Which measured task a feature record is nearest to, for the cost band. First match wins; no match = no band.
+shapes:
+  - {task: vague, when: {problem_settled: unsettled}}
+  - {task: green, when: {change_kind: new_code}}
+  - {task: small, when: {change_kind: change_existing, size: [one_line, small]}}
+  - {task: brown, when: {change_kind: change_existing}}
+
+# Ordered; the first rule whose `when` matches decides. `when: {}` always matches.
+rules:
+  - id: named-framework
+    when: {named_framework: [aidlc, bmad, openspec, speckit]}
+    pick: from:named_framework
+    runner_up: none
+    why: "the document asks for this framework: a stated constraint, reported and not overridden"
+    evidence: ["B86.1 design: a PRD that names a framework is a constraint (EMA-290, Edge cases)"]
+    trials: 1
+  - id: repeated-change
+    when: {expected_change: recurring}
+    pick: openspec
+    runner_up: none
+    why: "the area will keep changing: OpenSpec is the cheapest framework on every measured task, and framework documents make each later change about 12% cheaper, so OpenSpec's extra cost pays back after about 4 later changes"
+    evidence:
+      - "docs ablation: 13 pairs, follow-on cost x1.12 without the documents, exact sign-flip p = 0.04 (analysis.txt)"
+      - "trial table: OpenSpec the cheapest framework on small, brown, green and vague (cells.tsv)"
+    trials: 25        # 13 ablation pairs + 12 OpenSpec runs
+  - id: default
+    when: {}
+    pick: none
+    runner_up: openspec
+    why: "plain Claude Code was the cheapest passing arm on every measured task, and no framework raised pass rate or code quality"
+    evidence:
+      - "trial table: plain Claude Code cheapest on all 4 tasks, 12/12 passes (cells.tsv)"
+      - "every framework costs more (exact stratified permutation, Holm): OpenSpec x1.35, Spec Kit x1.64, BMAD x2.58, AI-DLC x4.59"
+    trials: 60
+
+# Facts no trial covered: reported so the reader knows the pick rests on extrapolation there. Never change the pick.
+caveats:
+  - id: discovery-untested
+    when: {problem_settled: unsettled}
+    text: "untested: the bake-off's vague brief is the nearest trial, and plain Claude Code won it, but real product discovery (is this the right thing to build?) was never measured"
+  - id: teams-untested
+    when: {teams: several}
+    text: "untested: every trial was one agent working alone; frameworks built for hand-offs between people were not measured on hand-offs"
+  - id: scale-untested
+    when: {size: large}
+    text: "untested: the largest trial was one small service; multi-service, multi-week work was not measured"
+  - id: risk-untested
+    when: {risk: regulated}
+    text: "untested: no trial carried compliance or audit requirements"
+  - id: existing-specs
+    when: {existing_specs: present}
+    text: "keep the existing spec documents: plain Claude Code reading a framework's documents made later changes about 12% cheaper (docs ablation)"
+
+# Named when its fact is unknown, so the reader knows what to clarify.
+unknown_notes:
+  expected_change: "the repeated-change rule could not be evaluated: say whether this area will see repeated change"
+  named_framework: "could not tell whether the document asks for a framework"
+  change_kind: "no cost band: say whether this is new code or a change to existing code"

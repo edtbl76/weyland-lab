@@ -30,7 +30,9 @@ plain Claude Code's (best p = 0.19 after correction).
 
 **For the selector (B86.1):** default to plain Claude Code; recommend OpenSpec when the PRD describes an area that will see
 repeated change; recommend nothing heavier for lab-scale work. Those rules come from the table above, not from a model's
-opinion (the B190 lesson).
+opinion (the B190 lesson). They are built: `scripts/select_sdd_framework.py` reads a prompt or PRD on the private lane
+and applies `scripts/sdd-selector-rules.yaml` ([runbook](../runbooks/sdd-frameworks.md#pick-a-framework-for-a-project-the-selector-b861),
+[flow](../diagrams/flow-sdd-selector.md)).
 
 ## The trial table
 

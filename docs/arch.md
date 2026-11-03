@@ -1238,6 +1238,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Control/ops | Multi-harness — Linear issue → Codex / Claude Code → Linear MCP + Bifrost (shared memory planned, B182) | [flow-multi-harness.md](diagrams/flow-multi-harness.md) |
 | Control/ops | AI-DLC workflow — `/aidlc` forwarding loop (next → directive → stage → report) (B133) | [flow-aidlc-workflow.md](diagrams/flow-aidlc-workflow.md) |
 | Control/ops | SDD framework bake-off — one sandboxed trial → hidden judge → stats, with the AI-DLC 2.11 click-through driver (B86) | [flow-sdd-bakeoff.md](diagrams/flow-sdd-bakeoff.md) |
+| Control/ops | SDD framework selector — a PRD → 3 private-lane reads (agreement or unknown) → versioned rules → a pick or none (B86.1) | [flow-sdd-selector.md](diagrams/flow-sdd-selector.md) |
 | Control/ops | model_catalog refresh (B26) | [flow-model-catalog.md](diagrams/flow-model-catalog.md) |
 | Control/ops | Roadmap-sync -> Hermes Kanban (B27) | [flow-roadmap-sync.md](diagrams/flow-roadmap-sync.md) |
 | Control/ops | Alerting (B5) | [flow-alerting.md](diagrams/flow-alerting.md) |

@@ -2041,7 +2041,65 @@ Eval + decision matrix: `docs/concepts/spec-driven-frameworks.md`. Memory: `spec
 
 ---
 
-### B86.1 — The spec-driven framework selector: a prompt or PRD in, a recommendation (or none) out — HIGH (2026-10-09, Linear EMA-290, sub-issue of EMA-76) — DEFERRED 2026-10-09 with B86 (blocked on its bake-off)
+### B86.1 — The spec-driven framework selector: a prompt or PRD in, a recommendation (or none) out — **DONE 2026-11-02 · HIGH** (2026-10-09, Linear EMA-290, sub-issue of EMA-76) — DEFERRED 2026-10-09 with B86; UN-DEFERRED 2026-11-02 (owner: "go ahead and create it")
+
+**DONE 2026-11-02.** `scripts/select_sdd_framework.py` reads a prompt or PRD and recommends a framework or `none`. The extraction is one structured-output call per read on the private lane `wl-private-rag` (B234), using its own LiteLLM virtual key `sdd-selector`; the owner minted it, and it was checked 200 on its lane and 403 on `wl-default`. The versioned rules in `scripts/sdd-selector-rules.yaml` (v1) decide:
+- **`named-framework`:** a framework the document names is a stated constraint.
+- **`repeated-change`:** an area that keeps changing gets OpenSpec. Evidence: 13 ablation pairs plus 12 OpenSpec runs.
+- **`default`:** everything else gets `none`, from 60 runs.
+
+Untested facts are caveats, never rules: discovery, several teams, large scale, regulated risk.
+
+**Found building it:** `gpt-oss:20b` at temperature 0 with a fixed seed still flipped fields between reads of the same brief (`teams` one/unknown in 5 reads). So it reads 3 times, and a field counts only when all three agree; otherwise it's `unknown` and reported. The prompt also defines each field tightly.
+
+**Measured live:** 8 documents (the four B86 task briefs plus four fixtures), each run twice:
+- the evidence-supported pick both times, **16 of 16**;
+- an identical feature record for 7 of 8. The residual drift was one field on `vague-idea.md`, one_off vs unknown, with the same pick. **The owner accepted it, 2026-11-02, "YES".**
+
+**DoD (recorded 2026-11-02, per pillar; repo tooling):**
+1. **Docs:**
+   - Runbook section `sdd-frameworks.md` § Pick a framework: the command, exit codes, report fields, the measured stability, and how to change the rules.
+   - Concept doc linked to the built selector.
+   - `secrets-map.md` row `SDD_SELECTOR_LITELLM_KEY`.
+   - `model-gateway.md` § 1d "Keys minted so far" table.
+   - `arch.md` flows-table row.
+2. **Diagrams:** `docs/diagrams/flow-sdd-selector.md`, a sequence diagram covering the 3 reads, the agreement rule and fail closed. LikeC4 is N/A: repo tooling, nothing deployed; it calls the existing LiteLLM.
+3. **Demo:** `docs/demos/sdd-selector.md`, ledger #115, every step RUN.
+   - 30 pytest.
+   - Live → OpenSpec, exit 0.
+   - 16/16 stable picks.
+   - Negative case: no key → `no recommendation`, exit 2.
+   - Key scope 200 / 403.
+4. **Cleanup:** read-only; the selector writes nothing.
+5. **Tracking:** EMA-290 criteria ticked against evidence, Done; `check-linear-sync.sh` clean; memory `spec-driven-frameworks-b86` updated. Amended as recorded:
+   - criterion 1: the rules file's name;
+   - criterion 2: four tasks;
+   - criterion 3: the evidence-based picks;
+   - criterion 5: CI confirms on push; the pipeline is added as a comment;
+   - the drift edge case: 3 agreeing reads, measured stability.
+6. **Ops:** run by hand, on demand. It loads `gpt-oss:20b` on rogueone, so it's not for CI. Its pytest suite runs in CI's Python lane.
+7. **Scans:**
+   - Sonar pre-check clean. The first scan found redundant exception classes and a hardcoded IP over HTTP; the address now comes from `LITELLM_API_BASE`, the `readiness_judge.py` convention.
+   - 30 pytest, TDD with Red seen twice.
+   - The whole `scripts/` suite passes, 600/600.
+   - Repo-guards all pass.
+8. **Cascades:**
+   - The new virtual key is inventoried in both key lists.
+   - The rules cite `cells.tsv` / `analysis.txt` from B86.
+   - Any future rule change needs new trial evidence (runbook).
+   - Bifrost prompt/skill distribution, deliberately not done: the backlog made it a decision for after the CLI works, so it's the owner's call.
+9. **DR:** N/A, no new state. The rules and code are in git. The key's hash is in the `litellm` database on core Postgres, which has its own `dr.md` row; the key value is in `scripts/.env`, under the existing `.env` escrow row. A lost key is re-minted with § 1d.
+
+**UN-DEFERRED 2026-11-02, design amended to the measured evidence (owner chose option A: "Yeah go").** B86's bake-off landed. Two changes to the design below follow from it:
+- **The extraction runs on a PRIVATE lane.** It uses `wl-private-rag` (B234: LAN Ollama only, no fallback), not a `wl-*` lane, because a PRD may be private (owner, 2026-10-31: "it has to be local"). The selector gets its own LiteLLM virtual key, `sdd-selector`, scoped to that lane only.
+- **Acceptance criterion 3 now follows the evidence.** As first written it contradicted the measurements: plain Claude Code beat AI-DLC on the vague brief (3/3 at $1.88 vs 2/3 at 3.4x) and beat OpenSpec on the brownfield change (1.4x).
+  - A one-line bug gives `none`.
+  - A brownfield change gives `none`, unless the area expects repeated change, which gives OpenSpec (pays back after ~4 changes).
+  - A vague idea gives `none`, with the caveat "untested": real product discovery, beyond a vague brief, was never measured.
+
+  Facts no trial covered (several teams, large multi-service work, regulated risk) come back as untested caveats, never as invented rules. The calibration set is now 4 tasks, not 3.
+
+The module is `scripts/select_sdd_framework.py`: an importable name, like `issue_readiness.py`. The rules are in `scripts/sdd-selector-rules.yaml`.
 
 **Repurposed 2026-10-09 (owner):** created minutes earlier as "SDD constitution", re-scoped the same day to the selector.
 

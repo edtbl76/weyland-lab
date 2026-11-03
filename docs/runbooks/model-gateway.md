@@ -242,6 +242,13 @@ set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && k
 Live 2026-10-30: `ojay-floyd` key blocked → its call 401 while another key on `wl-private-rag` and `wl-local` stayed 200;
 unblocked → 200 again.
 
+**Keys minted so far** (each its own alias, spend and revocation):
+
+| Alias | Env var in `scripts/.env` | Lanes | For |
+|---|---|---|---|
+| `ojay-floyd` | `OJAY_FLOYD_LITELLM_KEY` | `wl-private-rag`, `wl-private-reason` | OJay Floyd (B234) |
+| `sdd-selector` | `SDD_SELECTOR_LITELLM_KEY` | `wl-private-rag` | the SDD framework selector, `scripts/select_sdd_framework.py` (B86.1); minted 2026-11-02 with the command above (alias, lanes and env var changed), checked 200 / 403 |
+
 ## 2. Smoke tests (on mother)
 
 Pull the master key from the secret (no placeholder):
