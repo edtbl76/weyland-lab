@@ -19,10 +19,11 @@ key, `SDD_SELECTOR_LITELLM_KEY` ([model-gateway.md](model-gateway.md) § 1d).
 
 [rogueone]
 ```
-set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && LITELLM_API_BASE=http://192.168.1.243:30400 python3 /home/edwardmangini/IdeaProjects/weyland/scripts/select_sdd_framework.py /path/to/prd.md
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && LITELLM_API_BASE=http://192.168.1.243:30400 python3 /home/edwardmangini/IdeaProjects/weyland/scripts/select_sdd_framework.py /home/edwardmangini/IdeaProjects/weyland/scripts/tests/fixtures/sdd-selector/brownfield-recurring-prd.md
 ```
 
-Use `-` in place of the path to read stdin, and add `--json` for the machine-readable report. To decide from a feature
+That runs it on a sample PRD (expected: `Pick: OpenSpec`, the example below). For your own document, make the last
+argument that file's absolute path. Use `-` in its place to read stdin, and add `--json` for the machine-readable report. To decide from a feature
 record you wrote yourself, with no model call (free), use `--features <record.json>`.
 
 - **Reads:** 3, about 25 s each on rogueone. A field counts only when all three agree; otherwise it is `unknown` and

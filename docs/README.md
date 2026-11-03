@@ -24,6 +24,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [agent-platform-design.md](concepts/agent-platform-design.md) — Hermes agent design, MCP seam, A2A
 - [data-schema.md](concepts/data-schema.md) — RAG (4 backends) + eval store schemas, ground-truth-validated
 - [multi-harness.md](concepts/multi-harness.md) — the harness layer (Claude Code, Codex, OpenCode, Pi, Open WebUI, operator), what they share, shared memory (B182, TBD)
+- [spec-driven-frameworks.md](concepts/spec-driven-frameworks.md) — the measured SDD bake-off (B86): no framework beat plain Claude Code; OpenSpec where an area keeps changing
 - [software-factory.md](concepts/software-factory.md) — the agent conveyor decision: Emdash ADOPTED (B179); Warp Factories, OpenHands and Delta (B210, 2026-10-29) DON'T ADOPT, with the trial runs and re-open triggers
 
 ## runbooks/ — the *how* (per service)
@@ -82,6 +83,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [prompt-federation.md](runbooks/prompt-federation.md) — prompt federation (B103) — Bifrost SoT → Langfuse + MLflow sync
 - [ranger.md](runbooks/ranger.md) — Apache Ranger data-plane authz for Trino (L5 Slice A) — native-ranger DEFAULT-DENY lockout
 - [remote-training.md](runbooks/remote-training.md) — remote model training on rogueone — registry → Ray cluster → MLflow
+- [sdd-frameworks.md](runbooks/sdd-frameworks.md) — spec-driven frameworks (B86/B86.1): **pick a framework for a project** (`select_sdd_framework.py <prd>`, private lane), and run or extend the bake-off that calibrates it
 - [secrets.md](runbooks/secrets.md) — SealedSecrets (B69) — the sealing mechanism, allow-list, restore, and the bricking key
 - [service-mesh-istio.md](runbooks/service-mesh-istio.md) — Istio mesh (B8): install, sidecar injection, mTLS, Kiali (traces → Tempo), TCP-backend fix
 - [ship-images.md](runbooks/ship-images.md) — the ship loop (B135): `scripts/ship-images.sh` detect → build → tag-bump PR → three-condition gated merge → scoped Argo sync → FR1.5 tag verify + SMOKE probe/availability gate; `argocd`/`woodpecker-cli`/`gh` prerequisites, gate-failure recovery, 62 bats
