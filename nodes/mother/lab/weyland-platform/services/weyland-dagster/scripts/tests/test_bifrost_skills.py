@@ -41,6 +41,23 @@ def test_loop_skills_are_present():
     assert expected <= names, f"missing loop skills: {sorted(expected - names)}"
 
 
+def test_the_sdd_framework_selector_skill_runs_the_real_command():
+    # B86.1: the skill must drive the selector, not re-derive its rules — an agent that recommends a framework from
+    # its own opinion is exactly the LLM-scoring the selector exists to replace (the B190 lesson).
+    skill = {s[0]: s for s in reg.SKILLS}.get("select-sdd-framework")
+    assert skill, "select-sdd-framework skill missing"
+    body = skill[3]
+    assert "scripts/select_sdd_framework.py" in body
+    assert "LITELLM_API_BASE=http://192.168.1.243:30400" in body and "SDD_SELECTOR_LITELLM_KEY" in body
+    assert "exit 2" in body.lower() and "never" in body.lower()   # a failed run is not a recommendation
+
+
+def test_the_model_gateway_skill_knows_the_private_lanes_have_no_fallback():
+    # B234: wl-private-* never leave the LAN and fail closed; the skill once said every lane has a fallback chain
+    body = {s[0]: s for s in reg.SKILLS}["use-model-gateway"][3]
+    assert "wl-private-rag" in body and "no fallback" in body
+
+
 # ---- B204: reconcile = create the missing, publish a new version of the changed, leave the equal alone ----------
 # The fake mirrors the shapes OBSERVED on live Bifrost v2.2.6 (2026-10-09, read-only GET): the list is
 # {skills, total, limit, offset}, pages by `offset`, and every item's `skill_md_body` is EMPTY; the real body is only

@@ -180,10 +180,41 @@ Read results in MLflow (traces + eval runs). Note the golden set once overturned
 
 Lane separation matters:
 - **Agentic / tool-calling → LiteLLM** (transparent proxy; preserves tool schemas). Use the use-case aliases: `wl-coding`, `wl-agentic`, `wl-rag`, `wl-reason`, `wl-judge`, `wl-search`, `wl-default`, `wl-speed`, `wl-big-oss` — each has a server-side fallback chain ending in a free/always-on rung, so a call always lands. Point at the alias, not a raw model.
+- **Private data → `wl-private-rag` / `wl-private-reason` only** (B234): self-hosted Ollama on the LAN, **no fallback**, so a call fails closed rather than leave the LAN. `wl-rag` / `wl-reason` are local-FIRST but fall back to hosted: never call them private. An app gets its own LiteLLM virtual key scoped to its lanes (runbook `model-gateway.md` § 1d), never the master key.
 - **Chat / eval → MLflow AI Gateway** (normalizing; adds guardrails/budget) — but it **breaks tool schemas**, so never use it for tool-calling.
 - **Agent MCP tools → Bifrost** (`bifrost.weyland.lab/mcp`, virtual-key auth) — the agent-edge front door for MCP, separate from the LLM lanes.
 
 $0 budget: prefer the free hosted (groq/gemini/cerebras) and local (ollama) rungs; paid providers are escalation-only in the fallback chains."""),
+
+    ("select-sdd-framework", "llm",
+     "Which spec-driven framework (AI-DLC, BMAD, OpenSpec, Spec Kit) or none fits a project? Run the lab's selector on its prompt or PRD.",
+     """Use when someone asks which spec-driven development framework to use for a piece of work, or hands you a PRD and asks how to run it.
+
+**Do not answer from your own opinion.** The lab measured this (B86 bake-off: 4 lab tasks × 6 arms × 3 runs): no framework beat plain Claude Code, and every one cost more. The selector applies rules calibrated on those measurements. Run it and report what it says.
+
+Run on **rogueone** (it needs the repo's `scripts/.env` and the LAN), with the document's absolute path:
+
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && LITELLM_API_BASE=http://192.168.1.243:30400 python3 /home/edwardmangini/IdeaProjects/weyland/scripts/select_sdd_framework.py <absolute path to the PRD>
+```
+
+`-` reads the document from stdin. `--json` gives the machine-readable report.
+
+**How it works:**
+- It reads the document 3 times on the PRIVATE lane `wl-private-rag` (LAN only, no fallback), so a private PRD never leaves the LAN. It uses its own key, `SDD_SELECTOR_LITELLM_KEY`.
+- A fact counts only when all 3 reads agree.
+- The rules in `scripts/sdd-selector-rules.yaml` decide. A run takes about 75 s.
+
+**Reading the report:**
+- **Pick and runner-up:** report both, with the rule that fired and its evidence.
+- **Caveats:** facts no trial covered (real product discovery, several teams, large or regulated work). Pass them on. They mean the pick rests on extrapolation there.
+- **Unknown:** what the document didn't say. Ask the person about those; never fill them in yourself. The most important is whether the area will keep changing, because that is the one measured reason to pick OpenSpec.
+
+**Exit codes:**
+- **0:** a recommendation.
+- **2:** no recommendation (no key, model unreachable, malformed answer). **Never** report a pick after an exit 2, and never fall back to "none" yourself.
+
+Runbook: `docs/runbooks/sdd-frameworks.md` § Pick a framework. Verdict and evidence: `docs/concepts/spec-driven-frameworks.md`."""),
 
     ("remote-training-rogueone", "llm",
      "Run a model-training job on rogueone (GPU) with the MinIO registry and persistent Ray.",
