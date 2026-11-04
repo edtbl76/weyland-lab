@@ -92,7 +92,7 @@ its 128Mi pod risks OOM-killing it). Telegram pages for it: that is the check th
 
 [rogueone]
 ```
-kubectl -n monitoring run u14-test-alert --rm -i --restart=Never --image=quay.io/prometheus/alertmanager:v0.32.2 --command -- amtool alert add --alertmanager.url=http://monitoring-kube-prometheus-alertmanager.monitoring:9093 alertname=U14TestAlert severity=critical namespace=n8n --annotation=summary='U14 test alert' --annotation=description='Fired by docs/runbooks/alert-to-linear.md; resolves by itself after 5 min.'
+kubectl -n monitoring run u14-test-alert --rm -i --restart=Never --image=quay.io/prometheus/alertmanager:v0.32.2 --command -- amtool alert add --alertmanager.url=http://monitoring-kube-prometheus-alertmanager.monitoring:9093 alertname=U14TestAlert severity=critical namespace=n8n --annotation='summary="U14 test alert"' --annotation='description="Fired by docs/runbooks/alert-to-linear.md, resolves by itself after 5 min."'
 ```
 
 Expect within ~1 min: a Telegram message, and one Linear issue `U14 incident — U14TestAlert (n8n)`. Run the command a

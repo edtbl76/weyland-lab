@@ -8,7 +8,7 @@ install steps.
 ## 1. Rehearsal: the git workflow in a fresh n8n, against real Linear (RUN 2026-11-04)
 
 The cluster's pinned image (`n8nio/n8n@sha256:9cb6…`, n8n 2.29.10) in a throwaway local container with an empty data
-directory: a credential named `Linear write key` with a **different id** than the workflow file names, then the
+directory: a credential named as the file names it, but with a **different id** than the workflow file names, then the
 runbook's import and publish, then Alertmanager-shaped payloads POSTed to the webhook. Results (RUN):
 
 | Payload | Webhook answer | Linear |
@@ -40,12 +40,19 @@ alertname=InfoInhibitor severity=none -> null
 
 [rogueone]
 ```
-kubectl -n monitoring run u14-test-alert --rm -i --restart=Never --image=quay.io/prometheus/alertmanager:v0.32.2 --command -- amtool alert add --alertmanager.url=http://monitoring-kube-prometheus-alertmanager.monitoring:9093 alertname=U14TestAlert severity=critical namespace=n8n --annotation=summary='U14 test alert' --annotation=description='Fired by docs/runbooks/alert-to-linear.md; resolves by itself after 5 min.'
+kubectl -n monitoring run u14-test-alert --rm -i --restart=Never --image=quay.io/prometheus/alertmanager:v0.32.2 --command -- amtool alert add --alertmanager.url=http://monitoring-kube-prometheus-alertmanager.monitoring:9093 alertname=U14TestAlert severity=critical namespace=n8n --annotation='summary="U14 test alert"' --annotation='description="Fired by docs/runbooks/alert-to-linear.md, resolves by itself after 5 min."'
 ```
 
 Run it twice within a minute. Expect: one Telegram message per notification, and exactly one new issue
 `U14 incident — U14TestAlert (n8n)`. About 5–10 minutes later: a Telegram "resolved" message, and the issue Done with a
 `Resolved at …` comment.
+
+**RUN 2026-11-04 (live):**
+- the test alert opened EMA-329 at 18:25 and closed it at 18:30;
+- re-fired at 19:53, it **reopened EMA-329** (comment `Fired again …`, no new issue) and closed it at 19:59;
+- two real criticals opened EMA-327 (`AlertmanagerClusterFailedToSendAlerts`) and EMA-328 (`ScheduledBackupFailed`), and
+  each closed itself when its alert resolved;
+- Telegram paged throughout, with 0 Telegram and 0 webhook failures in the window.
 
 **UI.**
 - Linear: filter label `incident`. The issue's description carries the alert's summary, its label table, and the

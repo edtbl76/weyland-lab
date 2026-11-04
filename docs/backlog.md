@@ -331,7 +331,7 @@ bumps add no stateful system.
 14. **U18** — **DONE 2026-06-17 (as KEY RETIREMENT, not lockdown).** B25b removed the SFTP ingestion that U18 was hardening → the `weyland-lab` key had zero consumers (repo grep clean). Retired it instead: deleted rogueone `authorized_keys` line + the orphaned `weyland-lab-ssh-key` k8s Secret. See detail below.
 15. **B20** — Home Assistant integration — **DROPPED 2026-11-03 (rebalance: a Low that never rose, a smart-home tangent with no settled scope; Linear EMA-14 canceled). Was LOW (↓ Medium→Low 2026-09-06 — demoted at close-out as the weakest Medium: least aligned with the AI/data-platform core (a smart-home tangent), vaguest scope, 78d at Medium without rising, no dependency pull. Was: 2026-08-05; ↑ Low→Medium 2026-08-27 — had been promoted as the most EXECUTABLE item on the board: deployment decided, specs + integration map written, design now committed, genuinely $0, nothing blocking. Lands on **weyland (Proxmox), not mother**, so it costs nothing on the capacity-contended k8s node and is unaffected by rogueone's hardware state [B150]).** **Home Assistant as a STANDALONE home-automation hub** — one pane over the consumer/physical environment (Nest · Google Home/Cast · Alexa/Echo · Smart TVs). **Decoupled from agents since 2026-08-03**: the guarded act-tool (operator → HA REST API through the guard/act confirm rails + `policy.gate` for physical side effects) is a **separate, optional follow-on**, NOT the core. Deployment decided: a **Proxmox HAOS VM**, bridged LAN (local integrations need mDNS/SSDP discovery a k8s pod cannot do). Design: [docs/concepts/home-assistant.md](concepts/home-assistant.md). See detail below.
 16. **B28** — OpenClaw rehabilitation (or retire) — **DONE RESOLVED 2026-06-25: SUPERSEDED by B66.** The keep/retire/reuse decision is no longer standalone — it's the "base agent" workstream of the consolidated [B66] Operator Agent Platform (Hermes-base vs reuse-OpenClaw's-responsiveness, decided at B66 build time). OpenClaw is NOT auto-retired (reuse candidate). Both original Qs (keep-vs-retire, refactor-vs-rewrite) move to B66.
-17. **U14** — n8n: alert → Linear incident (Alertmanager webhook opens and closes a Linear issue) — **BUILT 2026-11-04, awaiting the owner install + live test (see the U14 section) · HIGH (↑ Medium→High 2026-11-03 rebalance; ↑ Low→Medium 2026-09-26; was LOW 2026-08-05). RE-SCOPED 2026-11-03 (owner: "sounds good to me").** The weekly Linear digest moved to Dagster (B237), because Dagster already snapshots Linear nightly and is the right tool for a scheduled batch job. n8n gets a job that plays to its strength, event-driven glue. A critical alert today goes to Telegram and nothing records whether it was seen, acted on or resolved (the B44 finding): the estate has no memory of incidents. So Alertmanager also posts critical alerts (`continue: true`, Telegram stays the pager) to an in-cluster n8n webhook, which opens one Linear issue per alert fingerprint (deduplicated), and comments on and closes it on "resolved". The workflow lives in git, and its import command is the restore path, tested. n8n gets its missing `dr.md` row: it runs on SQLite in PVC `n8n-data`, not Postgres as its README says. It needs a Linear WRITE key scoped to the issue writes, created by the owner. Correction: the rebalance said n8n's workflows exist only inside n8n; in fact it has none live, and its one retired workflow is already exported. Full spec in Linear EMA-16. Earlier scope follows: audit active n8n workflows before working on this. **2026-09-26: n8n has a real job** — the lab's Linear automation hub (it reaches the LAN; hosted builders don't), starting with a Linear weekly digest to Telegram. See detail below.
+17. **U14** — n8n: alert → Linear incident (Alertmanager webhook opens and closes a Linear issue) — **DONE 2026-11-04** (live: real criticals opened EMA-327/328 and closed them on resolve; the test alert re-fired into the same EMA-329) · was HIGH (↑ Medium→High 2026-11-03 rebalance; ↑ Low→Medium 2026-09-26; was LOW 2026-08-05). RE-SCOPED 2026-11-03 (owner: "sounds good to me").** The weekly Linear digest moved to Dagster (B237), because Dagster already snapshots Linear nightly and is the right tool for a scheduled batch job. n8n gets a job that plays to its strength, event-driven glue. A critical alert today goes to Telegram and nothing records whether it was seen, acted on or resolved (the B44 finding): the estate has no memory of incidents. So Alertmanager also posts critical alerts (`continue: true`, Telegram stays the pager) to an in-cluster n8n webhook, which opens one Linear issue per alert fingerprint (deduplicated), and comments on and closes it on "resolved". The workflow lives in git, and its import command is the restore path, tested. n8n gets its missing `dr.md` row: it runs on SQLite in PVC `n8n-data`, not Postgres as its README says. It needs a Linear WRITE key scoped to the issue writes, created by the owner. Correction: the rebalance said n8n's workflows exist only inside n8n; in fact it has none live, and its one retired workflow is already exported. Full spec in Linear EMA-16. Earlier scope follows: audit active n8n workflows before working on this. **2026-09-26: n8n has a real job** — the lab's Linear automation hub (it reaches the LAN; hosted builders don't), starting with a Linear weekly digest to Telegram. See detail below.
 18. **B34** — Evaluate + bake PII guard — **DONE 2026-07-29.** Baked presidio + ai4privacy NER, activated `llm_guard.pii` (SHADOW). Recall proven; entity set calibrated on real answers (dropped IP/UUID/CRYPTO noise, kept regex-precise + PERSON). Measured FP: 3/20, **all false positives** (NER tags tech nouns as PERSON) — so it **stays shadow/advisory**, enforcement value is on the export/PII-data paths not RAG-over-docs. Also shipped a live guard mode toggle (`/admin/mode`, Bearer-gated). See detail below.
 19. **B35** — Grounding guard calibration — **DONE 2026-07-28.** Switched whole-answer→**sentence-level** scoring (whole-answer NLI over-flagged 58%), calibrated the threshold `0.5`→**`0.15`** from labeled golden-set shadow data, and found grounding.nli measures chunk-**attributability** not faithfulness → **kept in shadow/advisory** (true faithfulness gating = LLM-judge lane B84). Fixed an OOM the heavier scorer introduced (2Gi→2560Mi + bounded/serialized NLI). See detail below.
 - **B36** — Hermes dashboard performance — **MOOT 2026-07-23** (Hermes retired; the dashboard died with CT-104). The B66 operator has no such web dashboard.
@@ -1509,7 +1509,7 @@ tools load.
   queries** (polling), the same no-webhooks rule as the rest of the lab.
   **Acceptance:** the digest runs on schedule and lands in Telegram with correct counts (checked against a Linear
   query); the workflow is in git and restores from it on a fresh n8n; the Linear key comes from a Secret, never the UI.
-- **BUILT 2026-11-04 (the re-scoped job, EMA-16); open until the owner's install and the live test.** A critical alert
+- **DONE 2026-11-04 (the re-scoped job, EMA-16).** A critical alert
   opens one Linear issue per fingerprint, a repeat is a no-op, the resolve comments and closes it, and a re-fire within
   24 h reopens the same issue. Telegram stays the pager. The webhook is in-cluster (Alertmanager → n8n), so the
   no-webhooks constraint above (Linear cannot reach the LAN) does not apply. What was built:
@@ -1538,8 +1538,59 @@ tools load.
     declined). Its re-export command was broken (n8n prints a log line on stdout ahead of the JSON) and now uses
     `--output`. Also added: a `dr.md` n8n row, runbook `alert-to-linear.md`, flow `flow-alert-to-linear`, demo #116,
     and the arch / api / LikeC4 updates.
-  - **Owner steps left:** the key, the credential, then the runbook's import + publish + pod restart, then the live
-    test alert (runbook § Test it end to end).
+  - **Live install (2026-11-04), two failures found and fixed, both now in the runbook:**
+    1. The import left the credential reference dangling; every run answered 500 `Credential with ID … does not
+       exist`. n8n 2.29 re-binds by name only when exactly ONE credential of that name and type exists in the
+       workflow's project, and the owner's credential was named `Linear write key`. The rehearsal had used the
+       file's name. The owner found `(U14)` in the name confusing, so the file now references `Linear write key`.
+    2. The Linear key had Write but not Read, giving `Invalid scope: read required` on the lookup. The runbook now
+       says Read + Write.
+  - **Live result:**
+    - `ScheduledBackupFailed` (a stale `postgres-backup-29894670` Job left from before the backup fix) opened
+      EMA-328. It closed itself at 18:06 when the owner deleted the Job.
+    - `AlertmanagerClusterFailedToSendAlerts` (our own install-window failures) opened EMA-327 and closed itself at
+      18:13.
+    - The test alert opened EMA-329 and closed it at 18:30. Re-fired at 19:53, it REOPENED EMA-329 (no new issue)
+      and closed it again at 19:59.
+    - Telegram paged throughout; 0 Telegram and 0 webhook failures after the fix.
+    - The test command's annotation quoting was fixed: amtool 0.32 warned and fell back to its classic parser.
+
+**DoD (recorded 2026-11-04, per pillar):**
+1. **Docs:**
+   - runbook `docs/runbooks/alert-to-linear.md`: install/restore, test, change, troubleshooting, the binding rule;
+   - n8n README corrected;
+   - `arch.md` n8n row + flows table; `api.md` n8n row (webhook contract); LikeC4 n8n element + two relationships.
+2. **Diagrams:** sequence `docs/diagrams/flow-alert-to-linear.md` (+ a flowchart in the runbook); `flow-alerting.md`
+   links it. `check-mermaid` passes in repo-guards.
+3. **Demo:** `docs/demos/alert-to-linear.md`, ledger #116.
+   - Part 1, the rehearsal: RUN.
+   - Part 2, the live run: RUN 2026-11-04, EMA-327/328/329 as above; UI is the Linear `incident` view plus n8n
+     Executions.
+4. **Clean-up:**
+   - the rehearsal's local n8n container and its data directory were removed, together with my key's encrypted copy;
+   - test issues are kept Done as the record;
+   - the test pod is `--rm`;
+   - the owner deleted the stale backup Job.
+5. **Tracking:**
+   - EMA-16 criteria ticked against this evidence, then Done; the `incident` label was created;
+   - `check-linear-sync.sh` OK live with the incident issues present;
+   - its lowest-EMA join fix, with a bats test (76/76).
+6. **Ops:**
+   - any failure answers 500, so Alertmanager retries and `AlertmanagerFailedToSendAlerts` (warning) reaches
+     Telegram. Proven live: the install-window failures fired it;
+   - Telegram is unaffected either way.
+7. **Scans:**
+   - full repo-guards PASS and bats 1206/1206 before the first push;
+   - CI #578/#579/#580 green; Sonar gate OK, 0 new issues;
+   - kubeconform 0 errors, yamllint clean, shellcheck clean.
+8. **Cascades:**
+   - Alertmanager routes, proven by `amtool` (critical → both, warning → Telegram only, Watchdog/InfoInhibitor
+     unchanged);
+   - the n8n NetworkPolicy; Traefik UI access confirmed by the owner's UI use after it went live;
+   - the linear-sync guard join;
+   - the n8n README export command (broken by a stdout log line, fixed).
+9. **DR:** `dr.md` n8n row. Restore = credential + import from git, RUN 2026-11-04 in a fresh n8n AND live in the
+   cluster (the same import, twice).
 
 ### U16 — Weaviate UI (React frontend) — **FOLDED INTO [B81] 2026-08-27** (thread (b) of the [B78] maturity bucket; Linear EMA-24 closed as merged into EMA-71)
 **Folded 2026-08-27 — the need is real and already met better elsewhere; only the *bespoke React app* is dropped.** The three jobs it was scoped for are covered:
