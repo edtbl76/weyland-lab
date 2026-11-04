@@ -209,6 +209,19 @@ The daemon is privileged + AppArmor-unconfined **in its own manifest** (accepted
 - `.yamllint` at the repo root tunes the `yaml-syntax` check: `extends: relaxed` + `line-length: disable`
   (80-col is meaningless for commented k8s manifests; keeps the checks that catch real breakage).
 
+**Run the nightly now** (`nightly-images`, cron 2 on repo 2), for example after the scheduled run failed on a
+since-fixed commit. It fires the cron immediately, as event `cron`, on the CURRENT `main`, the same as the 05:00 UTC
+run; the response names the new pipeline. Never run it while another pipeline is mid-flight: the server's SQLite
+lock makes overlapping runs collide (§ above, the #252 collision).
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && curl -sS -m 30 -X POST "$WOODPECKER_SERVER/api/repos/2/cron/2" -H "Authorization: Bearer $WOODPECKER_TOKEN" | python3 -c "import json,sys; d=json.load(sys.stdin); print('pipeline', d['number'], d['event'], d['commit'][:8], d['status'])"
+```
+
+Used 2026-11-04: #574 failed on the pre-fix commit (trivy's installer, B88 follow-up); the on-demand run became #576
+on `644db2d4`.
+
 ## Woodpecker → Port: CI reliability signal (B63, DONE 2026-08-19)
 A `notify-port` step POSTs each run's terminal status to a Port webhook DS, mapped to the **`ci_pipeline`** blueprint
 (id `repo-number`, unique per run → build history). A **`weyland_ci_reliability`** Port dashboard aggregates it
