@@ -183,7 +183,7 @@ Linear also answers a refused GraphQL write with HTTP 200 and an `errors` array.
 | Signal | Coverage |
 |---|---|
 | Metrics | n8n's own `/metrics` is off. The functional signal is Alertmanager's per-integration counters (`alertmanager_notifications_total` / `_failed_total{integration="webhook"}`), already scraped. Grafana **Alertmanager / Overview** (`alertmanager-overview`) charts them per integration: the `webhook: Notifications Send Rate` panel (sent vs failed) and `webhook: Notification Duration` (p50/p99, which is n8n's response time). |
-| Alerts | `AlertmanagerFailedToSendAlerts` (warning) when deliveries fail; blackbox probe of `n8n.weyland.lab` (added in this DoD) for the front door. |
+| Alerts | `AlertmanagerFailedToSendAlerts` (warning) when deliveries fail; blackbox probe of `n8n.weyland.lab` (added in this DoD) for the front door, and `IngressNotProbed`, which now pages for any ingress left unprobed. |
 | Logs | n8n container logs in Loki (`{namespace="n8n"}`), confirmed. Execution detail is in n8n's Executions view, and Alertmanager logs each failed response body. |
 | Traces / profiles | N/A: a single hop, and n8n is not a profiling target. |
 

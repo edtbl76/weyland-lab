@@ -185,6 +185,23 @@ J=dashboard-coverage-manual-$(date +%s); kubectl -n monitoring create job "$J" -
 
 Expected: `OK — 42 scrape job(s), every one has a dashboard or a documented exception.` (2026-11-04)
 
+### Synthetic probe coverage — the guard (U14 DoD, 2026-11-04)
+
+Every `*.weyland.lab` ingress has a blackbox target in the `weyland-uis` Probe (`k8s/monitoring/blackbox-exporter.yaml`),
+except the on-demand hosts listed there. That rule was kept by hand, and by 2026-11-04 17 live ingresses had drifted out
+of it, n8n among them. Alert **`IngressNotProbed`** (warning, after 1 h, in the same file) now joins kube-state-metrics'
+live ingress hosts (`kube_ingress_path`) against the probe targets, so a new ingress without a probe pages. To fix one,
+add the target alphabetically, at a path that answers 200 / 30x / 401 / 403 (check first:
+`curl -sk -o /dev/null -w '%{http_code}' --resolve <host>:443:192.168.1.243 https://<host>/`), or exempt an on-demand
+host in the rule's `host!~` beside the exemption list. Tested by `alert-rules.bats` (promtool). Check it now, read-only:
+
+[rogueone]
+```
+curl -s -G 'http://192.168.1.243:30909/api/v1/query' --data-urlencode 'query=count by (host) (kube_ingress_path{host=~".+\\.weyland\\.lab", host!~"flink\\.weyland\\.lab"}) unless on (host) count by (host) (label_replace(probe_success{job="weyland-blackbox"}, "host", "$1", "instance", "https://([^/]+).*"))' | python3 -c "import json,sys;r=json.load(sys.stdin)['data']['result'];print(len(r),'unprobed:',sorted(x['metric']['host'] for x in r))"
+```
+
+Expected: `0 unprobed: []` (2026-11-04 it was 16 before the fix).
+
 ### DataHub catalog coverage — the guard (B158 follow-up A, 2026-09-05)
 
 The **fourth** coverage guard, and the first on the DATA estate rather than infrastructure. The trilogy

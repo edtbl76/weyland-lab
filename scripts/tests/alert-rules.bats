@@ -81,6 +81,10 @@ PY
   promtool_test spend.test.yaml litellm/prometheusrule.yaml bifrost/prometheusrule.yaml
 }
 
+@test "an ingress with no blackbox probe fires after 1h; probed, exempt and non-lab hosts do not (promtool test rules)" {
+  promtool_test ingress-not-probed.test.yaml monitoring/blackbox-exporter.yaml
+}
+
 @test "the LiteLLM database alert fires on a sustained 503, not on a blip or a down gateway (promtool test rules)" {
   promtool_test litellm-db.test.yaml litellm/prometheusrule.yaml monitoring/blackbox-exporter.yaml
 }

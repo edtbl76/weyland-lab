@@ -1,0 +1,64 @@
+# promtool unit tests for IngressNotProbed (U14 DoD, 2026-11-04). The blackbox list was "1:1 with hosts.md" by hand
+# and 17 live ingresses had drifted out of it with nothing going red. The rule joins kube-state-metrics' live ingress
+# hosts against the weyland-blackbox probe targets; series shapes are copied from the live Prometheus (2026-11-04).
+# Run by scripts/tests/alert-rules.bats.
+rule_files:
+- rules.yaml
+evaluation_interval: 1m
+tests:
+- name: 'an ingress with no probe fires after 1h; a probed one (even at a /path) does not'
+  interval: 1m
+  input_series:
+  - series: kube_ingress_path{job="kube-state-metrics",namespace="weyland",ingress="dagster",host="dagster.weyland.lab",path="/"}
+    values: "1x90"
+  - series: kube_ingress_path{job="kube-state-metrics",namespace="weyland",ingress="weyland-mcp-gateway",host="mcp.weyland.lab",path="/"}
+    values: "1x90"
+  - series: probe_success{job="weyland-blackbox",instance="https://mcp.weyland.lab/health"}
+    values: "1x90"
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: IngressNotProbed
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        host: dagster.weyland.lab
+      exp_annotations:
+        summary: "Ingress dagster.weyland.lab has no blackbox probe"
+        description: "dagster.weyland.lab is a live ingress with no target in the weyland-uis Probe (k8s/monitoring/blackbox-exporter.yaml), so nothing notices if it goes down. Add it, alphabetically, at a path that answers 200/30x/401/403, or exempt it here if it is on-demand."
+- name: 'under an hour stays silent (a new ingress and its probe land in the same sync)'
+  interval: 1m
+  input_series:
+  - series: kube_ingress_path{job="kube-state-metrics",namespace="weyland",ingress="dagster",host="dagster.weyland.lab",path="/"}
+    values: "1x90"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: IngressNotProbed
+    exp_alerts: []
+- name: 'the on-demand flink host and non-lab hosts are exempt'
+  interval: 1m
+  input_series:
+  - series: kube_ingress_path{job="kube-state-metrics",namespace="data-mesh",ingress="weyland-flink",host="flink.weyland.lab",path="/"}
+    values: "1x90"
+  - series: kube_ingress_path{job="kube-state-metrics",namespace="other",ingress="x",host="example.com",path="/"}
+    values: "1x90"
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: IngressNotProbed
+    exp_alerts: []
+- name: 'a probe in another job (litellm-db) does not count as coverage'
+  interval: 1m
+  input_series:
+  - series: kube_ingress_path{job="kube-state-metrics",namespace="weyland",ingress="litellm",host="litellm.weyland.lab",path="/"}
+    values: "1x90"
+  - series: probe_success{job="litellm-db",instance="https://litellm.weyland.lab/health/readiness"}
+    values: "1x90"
+  alert_rule_test:
+  - eval_time: 70m
+    alertname: IngressNotProbed
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        host: litellm.weyland.lab
+      exp_annotations:
+        summary: "Ingress litellm.weyland.lab has no blackbox probe"
+        description: "litellm.weyland.lab is a live ingress with no target in the weyland-uis Probe (k8s/monitoring/blackbox-exporter.yaml), so nothing notices if it goes down. Add it, alphabetically, at a path that answers 200/30x/401/403, or exempt it here if it is on-demand."

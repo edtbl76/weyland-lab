@@ -1620,9 +1620,17 @@ completed").** The first DoD graded the incident flow but not everything it impl
     unscored (no functions).
   - The fixed workflow was re-rehearsed against real Linear (EMA-330: create / no-op / close / reopen / close). That
     run found Linear's sub-second read-after-write lag on the lookup, recorded in ADR-3 as a known limit.
-- **Estate gap found, not U14's:** 17 other ingresses have no blackbox probe, against the "1:1 with hosts.md" rule:
-  apisix, dagster, datahub, files, flink (exempt: on-demand), ge-docs, grafana, headlamp, kiali, langfuse, litellm,
-  mcp, minio, opensearch, s3, sourcebot, zoekt. Reported to the owner for a decision.
+- **Estate gap found and fixed (owner: "Just do it now as part of this work"):** 16 more live ingresses had no
+  blackbox probe, against the "1:1 with hosts.md" rule: apisix, dagster, datahub, files, ge-docs, grafana, headlamp,
+  kiali, langfuse, litellm, mcp, minio, opensearch, s3, sourcebot, zoekt. Each root was checked live first: forward-auth
+  hosts 307 to Keycloak then 200; datahub, minio and zoekt answer 200; s3 answers 403 (anonymous, so up); mcp is 404 at
+  root and 200 at `/health`. All 16 were added (57 targets). The rule had been kept by hand, so a guard was added:
+  alert `IngressNotProbed` joins kube-state-metrics' live ingress hosts against the probe targets (flink exempt as
+  on-demand).
+  - Before the fix, the live query returned exactly these 16.
+  - The promtool test in `alert-rules.bats` covers fires / under-1h / exempt / another job's probe. A mutation proved
+    it can fail.
+  - Runbook: `observability.md` § Synthetic probe coverage.
 
 ### U16 — Weaviate UI (React frontend) — **FOLDED INTO [B81] 2026-08-27** (thread (b) of the [B78] maturity bucket; Linear EMA-24 closed as merged into EMA-71)
 **Folded 2026-08-27 — the need is real and already met better elsewhere; only the *bespoke React app* is dropped.** The three jobs it was scoped for are covered:

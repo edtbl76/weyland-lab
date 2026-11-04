@@ -97,7 +97,8 @@ spec:
   ports:
     - { name: http, port: 9115, targetPort: 9115 }
 ---
-# 1:1 with docs/hosts.md — every *.weyland.lab ingress. Add/remove a host here (AND in hosts.md) = git-managed coverage
+# 1:1 with docs/hosts.md — every *.weyland.lab ingress. GUARDED since 2026-11-04: alert IngressNotProbed (below) fires
+# for a live ingress with no target here (17 had drifted out unnoticed). Add/remove a host here (AND in hosts.md) = git-managed coverage
 # change; kept ALPHABETICAL so the hosts.md diff is trivial. Root + the lenient http_weyland module (SSO redirect / 200 /
 # 401 / 403) for UIs; a /health path where root doesn't return an accepted code (post-deploy probe_success reveals any).
 apiVersion: monitoring.coreos.com/v1
@@ -117,6 +118,7 @@ spec:
     staticConfig:
       static:
         - https://agent.weyland.lab
+        - https://apisix.weyland.lab
         - https://argocd.weyland.lab
         - https://auth.weyland.lab            # forward-auth — the SSO gate itself
         - https://bifrost.weyland.lab
@@ -124,39 +126,54 @@ spec:
         - https://clickhouse.weyland.lab
         - https://cockroachdb.weyland.lab
         - https://cube.weyland.lab
+        - https://dagster.weyland.lab
+        - https://datahub.weyland.lab
         - https://dbt-docs.weyland.lab
         - https://docs.weyland.lab
-        - https://feast.weyland.lab/health   # feature-server API — 404 at root
         - https://feast-ui.weyland.lab
+        - https://feast.weyland.lab/health   # feature-server API — 404 at root
+        - https://files.weyland.lab
         - https://flink-history.weyland.lab
         - https://gatekeeper.weyland.lab
+        - https://ge-docs.weyland.lab
         - https://glitchtip.weyland.lab
+        - https://grafana.weyland.lab
+        - https://headlamp.weyland.lab
         - https://inspector.weyland.lab
         - https://jupyter.weyland.lab
         - https://keycloak.weyland.lab
+        - https://kiali.weyland.lab
         - https://kokoro.weyland.lab
         - https://kuma.weyland.lab
         - https://lakefs.weyland.lab/_health
         - https://lancedb.weyland.lab
+        - https://langfuse.weyland.lab
         - https://lightdash.weyland.lab
         - https://likec4.weyland.lab
+        - https://litellm.weyland.lab
+        - https://mcp.weyland.lab/health        # MCP gateway — 404 at root
+        - https://minio.weyland.lab
         - https://mlflow.weyland.lab
         - https://n8n.weyland.lab              # added 2026-11-04 (U14 DoD found it missing; n8n is on the alert path now)
         - https://nessie.weyland.lab/q/health
         - https://opencost.weyland.lab
+        - https://opensearch.weyland.lab
         - https://promptfoo.weyland.lab
         - https://ranger.weyland.lab
         - https://ray.weyland.lab
         - https://realm.weyland.lab
         - https://redpanda.weyland.lab
-        - https://registry.weyland.lab/v2/
         - https://registry-push.weyland.lab/v2/   # B211 push host: 401 without credentials = up
         - https://registry-ui.weyland.lab
+        - https://registry.weyland.lab/v2/
+        - https://s3.weyland.lab                 # MinIO S3 API: 403 to an anonymous request = up
         - https://sonarqube.weyland.lab
+        - https://sourcebot.weyland.lab
         - https://superset.weyland.lab
         - https://trino.weyland.lab
         - https://unleash.weyland.lab
         - https://woodpecker.weyland.lab
+        - https://zoekt.weyland.lab
       # --- Intentionally NOT probed (on-demand / not always-up — probing would false-page) ---
       # • flink (JobManager/session cluster — up only when running jobs; flink-history IS probed).
       # • rogueone GPU on-demand services (vllm / sglang / llama-guard-8b, and Clef-flash :8004 for the B174 decision-
@@ -204,3 +221,17 @@ spec:
           annotations:
             summary: "Blackbox synthetic probes are not reporting"
             description: "No probe_success metric for 10m — blackbox-exporter down or Probe misconfigured; synthetic monitoring is blind."
+        # Coverage guard (U14 DoD, 2026-11-04): the "1:1 with hosts.md" rule above was kept by hand, and 17 live ingresses
+        # had drifted out of the list (n8n among them) with nothing going red. kube-state-metrics knows every live
+        # ingress host and this job knows every probed one, so an ingress with no probe now fires. Exempt: the on-demand
+        # hosts listed above (flink). A new on-demand host is exempted here, beside that list, with its reason.
+        - alert: IngressNotProbed
+          expr: |
+            count by (host) (kube_ingress_path{host=~".+\\.weyland\\.lab", host!~"flink\\.weyland\\.lab"})
+            unless on (host)
+            count by (host) (label_replace(probe_success{job="weyland-blackbox"}, "host", "$1", "instance", "https://([^/]+).*"))
+          for: 1h
+          labels: { severity: warning }
+          annotations:
+            summary: "Ingress {{ $labels.host }} has no blackbox probe"
+            description: "{{ $labels.host }} is a live ingress with no target in the weyland-uis Probe (k8s/monitoring/blackbox-exporter.yaml), so nothing notices if it goes down. Add it, alphabetically, at a path that answers 200/30x/401/403, or exempt it here if it is on-demand."
