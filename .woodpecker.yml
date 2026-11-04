@@ -1141,14 +1141,45 @@ steps:
     commands:
       # B88 Phase 3 — syft + cosign + trivy are fetched here rather than baked into moby/buildkit,
       # which is upstream's image and not ours to rebuild. All single static binaries.
+      # PINNED + CHECKSUM-VERIFIED release assets from github.com (2026-11-04). Until then this step piped each
+      # tool's installer straight from its `main` branch into sh (and cosign from "latest"): unpinned, and on
+      # 2026-11-04 trivy's installer started downloading from get.trivy.dev, a host that is NXDOMAIN for
+      # everyone (Google and Cloudflare resolvers too), so every build failed with a silent exit 6 (CI #572,
+      # #573). Each tool is now one exact release at least two weeks old, verified against the sha256 in that
+      # release's own checksums file; a missing line or a mismatch fails the step. Bump: change the version,
+      # keep the asset names in step (they include it), and run CI.
+      # B88 gap #3 — trivy is the per-build vulnerability scan (supply-chain.sh vuln). Weekly-only trivy meant
+      # a base-image CVE sat uncaught until Sunday; this runs it per pushed image (loud, non-fatal). trivy pulls
+      # its vuln DB on first run — a cache lives in gap #6.
       - apk add --no-cache curl bash >/dev/null 2>&1 || true
-      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin >/dev/null
-      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /usr/local/bin/cosign https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64
-      - chmod +x /usr/local/bin/cosign
-      # B88 gap #3 — trivy for the per-build vulnerability scan (supply-chain.sh vuln). Weekly-only
-      # trivy meant a base-image CVE sat uncaught until Sunday; this runs it per pushed image (loud,
-      # non-fatal). trivy pulls its vuln DB on first run — a cache lives in gap #6.
-      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin >/dev/null
+      - |
+        set -e
+        T=$(mktemp -d)
+        fetch() { curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o "$T/$2" "$1"; }
+        verify() { # verify <file> <asset name> <checksums file>: the asset's own line (an exact name match), or fail
+          sum=$(awk -v f="$2" '$2 == f || $2 == "*" f { print $1 }' "$T/$3")
+          [ -n "$sum" ] || { echo "no checksum line for $2 in $3"; exit 1; }
+          echo "$sum  $T/$1" | sha256sum -c -
+        }
+        # (asset names are built with printf, never with braced shell variables: Woodpecker substitutes those itself)
+        TRIVY=0.76.1  # 2026-10-21
+        A=$(printf 'trivy_%s_Linux-64bit.tar.gz' "$TRIVY"); S=$(printf 'trivy_%s_checksums.txt' "$TRIVY")
+        fetch "https://github.com/aquasecurity/trivy/releases/download/v$TRIVY/$A" trivy.tgz
+        fetch "https://github.com/aquasecurity/trivy/releases/download/v$TRIVY/$S" trivy.sums
+        verify trivy.tgz "$A" trivy.sums
+        tar -xzf "$T/trivy.tgz" -C /usr/local/bin trivy
+        SYFT=1.55.0   # 2026-10-19
+        A=$(printf 'syft_%s_linux_amd64.tar.gz' "$SYFT"); S=$(printf 'syft_%s_checksums.txt' "$SYFT")
+        fetch "https://github.com/anchore/syft/releases/download/v$SYFT/$A" syft.tgz
+        fetch "https://github.com/anchore/syft/releases/download/v$SYFT/$S" syft.sums
+        verify syft.tgz "$A" syft.sums
+        tar -xzf "$T/syft.tgz" -C /usr/local/bin syft
+        COSIGN=3.1.4  # 2026-10-20
+        fetch "https://github.com/sigstore/cosign/releases/download/v$COSIGN/cosign-linux-amd64" cosign
+        fetch "https://github.com/sigstore/cosign/releases/download/v$COSIGN/cosign_checksums.txt" cosign.sums
+        verify cosign cosign-linux-amd64 cosign.sums
+        install -m 0755 "$T/cosign" /usr/local/bin/cosign
+        trivy --version | head -1; syft version | grep -m1 '^Version'; cosign version 2>&1 | grep -m1 GitVersion
       # Warm trivy's vuln DB ONCE before the scan loop. Without this, the first image's scan races the
       # DB download and trivy returns a valid-looking 0-findings report (observed: a fresh install
       # reported 0 CVEs for an image that really had 327) — an absence-as-success the per-scan guard

@@ -169,6 +169,22 @@ bash scripts/check-servicemonitor-coverage.sh          # OK — 32 ServiceMonito
 bash scripts/check-servicemonitor-coverage.sh --list   # every monitor + its verdict
 ```
 
+### Dashboard coverage — the guard (B148's companion; run on demand)
+
+CronJob **`dashboard-coverage`, 02:50 NY** (`k8s/monitoring/dashboard-coverage.yaml`) reconciles every Prometheus
+scrape job against the Grafana dashboards. A job is covered when a dashboard names it (`job="<job>"`) or charts a metric
+distinctive to it, or when the guard's `ACCEPTED` list documents why it needs no dashboard. A failed run names each gap
+(`❌ GAP <job>`); `ScheduledJobStale` fires after a day without a success. Fix a gap by adding a panel that names the job
+(as `litellm-db` got on 2026-11-04, B234 follow-up), or with an `ACCEPTED` row that states why. Then re-run it on demand
+instead of waiting for 02:50 (it reads the live dashboards, so wait for Argo to sync the dashboard change first):
+
+[rogueone]
+```
+J=dashboard-coverage-manual-$(date +%s); kubectl -n monitoring create job "$J" --from=cronjob/dashboard-coverage && kubectl -n monitoring wait --for=condition=complete --timeout=300s job/$J; kubectl -n monitoring logs job/$J --all-containers | tail -4
+```
+
+Expected: `OK — 42 scrape job(s), every one has a dashboard or a documented exception.` (2026-11-04)
+
 ### DataHub catalog coverage — the guard (B158 follow-up A, 2026-09-05)
 
 The **fourth** coverage guard, and the first on the DATA estate rather than infrastructure. The trilogy
