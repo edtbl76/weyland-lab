@@ -307,7 +307,7 @@ mkcert wildcard cert; resolve from rogueone (`/etc/hosts`) or via CoreDNS. **Mos
 | **A2A Inspector** (debug/validation UI for the Realm's A2A surface) — **Keycloak forward-auth**; since B209 its Service admits only Traefik (`k8s/a2a-inspector/netpol.yaml`) | `https://inspector.weyland.lab` |
 | **Platform Docs** (MkDocs Material — runbooks/architecture/concepts; browsable+searchable, Mermaid; B59, replaced Backstage TechDocs) | `https://docs.weyland.lab` |
 | Dagster | `https://dagster.weyland.lab` |
-| n8n | `https://n8n.weyland.lab` |
+| n8n — **Keycloak forward-auth** on the UI; since U14 (2026-11-04) its Service admits only Traefik and Alertmanager (`k8s/n8n/netpol.yaml`). In-cluster webhook `POST http://n8n.n8n.svc.cluster.local:5678/webhook/alertmanager-incident` = the `alert-to-linear` workflow (Alertmanager payload in; 200 = applied or nothing to do, 500 = failed, Alertmanager retries) | `https://n8n.weyland.lab` |
 | Headlamp (k8s UI) | `https://headlamp.weyland.lab` |
 | Filestash (MinIO browser — replaces the stripped community console) — **Keycloak SSO** (forward-auth; auto-connects to S3 behind the gate) | `https://files.weyland.lab` |
 | ~~weyland IDP (Backstage, `idp.weyland.lab`)~~ — **RETIRED 2026-06-22 (B59)**; replaced by **Port.io** catalog + **`docs.weyland.lab`** | — |

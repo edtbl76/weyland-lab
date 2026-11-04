@@ -27,6 +27,7 @@ sequenceDiagram
     BW->>AM: POST /api/v2/alerts (BifrostMCPClientUnhealthy — B203)
     AM->>AM: group + dedupe + route
     AM->>Tg: notification
+    AM->>AM: critical also to n8n alert-to-linear, a Linear incident (U14, flow-alert-to-linear)
     AM->>HC: Watchdog (always-firing) — silence here means the ALERT PATH is dead
     Note over Pr,AM: mesh metrics (Envoy) flow here too via the B8 PodMonitor
 ```

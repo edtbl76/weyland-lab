@@ -679,11 +679,17 @@ def num_of(title):
 
 rawrefs = [l.split("\t") for l in open(reffile, encoding="utf-8").read().strip().split("\n") if l.strip()]
 
-# Index every Linear issue by the number in its title (first wins; genuine dupes surface via orphan).
+# Index every Linear issue by the number in its title. When several share a number the OLDEST (lowest EMA) wins:
+# an item's own issue is created first, and U14's alert->Linear workflow titles every incident it opens
+# "U14 incident — ...", so a newer open incident must not become U14's join. Snapshot order is not creation order.
+def _ema_no(ident):
+    tail = ident.rsplit("-", 1)[-1]
+    return int(tail) if tail.isdigit() else float("inf")
+
 lin_by_num = {}
 for e, r in snap.items():
     n = num_of(r.get("title"))
-    if n and n not in lin_by_num:
+    if n and (n not in lin_by_num or _ema_no(e) < _ema_no(lin_by_num[n])):
         lin_by_num[n] = e
 
 # Collapse the per-ref rows to ONE record per backlog item: its status, tier, and the set of inline

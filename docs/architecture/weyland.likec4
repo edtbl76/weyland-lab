@@ -207,7 +207,7 @@ model {
           headlamp = component "Headlamp" "Kubernetes UI"
           docsSite = component "docs-site" "MkDocs Material docs + Tools launchpad"
           likec4Viewer = component "LikeC4" "This architecture model viewer"
-          n8n = component "n8n" "Workflow automation (ingestion retired -> Dagster)"
+          n8n = component "n8n" "Workflow automation. Live: alert-to-linear (U14) - a critical Alertmanager alert opens a Linear incident (one per fingerprint), the resolve closes it. SQLite on PVC n8n-data; workflows in git (k8s/n8n/workflows/); NetworkPolicy admits Traefik + Alertmanager only. The old Obsidian ingest is retired -> Dagster"
         }
       }
     }
@@ -346,6 +346,8 @@ model {
   weyland.mother.ai.dagster -> weyland.mother.mesh.storage.lakefs "write bronze/silver + commit"
   weyland.mother.ai.dagster -> weyland.mother.mesh.storage.nessie "write gold Iceberg"
   weyland.mother.ai.dagster -> linear "B194 nightly backup — read-only GraphQL export (05:20)"
+  weyland.mother.ops.obs.grafana -> weyland.mother.ops.infra.n8n "U14: critical alerts + resolves (webhook receiver linear-incidents)"
+  weyland.mother.ops.infra.n8n -> linear "U14: opens / reopens / closes incident issues (GraphQL, dedicated write key)"
   weyland.mother.ai.dagster -> weyland.mother.ops.infra.minio "B194 Linear snapshots -> linear-backup (90d)"
   weyland.mother.ai.dagster -> weyland.mother.mesh.query.dbtDocs "run dbt (7 marts)"
   weyland.mother.ai.dagster -> weyland.mother.mesh.gov.datahub "catalog emit (6h)"

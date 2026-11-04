@@ -55,6 +55,17 @@ alertmanager:
           group_wait: 0s
           group_interval: 5m
           repeat_interval: 5m
+        # U14 (EMA-16): every critical alert also opens/closes a Linear incident via n8n. `continue: true` only lets
+        # the walk go on to the NEXT sibling — a matching child still claims the alert, so the parent's `telegram`
+        # default would no longer fire for criticals. The explicit critical → telegram route below keeps the pager.
+        # Proven with `amtool config routes test` (docs/runbooks/alert-to-linear.md).
+        - receiver: linear-incidents
+          matchers:
+            - severity = "critical"
+          continue: true
+        - receiver: telegram
+          matchers:
+            - severity = "critical"
     receivers:
       - name: 'null'
       - name: 'healthchecks-watchdog'
@@ -62,6 +73,12 @@ alertmanager:
           # URL lives in a Secret (repo is PUBLIC — a plaintext ping URL anyone could hit would defeat the switch).
           - url_file: /etc/alertmanager/secrets/watchdog-healthcheck/url
             send_resolved: false
+      # U14: n8n workflow `alert-to-linear` (k8s/n8n/workflows/alert-to-linear.json). In-cluster only; the n8n
+      # NetworkPolicy admits Alertmanager and Traefik, nothing else. send_resolved closes the Linear issue.
+      - name: linear-incidents
+        webhook_configs:
+          - url: http://n8n.n8n.svc.cluster.local:5678/webhook/alertmanager-incident
+            send_resolved: true
       - name: telegram
         telegram_configs:
           - bot_token_file: /etc/alertmanager/secrets/weyland-alerts-telegram/bot-token

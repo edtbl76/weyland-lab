@@ -1,0 +1,266 @@
+[
+  {
+    "id": "U14alertToLinear",
+    "name": "alert-to-linear (U14)",
+    "active": false,
+    "nodes": [
+      {
+        "id": "u14-w",
+        "name": "Alertmanager webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          0
+        ],
+        "webhookId": "5f0c1a7e-3b2d-4c6b-9d2e-0a14e16a1e70",
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "alertmanager-incident",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "u14-1",
+        "name": "Critical alerts",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          0
+        ],
+        "parameters": {
+          "jsCode": "// U14 (EMA-16) alert-to-linear, step 1: one item per CRITICAL alert in the Alertmanager webhook payload, each\n// carrying the GraphQL lookup for its open/recent Linear incident. The Linear ids live here, and only here.\nconst CONFIG = {\n  teamId: 'd78368d2-c0d8-4c52-a6eb-46d4fb3e89bb',     // team EMA\n  projectId: '1b6e8535-4d91-4846-8da8-df7b21dba721',  // project Weyland Lab\n  labelId: '701dccc2-deca-4955-8664-73f636197d2c',    // label `incident`\n  todoStateId: 'c7a62aa5-03d2-4248-836d-d572370b3c0b',\n  doneStateId: '7bab9b38-14d0-438f-8970-ed05185a81f9',\n  // A re-fire within this window of the incident closing REOPENS it (flapping) instead of opening a new one.\n  reopenWindowHours: 24,\n};\n\nconst body = $input.first().json.body || {};\nif (!Array.isArray(body.alerts)) {\n  // Not an Alertmanager payload. Failing makes the webhook answer 500, so a misrouted sender sees it.\n  throw new Error('payload has no alerts[] - not an Alertmanager webhook');\n}\n\nconst FIND = `query($marker: String!, $team: ID!, $label: ID!) {\n  issues(first: 10, filter: {\n    team: { id: { eq: $team } }, labels: { some: { id: { eq: $label } } },\n    description: { contains: $marker }, state: { type: { nin: [\"canceled\", \"duplicate\"] } }\n  }) { nodes { id identifier url createdAt completedAt state { type } } }\n}`;\n\nreturn body.alerts\n  .filter((a) => (a.labels || {}).severity === 'critical' && a.fingerprint)\n  .map((a) => {\n    const marker = `alert-fingerprint: ${a.fingerprint}`;\n    return {\n      json: {\n        config: CONFIG,\n        externalURL: body.externalURL || '',\n        alert: {\n          fingerprint: a.fingerprint,\n          status: a.status,\n          labels: a.labels || {},\n          annotations: a.annotations || {},\n          startsAt: a.startsAt,\n          endsAt: a.endsAt,\n          generatorURL: a.generatorURL || '',\n          marker,\n        },\n        request: { query: FIND, variables: { marker, team: CONFIG.teamId, label: CONFIG.labelId } },\n      },\n    };\n  });\n"
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "id": "u14-f",
+        "name": "Find incident",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          440,
+          0
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "u14LinearWriteKy",
+            "name": "Linear write key (U14)"
+          }
+        },
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.linear.app/graphql",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.request) }}",
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "id": "u14-2",
+        "name": "Decide",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          0
+        ],
+        "parameters": {
+          "jsCode": "// U14 step 2: pair each lookup with its alert and decide ONE action. Emits only the alerts that need a Linear write.\n//   firing,   open incident                      -> nothing (Alertmanager re-sends every repeat_interval; no spam)\n//   firing,   incident closed < reopen window    -> reopen + comment (flapping keeps ONE issue)\n//   firing,   none, or closed longer ago         -> create\n//   resolved, open incident                      -> comment + close\n//   resolved, none open                          -> nothing (resolved notifications are re-sent too)\nconst alerts = $('Critical alerts').all();\nconst lookups = $input.all();\nif (lookups.length !== alerts.length) {\n  throw new Error(`lookup count ${lookups.length} != alert count ${alerts.length}`);\n}\n\nconst UPDATE = `mutation($id: String!, $state: String!, $body: String!) {\n  issueUpdate(id: $id, input: { stateId: $state }) { success }\n  commentCreate(input: { issueId: $id, body: $body }) { success }\n}`;\nconst CREATE = `mutation($input: IssueCreateInput!) {\n  issueCreate(input: $input) { success issue { identifier url } }\n}`;\n\nconst md = (s) => String(s ?? '').replace(/\\|/g, '\\\\|').replace(/\\n/g, ' ');\n\nfunction describe(alert, externalURL) {\n  const l = alert.labels;\n  const a = alert.annotations;\n  const rows = Object.keys(l).sort().map((k) => `| ${md(k)} | ${md(l[k])} |`).join('\\n');\n  const links = [\n    a.runbook_url && `- Runbook: ${a.runbook_url}`,\n    alert.generatorURL && `- Prometheus query: ${alert.generatorURL}`,\n    externalURL && `- Alertmanager: ${externalURL}`,\n  ].filter(Boolean).join('\\n');\n  return [\n    `**${a.summary || l.alertname}**`,\n    a.description || '',\n    `Started: ${alert.startsAt}`,\n    `| Label | Value |\\n| --- | --- |\\n${rows}`,\n    links,\n    'Opened by the n8n workflow `alert-to-linear` (U14). Telegram paged separately. This issue closes itself when '\n      + 'the alert resolves, and reopens if it fires again within 24 h.',\n    alert.marker,\n  ].filter(Boolean).join('\\n\\n');\n}\n\nconst out = [];\nlookups.forEach((lookup, i) => {\n  const { alert, config, externalURL } = alerts[i].json;\n  const res = lookup.json;\n  if (res.errors) throw new Error(`Linear lookup failed: ${JSON.stringify(res.errors).slice(0, 300)}`);\n  const nodes = res.data?.issues?.nodes;\n  if (!Array.isArray(nodes)) throw new Error('Linear lookup returned no issues[] - refusing to guess');\n\n  const newest = [...nodes].sort((x, y) => y.createdAt.localeCompare(x.createdAt))[0];\n  const open = newest && newest.state.type !== 'completed';\n  const name = alert.labels.alertname;\n  let action = null;\n  let request = null;\n\n  if (alert.status === 'firing') {\n    const closedAgoH = newest?.completedAt ? (Date.now() - Date.parse(newest.completedAt)) / 36e5 : Infinity;\n    if (open) {\n      action = null;\n    } else if (newest && closedAgoH < config.reopenWindowHours) {\n      action = 'reopen';\n      request = { query: UPDATE, variables: { id: newest.id, state: config.todoStateId,\n        body: `Fired again at ${alert.startsAt} — reopened (it resolved ${closedAgoH.toFixed(1)} h ago).` } };\n    } else {\n      action = 'create';\n      const ns = alert.labels.namespace ? ` (${alert.labels.namespace})` : '';\n      request = { query: CREATE, variables: { input: {\n        teamId: config.teamId, projectId: config.projectId, labelIds: [config.labelId],\n        stateId: config.todoStateId, priority: 1,\n        title: `U14 incident — ${name}${ns}`, description: describe(alert, externalURL),\n      } } };\n    }\n  } else if (alert.status === 'resolved' && open) {\n    action = 'close';\n    request = { query: UPDATE, variables: { id: newest.id, state: config.doneStateId,\n      body: `Resolved at ${alert.endsAt} — closed by alert-to-linear.` } };\n  }\n\n  if (action) out.push({ json: { action, alertname: name, fingerprint: alert.fingerprint,\n    issue: newest?.identifier || null, request } });\n});\nreturn out;\n"
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "id": "u14-a",
+        "name": "Apply to Linear",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          880,
+          0
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "u14LinearWriteKy",
+            "name": "Linear write key (U14)"
+          }
+        },
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.linear.app/graphql",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.request) }}",
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "id": "u14-3",
+        "name": "Verify",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          0
+        ],
+        "parameters": {
+          "jsCode": "// U14 step 3: every Linear write must report success. Linear answers GraphQL errors with HTTP 200, so the HTTP\n// node alone would call a refused write a success. Throwing here makes the webhook answer 500, Alertmanager retries\n// and counts the failure (alertmanager_notifications_failed_total{integration=\"webhook\"}).\nconst actions = $('Decide').all();\nconst results = $input.all();\nconst done = results.map((r, i) => {\n  const res = r.json;\n  const what = actions[i].json;\n  if (res.errors) throw new Error(`Linear ${what.action} failed: ${JSON.stringify(res.errors).slice(0, 300)}`);\n  const ops = Object.values(res.data || {});\n  if (!ops.length || ops.some((op) => !op || op.success !== true)) {\n    throw new Error(`Linear ${what.action} for ${what.alertname} did not report success`);\n  }\n  return `${what.action} ${res.data.issueCreate?.issue?.identifier || what.issue} (${what.alertname})`;\n});\nreturn [{ json: { applied: done.length, done } }];\n"
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "id": "u14-r",
+        "name": "Respond",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          1320,
+          0
+        ],
+        "parameters": {
+          "respondWith": "firstIncomingItem",
+          "options": {}
+        }
+      },
+      {
+        "id": "u14-x",
+        "name": "Respond failure",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          660,
+          260
+        ],
+        "parameters": {
+          "respondWith": "allIncomingItems",
+          "options": {
+            "responseCode": 500
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Alertmanager webhook": {
+        "main": [
+          [
+            {
+              "node": "Critical alerts",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Critical alerts": {
+        "main": [
+          [
+            {
+              "node": "Find incident",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Find incident": {
+        "main": [
+          [
+            {
+              "node": "Decide",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Decide": {
+        "main": [
+          [
+            {
+              "node": "Apply to Linear",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Apply to Linear": {
+        "main": [
+          [
+            {
+              "node": "Verify",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Verify": {
+        "main": [
+          [
+            {
+              "node": "Respond",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    },
+    "pinData": {},
+    "meta": {
+      "note": "U14 / EMA-16. Source of truth is git: nodes/mother/lab/weyland-platform/k8s/n8n/workflows/alert-to-linear.json. Runbook: docs/runbooks/alert-to-linear.md."
+    }
+  }
+]

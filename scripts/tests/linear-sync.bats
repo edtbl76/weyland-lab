@@ -477,6 +477,19 @@ MD
   [ "$status" -eq 0 ]
 }
 
+@test "number-primary: when several issues share a number, the item reconciles against the OLDEST (lowest EMA)" {
+  # U14's alert->Linear workflow (EMA-16) titles every incident it opens "U14 incident — ...", so U14 owns many
+  # issues. The item's own issue is always created first; a newer, still-open incident listed ahead of it in the
+  # snapshot must not become the join and read as "backlog DONE, Linear open" drift.
+  cat > "$STUB_DIR/b.md" <<'MD'
+### U14 — n8n: alert → Linear incident — **DONE (2026-11-04)**
+MD
+  printf '{"EMA-930":{"stateType":"unstarted","state":"Todo","project":"Weyland Lab","priority":1,"title":"U14 incident — KubePodCrashLooping (weyland)"},"EMA-16":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":2,"title":"U14 — n8n: alert → Linear incident"},"EMA-1000":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":1,"title":"U14 incident — TargetDown (monitoring)"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"OK"* ]]
+}
+
 @test "fallback: an item whose Linear title carries NO number is matched by its inline ref" {
   # B156's real Linear issue is titled "Audit data mesh ..." with no B-number, so number-matching
   # cannot find it — the inline ref is the fallback join.

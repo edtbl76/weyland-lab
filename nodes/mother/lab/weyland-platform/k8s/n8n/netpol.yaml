@@ -1,0 +1,26 @@
+# n8n's front door (U14 / EMA-16, 2026-11-04). The `alert-to-linear` workflow's webhook opens Linear issues with a
+# write key, and n8n's webhooks are unauthenticated by design, so the only gate is who can reach the pod. The UI is
+# behind Keycloak forward-auth on the ingress, but before this policy any pod in the cluster could call the Service
+# directly. Now only Traefik (the forward-auth'd UI) and Alertmanager (the incident webhook) may. Kubelet's probes
+# come from the node and are allowed by the controller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: n8n-front-door-only
+  namespace: n8n
+spec:
+  podSelector:
+    matchLabels: { app: n8n }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: traefik }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: alertmanager }
+      ports:
+        - { protocol: TCP, port: 5678 }
