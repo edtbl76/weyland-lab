@@ -8,7 +8,7 @@ install steps.
 ## 1. Rehearsal: the git workflow in a fresh n8n, against real Linear (RUN 2026-11-04)
 
 The cluster's pinned image (`n8nio/n8n@sha256:9cb6…`, n8n 2.29.10) in a throwaway local container with an empty data
-directory: a credential named `Linear write key (U14)` with a **different id** than the workflow file names, then the
+directory: a credential named `Linear write key` with a **different id** than the workflow file names, then the
 runbook's import and publish, then Alertmanager-shaped payloads POSTed to the webhook. Results (RUN):
 
 | Payload | Webhook answer | Linear |

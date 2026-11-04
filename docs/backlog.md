@@ -1531,7 +1531,7 @@ tools load.
     It also exposed a guard gap: the guard joined a backlog item to the FIRST issue carrying its number, in snapshot
     order, so a newer open incident could have become U14's join and read as drift. Fixed: the lowest EMA number wins
     (bats red → green; 76/76).
-  - **Key:** a dedicated Linear key in the n8n credential `Linear write key (U14)`. The import binds it by name,
+  - **Key:** a dedicated Linear key in the n8n credential `Linear write key`. The import binds it by name,
     proven with a mismatched id. This differs from the old acceptance line above ("from a Secret, never the UI"): n8n
     keeps credentials encrypted under `N8N_ENCRYPTION_KEY`, and the import-by-name restore path is tested.
   - **Records:** the n8n README was corrected (SQLite, not Postgres; `encryption-key.txt` untracked since B97, rotation

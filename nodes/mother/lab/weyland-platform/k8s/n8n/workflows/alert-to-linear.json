@@ -47,7 +47,7 @@
         "credentials": {
           "httpHeaderAuth": {
             "id": "u14LinearWriteKy",
-            "name": "Linear write key (U14)"
+            "name": "Linear write key"
           }
         },
         "parameters": {
@@ -90,7 +90,7 @@
         "credentials": {
           "httpHeaderAuth": {
             "id": "u14LinearWriteKy",
-            "name": "Linear write key (U14)"
+            "name": "Linear write key"
           }
         },
         "parameters": {

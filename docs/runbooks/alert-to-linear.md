@@ -10,7 +10,7 @@ this is the record. Built 2026-11-04.
 | Source of truth | `nodes/mother/lab/weyland-platform/k8s/n8n/workflows/alert-to-linear.json` (git). The live copy is an import of it |
 | Trigger | Alertmanager receiver `linear-incidents` → `POST http://n8n.n8n.svc.cluster.local:5678/webhook/alertmanager-incident` (`send_resolved: true`) — `k8s/monitoring/kube-prometheus-stack-values.yaml` |
 | Writes | Linear team EMA, project Weyland Lab, label `incident`, priority Urgent, title `U14 incident — <alertname> (<namespace>)` |
-| Key | n8n credential **`Linear write key (U14)`** (Header Auth, `Authorization: <key>`): a dedicated Linear key, team EMA only. Lives encrypted in n8n's SQLite (`N8N_ENCRYPTION_KEY`), never in git |
+| Key | n8n credential **`Linear write key`** (Header Auth, `Authorization: <key>`): a dedicated Linear key, team EMA only. Lives encrypted in n8n's SQLite (`N8N_ENCRYPTION_KEY`), never in git |
 | Who can call it | NetworkPolicy `n8n-front-door-only` (`k8s/n8n/netpol.yaml`): Traefik (the SSO'd UI) and the Alertmanager pods only |
 | Alert when it breaks | the workflow answers **500** on any failure, so Alertmanager retries and `AlertmanagerFailedToSendAlerts` (warning, Telegram) fires |
 
@@ -55,12 +55,17 @@ flowchart LR
 ## Install or restore (owner steps)
 
 The same three steps install it the first time and restore it after n8n's data is lost. Order matters: the import
-binds the workflow's credential **by name**, so the credential must exist first.
+binds the workflow's credential **by name**, so the credential must exist first. The rule (n8n 2.29,
+`replaceInvalidCredentials`): the id in the file is tried first, then a credential with **exactly** that name and type
+(`httpHeaderAuth`), and only when exactly ONE exists in the workflow's project. Anything else leaves the reference
+dangling and every run answers 500 `Credential with ID "u14LinearWriteKy" does not exist` (the first live install,
+2026-11-04: the credential's name did not match the file's). After the import, the credential's card on the
+Credentials tab shows a usage badge (🔗 1); no badge = not bound.
 
 1. **Key.** In Linear, Settings → Security & access → API → new personal API key named `n8n alert-to-linear (U14)`,
    access limited to team **EMA**, with write access (it creates issues and comments and changes issue state).
 2. **Credential.** In n8n (https://n8n.weyland.lab), Credentials → Create → **Header Auth**. Name it exactly
-   `Linear write key (U14)`; header name `Authorization`; value the key.
+   `Linear write key`; header name `Authorization`; value the key.
 3. **Import, publish, restart.** n8n loads published workflows only at start, hence the pod delete (the Deployment is
    `Recreate`; never `rollout restart`, Argo would revert the annotation):
 
@@ -111,5 +116,6 @@ Expect `0`. The Linear team, project, label and state ids are constants at the t
 |---|---|
 | `AlertmanagerFailedToSendAlerts` for `integration="webhook"` | n8n answered 500 or was unreachable. n8n UI → Executions shows the failing step and its error. A Linear 401 = the key was revoked: re-do step 1–2 (same credential name), no re-import needed |
 | Telegram paged, no Linear issue, no Alertmanager failure | the alert is not `severity=critical`, or the workflow is unpublished (Executions empty). Re-run step 3 |
+| 500 `Credential with ID … does not exist` | the import did not bind the credential: its name is not exactly `Linear write key`, it is not Header Auth, or two share the name. Fix the credential, then re-run step 3 |
 | 404 from the webhook | n8n is starting and has not activated the workflow yet, or it was never published |
 | A duplicate issue | someone edited the `alert-fingerprint:` line out of the description, or canceled the first issue |
