@@ -30,11 +30,13 @@ spec:
     spec:
       ttlSecondsAfterFinished: 259200   # 72h: a failed Job alerts (and keeps its logs) for 3 days, then clears — never forever (2026-09-25)
       backoffLimit: 1
-      activeDeadlineSeconds: 1800  # 30 min — a wedged run (e.g. a stuck native-sidecar init) self-kills instead of
+      activeDeadlineSeconds: 3600  # 60 min — a wedged run (e.g. a stuck native-sidecar init) self-kills instead of
                                    # freezing ALL future backups via concurrencyPolicy: Forbid (the 12–13d wedge B45 caught).
-                                   # Raised 900→1800 on 2026-08-20: pg_dumpall now takes ~12–13 min (DB growth + the
-                                   # 03:00 data-mesh pg-backup stacking into 03:30), so 900s tripped DeadlineExceeded and
-                                   # left the Argo app Degraded. 30 min gives 2× headroom while still catching a real wedge.
+                                   # Raised 900→1800 on 2026-08-20 (runs took ~12–13 min), and 1800→3600 on 2026-11-03:
+                                   # runs had crept to 16–28 min (28.4 once) and 2026-11-03's run passed 30 and was killed
+                                   # (DeadlineExceeded) with the gzip just finished. Streaming the dump through gzip (below)
+                                   # removes the uncompressed write + re-read on the USB disk; 60 min is headroom while that
+                                   # proves itself, and still catches a real wedge.
       template:
         metadata:
           labels:
@@ -60,15 +62,29 @@ spec:
               command: ["/bin/sh", "-c"]
               args:
                 - |
-                  set -e
+                  # 2026-11-03: stream pg_dumpall straight into gzip (no uncompressed copy written and re-read on
+                  # the USB disk), into a .partial name that is renamed only once the file is proven complete. A
+                  # run killed mid-write therefore never leaves a valid-looking newest backup (the old flow could:
+                  # its gzip wrote the final name). pipefail: a failed pg_dumpall inside the pipe fails the job.
+                  set -eu
+                  # pipefail is not POSIX, but this image's /bin/sh is BusyBox ash, which honors it (verified
+                  # 2026-11-03 in postgres:17-alpine: `set -o pipefail; false | true` exits 1)
+                  # shellcheck disable=SC3040
+                  set -o pipefail
                   TS=$(date -u +%Y%m%d)
-                  mkdir -p /backup/pg
+                  DIR=/backup/pg
+                  OUT="$DIR/weyland-all-$TS.sql.gz"
+                  mkdir -p "$DIR"
+                  rm -f "$DIR"/*.partial
                   echo "pg_dumpall weyland-postgres (all DBs + roles) ..."
-                  PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall -h weyland-postgres.weyland.svc.cluster.local -U "$POSTGRES_USER" > "/backup/pg/weyland-all-$TS.sql"
-                  gzip -f "/backup/pg/weyland-all-$TS.sql"
-                  # rotation: keep the 7 most recent
-                  ls -1t /backup/pg/weyland-all-*.sql.gz | tail -n +8 | xargs -r rm -f
-                  echo "full pg backup complete: $(date -u)"
+                  PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall -h weyland-postgres.weyland.svc.cluster.local -U "$POSTGRES_USER" | gzip > "$OUT.partial"
+                  # proof of completeness: the gzip stream decodes (zcat fails on a truncated file) and ends with
+                  # pg_dumpall's own completion line
+                  zcat "$OUT.partial" | tail -n 3 | grep -q 'PostgreSQL database cluster dump complete'
+                  mv -f "$OUT.partial" "$OUT"
+                  # rotation: keep the 7 most recent (a .partial never matches this glob)
+                  ls -1t "$DIR"/weyland-all-*.sql.gz | tail -n +8 | xargs -r rm -f
+                  echo "full pg backup complete: $(date -u) $(du -h "$OUT" | cut -f1)"
               envFrom:
                 - secretRef: { name: weyland-postgres-secret } # provides POSTGRES_USER (superuser) + POSTGRES_PASSWORD
               volumeMounts:

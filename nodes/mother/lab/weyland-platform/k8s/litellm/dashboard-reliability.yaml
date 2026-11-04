@@ -72,6 +72,12 @@ data:
         { "id": 10, "title": "Remaining token headroom by model (rate limit)", "type": "timeseries", "gridPos": {"h":8,"w":12,"x":12,"y":20},
           "datasource": {"type":"prometheus","uid":"${datasource}"},
           "targets": [{"expr":"min by (model) (litellm_remaining_tokens_metric)","refId":"A","legendFormat":"{{model}}"}],
-          "fieldConfig": {"defaults":{"unit":"short"}} }
+          "fieldConfig": {"defaults":{"unit":"short"}} },
+        { "id": 11, "title": "Virtual-key database (readiness probe: 200 connected, 503 DB down)", "type": "state-timeline", "gridPos": {"h":5,"w":24,"x":0,"y":28},
+          "description": "B234: the litellm-db blackbox Probe reads LiteLLM's /health/readiness every 60 s. 503 = LiteLLM has lost its virtual-key database on core Postgres (already-used keys keep working, new keys are refused); LiteLLMDatabaseDisconnected alerts after 5 min. A gap = the probe itself is not reporting.",
+          "datasource": {"type":"prometheus","uid":"${datasource}"},
+          "targets": [{"expr":"probe_http_status_code{job=\"litellm-db\"}","refId":"A","legendFormat":"virtual-key DB"}],
+          "fieldConfig": {"defaults":{"mappings":[{"type":"value","options":{"200":{"text":"connected","color":"green"},"503":{"text":"DB down","color":"red"}}}],"thresholds":{"mode":"absolute","steps":[{"color":"orange","value":null}]}}},
+          "options": {"showValue":"never","mergeValues":true} }
       ]
     }
