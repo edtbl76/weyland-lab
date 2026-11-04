@@ -63,7 +63,9 @@ dangling and every run answers 500 `Credential with ID "u14LinearWriteKy" does n
 Credentials tab shows a usage badge (🔗 1); no badge = not bound.
 
 1. **Key.** In Linear, Settings → Security & access → API → new personal API key named `n8n alert-to-linear (U14)`,
-   access limited to team **EMA**, with write access (it creates issues and comments and changes issue state).
+   access limited to team **EMA**, with **Read AND Write** permissions. Read is required too: every run first
+   looks the incident up, and a write-only key fails with `Invalid scope: read required` (the first live install,
+   2026-11-04). Write covers the issue, comment and state changes.
 2. **Credential.** In n8n (https://n8n.weyland.lab), Credentials → Create → **Header Auth**. Name it exactly
    `Linear write key`; header name `Authorization`; value the key.
 3. **Import, publish, restart.** n8n loads published workflows only at start, hence the pod delete (the Deployment is
@@ -117,5 +119,6 @@ Expect `0`. The Linear team, project, label and state ids are constants at the t
 | `AlertmanagerFailedToSendAlerts` for `integration="webhook"` | n8n answered 500 or was unreachable. n8n UI → Executions shows the failing step and its error. A Linear 401 = the key was revoked: re-do step 1–2 (same credential name), no re-import needed |
 | Telegram paged, no Linear issue, no Alertmanager failure | the alert is not `severity=critical`, or the workflow is unpublished (Executions empty). Re-run step 3 |
 | 500 `Credential with ID … does not exist` | the import did not bind the credential: its name is not exactly `Linear write key`, it is not Header Auth, or two share the name. Fix the credential, then re-run step 3 |
+| 500 with `Invalid scope: read required` | the Linear key lacks the Read permission. Give it Read + Write (or make a new key) and paste the value into the credential; no re-import needed |
 | 404 from the webhook | n8n is starting and has not activated the workflow yet, or it was never published |
 | A duplicate issue | someone edited the `alert-fingerprint:` line out of the description, or canceled the first issue |
