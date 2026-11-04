@@ -1592,6 +1592,38 @@ tools load.
 9. **DR:** `dr.md` n8n row. Restore = credential + import from git, RUN 2026-11-04 in a fresh n8n AND live in the
    cluster (the same import, twice).
 
+**DoD re-audit (2026-11-04, owner: "There were architectural approaches done here, make sure that ALL of the DoD is
+completed").** The first DoD graded the incident flow but not everything it implied. Gaps found and closed the same day:
+- **Pillar 1, the architecture record.**
+  - The design record `docs/design/alert-to-linear-design.md` has 7 ADRs (tool choice, two routes, dedup key,
+    numbering, NetworkPolicy front door, credential + no DB backup, fail-closed responses), each with context,
+    decision, consequences and alternatives rejected.
+  - `arch.md` §10i is a substantial entry: a placement matrix against Dagster, Alertmanager alone, OnCall and a custom
+    service; a decisions table; and a flow diagram. The first DoD had only a component-table row.
+- **Pillar 1, the rest of the sweep.**
+  - `hosts.md` n8n entry; `platform-map.html` n8n card (it said "retained automation");
+  - `concepts/linear-evaluation.md` (it still said U14 was a weekly digest);
+  - `secrets-map.md`: the n8n Linear key, which lives only in the n8n credential;
+  - query cookbook `query/dbt-marts.md` § U14 incidents, its shape RUN against the live tables.
+- **Pillar 6 / B209 write surfaces.** The webhook is a new unauthenticated write surface.
+  - `applications.yaml` n8n `front_door` said "no webhook-triggered workflows", which was false; corrected (the
+    guard credits the NetworkPolicy).
+  - `write-surfaces.md` lists `k8s/n8n/netpol.yaml`.
+  - `write-surface-netpol.bats` pins its exact callers (32/32).
+  - Blackbox probe `https://n8n.weyland.lab` added. n8n had no synthetic check at all.
+  - Logs confirmed in Loki (`{namespace="n8n"}`). Delivery metrics on the **Alertmanager / Overview** dashboard's
+    `webhook` panels. Traces and profiles N/A (a single hop).
+- **Pillar 7, the code CI can't see.** The workflow's JavaScript lives inside JSON, so CI's Sonar never scanned it.
+  - The extracted pre-check found 9 issues (2 CRITICAL: an unstable `sort()`, and cognitive complexity 17); all fixed,
+    precheck clean.
+  - CodeScene: `decide` 9.68 (cc 9, accepted: it is the five-row decision table), `verify` 10.0, `critical-alerts`
+    unscored (no functions).
+  - The fixed workflow was re-rehearsed against real Linear (EMA-330: create / no-op / close / reopen / close). That
+    run found Linear's sub-second read-after-write lag on the lookup, recorded in ADR-3 as a known limit.
+- **Estate gap found, not U14's:** 17 other ingresses have no blackbox probe, against the "1:1 with hosts.md" rule:
+  apisix, dagster, datahub, files, flink (exempt: on-demand), ge-docs, grafana, headlamp, kiali, langfuse, litellm,
+  mcp, minio, opensearch, s3, sourcebot, zoekt. Reported to the owner for a decision.
+
 ### U16 — Weaviate UI (React frontend) — **FOLDED INTO [B81] 2026-08-27** (thread (b) of the [B78] maturity bucket; Linear EMA-24 closed as merged into EMA-71)
 **Folded 2026-08-27 — the need is real and already met better elsewhere; only the *bespoke React app* is dropped.** The three jobs it was scoped for are covered:
 - **Schema browsing** → **DataHub**, live today. `emit_weaviate()` enumerates every class with description + lineage back to `datasets_health_weaviate_load` / `datasets_music_weaviate_load`.

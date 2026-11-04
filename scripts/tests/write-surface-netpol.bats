@@ -66,6 +66,12 @@ PY
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
+@test "n8n admits only Traefik and Alertmanager, on 5678 (U14: its webhooks carry no auth and write to Linear)" {
+  run check n8n n8n-front-door-only n8n 5678 \
+    "ns=kube-system,app.kubernetes.io/name=traefik" "ns=monitoring,app.kubernetes.io/name=alertmanager"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
 @test "store-scaler admits only the port-agent namespace, on 8080" {
   run check data-mesh store-scaler-port-agent-only store-scaler 8080 ns=port-agent
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }

@@ -155,7 +155,7 @@ NodePort had never worked (see MySQL below).
 | LiteLLM model gateway | `mother:30400`, `litellm.weyland.lab` | **B111 use-case ROUTER** — 14 `wl-*` aliases (`wl-agentic`/`coding`/`rag`/`reason`/`judge`/`judge-oss`/`local`/`default`/`speed`/`search`/`big-oss`/`tts`/`private-rag`/`private-reason`), each a primary + server-side **fallback chain** over the provider fleet; OpenAI-compatible. **B17 (2026-08-01): the hosted lanes egress THROUGH Bifrost** (LiteLLM→Bifrost→provider) → provider cost/tokens/latency + per-VK (`realm-llm`) land in Bifrost's Observability; the **local ollama** lanes (`wl-rag`/`wl-reason`/`wl-judge`) stay direct to rogueone but are local-FIRST (they fall back to hosted). **B234 (2026-10-30):** the **private lanes** `wl-private-rag`/`wl-private-reason` reach only allowlisted LAN Ollama with NO fallback (fail closed; CI guard `check-private-lanes.py`), and **per-app virtual keys** (scoped aliases, own usage, isolated revocation; first `ojay-floyd`) live in the `litellm` DB on core Postgres — LiteLLM is now **stateful + meshed** (STRICT-mTLS Postgres), DR via the core `pg_dumpall`. Human-gated off-LAN egress (valve) + spend alerts. Map [llm-routing-map.html](llm-routing-map.html); [runbooks/model-gateway.md](runbooks/model-gateway.md). |
 | **Kokoro** (B111 TTS) | `kokoro.weyland.lab` · `kokoro.weyland.svc:8880` | **B111 media lane** — self-hosted OpenAI-compatible TTS (Kokoro-FastAPI, Apache-2.0, ~82M model, CPU-only), `/v1/audio/speech`, **$0 primary** for the media lane (image=Runware, tts=Kokoro/ElevenLabs-deferred, video=Runway). Fronted by **Bifrost** as a custom provider (`kokoro/kokoro`) + the **`wl-tts` LiteLLM route** (primary Kokoro → ElevenLabs fallback). Web player UI (forward-auth), Argo-managed. `k8s/kokoro/`. |
 | Open WebUI | `chat.weyland.lab` | browser voice/chat -> Ollama (chat) + whisper (STT). **B115:** also surfaces a guarded **`weyland-operator`** lane (an OpenAI connection to `nemo-guardrails`, the Dialog layer) alongside the raw Ollama models. |
-| n8n | `n8n.weyland.lab` | workflow automation. **Live: `alert-to-linear` (U14, 2026-11-04)** — Alertmanager receiver `linear-incidents` posts every critical alert to the in-cluster webhook `/webhook/alertmanager-incident`; the workflow opens one Linear incident per alert fingerprint (label `incident`, Urgent), closes it on resolve, reopens it on a re-fire within 24 h. Telegram stays the pager. NetworkPolicy admits Traefik + Alertmanager only. [runbooks/alert-to-linear.md](runbooks/alert-to-linear.md). The old Obsidian ingest is retired (-> Dagster). |
+| n8n | `n8n.weyland.lab` | workflow automation. **Live: `alert-to-linear` (U14, 2026-11-04)** — Alertmanager receiver `linear-incidents` posts every critical alert to the in-cluster webhook `/webhook/alertmanager-incident`; the workflow opens one Linear incident per alert fingerprint (label `incident`, Urgent), closes it on resolve, reopens it on a re-fire within 24 h. Telegram stays the pager. NetworkPolicy admits Traefik + Alertmanager only. [runbooks/alert-to-linear.md](runbooks/alert-to-linear.md), design §10i. The old Obsidian ingest is retired (-> Dagster). |
 | GlitchTip | `glitchtip.weyland.lab` | **B51** error tracking (Sentry-SDK-compatible; web + worker + Valkey, meshed Postgres). tool-server + Dagster push errors via the Sentry SDK; issues → Port `glitchtip_issue` via webhook. Sibling alerting: **Loki ruler** LogQL rules → Alertmanager→Telegram (one pipeline for metric + log alerts). [runbooks/glitchtip.md](runbooks/glitchtip.md). |
 | Langfuse | `langfuse.weyland.lab` | **B103** LLM observability (v3 self-hosted; **web + worker only** — REUSES data-mesh ClickHouse (`langfuse` DB), Valkey, MinIO + weyland-postgres, so the marginal cost is just the two stateless pods). LiteLLM's `langfuse` callback emits traces (model/tokens/latency/per-VK) into the `platform` project, stacking with the Prometheus cost callback. **Prompt federation LIVE** (Phase 1+2, 2026-08-10): Bifrost = SoT, `sync_prompts.py` mirrors 269 prompts here + to MLflow and tool-server/operator/agent tag every trace with its prompt version; **Phase 2** made the sync **bidirectional** (native Langfuse/MLflow edits reconcile back to Bifrost, loop-safe via `synced-from-bifrost` stamps) and **automatic** (the `prompt_federation_synced` asset in the Dagster `registrations` group) — [runbooks/prompt-federation.md](runbooks/prompt-federation.md). **Session grouping LIVE** (2026-08-11): the 4 AI surfaces tag traces with a `session_id` (tool-server/operator/agent via `propagate_attributes`; realm via a langchain CallbackHandler + contextvar through delegation) → Langfuse **Sessions** shows a whole chat / agent-run / dispatch as one timeline — [demos/langfuse-sessions.md](demos/langfuse-sessions.md). **Online-evals LIVE** (2026-08-11): 9 **native** evaluators (7 managed + custom `citation`/`refusal`) created via `/api/public/unstable/evaluation-rules`, scoring `rag-generate` per-trace on `wl-judge-oss` ($0); eval-fixture **SSOT = git** `eval_sets/` → `weyland-golden`/`weyland-regression` Datasets; `human_quality` annotation queue — all codified as Dagster `registrations` assets (DB-reset-durable) — [demos/langfuse-evaluation.md](demos/langfuse-evaluation.md). [runbooks/langfuse.md](runbooks/langfuse.md). |
 | OpenCost | `opencost.weyland.lab` | **B55** k8s cost allocation (CNCF). Reads the existing Prometheus; **custom on-prem pricing** (bare-metal MS-A2, no cloud bill) → ~$48/mo box, k3s slice ~$15/mo. Feeds the Port **Cloud Cost** category: `cost` blueprint (Claude $200 + infra $48 + LiteLLM $0 ≈ $248/mo) + a Cost dashboard; OpenCost in the Launcher for live detail. [runbooks/opencost.md](runbooks/opencost.md). |
@@ -1730,6 +1730,64 @@ Each client's TLS quirk was proven against a throwaway Trino 468 with the live R
 to *not* verifying certs; Soda/GE/Go clients need the CA through the environment). Credentials:
 `scripts/trino-credentials.sh` (one per caller, sealed). Runbook: [runbooks/trino.md](runbooks/trino.md) §
 Authentication; demo [demos/ranger-masking.md](demos/ranger-masking.md).
+
+### 10i. Incidents get a record — critical alert → Linear issue (U14, 2026-11-04)
+
+Telegram paged for a critical alert, and then nothing recorded whether it was seen, acted on, or resolved (B44). Now
+Alertmanager also posts every critical alert to n8n, and the `alert-to-linear` workflow keeps **one Linear issue per
+alert fingerprint**:
+- it opens the issue when the alert fires;
+- it comments and closes it when the alert resolves;
+- it reopens the same issue if the alert fires again within 24 h.
+
+Telegram is still the pager; the issue is the record. Design record with seven ADRs:
+[design/alert-to-linear-design.md](design/alert-to-linear-design.md).
+
+```mermaid
+flowchart LR
+  P[Prometheus rule] --> AM[Alertmanager]
+  AM -->|critical, route 1, continue| N[n8n alert-to-linear]
+  AM -->|critical, route 2| TG[Telegram pager]
+  AM -->|everything else| TG
+  N -->|lookup by fingerprint, then create / reopen / close| L[Linear: Weyland Lab, label incident]
+  N -.->|any failure = HTTP 500| AM
+  AM -.->|AlertmanagerFailedToSendAlerts| TG
+```
+
+**Placement: why n8n, and what each alternative would have cost.**
+
+| | n8n webhook (chosen) | Dagster sensor | Alertmanager alone | Grafana OnCall | Custom service |
+|---|---|---|---|---|---|
+| Fits the shape (event in, SaaS out) | yes | no: polls, a run per alert | no Linear receiver | yes | yes |
+| New always-on workloads | 0 (n8n was idle) | 0 | 0 | 4 | 1 + image + CI |
+| Dedup / close / reopen | GraphQL lookup | possible | impossible | built in | to write |
+| Owned state | none: Linear holds it | run history | — | its DB | its DB |
+| Verdict | **adopted** | got the scheduled Linear digest instead (B237) | — | held for hardware (B44) | more to own |
+
+**The five decisions that carry the weight:**
+
+| Decision | Chosen | Rejected, and why |
+|---|---|---|
+| Routing | incident route with `continue: true`, **then an explicit critical → Telegram route**. A matching child claims the alert even with `continue`, so without route 2 Telegram silently stops paging criticals. Proven with `amtool config routes test`. | a webhook inside the Telegram receiver (an n8n failure would retry Telegram); n8n forwarding to Telegram (makes n8n the pager) |
+| Dedup key | Alertmanager fingerprint as an `alert-fingerprint:` line in the description, looked up with label `incident` | Linear attachments (URL not unique per alert); an n8n-side store (a second truth, on an un-backed-up PVC) |
+| Where incidents live | Weyland Lab, titled `U14 incident — <alert>`, so the sync guard's numbering rule holds. The guard now joins a number to its lowest EMA, so incidents never hijack U14's own issue. | a separate project (more parity to keep, and incidents hidden); a guard exemption (a special case) |
+| Who may call the webhook | NetworkPolicy: Traefik + Alertmanager only (B209's rule: a write surface is authenticated or unreachable) | a header token (a Secret in two places, for a caller set a policy already pins) |
+| Failure signal | every step's error output → HTTP 500; `Verify` throws on any `success:false` (Linear refuses with HTTP 200) | `onReceived` 200 (hides failures); an n8n error workflow (a second alert path) |
+
+**Two n8n traps shaped the build** (both found in a rehearsal against the cluster's exact image):
+- in `lastNode` response mode, a run with nothing to do answers 500;
+- in `responseNode` mode, a run that errors answers 200.
+
+**Two more surfaced in the live install** and are now in the runbook:
+- `import:workflow` re-binds a credential by name only when exactly one credential of that name and type exists in the
+  project;
+- a write-only Linear key fails the lookup with `Invalid scope: read required`.
+
+**Live, 2026-11-04:** real criticals opened EMA-327 and EMA-328, and each closed itself on resolve. The test alert
+opened EMA-329, closed it, and on a re-fire reopened it instead of duplicating. Telegram paged throughout.
+
+**Restore** is credential + import from git ([dr.md](dr.md) n8n row). Runbook:
+[runbooks/alert-to-linear.md](runbooks/alert-to-linear.md); demo [demos/alert-to-linear.md](demos/alert-to-linear.md).
 
 ## 11. Operational lessons (why the CTs are tuned the way they are)
 

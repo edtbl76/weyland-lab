@@ -181,6 +181,22 @@ FROM iceberg.dbt.mart_linear_initiative_progress
 ORDER BY issues_total DESC;
 ```
 
+**U14 — incidents and how long each stayed open.** These are the issues the n8n `alert-to-linear` workflow opens per
+critical alert. `label_ids` is comma-separated. `completed_at` is the LAST close, so a reopened incident shows its
+final cycle; the comments hold every fire and resolve. This reads the raw `iceberg.linear` tables (no mart), so
+incidents appear from the first snapshot after they are opened. The shape was RUN 2026-11-04 against the live tables
+with label `Feature`, since that day's snapshot predated the first incident.
+
+```sql
+WITH lbl AS (SELECT id FROM iceberg.linear.issue_labels WHERE name = 'incident')
+SELECT i.identifier, i.title, i.created_at, i.completed_at,
+       date_diff('minute', from_iso8601_timestamp(i.created_at),
+                 from_iso8601_timestamp(i.completed_at))          AS minutes_open
+FROM iceberg.linear.issues i CROSS JOIN lbl
+WHERE contains(split(i.label_ids, ','), lbl.id)
+ORDER BY i.created_at DESC;
+```
+
 ## Notes
 
 - `iceberg.dbt` is the dbt output schema (Nessie `main`). Rebuild by materializing `weyland_dbt_assets` in Dagster

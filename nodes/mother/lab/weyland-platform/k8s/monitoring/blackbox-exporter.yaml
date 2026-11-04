@@ -141,6 +141,7 @@ spec:
         - https://lightdash.weyland.lab
         - https://likec4.weyland.lab
         - https://mlflow.weyland.lab
+        - https://n8n.weyland.lab              # added 2026-11-04 (U14 DoD found it missing; n8n is on the alert path now)
         - https://nessie.weyland.lab/q/health
         - https://opencost.weyland.lab
         - https://promptfoo.weyland.lab

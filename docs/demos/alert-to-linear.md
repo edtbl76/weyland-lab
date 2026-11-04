@@ -34,6 +34,26 @@ alertname=Watchdog severity=none     -> healthchecks-watchdog
 alertname=InfoInhibitor severity=none -> null
 ```
 
+**Re-rehearsal after the code-quality fixes (RUN 2026-11-04, DoD re-audit).** The workflow's JavaScript is invisible to
+CI (it lives inside JSON), so it was extracted and pre-checked. Sonar found 9 issues, including an unstable default
+`sort()` and a decision function at cognitive complexity 17; all were fixed, and Sonar is now clean (0 issues).
+CodeScene: `decide` 9.68, `verify` 10.0. The same fresh-n8n scenario against real Linear then gave:
+
+| Payload | Result |
+|---|---|
+| garbage | 500 |
+| warning | no-op |
+| firing | `create EMA-330` |
+| repeat firing | no-op |
+| resolved | `close EMA-330` |
+| repeat resolved | no-op |
+| firing | `reopen EMA-330` |
+| resolved, sent immediately | no-op |
+| the same resolved, ~30 s later | `close EMA-330` |
+
+The immediate no-op is Linear's read-after-write lag: its filtered lookup returned the pre-reopen state. It is
+recorded in the design record, ADR-3. Alertmanager never sends a group's notifications that close together.
+
 ## 2. Live: the cluster, end to end (owner, after the install steps)
 
 **CLI.** Fire the runbook's test alert (one-off `amtool` pod in `monitoring`):

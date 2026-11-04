@@ -31,6 +31,14 @@ Not in `.env`: the **`litellm` database password** (core Postgres role `litellm`
 one command and never printed, so it exists only inside SealedSecret `weyland/litellm-db` (`DATABASE_URL`). Re-key it
 with § 1d's `ALTER ROLE` variant ([model-gateway.md](model-gateway.md)).
 
+Not in `.env` either: the **n8n Linear write key** (U14, 2026-11-04). It is a Linear personal API key, Read + Write,
+limited to team EMA, used only by the n8n workflow `alert-to-linear`. It lives in one place, the n8n credential
+**`Linear write key`** (Header Auth, encrypted in n8n's SQLite under `N8N_ENCRYPTION_KEY`), and was pasted there by the
+owner, never through a terminal. It is one key per consumer, separate from the agents' `LINEAR_API_KEY` and the backup's
+`LINEAR_API_KEY_RO`. To rotate or recover it, revoke it in Linear (Settings → Security & access → API), make a new one
+with Read + Write, and paste it into that credential. There is no re-import: the workflow references the credential by
+id. [alert-to-linear.md](alert-to-linear.md).
+
 Not provider keys, listed so nobody hunts for them: Open WebUI's `OPENAI_API_KEY` is the dummy `nemo-guardrails`
 (it talks to the guardrails service); the eval scripts set `OPENAI_API_KEY` to `gateway`/`ollama`; Codex uses a ChatGPT
 sign-in, not an API key. Other providers' keys (Gemini, Groq, Mistral, …) are still shared names in `.env`, sealed into
