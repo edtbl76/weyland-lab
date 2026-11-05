@@ -1,0 +1,45 @@
+# Demo: the Slack feed (B184)
+
+Each source posts to its channel, Telegram still pages, and the free plan's 10-installation cap holds with 3 used
+([runbook](../runbooks/slack.md), [concept](../concepts/slack.md), [flow](../diagrams/flow-slack.md)).
+
+## 1. Proven before the push (RUN 2026-11-04/05)
+
+| Check | Result |
+|---|---|
+| The three `weyland` incoming webhooks (`#alerts`, `#deploys`, `#errors`) | each answered `HTTP 200 ok` to a check message |
+| Alertmanager routes (`amtool config routes test`, v0.32.2) | critical → `slack-alerts,linear-incidents,telegram`; warning / info / unlabelled → `slack-alerts,telegram`; Watchdog → `healthchecks-watchdog`; InfoInhibitor → `null`. Telegram pages exactly as before |
+| Alertmanager config and Slack templates | `check-config` SUCCESS; color / title / text render |
+| Argo CD notifications (`argocd admin notifications`, v3.4.4, against the live `n8n` app) | both triggers parse and evaluate (`false`: n8n is healthy); both templates rendered with real data and Slack answered `200 OK` (`[SYNC FAILED] n8n`, `[DEGRADED] n8n` as forced test renders); the `toJson` body is valid JSON |
+| Woodpecker `notify-slack` | `woodpecker-cli lint` valid; the step's `printf` in its own image gave valid JSON; Slack answered `200` (a sample `[CI FAILED] … #999`) |
+| GitHub app on free Slack | installed and subscribed to `edtbl76/weyland-lab` (the one claim the audit could not source) |
+| Linear app | connected to `#linear-updates` (team EMA: project updates, completed/canceled, triage; initiatives) |
+
+## 2. Live (after the push and the Argo CD `helm upgrade`)
+
+**CLI.**
+
+- Alertmanager: the runbook's warning test alert.
+
+  [rogueone]
+  ```
+  kubectl -n monitoring run slack-test-alert --rm -i --restart=Never --image=quay.io/prometheus/alertmanager:v0.32.2 --command -- amtool alert add --alertmanager.url=http://monitoring-kube-prometheus-alertmanager.monitoring:9093 alertname=SlackTestAlert severity=warning namespace=monitoring --annotation='summary="B184 Slack test alert"' --annotation='description="Fired by docs/runbooks/slack.md, resolves by itself after 5 min."'
+  ```
+  Expected: `[FIRING:1] SlackTestAlert (monitoring) [warning]` in `#alerts`, Telegram pages as usual, and `[RESOLVED]`
+  about 5–10 minutes later.
+- Argo CD: the runbook's filtered `template notify` from the controller. Expected: `HTTP/2.0 200 OK` and
+  `[DEGRADED] n8n` in `#deploys`.
+
+**UI.**
+
+- Uptime Kuma: Settings → Notifications → `Slack #alerts` → **Test** posts to `#alerts`.
+- GlitchTip: a project's alert → **Send test** posts to `#errors`.
+- Linear: complete or cancel any issue, and it appears in `#linear-updates`.
+- GitHub: the next push appears in `#github`.
+
+**RUN:** recorded here once each check runs.
+
+## Cleanup
+
+Test posts stay in their channels as the record (the free plan drops anything past 90 days anyway). The test pod is
+`--rm`, and the test alert resolves by itself. Nothing else is created.

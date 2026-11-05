@@ -1231,3 +1231,20 @@ steps:
           "$CI_PIPELINE_NUMBER" "$CI_PIPELINE_STATUS" "$CI_REPO" "$CI_COMMIT_BRANCH" "$CI_COMMIT_SHA" "$CI_PIPELINE_EVENT" "$CI_PIPELINE_URL" > /tmp/port.json
         # Bounded so a hung Port fails fast rather than pinning the step.
         curl -sf --connect-timeout 10 --max-time 20 -X POST "$PORT_INGEST_URL" -H "Content-Type: application/json" -d @/tmp/port.json
+
+  # ── 7. a failed pipeline → Slack #deploys (B184). FAILURES ONLY: a feed of what broke, not of every green run.
+  # The `weyland` Slack app's incoming webhook; the URL is a capability secret, so it is a Woodpecker repo secret
+  # (slack_webhook_deploys), never in this public file. Only fixed-format CI_* values go into the JSON (no commit
+  # message: a quote in it would break the body). Not gated, like notify-port.
+  - name: notify-slack
+    image: curlimages/curl:latest
+    when:
+      - status: [failure]
+    environment:
+      SLACK_WEBHOOK:
+        from_secret: slack_webhook_deploys
+    commands:
+      - |
+        printf '{"attachments":[{"color":"danger","title":"[CI FAILED] %s #%s on %s","text":"%s (%s) at %.8s: %s"}]}' \
+          "$CI_REPO" "$CI_PIPELINE_NUMBER" "$CI_COMMIT_BRANCH" "$CI_PIPELINE_EVENT" "$CI_PIPELINE_STATUS" "$CI_COMMIT_SHA" "$CI_PIPELINE_URL" > /tmp/slack.json
+        curl -sf --connect-timeout 10 --max-time 20 -X POST "$SLACK_WEBHOOK" -H "Content-Type: application/json" -d @/tmp/slack.json

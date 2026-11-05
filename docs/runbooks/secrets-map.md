@@ -39,6 +39,14 @@ owner, never through a terminal. It is one key per consumer, separate from the a
 with Read + Write, and paste it into that credential. There is no re-import: the workflow references the credential by
 id. [alert-to-linear.md](alert-to-linear.md).
 
+Not provider keys either: the **Slack incoming-webhook URLs** (B184), `SLACK_WEBHOOK_ALERTS` / `_DEPLOYS` / `_ERRORS`
+in `scripts/.env`. Each is a capability (anyone holding it can post into that channel).
+- `#alerts`: sealed `monitoring/slack-webhooks`, read by Alertmanager, and pasted into Uptime Kuma.
+- `#deploys`: sealed `argocd/argocd-notifications-secret`, and the Woodpecker repo secret `slack_webhook_deploys`.
+- `#errors`: pasted into GlitchTip's per-project alerts.
+
+Rotate in the Slack app's Incoming Webhooks page, then follow [secrets.md](secrets.md) § Slack webhooks.
+
 Not provider keys, listed so nobody hunts for them: Open WebUI's `OPENAI_API_KEY` is the dummy `nemo-guardrails`
 (it talks to the guardrails service); the eval scripts set `OPENAI_API_KEY` to `gateway`/`ollama`; Codex uses a ChatGPT
 sign-in, not an API key. Other providers' keys (Gemini, Groq, Mistral, …) are still shared names in `.env`, sealed into

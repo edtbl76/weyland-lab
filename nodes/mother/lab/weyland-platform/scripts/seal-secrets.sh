@@ -97,12 +97,13 @@ SECRETS=(
   data-mesh/trino-perf                # B233 — Trino login `perf` (the on-demand k6 baseline Job)
   data-mesh/trino-metrics-auth
   data-mesh/trino-secret
-  # --- monitoring (7) ---
+  # --- monitoring (8) ---
   monitoring/grafana-admin
   monitoring/grafana-oauth
   monitoring/linear-intake            # B195 — the Linear team's create-by-email address (anyone holding it files issues); B184's fallback
   monitoring/loki-minio
   monitoring/pve-exporter-secret
+  monitoring/slack-webhooks            # B184 — the weyland Slack app's incoming-webhook URL for #alerts (anyone holding it can post)
   monitoring/watchdog-healthcheck
   monitoring/weyland-alerts-telegram
   # --- minio (2) ---
@@ -124,6 +125,8 @@ SECRETS=(
   jupyterhub/datahub-creds            # B81 governance nb 70 — DataHub GMS token (DATAHUB_TOKEN)
   jupyterhub/trino-notebook           # B233 — Trino login `notebook` (notebooks 20/40/62/71/81)
   jupyterhub/trino-analyst            # B233 — Trino login `analyst`, Ranger's masked demo identity (notebook 72)
+  # --- argocd (1) ---
+  argocd/argocd-notifications-secret  # B184 — the weyland Slack app's #deploys webhook URL (key slack-webhook-deploys); the chart's secret.create is false
   # --- gatekeeper-system (1) ---
   gatekeeper-system/gpm-secret
 )

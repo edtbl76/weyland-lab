@@ -762,6 +762,7 @@ data:
     workloads:
       # ---- mother (k3s) — seeded from the live cluster 2026-09-27 ----
       - {id: "k8s:argocd/Deployment/argocd-applicationset-controller", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
+      - {id: "k8s:argocd/Deployment/argocd-notifications-controller", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md); B184, sync failures → Slack #deploys"}
       - {id: "k8s:argocd/Deployment/argocd-redis", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
       - {id: "k8s:argocd/Deployment/argocd-repo-server", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
       - {id: "k8s:argocd/Deployment/argocd-server", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}

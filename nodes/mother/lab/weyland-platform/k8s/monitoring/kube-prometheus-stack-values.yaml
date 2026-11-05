@@ -55,17 +55,20 @@ alertmanager:
           group_wait: 0s
           group_interval: 5m
           repeat_interval: 5m
-        # U14 (EMA-16): every critical alert also opens/closes a Linear incident via n8n. `continue: true` only lets
-        # the walk go on to the NEXT sibling — a matching child still claims the alert, so the parent's `telegram`
-        # default would no longer fire for criticals. The explicit critical → telegram route below keeps the pager.
-        # Proven with `amtool config routes test` (docs/runbooks/alert-to-linear.md).
+        # B184: every other alert also posts to Slack #alerts, a FEED (no @mentions, so no phone push). Telegram stays
+        # the only pager. `continue: true` only lets the walk go on to the NEXT sibling: a matching child still claims
+        # the alert, and the parent's `telegram` default fires only when NO child matched. This route matches
+        # everything, so the explicit catch-all → telegram route at the end is what keeps the pager for every severity.
+        - receiver: slack-alerts
+          continue: true
+        # U14 (EMA-16): every critical alert also opens/closes a Linear incident via n8n.
         - receiver: linear-incidents
           matchers:
             - severity = "critical"
           continue: true
+        # The pager: every alert that reached this point (all but InfoInhibitor and Watchdog). Proven with
+        # `amtool config routes test` (docs/runbooks/alert-to-linear.md, docs/runbooks/slack.md).
         - receiver: telegram
-          matchers:
-            - severity = "critical"
     receivers:
       - name: 'null'
       - name: 'healthchecks-watchdog'
@@ -79,6 +82,17 @@ alertmanager:
         webhook_configs:
           - url: http://n8n.n8n.svc.cluster.local:5678/webhook/alertmanager-incident
             send_resolved: true
+      # B184: Slack #alerts via the `weyland` Slack app's incoming webhook. The URL is a secret (anyone holding it can
+      # post), so it is read from the sealed Secret `slack-webhooks`, mounted below; never inline in this public repo.
+      - name: slack-alerts
+        slack_configs:
+          - api_url_file: /etc/alertmanager/secrets/slack-webhooks/alerts
+            send_resolved: true
+            color: '{{ if eq .Status "resolved" }}good{{ else if eq .CommonLabels.severity "critical" }}danger{{ else }}warning{{ end }}'
+            title: '[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}{{ if .CommonLabels.namespace }} ({{ .CommonLabels.namespace }}){{ end }} [{{ .CommonLabels.severity }}]'
+            text: |
+              {{ range .Alerts }}- {{ .Annotations.summary }}{{ if .Annotations.description }}: {{ .Annotations.description }}{{ end }}
+              {{ end }}
       - name: telegram
         telegram_configs:
           - bot_token_file: /etc/alertmanager/secrets/weyland-alerts-telegram/bot-token
@@ -93,6 +107,8 @@ alertmanager:
     secrets:
       - weyland-alerts-telegram
       - watchdog-healthcheck   # B69 dead-man's-switch: hc-ping.com URL (key `url`), created out-of-band
+      - slack-webhooks         # B184: Slack incoming-webhook URL (key `alerts`), sealed. MUST exist before this syncs:
+                               # the operator cannot start Alertmanager with a missing secret volume.
     storage:
       volumeClaimTemplate:
         spec:

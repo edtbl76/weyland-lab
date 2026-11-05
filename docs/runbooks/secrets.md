@@ -215,3 +215,58 @@ the re-sealed `monitoring__linear-intake.yaml`. Then update whatever B184 wired 
 fresh cluster). If the controller key AND `scripts/.env` are both lost, nothing is lost that matters: the address is
 reproducible by regenerating it in Linear (the Rotate steps above). Treat a screenshot or paste of the address as a
 leak and rotate.
+
+## Slack webhooks — `monitoring/slack-webhooks` (B184)
+
+The `weyland` Slack app's incoming-webhook URLs, one per channel. Each is a **capability URL**: anyone holding it can
+post into that channel. They live in the gitignored `scripts/.env` as `SLACK_WEBHOOK_ALERTS` / `SLACK_WEBHOOK_DEPLOYS`
+/ `SLACK_WEBHOOK_ERRORS`; the cluster copy of the `#alerts` one is sealed, and Alertmanager reads it from a file
+(`api_url_file`), so it never appears in config. Channel map and routing: [slack.md](slack.md).
+
+Create and seal (the owner runs these: a credential write). **Run them BEFORE pushing a values change that mounts the
+secret**: the operator cannot start Alertmanager while a listed secret is missing. Step 1 refuses an empty value:
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ -n "${SLACK_WEBHOOK_ALERTS:-}" ] && kubectl -n monitoring create secret generic slack-webhooks --from-literal=alerts="$SLACK_WEBHOOK_ALERTS" --dry-run=client -o yaml | kubectl -n monitoring apply -f -
+```
+[rogueone]
+```
+kubectl -n monitoring annotate secret slack-webhooks sealedsecrets.bitnami.com/managed=true --overwrite && kubectl -n monitoring get secret slack-webhooks -o yaml | kubeseal --format yaml > /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/monitoring__slack-webhooks.yaml
+```
+Verify the stored value equals `.env`, and that the URL appears nowhere in the tree. Neither command prints it:
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ "$(kubectl -n monitoring get secret slack-webhooks -o jsonpath='{.data.alerts}')" = "$(printf %s "$SLACK_WEBHOOK_ALERTS" | base64 -w0)" ] && echo "stored value matches .env" || echo "MISMATCH"; grep -rlF --exclude=.env -- "$SLACK_WEBHOOK_ALERTS" /home/edwardmangini/IdeaProjects/weyland || echo "URL not in the tree"
+```
+
+**`#deploys` — `argocd/argocd-notifications-secret`** (key `slack-webhook-deploys`), read by Argo CD's notifications
+controller as `$slack-webhook-deploys`. Same steps, its own names. Create it **before** the `helm upgrade` that enables
+notifications (the chart's `notifications.secret.create` is `false`, so nothing else makes it):
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ -n "${SLACK_WEBHOOK_DEPLOYS:-}" ] && kubectl -n argocd create secret generic argocd-notifications-secret --from-literal=slack-webhook-deploys="$SLACK_WEBHOOK_DEPLOYS" --dry-run=client -o yaml | kubectl -n argocd apply -f -
+```
+[rogueone]
+```
+kubectl -n argocd annotate secret argocd-notifications-secret sealedsecrets.bitnami.com/managed=true --overwrite && kubectl -n argocd get secret argocd-notifications-secret -o yaml | kubeseal --format yaml > /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/argocd__argocd-notifications-secret.yaml
+```
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ "$(kubectl -n argocd get secret argocd-notifications-secret -o jsonpath='{.data.slack-webhook-deploys}')" = "$(printf %s "$SLACK_WEBHOOK_DEPLOYS" | base64 -w0)" ] && echo "stored value matches .env" || echo "MISMATCH"; grep -rlF --exclude=.env -- "$SLACK_WEBHOOK_DEPLOYS" /home/edwardmangini/IdeaProjects/weyland || echo "URL not in the tree"
+```
+
+**Testing a notifications change leaks the URL if done naively.** `argocd admin notifications template notify`
+prints the full outgoing request, URL included (found 2026-11-05: the `#deploys` URL reached a session transcript;
+the owner declined rotation, since the blast radius is posting into `#deploys`). `trigger get` / `template get` /
+`trigger run` are safe; filter a real send to its status line ([slack.md](slack.md) § Argo CD).
+
+**Rotate** (a URL leaked, or a channel gets spam): in the Slack app's **Incoming Webhooks** page, remove that webhook
+and add a new one for the same channel. Put the new URL in `scripts/.env`, re-run the three commands above, commit the
+re-sealed file. Then prove the new URL is in use with the live test in [slack.md](slack.md) § Test (a rotation is not
+done until a message arrives through it).
+
+**Rebuild (DR):** restores with the controller key like every other sealed secret. If both the key and `scripts/.env`
+are lost, regenerate the webhooks in the Slack app (nothing else depends on the old URLs).

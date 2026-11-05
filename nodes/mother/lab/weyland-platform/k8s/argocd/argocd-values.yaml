@@ -21,5 +21,46 @@ configs:
       p, store-park, applications, sync, default/superset, allow
 dex:
   enabled: false                 # no SSO yet (local admin); Keycloak/OIDC later (B1)
+# B184 (2026-11-05): Argo CD's built-in notifications controller → Slack #deploys, through the `weyland` Slack app's
+# incoming webhook (the generic `webhook` service: the `slack` service needs a bot token and an app slot of its own).
+# FAILURES ONLY. Every app tracks `main`, so every push gives all ~83 apps a new synced revision: `on-deployed` would post
+# ~83 messages per push. The URL is a secret: it comes from the sealed `argocd-notifications-secret`
+# (key `slack-webhook-deploys`), so the chart must not create that secret.
 notifications:
-  enabled: false                 # add later if we want Argo→Telegram
+  enabled: true
+  secret:
+    create: false
+  notifiers:
+    service.webhook.slack-deploys: |
+      url: $slack-webhook-deploys
+      headers:
+        - name: Content-Type
+          value: application/json
+  subscriptions:
+    - recipients:
+        - slack-deploys
+      triggers:
+        - on-sync-failed
+        - on-health-degraded
+  triggers:
+    trigger.on-sync-failed: |
+      - description: A sync operation ended in Error or Failed
+        send: [slack-sync-failed]
+        when: app.status.operationState != nil and app.status.operationState.phase in ['Error', 'Failed']
+    trigger.on-health-degraded: |
+      - description: The application's health turned Degraded
+        send: [slack-health-degraded]
+        when: app.status.health.status == 'Degraded'
+  templates:
+    template.slack-sync-failed: |
+      webhook:
+        slack-deploys:
+          method: POST
+          body: |
+            {"attachments": [{"color": "danger", "title": "[SYNC FAILED] {{.app.metadata.name}}", "text": {{ printf "%s: %s" .app.status.operationState.phase .app.status.operationState.message | toJson }}}]}
+    template.slack-health-degraded: |
+      webhook:
+        slack-deploys:
+          method: POST
+          body: |
+            {"attachments": [{"color": "warning", "title": "[DEGRADED] {{.app.metadata.name}}", "text": "Health is Degraded (sync: {{.app.status.sync.status}}). Check it: argocd app get {{.app.metadata.name}} --grpc-web"}]}

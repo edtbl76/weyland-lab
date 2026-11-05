@@ -274,6 +274,7 @@ run, no error, no metric — and `next_exec` simply freezes at its first-ever sl
 | 2 `weyland-lab` | `cosign_key`, `github_token`, `port_client_id`, `port_client_secret`, `port_ingest_url` | `cron`, `manual` |
 | 2 `weyland-lab` | `linear_api_key` (**READ-ONLY** key = `LINEAR_API_KEY_RO` in `scripts/.env`), `sonar_token` | `cron`, `manual`, `push` |
 | 2 `weyland-lab` | `linear_comment_key` (**write** key = `LINEAR_API_KEY` — the B190 `issue-readiness` step posts one comment per issue) | `cron`, `manual`, `push` |
+| 2 `weyland-lab` | `slack_webhook_deploys` (B184 — Slack `#deploys` incoming webhook = `SLACK_WEBHOOK_DEPLOYS`; the `notify-slack` step posts a failed pipeline) | `cron`, `manual`, `push` |
 | 1 `stud.io` | `sonar_token`, `minio_svc_access_key`, `minio_svc_secret_key` | `manual`, `push` |
 | 1 `stud.io` | `port_ingest_url` | `manual`, `pull_request`, `push` |
 
@@ -293,6 +294,13 @@ exist BEFORE `.woodpecker.yml` references it — a missing secret fails the whol
 
 ```bash
 set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name linear_comment_key --value "$LINEAR_API_KEY" --event cron --event manual --event push
+```
+
+The B184 `notify-slack` step's secret (a failed pipeline → Slack `#deploys`). Same rule: create it BEFORE the config
+that references it lands:
+
+```bash
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name slack_webhook_deploys --value "$SLACK_WEBHOOK_DEPLOYS" --event cron --event manual --event push
 ```
 
 The **events list is part of the secret**, not decoration: a secret that exists but does not cover the triggering

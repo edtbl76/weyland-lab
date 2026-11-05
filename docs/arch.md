@@ -1243,6 +1243,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Control/ops | Roadmap-sync -> Hermes Kanban (B27) | [flow-roadmap-sync.md](diagrams/flow-roadmap-sync.md) |
 | Control/ops | Alerting (B5) | [flow-alerting.md](diagrams/flow-alerting.md) |
 | Control/ops | Alert → Linear incident — critical alert → n8n → one Linear issue per fingerprint, closed on resolve (U14) | [flow-alert-to-linear.md](diagrams/flow-alert-to-linear.md) |
+| Control/ops | Slack feed — alerts, deploy failures, errors, Linear and GitHub into five channels; Telegram stays the pager (B184) | [flow-slack.md](diagrams/flow-slack.md) |
 | Control/ops | Deploy / redeploy (build<->runtime isolation) | [flow-deploy.md](diagrams/flow-deploy.md) |
 | Control/ops | **Ship loop** — detect → build → tag-bump PR → gated merge → Argo → verify a pod carries the tag (B135) | [flow-ship-loop.md](diagrams/flow-ship-loop.md) |
 | Control/ops | **Scheduled-work watchdogs** — open-PR staleness + Woodpecker-cron freshness → Alertmanager → Telegram (B131/B135) | [flow-ship-loop.md](diagrams/flow-ship-loop.md#watchdogs) |
@@ -1788,6 +1789,37 @@ opened EMA-329, closed it, and on a re-fire reopened it instead of duplicating. 
 
 **Restore** is credential + import from git ([dr.md](dr.md) n8n row). Runbook:
 [runbooks/alert-to-linear.md](runbooks/alert-to-linear.md); demo [demos/alert-to-linear.md](demos/alert-to-linear.md).
+
+### 10j. Slack — the feed beside the pager (B184, 2026-11-04/05)
+
+A free Slack workspace shows what the platform is doing, in the surface a real org would use. **Telegram remains the
+only pager.** Slack posts carry no @mentions, so they never push to a phone: a feed you read, not a page. Concept and
+the full 25-tool audit: [concepts/slack.md](concepts/slack.md). Runbook: [runbooks/slack.md](runbooks/slack.md).
+
+```mermaid
+flowchart LR
+  AM[Alertmanager] -->|every alert| A["#alerts"]
+  K[Uptime Kuma] --> A
+  AR[Argo CD notifications] -->|sync failed, degraded| D["#deploys"]
+  W[Woodpecker notify-slack] -->|failed pipeline| D
+  G[GlitchTip] --> E["#errors"]
+  L[Linear app] --> LU["#linear-updates"]
+  GH[GitHub app] --> GC["#github"]
+  AM -->|pager, unchanged| TG[Telegram]
+```
+
+**Design forced by the free plan** (a 10-installation cap, no workflows, LAN-only so Slack can't call in):
+
+| Choice | Chosen | Rejected, and why |
+|---|---|---|
+| How tools post | one custom app `weyland` whose **incoming webhooks** (one per channel) every webhook-capable tool shares: 1 slot | a bot token or vendor app per tool (a slot each; 10 runs out) |
+| Which vendor apps | Linear, GitHub (SaaS ↔ Slack, never the lab): 3 of 10 slots used | OneUptime (Slack must call it over public HTTPS; refuses Socket Mode); DataHub (a slot for metadata chatter) |
+| Argo CD events | `on-sync-failed`, `on-health-degraded` | `on-deployed`: every app tracks `main`, so each push would post ~83 messages |
+| Alertmanager routing | every alert → `slack-alerts` (`continue`), critical → Linear (`continue`), then a **catch-all → telegram** | relying on the parent default: a match-all child claims every alert, so Telegram would silently stop paging (the U14 trap again) |
+| Secrets | webhook URLs sealed (`monitoring/slack-webhooks`, `argocd/argocd-notifications-secret`) and read from files / `$secret`; the CI one a Woodpecker repo secret | inline URLs: the repo is public, and a webhook URL is a capability |
+
+**Known gap, accepted:** no Argo CD component is scraped by Prometheus (pre-existing), so a dead notifications
+controller would be silent; the next real sync failure, or the runbook's test, is what shows it.
 
 ## 11. Operational lessons (why the CTs are tuned the way they are)
 
