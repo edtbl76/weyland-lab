@@ -46,8 +46,28 @@ Each source posts to its channel, Telegram still pages, and the free plan's 10-i
 | Argo CD → `#deploys` | the in-cluster controller's filtered test: `HTTP/2.0 200 OK`, `[DEGRADED] n8n` posted; the controller evaluates both triggers against all 83 apps (3,496 evaluations, 0 sends, 0 errors while everything is healthy) |
 | GlitchTip → `#errors` | a test error from `dagster-user-code` posted `GlitchTip Alert: B184 Slack test` (project `weyland-dagster`) at 14:23Z. The first attempt found GlitchTip dropping **every** error after a quiet spell (stale pooled DB connections); fixed with `DATABASE_POOL_MIN_SIZE=0` ([glitchtip.md](../runbooks/glitchtip.md)). **Fix proven 15:00Z:** after 30+ min idle (the condition that dropped every error), `B184 GlitchTip idle-pool proof` landed as an issue and alerted to `#errors`, with 0 envelope 500s and 0 `OperationalError` |
 | GitHub → `#github` | the pushes `52a96d1b` and `c78b2278` and PR #303 posted |
-| Linear → `#linear-updates` | connected; closing EMA-242 is its live proof |
+| Linear → `#linear-updates` | **proven**: U14 completed the test incident EMA-331 at ~18:48Z, and its "completed" notice posted |
 | Woodpecker → `#deploys` | proven by its payload test; a live post waits for a real red pipeline (none is caused on purpose) |
+
+## 3. On-call: a critical page escalates Telegram → Slack (RUN 2026-11-05, phase 2)
+
+Grafana Cloud IRM (free tier), one responder ([on-call runbook](../runbooks/on-call.md)). Test page `OnCallTestPage2`
+(namespace `oncall-test`), fired at 18:46Z and left unacknowledged:
+
+| Time (EST) | Step | Arrived |
+|---|---|---|
+| 1:46 | escalation step 1, default rule | Telegram DM from Grafana IRM; the alert group in Slack `#incidents` with Acknowledge / Resolve buttons; `#alerts` post; a U14 Linear incident |
+| 1:51 | step 3, important rule | Telegram DM again |
+| 1:56 | important rule after its 5-min wait | Slack @mention in the group's thread (`Inviting ed03 (@Ed) to look at the alert group`) |
+
+Alertmanager: 0 delivery failures to IRM, Slack or Linear.
+
+**Found on the way:**
+- With the Telegram → Slack sequence under *Default* and *Important* left empty, the important step fell back to email.
+  Fixed: Default = Telegram; Important = Telegram → wait 5 → Slack.
+- `@Grafana` had to be invited to `#incidents` for thread mentions.
+- A repeat page with the same `alertname` + `namespace` joins the earlier, acknowledged group and pages nobody.
+  The runbook now says to change both.
 
 ## Cleanup
 

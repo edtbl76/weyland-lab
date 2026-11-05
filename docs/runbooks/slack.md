@@ -1,8 +1,9 @@
 # Slack runbook (B184)
 
 A free Slack workspace is the lab's **feed**: what is firing, deploying, erroring and moving in Linear and GitHub, in
-the chat surface a real org would use. **Telegram stays the only pager.** Slack posts carry no @mentions, so nothing
-pings twice. Audit and routing decisions: [concepts/slack.md](../concepts/slack.md).
+the chat surface a real org would use. **Telegram pages first.** Feed posts carry no @mentions, so nothing
+pings twice; the one Slack @mention is the on-call escalation, sent only when a Telegram page went unacknowledged
+([on-call.md](on-call.md)). Audit and routing decisions: [concepts/slack.md](../concepts/slack.md).
 
 ## The free plan, and how the design fits it
 

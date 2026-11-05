@@ -47,6 +47,10 @@ in `scripts/.env`. Each is a capability (anyone holding it can post into that ch
 
 Rotate in the Slack app's Incoming Webhooks page, then follow [secrets.md](secrets.md) § Slack webhooks.
 
+Also not in a provider table: **`GRAFANA_IRM_AM_URL`** (B184 phase 2), the Grafana Cloud IRM Alertmanager-integration
+URL. Anyone holding it can page the on-call. It is sealed as `monitoring/grafana-irm` and read by Alertmanager
+(`url_file`). Rotate it in IRM (regenerate the integration URL), then follow [secrets.md](secrets.md) § On-call.
+
 Not provider keys, listed so nobody hunts for them: Open WebUI's `OPENAI_API_KEY` is the dummy `nemo-guardrails`
 (it talks to the guardrails service); the eval scripts set `OPENAI_API_KEY` to `gateway`/`ollama`; Codex uses a ChatGPT
 sign-in, not an API key. Other providers' keys (Gemini, Groq, Mistral, …) are still shared names in `.env`, sealed into

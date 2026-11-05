@@ -57,9 +57,15 @@ throughout. Then acknowledge it, from Telegram or the Slack button:
 kubectl -n monitoring run oncall-test-page --rm -i --restart=Never --image=quay.io/prometheus/alertmanager:v0.32.2 --command -- amtool alert add --alertmanager.url=http://monitoring-kube-prometheus-alertmanager.monitoring:9093 --end="$(date -u -d '+20 min' +%Y-%m-%dT%H:%M:%SZ)" alertname=OnCallTestPage severity=critical namespace=monitoring --annotation='summary="B184 on-call test page"' --annotation='description="Fired by docs/runbooks/on-call.md: leave unacknowledged to watch the escalation."'
 ```
 
-It lives 20 minutes (`--end`), so the 10-minute escalation is not cut short by a resolve. It also opens a U14
+It lives 20 minutes (`--end`), so the 10-minute escalation is not cut short by a resolve. **Re-running it while an earlier
+test page is still active does NOT page again:** Alertmanager groups by `alertname` + `namespace`, so a second page with
+the same two labels joins the first group, and IRM files it under that (likely acknowledged) alert group (found
+2026-11-05). For a repeat inside 20 minutes, change both, e.g. `alertname=OnCallTestPage2 namespace=oncall-test`. It also opens a U14
 Linear incident (`U14 incident — OnCallTestPage (monitoring)`) and posts to `#alerts`; all three close when it ends. **Handoff between people** is not exercised: the lab has one responder (owner decision); a schedule override
 would hand off to anyone added later.
+
+**Proven 2026-11-05:** Telegram 1:46, Telegram 1:51, Slack @mention 1:56 (EST), as above;
+[demos/slack.md](../demos/slack.md) § 3.
 
 ## Linear triage responsibility — not done, by cost
 

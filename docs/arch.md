@@ -1244,6 +1244,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Control/ops | Alerting (B5) | [flow-alerting.md](diagrams/flow-alerting.md) |
 | Control/ops | Alert → Linear incident — critical alert → n8n → one Linear issue per fingerprint, closed on resolve (U14) | [flow-alert-to-linear.md](diagrams/flow-alert-to-linear.md) |
 | Control/ops | Slack feed — alerts, deploy failures, errors, Linear and GitHub into five channels; Telegram stays the pager (B184) | [flow-slack.md](diagrams/flow-slack.md) |
+| Control/ops | On-call — a critical page through Grafana Cloud IRM, escalating Telegram → Slack until acknowledged (B184 phase 2) | [flow-on-call.md](diagrams/flow-on-call.md) |
 | Control/ops | Deploy / redeploy (build<->runtime isolation) | [flow-deploy.md](diagrams/flow-deploy.md) |
 | Control/ops | **Ship loop** — detect → build → tag-bump PR → gated merge → Argo → verify a pod carries the tag (B135) | [flow-ship-loop.md](diagrams/flow-ship-loop.md) |
 | Control/ops | **Scheduled-work watchdogs** — open-PR staleness + Woodpecker-cron freshness → Alertmanager → Telegram (B131/B135) | [flow-ship-loop.md](diagrams/flow-ship-loop.md#watchdogs) |
@@ -1792,8 +1793,10 @@ opened EMA-329, closed it, and on a re-fire reopened it instead of duplicating. 
 
 ### 10j. Slack — the feed beside the pager (B184, 2026-11-04/05)
 
-A free Slack workspace shows what the platform is doing, in the surface a real org would use. **Telegram remains the
-only pager.** Slack posts carry no @mentions, so they never push to a phone: a feed you read, not a page. Concept and
+A free Slack workspace shows what the platform is doing, in the surface a real org would use. **Telegram pages
+first.** Feed posts carry no @mentions, so they never push to a phone: a feed you read, not a page. The one designed
+overlap is on-call (phase 2): Grafana Cloud IRM pages a critical alert on Telegram and @mentions you in Slack only if it
+goes unacknowledged. Concept and
 the full 25-tool audit: [concepts/slack.md](concepts/slack.md). Runbook: [runbooks/slack.md](runbooks/slack.md).
 
 ```mermaid
@@ -1817,6 +1820,13 @@ flowchart LR
 | Argo CD events | `on-sync-failed`, `on-health-degraded` | `on-deployed`: every app tracks `main`, so each push would post ~83 messages |
 | Alertmanager routing | every alert → `slack-alerts` (`continue`), critical → Linear (`continue`), then a **catch-all → telegram** | relying on the parent default: a match-all child claims every alert, so Telegram would silently stop paging (the U14 trap again) |
 | Secrets | webhook URLs sealed (`monitoring/slack-webhooks`, `argocd/argocd-notifications-secret`) and read from files / `$secret`; the CI one a Woodpecker repo secret | inline URLs: the repo is public, and a webhook URL is a capability |
+
+**On-call (phase 2):** critical alerts page through **Grafana Cloud IRM** (free tier: "Always free", 3 active users; SaaS,
+so 0 RAM on mother). It runs an escalation chain: Telegram DM at 0 min, again at 5, then a Slack @mention at 10, with the
+alert group and its Acknowledge/Resolve buttons in `#incidents`. It was chosen over ilert, PagerDuty, Keep (no native
+schedules, and a database on a node at 87% memory), the trials, archived Grafana OnCall OSS and the retiring Opsgenie.
+One responder by decision: no rotation between people. Linear's triage-responsibility rotation is cost-gated (it needs
+Linear Business). Flow: [flow-on-call.md](diagrams/flow-on-call.md); runbook: [runbooks/on-call.md](runbooks/on-call.md).
 
 **Known gap, accepted:** no Argo CD component is scraped by Prometheus (pre-existing), so a dead notifications
 controller would be silent; the next real sync failure, or the runbook's test, is what shows it.

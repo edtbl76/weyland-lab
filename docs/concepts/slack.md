@@ -47,13 +47,16 @@ settled by installing it: it does.
 
 ## Routing: Telegram pages, Slack is the feed
 
-The backlog's rule: overlap is fine where it earns it, but **the same alert must never simply ping twice**. Slack
-posts carry no @mentions, so they don't push to a phone. They are a record you read, not a page.
+The backlog's rule: overlap is fine where it earns it, but **the same alert must never simply ping twice**. Feed
+posts carry no @mentions, so they don't push to a phone: a record you read, not a page. The single designed overlap is
+the on-call escalation: a critical page goes to Telegram, and only if nobody acknowledges does IRM @mention you in
+Slack.
 
 | Alert class | Telegram (pager) | Slack | Linear |
 |---|---|---|---|
-| critical | yes | `#alerts` | an incident issue (U14) |
-| warning / info / no severity | yes | `#alerts` | — |
+| critical | **through Grafana IRM** (phase 2): Telegram DM, escalating to a Slack @mention if not acknowledged | `#alerts` (feed) + `#incidents` (the IRM alert group, with Acknowledge / Resolve) | an incident issue (U14) |
+| warning / info / no severity | yes (the direct bot) | `#alerts` | — |
+| IRM unreachable | yes: `AlertmanagerFailedToSendAlerts` (warning) pages through the direct bot | `#alerts` | — |
 | Uptime Kuma monitor down | yes (Kuma's Telegram notifier) | `#alerts` | — |
 | Watchdog (dead-man's switch) | — (healthchecks.io) | — | — |
 | InfoInhibitor | — | — | — |
