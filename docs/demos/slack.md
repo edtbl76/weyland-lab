@@ -33,7 +33,7 @@ Each source posts to its channel, Telegram still pages, and the free plan's 10-i
 **UI.**
 
 - Uptime Kuma: Settings → Notifications → `Slack #alerts` → **Test** posts to `#alerts`.
-- GlitchTip: a project's alert → **Send test** posts to `#errors`.
+- GlitchTip: one real test error from `dagster-user-code` (the runbook command) alerts into `#errors`.
 - Linear: complete or cancel any issue, and it appears in `#linear-updates`.
 - GitHub: the next push appears in `#github`.
 

@@ -134,6 +134,13 @@ spec:
                 secretKeyRef:
                   name: glitchtip-secret
                   key: DATABASE_URL
+            # B184 (2026-11-05): keep NO idle pooled DB connections. GlitchTip 6.2's psycopg pool kept 2 open forever
+            # (DATABASE_POOL_MIN_SIZE default 2); idle for hours behind the Istio sidecar, they died, and the first ingest
+            # after any quiet spell hit both and answered 500 ("server closed the connection unexpectedly"). Every
+            # error between 2026-10-31 and 11-05 was dropped that way. psycopg_pool shrinks only above min_size, one
+            # connection per idle max_idle (10 min): at 0 a quiet pool is empty within ~20 min and connects fresh.
+            - name: DATABASE_POOL_MIN_SIZE
+              value: "0"
             # B1.1 — point Python/requests at the combined CA bundle so the OIDC back-channel trusts Keycloak.
             - name: REQUESTS_CA_BUNDLE
               value: /cabundle/ca-bundle.crt
@@ -209,6 +216,13 @@ spec:
                 secretKeyRef:
                   name: glitchtip-secret
                   key: DATABASE_URL
+            # B184 (2026-11-05): keep NO idle pooled DB connections. GlitchTip 6.2's psycopg pool kept 2 open forever
+            # (DATABASE_POOL_MIN_SIZE default 2); idle for hours behind the Istio sidecar, they died, and the first ingest
+            # after any quiet spell hit both and answered 500 ("server closed the connection unexpectedly"). Every
+            # error between 2026-10-31 and 11-05 was dropped that way. psycopg_pool shrinks only above min_size, one
+            # connection per idle max_idle (10 min): at 0 a quiet pool is empty within ~20 min and connects fresh.
+            - name: DATABASE_POOL_MIN_SIZE
+              value: "0"
           resources:
             requests:
               cpu: 100m

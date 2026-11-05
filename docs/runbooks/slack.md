@@ -105,8 +105,16 @@ automatically only because it is default-enabled.
 ## GlitchTip → `#errors`
 
 Set per project in GlitchTip's UI: project → Settings → **Alerts** → recipient **Webhook** = the
-`SLACK_WEBHOOK_ERRORS` URL. A new project needs it added; GlitchTip has no global alert. Test: the alert's
-**Send test** (or raise a test error from the project's SDK setup page).
+`SLACK_WEBHOOK_ERRORS` URL. A new project needs it added; GlitchTip has no global alert. GlitchTip has **no test
+button** (none in its docs, checked 2026-11-05), so test with one real error event. The Dagster project's DSN is already
+in `dagster-user-code` (12 GiB limit, so a second interpreter is safe), and no secret leaves the cluster:
+
+[rogueone]
+```
+kubectl -n weyland exec deploy/dagster-user-code -c dagster-user-code -- python3 -c "import os,sentry_sdk;sentry_sdk.init(os.environ['SENTRY_DSN']);print(sentry_sdk.capture_message('B184 Slack test: GlitchTip to #errors',level='error'));sentry_sdk.flush()"
+```
+Expected: an event id printed, a new issue in GlitchTip's Dagster project, and its alert in `#errors` (within the
+alert's time window). Resolve the test issue in GlitchTip afterwards.
 
 ## Linear → `#linear-updates`, GitHub → `#github`
 

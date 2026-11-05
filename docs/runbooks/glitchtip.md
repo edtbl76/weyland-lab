@@ -38,6 +38,27 @@ Manifests: `k8s/glitchtip/glitchtip.yaml` (raw, single file). Deploy = rsync to 
 6. **Rollouts linger on terminate** (meshed pods) — don't wait on `rollout status`; `kubectl get pods` and
    force-delete the old one if needed (`--force --grace-period=0`).
 
+## Ingest silently dropped after any quiet spell (fixed 2026-11-05, B184)
+
+**Symptom:** an SDK reports an error, and no issue appears. `glitchtip-web` logs `Internal Server Error:
+/api/<id>/envelope/` with `psycopg.OperationalError: ... server closed the connection unexpectedly`, always in a
+**pair**, always on the first event after hours of no traffic. Loki showed one such pair a day from 2026-10-31 to
+2026-11-05, so every error in that week was lost (a daily 06:06 UTC Dagster one included).
+
+**Cause:** GlitchTip 6.2 pools DB connections with psycopg_pool and kept `DATABASE_POOL_MIN_SIZE=2` (its default)
+open forever. psycopg_pool only shrinks above `min_size`, so those two sat idle for hours behind the Istio sidecar
+(Postgres is STRICT mTLS), died, and were handed to the next request with no health check.
+
+**Fix:** `DATABASE_POOL_MIN_SIZE=0` on `glitchtip-web` and `glitchtip-worker` (`k8s/glitchtip/glitchtip.yaml`). A quiet
+pool drops one connection per 10 idle minutes and connects fresh on demand. Check it: after 20+ minutes with no
+events, one test error must land (Slack `#errors` shows its alert):
+
+[rogueone]
+```
+kubectl -n weyland exec deploy/dagster-user-code -c dagster-user-code -- python3 -c "import os,sentry_sdk;sentry_sdk.init(os.environ['SENTRY_DSN']);print(sentry_sdk.capture_message('GlitchTip ingest check',level='error'));sentry_sdk.flush()"
+```
+Then confirm no new envelope 500s: `kubectl -n weyland logs deploy/glitchtip-web --since=30m | grep -c 'Internal Server Error'` → `0`.
+
 ## Instrumenting an app (Sentry SDK)
 
 ```python
