@@ -258,6 +258,25 @@ kubectl -n argocd annotate secret argocd-notifications-secret sealedsecrets.bitn
 set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ "$(kubectl -n argocd get secret argocd-notifications-secret -o jsonpath='{.data.slack-webhook-deploys}')" = "$(printf %s "$SLACK_WEBHOOK_DEPLOYS" | base64 -w0)" ] && echo "stored value matches .env" || echo "MISMATCH"; grep -rlF --exclude=.env -- "$SLACK_WEBHOOK_DEPLOYS" /home/edwardmangini/IdeaProjects/weyland || echo "URL not in the tree"
 ```
 
+**On-call — `monitoring/grafana-irm`** (key `url`, B184 phase 2): the Grafana Cloud IRM Alertmanager integration URL,
+`GRAFANA_IRM_AM_URL` in `scripts/.env`. Anyone holding it can page the on-call. Alertmanager reads it from a file
+(`url_file`). Create it **before** the values change that mounts it syncs:
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ -n "${GRAFANA_IRM_AM_URL:-}" ] && kubectl -n monitoring create secret generic grafana-irm --from-literal=url="$GRAFANA_IRM_AM_URL" --dry-run=client -o yaml | kubectl -n monitoring apply -f -
+```
+[rogueone]
+```
+kubectl -n monitoring annotate secret grafana-irm sealedsecrets.bitnami.com/managed=true --overwrite && kubectl -n monitoring get secret grafana-irm -o yaml | kubeseal --format yaml > /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/monitoring__grafana-irm.yaml
+```
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ "$(kubectl -n monitoring get secret grafana-irm -o jsonpath='{.data.url}')" = "$(printf %s "$GRAFANA_IRM_AM_URL" | base64 -w0)" ] && echo "stored value matches .env" || echo "MISMATCH"; grep -rlF --exclude=.env -- "$GRAFANA_IRM_AM_URL" /home/edwardmangini/IdeaProjects/weyland || echo "URL not in the tree"
+```
+Rotate: in IRM, regenerate the integration's URL (or delete and recreate the integration), update `.env`, re-run the
+three commands, commit. Then prove it with the test page in [on-call.md](on-call.md).
+
 **Testing a notifications change leaks the URL if done naively.** `argocd admin notifications template notify`
 prints the full outgoing request, URL included (found 2026-11-05: the `#deploys` URL reached a session transcript;
 the owner declined rotation, since the blast radius is posting into `#deploys`). `trigger get` / `template get` /

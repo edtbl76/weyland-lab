@@ -15,7 +15,7 @@ commands, buttons and Events-API apps hosted in the lab are out. That leaves two
 | **Incoming webhook** of one custom app, `weyland`, one webhook per channel | **1 slot in total**, shared by every webhook tool | Alertmanager, Uptime Kuma, Argo CD, Woodpecker, GlitchTip |
 | A vendor's own Slack app (SaaS ↔ Slack, never touching the lab) | 1 slot each | Linear, GitHub |
 
-**3 of 10 slots used.** One is reserved for the incident-tool phase (below).
+**4 of 10 slots used** (the 4th is Grafana IRM's Slack app, B184 phase 2: it pages the second on-call responder). One is reserved for the incident-tool phase (below).
 
 ## The audit (2026-11-04)
 
@@ -66,7 +66,24 @@ posts carry no @mentions, so they don't push to a phone. They are a record you r
 - **Alert → a deduplicated Linear issue** was a B184 requirement. U14 met it: n8n `alert-to-linear`, live
   2026-11-04. An incident tool must not duplicate it.
 
-## Still to decide (the incident phase)
+## On-call (phase 2, decided 2026-11-05)
 
-The incident tool and the exercised pager rotation are the next phase: Keep (OSS, webhook), Runframe (hosted, free
-to 5 users, 1 slot), or an Alertmanager route that alternates receivers. Cost that matters most is RAM on mother.
+**Grafana Cloud IRM, free tier**, pages critical alerts: escalation across channels (Telegram first, a Slack mention if
+not acknowledged in about 10 min), each alert group in `#incidents` with Acknowledge/Resolve buttons, 0 RAM on mother.
+Runbook: [runbooks/on-call.md](../runbooks/on-call.md).
+
+| Option | Verdict | Why |
+|---|---|---|
+| **Grafana Cloud IRM (free)** | **adopted** | "Always free" (3 active users); Alertmanager source; schedules, escalation chains, ack from Telegram and Slack; SaaS, so 0 RAM and Slack buttons work |
+| ilert Free | runner-up | native Telegram, but the page never says the free plan is permanent |
+| PagerDuty Free | no | no Telegram; Slack on Free unclear |
+| Keep (OSS) | no | no native schedules, and a new service + DB on a node at 87% memory |
+| Runframe, incident.io Basic | no | Alertmanager source not on Runframe's free tier; incident.io Basic has 2 integrations and no webhooks |
+| Squadcast, Zenduty, Spike.sh, Better Stack on-call | no | trials or paid |
+| Grafana OnCall OSS | no | archived 2026-03-24 |
+| Opsgenie | no | end of sale 2025, shut down 2027-04-05 |
+
+- **Rotation between people: not exercised, by decision.** The lab has one responder, and a second login invented
+  only to rotate with was rejected by the owner.
+- **Linear triage-responsibility rotation: cost-gated.** It needs Linear Business or Enterprise, and the workspace is
+  on Free.

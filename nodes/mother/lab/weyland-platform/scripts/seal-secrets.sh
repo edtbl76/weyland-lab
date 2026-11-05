@@ -97,8 +97,9 @@ SECRETS=(
   data-mesh/trino-perf                # B233 — Trino login `perf` (the on-demand k6 baseline Job)
   data-mesh/trino-metrics-auth
   data-mesh/trino-secret
-  # --- monitoring (8) ---
+  # --- monitoring (9) ---
   monitoring/grafana-admin
+  monitoring/grafana-irm               # B184 phase 2 — Grafana Cloud IRM Alertmanager integration URL (anyone holding it can page the on-call)
   monitoring/grafana-oauth
   monitoring/linear-intake            # B195 — the Linear team's create-by-email address (anyone holding it files issues); B184's fallback
   monitoring/loki-minio

@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: grafana-irm
+  namespace: monitoring
+spec:
+  encryptedData:
+    url: AgCYaV5EAySl4r94uB9dc/2QDkCcxn0R5JeVirMESqXq+O1zM6qAWr0eqBLdtMJ/xZTVi7B6gDN3mnA3I0ql9IfOReMzlXcj3eWYFqCg7fc+hSG8RoVpqDvGm3DLiLMneuYFcj4VhgSk1ytfm/Lx6k1RrvaRrEXUMLdmJshu/HGj5CNs72ys/Yb98oSH68gTzSJFuvNVBsOhkwegd1+Uug7vfz2Zd5ufYozjic3BlyPpKhJr5mj6fiQNxoERAMZyY9OTWvQOyBh7JEQgn2CTmGV+6CJQE6/t850R5n+fZo/VL5l6FwL7cC2xUO/LRIOTMHMnRFdVkCvAzK16Nu8W2JTWt4Fsjvt8GuDk53plDcEOk3mO74KhrFfE9GphMs1eKP7WijH9g+7MLlT5Gml+Aw0eZ5Wbc3IjklbVdZP5tWTnWUrj64emGvIH4wswxsckiCg0mYv86NR5kdWdDQrDNb33PI8Zyf+vpLAwgUAhTS0Nh48KI36bwdooaCNEEr1vGVboe176ghtRcez9kJ4F+mOY8Ke4j40MpfFXS2Cm2R+n+COvdFOvmcSSftKMRFZlYytlkoF0W/xh14Acw3wFAjxqm+Nehhgv+ucOYohO2Xtyr7CAFAb24JXcSbyTwojeczSyf5uM9R/nWekCobhZzE6HMyEHtxZIrn0XR0kdpFiVlbd0a1zX9hhHoXvf5lLktQg5Nre9lj/3AvTgP82O9AriCoUXc41Dc3tBSRv4IIWRL7sRkedBxFzpg1aNrD2/Z6xJRHc/9FYF0ydd1GqWdNM6xovXvaW5QRVixFKdp6Kehv4E7NIJVXzXoGL9hF5Jko85nCoBhUpYkw==
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: grafana-irm
+      namespace: monitoring
+    type: Opaque

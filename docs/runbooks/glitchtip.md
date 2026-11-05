@@ -57,7 +57,7 @@ events, one test error must land (Slack `#errors` shows its alert):
 ```
 kubectl -n weyland exec deploy/dagster-user-code -c dagster-user-code -- python3 -c "import os,sentry_sdk;sentry_sdk.init(os.environ['SENTRY_DSN']);print(sentry_sdk.capture_message('GlitchTip ingest check',level='error'));sentry_sdk.flush()"
 ```
-Then confirm no new envelope 500s: `kubectl -n weyland logs deploy/glitchtip-web --since=30m | grep -c 'Internal Server Error'` → `0`.
+**Proven 2026-11-05 15:00Z:** after 30+ min idle, the test error landed and alerted, with 0 envelope 500s. Then confirm no new envelope 500s: `kubectl -n weyland logs deploy/glitchtip-web --since=30m | grep -c 'Internal Server Error'` → `0`.
 
 ## Instrumenting an app (Sentry SDK)
 

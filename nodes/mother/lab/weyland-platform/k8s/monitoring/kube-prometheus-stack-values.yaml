@@ -66,8 +66,14 @@ alertmanager:
           matchers:
             - severity = "critical"
           continue: true
-        # The pager: every alert that reached this point (all but InfoInhibitor and Watchdog). Proven with
-        # `amtool config routes test` (docs/runbooks/alert-to-linear.md, docs/runbooks/slack.md).
+        # B184 phase 2: CRITICAL pages go through Grafana Cloud IRM (on-call rotation, escalation, acknowledge from
+        # Telegram). No `continue`: IRM is the critical pager, so the direct bot below no longer double-pages them. If IRM
+        # cannot be reached, the failed delivery fires AlertmanagerFailedToSendAlerts (warning), which the bot pages.
+        - receiver: grafana-irm
+          matchers:
+            - severity = "critical"
+        # The direct pager for everything else (warning, info, unlabelled; never InfoInhibitor or Watchdog). Proven with
+        # `amtool config routes test` (docs/runbooks/alert-to-linear.md, docs/runbooks/slack.md, docs/runbooks/on-call.md).
         - receiver: telegram
     receivers:
       - name: 'null'
@@ -93,6 +99,13 @@ alertmanager:
             text: |
               {{ range .Alerts }}- {{ .Annotations.summary }}{{ if .Annotations.description }}: {{ .Annotations.description }}{{ end }}
               {{ end }}
+      # B184 phase 2: Grafana Cloud IRM's Alertmanager integration. The integration URL is a secret (anyone holding it
+      # can page the on-call), so it is read from the sealed Secret `grafana-irm` (key `url`). send_resolved closes the
+      # IRM alert group when the alert resolves.
+      - name: grafana-irm
+        webhook_configs:
+          - url_file: /etc/alertmanager/secrets/grafana-irm/url
+            send_resolved: true
       - name: telegram
         telegram_configs:
           - bot_token_file: /etc/alertmanager/secrets/weyland-alerts-telegram/bot-token
@@ -109,6 +122,8 @@ alertmanager:
       - watchdog-healthcheck   # B69 dead-man's-switch: hc-ping.com URL (key `url`), created out-of-band
       - slack-webhooks         # B184: Slack incoming-webhook URL (key `alerts`), sealed. MUST exist before this syncs:
                                # the operator cannot start Alertmanager with a missing secret volume.
+      - grafana-irm            # B184 phase 2: Grafana Cloud IRM integration URL (key `url`), sealed. Same rule: create it
+                               # BEFORE this syncs.
     storage:
       volumeClaimTemplate:
         spec:

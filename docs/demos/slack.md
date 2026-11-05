@@ -37,7 +37,17 @@ Each source posts to its channel, Telegram still pages, and the free plan's 10-i
 - Linear: complete or cancel any issue, and it appears in `#linear-updates`.
 - GitHub: the next push appears in `#github`.
 
-**RUN:** recorded here once each check runs.
+**RUN 2026-11-05 (live):**
+
+| Source → channel | Result |
+|---|---|
+| Alertmanager → `#alerts` | two real warnings (a stale `dashboard-coverage` Job) posted firing, then **resolved** once the Job was deleted; Slack 6 sent / 0 failed, Telegram paged as before |
+| Uptime Kuma → `#alerts` | the notification's Test posted |
+| Argo CD → `#deploys` | the in-cluster controller's filtered test: `HTTP/2.0 200 OK`, `[DEGRADED] n8n` posted; the controller evaluates both triggers against all 83 apps (3,496 evaluations, 0 sends, 0 errors while everything is healthy) |
+| GlitchTip → `#errors` | a test error from `dagster-user-code` posted `GlitchTip Alert: B184 Slack test` (project `weyland-dagster`) at 14:23Z. The first attempt found GlitchTip dropping **every** error after a quiet spell (stale pooled DB connections); fixed with `DATABASE_POOL_MIN_SIZE=0` ([glitchtip.md](../runbooks/glitchtip.md)). **Fix proven 15:00Z:** after 30+ min idle (the condition that dropped every error), `B184 GlitchTip idle-pool proof` landed as an issue and alerted to `#errors`, with 0 envelope 500s and 0 `OperationalError` |
+| GitHub → `#github` | the pushes `52a96d1b` and `c78b2278` and PR #303 posted |
+| Linear → `#linear-updates` | connected; closing EMA-242 is its live proof |
+| Woodpecker → `#deploys` | proven by its payload test; a live post waits for a real red pipeline (none is caused on purpose) |
 
 ## Cleanup
 

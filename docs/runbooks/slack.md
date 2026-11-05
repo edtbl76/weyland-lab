@@ -10,7 +10,7 @@ Verified 2026-11-04 (Slack help center, "Feature limitations on the free version
 installations** (third-party or custom apps), 90 days of message history, no workflows, canvases, lists or user groups. So:
 - One custom app, **`weyland`**, holds every incoming webhook (one per channel). Every tool that can post to a webhook
   shares that **one** slot.
-- Only tools that need their own app spend a slot: **Linear** and **GitHub** today. **3 of 10 used.**
+- Only tools that need their own app spend a slot: **Linear**, **GitHub** and **Grafana IRM** (on-call, phase 2). **4 of 10 used** (the 4th: Grafana IRM, which pages the second on-call responder).
 - The lab is LAN-only, so nothing that needs Slack to call *into* the lab (slash commands, buttons) is used. The
   Linear and GitHub apps run Slack ↔ their cloud and never reach the lab.
 
