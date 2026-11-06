@@ -522,6 +522,29 @@ EOF
   [ -f "$SANDBOX/junit/java/svc/TEST-T.xml" ]
 }
 
+@test "junit: harvest copies only reports the NORMAL run wrote, never the self-check's leftover" {
+  # Found 2026-11-06 in pipeline #589: CI runs --self-check first in the same checkout, Surefire/sbt leave the
+  # deliberate failure's report in target/, and the normal run's harvest copied it too — so Trunk saw the
+  # self-check test failing on every green build (java 1/36, scala 1/5). Self-check must never reach Trunk.
+  mkdir -p "$SANDBOX/fix/java/target/surefire-reports" "$SANDBOX/scan"
+  printf '<project/>\n' > "$SANDBOX/fix/java/pom.xml"
+  : > "$SANDBOX/fix/java/HelloTest.java"
+  printf '<testsuite name="D" tests="1"><testcase classname="D" name="deliberate"><failure/></testcase></testsuite>\n' \
+    > "$SANDBOX/fix/java/target/surefire-reports/TEST-Deliberate.xml"
+  touch -t 202001010000 "$SANDBOX/fix/java/target/surefire-reports/TEST-Deliberate.xml"   # BusyBox touch: no relative dates
+  cat > "$STUB_DIR/mvn" <<'EOF'
+#!/usr/bin/env bash
+mkdir -p target/surefire-reports
+printf '<testsuite name="T" tests="1"><testcase classname="T" name="t"/></testsuite>\n' > target/surefire-reports/TEST-T.xml
+EOF
+  chmod +x "$STUB_DIR/mvn"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" java
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [ -f "$SANDBOX/junit/java/fixture/TEST-T.xml" ]
+  [ ! -e "$SANDBOX/junit/java/fixture/TEST-Deliberate.xml" ]
+}
+
 @test "junit: harvested reports with test cases do NOT trigger the no-report warning" {
   # Found 2026-11-06 on the real swift lane: the check was `cat "$JB.xml" <harvested files> | grep -q`, and
   # under pipefail cat's failure on the absent $JB.xml failed the pipeline although grep matched — every

@@ -4007,6 +4007,12 @@ it with `--report-formatter junit`; CI emits none today).**
   `test-shell` both run `scripts/tests`, so only `test-shell` reports (else every bats result counts twice). Pipeline: step
   `trunk-upload` (green and red runs; CLI 0.16.1 pinned by sha256), Woodpecker secret `trunk_org_token`, with no image filter: the first try set one, and
   pipeline #588 refused to start ("image filters do not work for normal steps"; they are for plugins only).
+  **First real pipeline #589 (2026-11-06): green; `trunk-upload` uploaded all 8 sources** (golden-path 44, java 36, kotlin 4,
+  php 4, python 1,680, scala 5, shell 1,239, swift 11). It also showed a leak: java 1/36 and scala 1/5 "failed" on a green
+  build. CI runs `--self-check` first in the same checkout, and Surefire/sbt leave its deliberate failure's report in
+  `target/`, which the normal run's harvest copied. Fixed the same day: the harvest copies only reports newer than a stamp
+  made just before the normal run (a bats regression; proven self-check-then-normal in both images: java 35/0, scala 4/0).
+  Those two deliberate results reached Trunk once (one run each, under every monitor threshold).
   Real lanes proven in their CI images: python (20 reports), shell (1,235 cases), java (7 harvested), swift (11 cases; it
   needed `--parallel`, found when the first run wrote 0-case files), kotlin, scala and php (each fixture's 4 cases; no
   real projects yet). The exact CI step rehearsed against real Trunk: 1,680

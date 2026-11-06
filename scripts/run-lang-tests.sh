@@ -329,23 +329,31 @@ junit_base() {   # junit_base <lang> <dir> <fixture-dir> -> report base path, or
   printf '%s/%s/%s' "$root" "$1" "$name"
 }
 
-harvest() {   # harvest <base> <glob...> — copy a runner's own report files into <base>/
-  local base="$1" f; shift
-  for f in "$@"; do [ -f "$f" ] || continue; mkdir -p "$base"; cp "$f" "$base/"; done
+# harvest <base> <stamp> <glob...> — copy a runner's own report files into <base>/, but ONLY those written after
+# <stamp> (made just before this run). CI runs --self-check first in the same checkout, and Surefire/sbt leave its
+# deliberate failure's report in target/; copying it would show Trunk the self-check failing on every green build
+# (found in pipeline #589, 2026-11-06: java 1/36, scala 1/5).
+harvest() {
+  local base="$1" stamp="$2" f; shift 2
+  for f in "$@"; do
+    [ -f "$f" ] && [ "$f" -nt "$stamp" ] || continue
+    mkdir -p "$base"; cp "$f" "$base/"
+  done
 }
 
 # Returns the runner's exit status. NEVER swallows it.
 run_in() {
   local lang="$1" dir="$2" rc
-  [ -z "$JB" ] || mkdir -p "$(dirname "$JB")"
+  [ -z "$JB" ] || { mkdir -p "$(dirname "$JB")"; : > "$JB.stamp"; }
   run_in_raw "$@"; rc=$?
   if [ -n "$JB" ]; then
     case "$lang" in
-      java)   harvest "$JB" "$dir"/target/surefire-reports/*.xml ;;
-      kotlin) harvest "$JB" "$dir"/build/test-results/test/*.xml ;;
-      scala)  harvest "$JB" "$dir"/target/test-reports/*.xml ;;
+      java)   harvest "$JB" "$JB.stamp" "$dir"/target/surefire-reports/*.xml ;;
+      kotlin) harvest "$JB" "$JB.stamp" "$dir"/build/test-results/test/*.xml ;;
+      scala)  harvest "$JB" "$JB.stamp" "$dir"/target/test-reports/*.xml ;;
       shell)  [ -f "$JB.d/report.xml" ] && mv "$JB.d/report.xml" "$JB.xml"; rmdir "$JB.d" 2>/dev/null ;;
     esac
+    rm -f "$JB.stamp"
     # A report counts only if it holds at least one <testcase>: an empty file is absence with a file's name
     # (the real swift lane wrote a 0-case swift-testing file while its XCTest suite ran — 2026-11-06).
     # The files are listed first and grep'd directly: a `cat <absent file> | grep` pipeline failed under pipefail
