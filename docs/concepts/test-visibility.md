@@ -25,7 +25,8 @@ nothing heavy on mother (its memory is the lab's bottleneck).
 ## What Trunk costs us (the risks we accepted)
 
 - **An unscoped token in CI.** The uploader takes only the legacy org token (v2 keys are rejected, and the v2 API has
-  no upload endpoint). It lives in one Woodpecker secret, limited to the `trunk-upload` step's image.
+  no upload endpoint). It lives in one Woodpecker secret that only the `trunk-upload` step requests (an image filter is not an option:
+  Woodpecker applies those to plugins only).
 - **The uploader fails open.** It can exit 0 on a failed upload and hang on a network problem, so `trunk-upload.sh`
   judges each upload from the printed output, with a timeout, and the step goes red (fail closed).
 - **SaaS.** History lives in Trunk. Losing it loses trend data, not tests: the tests and their results stay in git and

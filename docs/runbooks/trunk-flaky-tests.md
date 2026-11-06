@@ -46,14 +46,12 @@ the step exits 1. No reports at all is exit 2. The token is redacted from every 
 
    [rogueone]
    ```
-   cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name trunk_org_token --value "$TRUNK_ORG_TOKEN" --image alpine --event cron --event manual --event push
+   cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name trunk_org_token --value "$TRUNK_ORG_TOKEN" --event cron --event manual --event push
    ```
-   `--image alpine` limits the secret to steps on an `alpine` image, and only `trunk-upload` asks for it: the token is
-   unscoped (it can do anything in the Trunk org), so the fewer steps that could read it the better. The filter is a name,
-   not `alpine:3.20`: Woodpecker's image pattern allows no dot in a tag (`422 invalid secret image`, 2026-11-06). If that
-   step's image changes, update the secret's image
-   too, or the step starts without its token and fails with `TRUNK_API_TOKEN is not set`. To rotate it, use
-   `repo secret update` with the same arguments.
+   **No `--image` filter.** Woodpecker applies image filters to *plugins* only: a secret with one, requested by a normal
+   commands step, makes the WHOLE pipeline refuse to start ("only allowed to be used by plugins … Image filters do not
+   work for normal steps"; pipeline #588, 2026-11-06). Only `trunk-upload` requests the token, and the pipeline file is
+   reviewed in git, as for every other secret here. To rotate it, use `repo secret update` with the same arguments.
 3. **Trunk Linear connection and ticketing**: the values in the table above. Open **Create ticket** twice before filing
    by hand: the modal shows the saved defaults empty on its first open (a Trunk bug, reported 2026-11-06). EMA-334 was filed
    from an empty modal and landed with no project. `check-linear-sync.sh` catches that ("OPEN ISSUES WITH NO PROJECT").
@@ -84,6 +82,7 @@ about 200 pipelines a month, so weyland-lab alone may use about half; that estim
 | `UPLOAD FAILED: <variant> — the CLI did not confirm the upload (exit 70)` with `Unathorized access` | the token is wrong, revoked, or a v2 key. Redo steps 1–2 with the **legacy** org token |
 | `UPLOAD FAILED … timed out after 300s` | Trunk or the network stalled (the same hang appears with no CA bundle). Re-run the pipeline; if it repeats, run the Test-it command above to see the CLI's own output |
 | `trunk-upload.sh: no JUnit reports under reports/junit` (exit 2) | no lane wrote a report: the pipeline failed before any test ran, or `LANG_JUNIT_DIR` / `GOLDEN_PATH_JUNIT` was removed from the steps |
+| The whole pipeline is `error` before any step, "secret trunk_org_token is only allowed to be used by plugins" | the secret has an image filter. Remove and re-add it without `--image` (step 2) |
 | `sha256sum: WARNING: 1 computed checksum did NOT match` | the release asset changed. Don't bypass: check Trunk's release notes, then bump `TRUNK_CLI_VERSION` and `TRUNK_CLI_SHA256` together |
 | A lane prints `NO JUNIT REPORT: the <lang> run in <dir> left none` | the runner ran but wrote no report with a test case (Trunk will not see that project). Check that runner's report flag or path in `run-lang-tests.sh` |
 | A Trunk issue in Linear with no project | it was filed from the empty first-open modal; move it to Weyland Auto-Filed with `trunk-flaky` |

@@ -53,8 +53,9 @@ URL. Anyone holding it can page the on-call. It is sealed as `monitoring/grafana
 
 **Trunk Flaky Tests** (B189, 2026-11-06): **`TRUNK_ORG_TOKEN`** in `scripts/.env` is Trunk's **legacy org token**, and
 it is **unscoped**: it can do anything in the `weyland` Trunk org. It is the only key the uploader accepts (the CLI rejects
-v2 keys, and the v2 API has no upload endpoint). It reaches CI as the Woodpecker repo secret **`trunk_org_token`**, limited
-to `alpine` images (the `trunk-upload` step's; Woodpecker's filter takes no dotted tag). `TRUNK_UPLOAD_TOKEN` in `.env` is a v2 key scoped to "Upload test results"
+v2 keys, and the v2 API has no upload endpoint). It reaches CI as the Woodpecker repo secret **`trunk_org_token`**, requested
+only by the `trunk-upload` step (no image filter: Woodpecker applies those to plugins only, and the pipeline refuses to
+start otherwise). `TRUNK_UPLOAD_TOKEN` in `.env` is a v2 key scoped to "Upload test results"
 only. Nothing uses it yet, and it is **kept on purpose**: once the CLI accepts v2 keys, it replaces the org token in the
 Woodpecker secret, and the unscoped token leaves CI. Rotate the org token in Trunk's Legacy Keys
 screen, update `.env`, then `repo secret update` per [trunk-flaky-tests.md](trunk-flaky-tests.md) § Install.

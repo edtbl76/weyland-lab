@@ -1856,7 +1856,7 @@ flowchart LR
 | One variant per source | `reports/junit/<source>/` → Trunk variant `<source>` | history and flakiness stay per language and per golden path |
 | Self-check | never reported | its deliberate failure would look like a test failing every build |
 | Upload verdict | the CLI's printed output, plus a timeout; the step goes red when an upload is not confirmed | the CLI can exit 0 on a failed upload, and exits 1 when tests failed but the upload landed |
-| Key | the legacy org token, a Woodpecker secret limited to the step's image | the only key the uploader accepts; it is unscoped, so it is fenced to one step |
+| Key | the legacy org token, a Woodpecker secret only `trunk-upload` requests | the only key the uploader accepts. An image filter would fence it tighter, but Woodpecker applies those to plugins only, and on a commands step the whole pipeline refuses to start (#588) |
 
 Rollout is phased ([concepts/test-visibility.md](concepts/test-visibility.md) § Rollout): built-in reporters first,
 then a reporter package per remaining language, then a lane-level report for the rest, then the other repos within the

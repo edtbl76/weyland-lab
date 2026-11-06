@@ -4005,7 +4005,8 @@ it with `--report-formatter junit`; CI emits none today).**
   doing it:** the golden-path loop `exit 2`ed at the first failed build or apply, so every later path was never built,
   smoked or reported; it now records the failure and moves on, deciding the exit at the end. Also found: `shell-tests` and
   `test-shell` both run `scripts/tests`, so only `test-shell` reports (else every bats result counts twice). Pipeline: step
-  `trunk-upload` (green and red runs; CLI 0.16.1 pinned by sha256), Woodpecker secret `trunk_org_token` limited to its image.
+  `trunk-upload` (green and red runs; CLI 0.16.1 pinned by sha256), Woodpecker secret `trunk_org_token`, with no image filter: the first try set one, and
+  pipeline #588 refused to start ("image filters do not work for normal steps"; they are for plugins only).
   Real lanes proven in their CI images: python (20 reports), shell (1,235 cases), java (7 harvested), swift (11 cases; it
   needed `--parallel`, found when the first run wrote 0-case files), kotlin, scala and php (each fixture's 4 cases; no
   real projects yet). The exact CI step rehearsed against real Trunk: 1,680
