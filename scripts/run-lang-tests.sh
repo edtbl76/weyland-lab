@@ -308,8 +308,59 @@ discover_roots() {
 
 # run_in <lang> <dir> <mode> — run this language's tests in <dir>.
 # mode: normal | selfcheck (selfcheck runs the fixture's deliberately-failing test)
+# ── JUnit reports for Trunk Flaky Tests (B189) ────────────────────────────────
+# LANG_JUNIT_DIR=<dir> makes every NORMAL run leave a report under <dir>/<lang>/: <name>.xml when the runner
+# is told where to write, or a <name>/ directory of the files a runner writes on its own (Surefire, Gradle,
+# sbt), harvested after the run whatever its exit — the failed run is the one Trunk most needs. <name> is
+# `fixture` or the project's path under SCAN_ROOT with / -> __, so two projects never collide. Self-check
+# NEVER reports: its deliberate failure would reach Trunk as a test that fails every build. Unset = no change.
+JB=""   # the current run's report base path (no extension); "" = do not report. Set by main, read by run_in.
+
+# The languages whose runner writes JUnit with no added dependency (B189 phase 1). The rest get a reporter
+# package (phase 2) or a lane-level report (phase 3); until then they say so rather than look quiet.
+junit_supported() { case "$1" in python|shell|java|kotlin|scala|php|swift) return 0 ;; *) return 1 ;; esac; }
+
+junit_base() {   # junit_base <lang> <dir> <fixture-dir> -> report base path, or nothing when not reporting
+  [ -n "${LANG_JUNIT_DIR:-}" ] && junit_supported "$1" || return 0
+  local name root="$LANG_JUNIT_DIR"
+  case "$root" in /*) ;; *) root="$PWD/$root" ;; esac   # runners cd into the project: a relative path would break
+  if [ "$2" = "$3" ]; then name=fixture
+  else name="${2#"$SCAN_ROOT"}"; name="${name#/}"; name="${name//\//__}"; [ -n "$name" ] || name=root; fi
+  printf '%s/%s/%s' "$root" "$1" "$name"
+}
+
+harvest() {   # harvest <base> <glob...> — copy a runner's own report files into <base>/
+  local base="$1" f; shift
+  for f in "$@"; do [ -f "$f" ] || continue; mkdir -p "$base"; cp "$f" "$base/"; done
+}
+
 # Returns the runner's exit status. NEVER swallows it.
 run_in() {
+  local lang="$1" dir="$2" rc
+  [ -z "$JB" ] || mkdir -p "$(dirname "$JB")"
+  run_in_raw "$@"; rc=$?
+  if [ -n "$JB" ]; then
+    case "$lang" in
+      java)   harvest "$JB" "$dir"/target/surefire-reports/*.xml ;;
+      kotlin) harvest "$JB" "$dir"/build/test-results/test/*.xml ;;
+      scala)  harvest "$JB" "$dir"/target/test-reports/*.xml ;;
+      shell)  [ -f "$JB.d/report.xml" ] && mv "$JB.d/report.xml" "$JB.xml"; rmdir "$JB.d" 2>/dev/null ;;
+    esac
+    # A report counts only if it holds at least one <testcase>: an empty file is absence with a file's name
+    # (the real swift lane wrote a 0-case swift-testing file while its XCTest suite ran — 2026-11-06).
+    # The files are listed first and grep'd directly: a `cat <absent file> | grep` pipeline failed under pipefail
+    # even when grep matched, and warned about reports that were there (found the same day).
+    local f; local -a reps=()
+    [ -f "$JB.xml" ] && reps+=("$JB.xml")
+    while IFS= read -r f; do reps+=("$f"); done < <(find "$JB" -name '*.xml' 2>/dev/null)
+    if [ "${#reps[@]}" -eq 0 ] || ! grep -q '<testcase' "${reps[@]}"; then
+      printf 'NO JUNIT REPORT: the %s run in %s left none (Trunk will not see these tests)\n' "$lang" "$dir" >&2
+    fi
+  fi
+  return "$rc"
+}
+
+run_in_raw() {
   local lang="$1" dir="$2" mode="$3" bin
   bin="$(runner_for "$lang")"
 
@@ -339,9 +390,11 @@ run_in() {
           printf 'LANE BROKEN: pip install -r requirements-test.txt failed in %s\n' "$dir" >&2; return 2; }
       fi
       if [ "$mode" = selfcheck ]; then (cd "$dir" && pytest -q -p no:cacheprovider selfcheck)
-      else (cd "$dir" && pytest -q -p no:cacheprovider --ignore=selfcheck); fi ;;
+      else (cd "$dir" && pytest -q -p no:cacheprovider ${JB:+"--junitxml=$JB.xml"} --ignore=selfcheck); fi ;;
     shell)
+      # bats writes report.xml into an existing --output dir; run_in moves it to $JB.xml afterwards.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && bats selfcheck)
+      elif [ -n "$JB" ]; then mkdir -p "$JB.d"; (cd "$dir" && bats --report-formatter junit --output "$JB.d" .)
       else (cd "$dir" && bats .); fi ;;
     java)
       # Structural, like every other lane: Surefire excludes **/selfcheck/** by default and the
@@ -379,7 +432,7 @@ run_in() {
       (cd "$dir" && composer install --no-interaction --no-progress -q) || {
         printf 'LANE BROKEN: composer install failed in %s\n' "$dir" >&2; return 2; }
       if [ "$mode" = selfcheck ]; then (cd "$dir" && vendor/bin/phpunit --group selfcheck)
-      else (cd "$dir" && vendor/bin/phpunit --exclude-group selfcheck); fi ;;
+      else (cd "$dir" && vendor/bin/phpunit ${JB:+--log-junit "$JB.xml"} --exclude-group selfcheck); fi ;;
     ruby)
       # bundle brings the gems (rake/minitest/rack-test); the deliberate test lives in selfcheck/ and is
       # OUTSIDE the `test` rake task's test/**/ glob, so a normal `rake test` never collects it and
@@ -457,6 +510,10 @@ run_in() {
       # ~1057 units) OOM-killed the best-effort step pod mid-compile (#121). Unset locally → default speed.
       local jflag=""; [ -n "${SWIFT_BUILD_JOBS:-}" ] && jflag="-j ${SWIFT_BUILD_JOBS}"
       if [ "$mode" = selfcheck ]; then (cd "$dir" && GOLDEN_SELFCHECK=1 swift test $jflag --filter SelfCheckTests)
+      # --xunit-output writes <name>.xml for XCTest ONLY with --parallel, plus <name>-swift-testing.xml (swift-testing),
+      # so it points INTO the report dir. Without --parallel the XCTest suites ran and left no report (found 2026-11-06).
+      elif [ -n "$JB" ]; then mkdir -p "$JB"
+        (cd "$dir" && swift test $jflag --parallel ${SWIFT_BUILD_JOBS:+--num-workers "$SWIFT_BUILD_JOBS"} --xunit-output "$JB/swift.xml")
       else (cd "$dir" && swift test $jflag); fi ;;
     dart)
       # dart pub get resolves deps. The deliberate test is @Tags(['selfcheck']) + skipped via
@@ -611,6 +668,7 @@ The fixture is what proves this lane can run at all; without it a pass would mea
 
   # ── self-check: prove the runner propagates a real failure ──────────────────
   if [ "$mode" = selfcheck ]; then
+    JB=""   # never report the deliberate failure (see run_in)
     run_in "$lang" "$fixture" selfcheck
     local sc=$?
     if [ "$sc" -eq 0 ]; then
@@ -623,6 +681,10 @@ The fixture is what proves this lane can run at all; without it a pass would mea
   fi
 
   # ── the fixture must pass, or the lane is broken (2, never 1) ───────────────
+  if [ -n "${LANG_JUNIT_DIR:-}" ] && ! junit_supported "$lang"; then
+    printf 'junit: %s has no JUnit reporter yet (B189 phase 2/3) — Trunk will not see this lane\n' "$lang"
+  fi
+  JB="$(junit_base "$lang" "$fixture" "$fixture")"
   run_in "$lang" "$fixture" normal
   local fx=$?
   [ "$fx" -eq 0 ] || {
@@ -634,6 +696,7 @@ The fixture is what proves this lane can run at all; without it a pass would mea
   # ── real projects: a failure here is an estate defect (1, never 2) ──────────
   local failed=0 d rc
   for d in "${real[@]+"${real[@]}"}"; do
+    JB="$(junit_base "$lang" "$d" "$fixture")"
     run_in "$lang" "$d" normal
     rc=$?
     # A COLLECTION error is not a failing test — nothing ran. pytest exits 1 for real failures but

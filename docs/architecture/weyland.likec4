@@ -31,6 +31,7 @@ model {
   grafanaIrm = ext "Grafana Cloud IRM" "Free-tier on-call (B184 phase 2): the escalation chain weyland-critical pages a critical alert on Telegram, then @mentions in Slack #incidents if not acknowledged. SaaS, so 0 RAM; config in its UI, recorded in runbooks/on-call.md"
   slack = ext "Slack" "Free workspace (B184) - the lab feed, not the pager: #alerts, #deploys, #errors via one custom app (weyland) with incoming webhooks; #linear-updates and #github via the vendor apps. Free plan caps installations at 10; 3 used."
   linear = ext "Linear" "Roadmap / task status (ingested by Port); hosted MCP server (mcp.linear.app) read/written by the harnesses"
+  trunk = ext "Trunk Flaky Tests" "B189 - free-plan SaaS test visibility: every pipeline's JUnit (one variant per source) gives per-test history and flaky/broken detection; files and closes Linear issues in project Weyland Auto-Filed (label trunk-flaky). 0 RAM; history is derived from CI, so DR = rebuild"
   clockify = ext "Clockify" "Free-plan time tracker (B185 lane 2): its Chrome extension puts a timer on every Linear issue, naming the entry [EMA-###]; owner_time.py reads finished entries over its REST API (30 req/h on Free)"
   grkit = ext "grkit" "B206 — the guardrails kit (github.com/edtbl76/grkit, public, MIT): the guard verdict wire contract (grkit.verdict: Decision, Hook, Mode, Verdict), a fail-open guard client and the fail-closed build-time check pattern, packaged from weyland. Installed at image build, pinned to one commit (scripts/tests/grkit-pin.bats); not a running service"
 
@@ -235,6 +236,8 @@ model {
   weyland.mother.ops.obs.glitchtip -> slack "B184: new-error alerts -> #errors"
   weyland.mother.ops.platform.argocd -> slack "B184: sync failed / degraded -> #deploys"
   weyland.mother.ops.platform.woodpecker -> slack "B184: failed pipeline -> #deploys"
+  weyland.mother.ops.platform.woodpecker -> trunk "B189: trunk-upload step - JUnit from every test lane + golden-path-smoke (green or red runs)"
+  trunk -> linear "B189: flaky/broken test -> issue in Weyland Auto-Filed (trunk-flaky); healthy again -> closed"
   linear -> slack "B184: completed/canceled, triage, project + initiative updates -> #linear-updates"
   github -> slack "B184: weyland-lab issues, PRs, commits -> #github"
   weyland.mother.ops.obs.lancedbExporter -> weyland.mother.ops.obs.grafana "LanceDB row-count metrics"

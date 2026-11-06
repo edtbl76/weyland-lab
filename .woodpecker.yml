@@ -380,6 +380,10 @@ steps:
   - name: test-python
     when: &skip_on_smoke [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
     image: python:3.12-slim
+    environment: &junit_env
+      # B189: every NORMAL lane run leaves JUnit under reports/junit/<lang>/ for the trunk-upload step (the
+      # workspace is shared across steps). Self-check never reports. See scripts/run-lang-tests.sh § JUnit.
+      LANG_JUNIT_DIR: reports/junit
     commands:
       - pip install --quiet --no-cache-dir -r scripts/ci/requirements-lang-tests.txt   # frozen tooling (B227 follow-on)
       - bash scripts/run-lang-tests.sh python --self-check
@@ -392,6 +396,9 @@ steps:
   - name: test-shell
     when: *skip_on_smoke
     image: bats/bats:latest
+    # B189: the ONLY step that reports scripts/tests to Trunk. shell-tests runs the same suite; reporting both
+    # would count every bats result twice against the span budget.
+    environment: *junit_env
     commands:
       # Same package set as the shell-tests step above; keep them in step if either changes.
       - apk add --no-cache python3 py3-yaml jq git bash prometheus >/dev/null   # prometheus = promtool (alert-rules.bats)
@@ -406,6 +413,7 @@ steps:
     image: maven:3.9-eclipse-temurin-21
     volumes:
       - ci-cache-maven:/root/.m2/repository   # B88 #6 — persist downloaded maven plugins/deps
+    environment: *junit_env
     commands:
       # Java 17 matches the Flink modules' maven.compiler.source/target. B88 added JUnit 5 +
       # Surefire to both modules — before that `mvn test` ran zero tests and exited 0.
@@ -509,6 +517,7 @@ steps:
     # the limit. MEMORY ONLY — no cpu request (cpu is compressible; avoids mother's cpu-requests wall).
     environment:
       SWIFT_BUILD_JOBS: "2"
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
     backend_options:
       kubernetes:
         resources:
@@ -598,6 +607,7 @@ steps:
   - name: test-kotlin
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " kotlin ")'}]
     image: gradle:8.10-jdk21
+    environment: *junit_env
     commands:
       # No gradle cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) — gradle
       # re-resolves deps per run. Add the cache as a fast-follow once the lane is green.
@@ -608,6 +618,7 @@ steps:
   - name: test-scala
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " scala ")'}]
     image: sbtscala/scala-sbt:eclipse-temurin-21.0.12_8_1.13.0_3.8.4
+    environment: *junit_env
     commands:
       # No sbt/coursier cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) —
       # sbt re-resolves deps per run. Add the cache as a fast-follow once the lane is green.
@@ -618,6 +629,7 @@ steps:
   - name: test-php
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " php ")'}]
     image: composer:2.7
+    environment: *junit_env
     commands:
       - apk add --no-cache bash >/dev/null   # the composer image is alpine; the runner needs bash (arrays)
       - bash scripts/run-lang-tests.sh php --self-check
@@ -999,6 +1011,8 @@ steps:
       GOLDEN_PATH_PUSH_REGISTRY: registry-push.weyland.lab
       REGISTRY_PUSH_AUTH:
         from_secret: registry_push_auth
+      # B189: one JUnit test case per golden path, for the trunk-upload step (variant golden-path).
+      GOLDEN_PATH_JUNIT: reports/junit/golden-path/golden-path.xml
     backend_options:
       kubernetes:
         serviceAccountName: golden-path-runner  # dedicated SA (ns woodpecker) with the golden-paths Job RBAC
@@ -1216,6 +1230,30 @@ steps:
     commands:
       - apk add --no-cache git curl >/dev/null
       - sh scripts/ci/open-deploy-pr.sh
+
+  # ── 5b. test results → Trunk Flaky Tests (B189; success AND failure) ──────────
+  # Every lane above that ran left JUnit under reports/junit/<source>/ (the workspace is shared); this uploads
+  # each source as its own Trunk variant. Runs after a FAILED pipeline too: the red run is the one flaky-test
+  # detection most needs. FAIL-CLOSED: trunk-upload.sh judges each upload from the CLI's printed output (the CLI
+  # can exit 0 on a failed upload) and goes red if any source did not land; a pipeline where nothing wrote a
+  # report at all is also red. The CLI is pinned and its sha256 checked before it runs.
+  # Runbook: docs/runbooks/trunk-flaky-tests.md. Secret: trunk_org_token (the LEGACY org token; v2 keys don't work).
+  - name: trunk-upload
+    image: alpine:3.20
+    when:
+      - status: [success, failure]
+    environment:
+      TRUNK_API_TOKEN:
+        from_secret: trunk_org_token
+      TRUNK_COLLECTION_ID: ZuFEh5e5
+      TRUNK_CLI_VERSION: 0.16.1
+      TRUNK_CLI_SHA256: 8c34f99a41d4b3151f711aca05d01478b2f707dd698d3980d2524646021af5f2
+    commands:
+      - apk add --no-cache bash curl git >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/trunk-cli.tgz "https://github.com/trunk-io/analytics-cli/releases/download/$TRUNK_CLI_VERSION/trunk-analytics-cli-x86_64-unknown-linux.tar.gz"
+      - echo "$TRUNK_CLI_SHA256  /tmp/trunk-cli.tgz" | sha256sum -c -
+      - tar -xzf /tmp/trunk-cli.tgz -C /usr/local/bin trunk-analytics-cli
+      - bash scripts/ci/trunk-upload.sh reports/junit
 
   # ── 6. build status → Port ci_pipeline (B63 — CI reliability signal; success AND failure) ──
   - name: notify-port

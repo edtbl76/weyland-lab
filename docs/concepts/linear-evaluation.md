@@ -309,6 +309,30 @@ Linear no longer has. Fail-closed (zero projects / unreadable SoT = exit 2). 43 
 green (8/8 mapped). `onboard-repo.sh` prints the create-project step when a new repo is added. The `linear-sync`
 CI step apk-adds `py3-yaml` for the `repos.yaml` parse.
 
+### Weyland Auto-Filed — issues a machine files (2026-11-06, B189, owner decision)
+
+**The rule.** Linear holds two kinds of issue, and they get two homes:
+
+| | **Weyland Lab** | **Weyland Auto-Filed** |
+|---|---|---|
+| What | planned work: B/U items written by the owner or agents, ordered in `docs/backlog.md` | issues a system files because it **observed** something, and closes when the condition clears |
+| Numbering | a B/U number, enforced by `check-linear-sync.sh` | none; a **source label** says who filed it |
+| Initiative | `Lab & Systems` (the guard's scope) | `Automation` (outside it, so the numbering check does not apply) |
+| Sources today | the backlog | U14 alert incidents (label `incident`), Trunk flaky-test detection (label `trunk-flaky`) |
+
+**Why a project and not a guard exemption.** Trunk's Linear integration has no title template, so its tickets
+can't carry a B/U number. Exempting one tool's label in the guard would special-case a tool. A home for a whole
+*category* names the real distinction, and needs no guard change, because the guard already scopes by initiative.
+U14's incidents were moved here the same day (8 issues; the n8n workflow now files here) so that one kind of issue
+follows one rule. Like `rogueone Hardware`, it is a project with no repo (`repos ⊆ projects`).
+
+**The cost: visibility.** Auto-Filed issues don't appear in Weyland Lab views. The weekly digest (B237) should report
+them explicitly ("N incidents and M flaky tests opened this week").
+
+**Adding a source.** File into Auto-Filed, never Weyland Lab, and create a team label for the source. The rule of
+record is in `AGENTS.md`. Linear ids: project `70d1a6fc-a191-482c-8172-8a0f3928d08d`, initiative
+`c9cf1dda-73de-40bc-ba43-70b06aec9cd7`, label `trunk-flaky` `53181960-2ea8-462b-b97f-d177318474ae`.
+
 ## Reviews (code diffs in Linear)
 
 **Real data (MCP `list_diffs`, 2026-09-22):** 15 diffs (~13 open), **100% dependabot dependency bumps** across 5

@@ -14,6 +14,10 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
   drill, a sweep) keeps the gap closed? Record the gap in the issue and the backlog so it isn't lost.
 - **Backlog** = `docs/backlog.md` (ordered source of truth, B-numbered); **Linear** (workspace emangini, team EMA) =
   status. A new backlog item gets a Linear issue in the same change; `scripts/check-linear-sync.sh` must exit 0.
+  **Two kinds of Linear issue, two homes (2026-11-06):** planned work lives in project **Weyland Lab** and carries a
+  B/U number. Issues a *machine* files and closes (U14's alert incidents, Trunk's flaky tests) live in project
+  **Weyland Auto-Filed** (initiative `Automation`, outside the sync guard's scope), with a source label (`incident`,
+  `trunk-flaky`). A new automated source files into Auto-Filed with its own label, never into Weyland Lab.
 - **Every issue an agent drafts is implementation-ready** — beyond Why/Scope it carries **Technical context** (the
   affected systems, files, services, APIs — host, path, role), **Acceptance criteria** (testable pass/fail checks),
   **Edge cases & failure modes**, and **Out of scope** (the Linear issue templates hold these sections).

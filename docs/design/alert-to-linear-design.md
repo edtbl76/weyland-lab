@@ -89,7 +89,15 @@ Alerts flap. The same alert must map to one issue.
   has no backup by decision, ADR-6); Linear already holds the state.
 - **Always creating a new issue on re-fire:** flapping would spam issues.
 
-## ADR-4 — Incidents live in Weyland Lab, titled `U14 incident — …`
+## ADR-4 — Incidents live in Weyland Lab, titled `U14 incident — …` — SUPERSEDED 2026-11-06
+
+> **Superseded (B189, owner decision):** incidents now live in project **Weyland Auto-Filed** (initiative
+> `Automation`), the home for every issue a machine files and closes. The trigger was Trunk's flaky-test tickets, which
+> can't carry a B/U number (no title template). One rule for all machine-filed issues beats a number for one source
+> and an exemption for another. The 8 existing incidents moved; the workflow's `projectId` now points there. The
+> `U14 incident —` title stays but is no longer load-bearing, and the lowest-EMA join fix stays (it is correct in
+> general). The original decision, kept for the record:
+
 
 **Context.** `check-linear-sync.sh` check F fails any Weyland Lab issue whose title carries no B/U number. Options:
 a separate project/initiative outside the guard's scope, a guard exemption by label, or numbering.

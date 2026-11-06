@@ -13,7 +13,10 @@
 #   usage: run-golden-path-jobs.sh [<lang>/<framework> ...]   (default: all golden paths with a Dockerfile)
 #          --dry-run   print the images + Jobs it would build/apply, change nothing
 #
+#          GOLDEN_PATH_JUNIT=<file>   also write one JUnit test case per path there (B189, for Trunk Flaky Tests)
+#
 # EXIT: 0 all exercised paths' smoke passed · 1 a smoke failed (named) · 2 could not run (build/apply).
+# Every path is attempted: a build or apply failure is recorded and the loop moves on; the exit is decided at the end.
 # OPERATOR STEP: the buildkit build + Job apply touch the cluster; run from mother/rogueone with kube +
 # buildkit access. Fail-closed: a build or apply failure is exit 2, never a silent pass.
 set -uo pipefail
@@ -67,7 +70,35 @@ if [ "$DRY" -eq 0 ] && [ "$PUSH_REGISTRY" != "$REGISTRY" ]; then
   registry_push_auth "$PUSH_REGISTRY" || exit 2
 fi
 
-fail=0
+# B189: one JUnit test case per path, for Trunk Flaky Tests (GOLDEN_PATH_JUNIT=<file>; unset = no report).
+# A build or apply failure no longer `exit 2`s on the spot: it is recorded and the loop moves on, so one broken
+# path (a flaky apt mirror, say) cannot hide the state of every path after it. The exit contract is unchanged
+# in meaning — 2 if anything could not run, else 1 if a smoke failed, else 0 — it is just decided at the end.
+JUNIT="${GOLDEN_PATH_JUNIT:-}"
+cases=""; ncase=0; nfail=0
+xml_escape() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' | tr -d '\000-\010\013\014\016-\037'; }
+record() {   # record <path> <seconds> [<failure message> <failure body>]
+  ncase=$((ncase + 1))
+  local c="  <testcase classname=\"golden-path\" name=\"$1\" time=\"$2\""
+  if [ $# -ge 3 ]; then
+    nfail=$((nfail + 1))
+    c="$c>
+    <failure message=\"$3\">$(printf '%s' "$4" | xml_escape)</failure>
+  </testcase>"
+  else c="$c/>"; fi
+  cases="$cases$c
+"
+}
+write_junit() {
+  [ -n "$JUNIT" ] && [ "$DRY" -eq 0 ] || return 0
+  mkdir -p "$(dirname "$JUNIT")"
+  { printf '<?xml version="1.0" encoding="UTF-8"?>\n<testsuites>\n'
+    printf '<testsuite name="golden-path-smoke" tests="%d" failures="%d" errors="0" skipped="0">\n' "$ncase" "$nfail"
+    printf '%s' "$cases"
+    printf '</testsuite>\n</testsuites>\n'; } > "$JUNIT"
+}
+
+fail=0; broken=0
 for p in "${paths[@]}"; do
   name="golden-$(printf '%s' "$p" | tr '/' '-')"      # golden-paths/python/fastapi -> golden-python-fastapi
   image="$REGISTRY/$name:latest"
@@ -99,16 +130,24 @@ for p in "${paths[@]}"; do
   # Fix: build each path from a FRESH temp copy (unique path + fresh mtimes) so buildkit sees an entirely
   # new context and cannot reuse a prior path's files. Throwaway smoke images, so a cold build is the
   # right trade: correctness (each path builds ITS OWN source) over cache reuse.
-  ctx="$(mktemp -d)"
+  started=$SECONDS
+  ctx="$(mktemp -d)"; blog="$(mktemp)"
   cp -R "$GP_DIR/$p/." "$ctx/"
   buildctl --addr "$BUILDKIT" build --no-cache \
     --frontend dockerfile.v0 --local context="$ctx" --local dockerfile="$ctx" \
-    --output "type=image,name=$push_image,push=true,registry.insecure=true" \
-    || { rm -rf "$ctx"; echo "BUILD FAILED: $image" >&2; exit 2; }
-  rm -rf "$ctx"
+    --output "type=image,name=$push_image,push=true,registry.insecure=true" > "$blog" 2>&1
+  brc=$?
+  cat "$blog"; rm -rf "$ctx"
+  if [ "$brc" -ne 0 ]; then
+    echo "BUILD FAILED: $image" >&2
+    record "$p" "$((SECONDS - started))" "BUILD FAILED" "$(tail -20 "$blog")"
+    rm -f "$blog"; broken=1; continue
+  fi
+  rm -f "$blog"
 
   kubectl -n "$NS" delete job "$job" --ignore-not-found >/dev/null 2>&1
-  kubectl -n "$NS" apply -f - >/dev/null <<EOF || { echo "APPLY FAILED: $job" >&2; exit 2; }
+  alog="$(mktemp)"
+  kubectl -n "$NS" apply -f - >"$alog" 2>&1 <<EOF || { echo "APPLY FAILED: $job" >&2; record "$p" "$((SECONDS - started))" "APPLY FAILED" "$(cat "$alog")"; rm -f "$alog"; broken=1; continue; }
 apiVersion: batch/v1
 kind: Job
 metadata: { name: $job, namespace: $NS, labels: { app: golden-path, "golden-path/name": "$name", "golden-path/run": "$RUN_ID" } }
@@ -127,14 +166,21 @@ spec:
           resources: { requests: { cpu: 25m, memory: 64Mi }, limits: { memory: 256Mi } }
 EOF
 
+  rm -f "$alog"
+
   if kubectl -n "$NS" wait --for=condition=complete "job/$job" --timeout=180s >/dev/null 2>&1; then
     echo "  SMOKE OK"; kubectl -n "$NS" logs "job/$job" 2>/dev/null | tail -1
+    record "$p" "$((SECONDS - started))"
   else
-    echo "  SMOKE FAILED for $p:" >&2; kubectl -n "$NS" logs "job/$job" 2>/dev/null | tail -5 >&2; fail=1
+    slog="$(kubectl -n "$NS" logs "job/$job" 2>/dev/null | tail -20)"
+    echo "  SMOKE FAILED for $p:" >&2; printf '%s\n' "$slog" | tail -5 >&2; fail=1
+    record "$p" "$((SECONDS - started))" "SMOKE FAILED" "$slog"
   fi
   kubectl -n "$NS" delete job "$job" --ignore-not-found >/dev/null 2>&1   # tear down — ephemeral
 done
 
 [ "$DRY" -eq 1 ] && { echo "dry-run — ${#paths[@]} golden path(s) planned, nothing built or applied."; exit 0; }
+write_junit
+[ "$broken" -eq 1 ] && { echo "a golden path could not be built or applied (see BUILD/APPLY FAILED above)" >&2; exit 2; }
 [ "$fail" -eq 0 ] && { echo "OK — all ${#paths[@]} golden path(s) served in-cluster and were torn down."; exit 0; }
 echo "a golden path smoke failed (see above)" >&2; exit 1

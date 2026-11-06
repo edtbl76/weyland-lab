@@ -1751,7 +1751,7 @@ flowchart LR
   AM -->|critical, route 1, continue| N[n8n alert-to-linear]
   AM -->|critical, route 2| TG[Telegram pager]
   AM -->|everything else| TG
-  N -->|lookup by fingerprint, then create / reopen / close| L[Linear: Weyland Lab, label incident]
+  N -->|lookup by fingerprint, then create / reopen / close| L[Linear: Weyland Auto-Filed, label incident]
   N -.->|any failure = HTTP 500| AM
   AM -.->|AlertmanagerFailedToSendAlerts| TG
 ```
@@ -1772,7 +1772,7 @@ flowchart LR
 |---|---|---|
 | Routing | incident route with `continue: true`, **then an explicit critical → Telegram route**. A matching child claims the alert even with `continue`, so without route 2 Telegram silently stops paging criticals. Proven with `amtool config routes test`. | a webhook inside the Telegram receiver (an n8n failure would retry Telegram); n8n forwarding to Telegram (makes n8n the pager) |
 | Dedup key | Alertmanager fingerprint as an `alert-fingerprint:` line in the description, looked up with label `incident` | Linear attachments (URL not unique per alert); an n8n-side store (a second truth, on an un-backed-up PVC) |
-| Where incidents live | Weyland Lab, titled `U14 incident — <alert>`, so the sync guard's numbering rule holds. The guard now joins a number to its lowest EMA, so incidents never hijack U14's own issue. | a separate project (more parity to keep, and incidents hidden); a guard exemption (a special case) |
+| Where incidents live | **Weyland Auto-Filed** (since 2026-11-06, B189), the project for every machine-filed issue, outside the sync guard's numbering scope; it was Weyland Lab, titled `U14 incident — <alert>` so the guard's numbering rule held. The guard now joins a number to its lowest EMA, so incidents never hijack U14's own issue. | a separate project (more parity to keep, and incidents hidden); a guard exemption (a special case) |
 | Who may call the webhook | NetworkPolicy: Traefik + Alertmanager only (B209's rule: a write surface is authenticated or unreachable) | a header token (a Secret in two places, for a caller set a policy already pins) |
 | Failure signal | every step's error output → HTTP 500; `Verify` throws on any `success:false` (Linear refuses with HTTP 200) | `onReceived` 200 (hides failures); an n8n error workflow (a second alert path) |
 
@@ -1830,6 +1830,37 @@ Linear Business). Flow: [flow-on-call.md](diagrams/flow-on-call.md); runbook: [r
 
 **Known gap, accepted:** no Argo CD component is scraped by Prometheus (pre-existing), so a dead notifications
 controller would be silent; the next real sync failure, or the runbook's test, is what shows it.
+
+### 10k. Test visibility — every test's history, and flaky tests become issues (B189, 2026-11-06)
+
+Before B189, a test's result lived only in one Woodpecker log, so nothing showed which tests exist, how each behaved over
+time, or which ones flake. Now every pipeline uploads its JUnit to **Trunk Flaky Tests** (free plan, SaaS, 0 RAM). Trunk
+keeps per-test history, marks flaky and broken tests, and files them in Linear project **Weyland Auto-Filed** (label
+`trunk-flaky`), closing them when the test is healthy again. Verdict and alternatives (Allure 3 is the fallback):
+[concepts/test-visibility.md](concepts/test-visibility.md). Runbook: [runbooks/trunk-flaky-tests.md](runbooks/trunk-flaky-tests.md).
+Flow: [flow-trunk-flaky-tests.md](diagrams/flow-trunk-flaky-tests.md).
+
+```mermaid
+flowchart LR
+  LT[test lanes<br/>run-lang-tests.sh<br/>LANG_JUNIT_DIR] --> R[reports/junit/source]
+  GP[golden-path-smoke<br/>GOLDEN_PATH_JUNIT] --> R
+  R --> U[trunk-upload step<br/>green and red runs]
+  U --> T[Trunk Flaky Tests]
+  T -->|flaky or broken| L[Linear<br/>Weyland Auto-Filed]
+  T -->|healthy again| L
+```
+
+| Choice | Chosen | Why |
+|---|---|---|
+| Report format | JUnit, written by each runner itself where it can (pytest, bats, phpunit, swift) or copied out of the runner's own report directory (Surefire, Gradle, sbt) | one format every tool reads; Allure can rebuild a view from the same files |
+| One variant per source | `reports/junit/<source>/` → Trunk variant `<source>` | history and flakiness stay per language and per golden path |
+| Self-check | never reported | its deliberate failure would look like a test failing every build |
+| Upload verdict | the CLI's printed output, plus a timeout; the step goes red when an upload is not confirmed | the CLI can exit 0 on a failed upload, and exits 1 when tests failed but the upload landed |
+| Key | the legacy org token, a Woodpecker secret limited to the step's image | the only key the uploader accepts; it is unscoped, so it is fenced to one step |
+
+Rollout is phased ([concepts/test-visibility.md](concepts/test-visibility.md) § Rollout): built-in reporters first,
+then a reporter package per remaining language, then a lane-level report for the rest, then the other repos within the
+free plan's roughly 1M results a month.
 
 ## 11. Operational lessons (why the CTs are tuned the way they are)
 

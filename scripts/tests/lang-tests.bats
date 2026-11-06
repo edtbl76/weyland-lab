@@ -443,3 +443,143 @@ teardown() {
   run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" bash "$RUNNER" go --self-check
   [ "$status" -eq 2 ]
 }
+
+# ---------------------------------------------------------------------------
+# JUnit reports for Trunk Flaky Tests (B189). LANG_JUNIT_DIR=<dir> makes every NORMAL run (fixture and
+# real projects) leave a report at <dir>/<lang>/<project>.xml (or a <project>/ dir of the runner's own
+# files). Self-check NEVER writes one: its deliberate failure would reach Trunk as a test that fails on
+# every build, which teaches everyone to ignore red. Unset = the lane behaves exactly as before.
+# ---------------------------------------------------------------------------
+
+py_tree() {
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/svc/tests"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/svc/tests/test_thing.py"
+}
+
+@test "junit: python passes --junitxml for the fixture AND each real project" {
+  py_tree
+  stub pytest 0 "1 passed"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" python
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  called_with pytest "--junitxml=$SANDBOX/junit/python/fixture.xml"
+  called_with pytest "--junitxml=$SANDBOX/junit/python/svc.xml"
+}
+
+@test "junit: unset LANG_JUNIT_DIR passes no report flag (the lane is unchanged)" {
+  py_tree
+  stub pytest 0 "1 passed"
+  run env -u LANG_JUNIT_DIR WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python
+  [ "$status" -eq 0 ]
+  not_called_with pytest "--junitxml"
+}
+
+@test "junit: --self-check never writes a report, even with LANG_JUNIT_DIR set" {
+  mkdir -p "$SANDBOX/fix/python/selfcheck"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  stub pytest 1 "1 failed"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" LANG_JUNIT_DIR="$SANDBOX/junit" \
+      bash "$RUNNER" python --self-check
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  not_called_with pytest "--junitxml"
+  [ ! -e "$SANDBOX/junit" ]
+}
+
+@test "junit: a nested project's report name keeps its path, so two projects never collide" {
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/services/a/tests" "$SANDBOX/scan/services/b/tests"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/services/a/tests/test_a.py"
+  : > "$SANDBOX/scan/services/b/tests/test_b.py"
+  stub pytest 0 "1 passed"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" python
+  [ "$status" -eq 0 ]
+  called_with pytest "--junitxml=$SANDBOX/junit/python/services__a.xml"
+  called_with pytest "--junitxml=$SANDBOX/junit/python/services__b.xml"
+}
+
+@test "junit: java harvests Surefire's own reports, EVEN when the tests failed" {
+  # Maven writes target/surefire-reports/TEST-*.xml itself; the lane copies them out after the run.
+  # The failed run is the one Trunk most needs to see, so the copy must not depend on mvn's exit.
+  mkdir -p "$SANDBOX/fix/java" "$SANDBOX/scan/svc/src/test"
+  printf '<project/>\n' > "$SANDBOX/fix/java/pom.xml"
+  : > "$SANDBOX/fix/java/HelloTest.java"
+  printf '<project/>\n' > "$SANDBOX/scan/svc/pom.xml"
+  : > "$SANDBOX/scan/svc/src/test/ThingTest.java"
+  cat > "$STUB_DIR/mvn" <<'EOF'
+#!/usr/bin/env bash
+mkdir -p target/surefire-reports
+printf '<testsuite name="T" tests="1"/>\n' > target/surefire-reports/TEST-T.xml
+[ "$(basename "$PWD")" = svc ] && exit 1 || exit 0
+EOF
+  chmod +x "$STUB_DIR/mvn"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" java
+  [ "$status" -eq 1 ] || { echo "$output"; return 1; }
+  [ -f "$SANDBOX/junit/java/fixture/TEST-T.xml" ]
+  [ -f "$SANDBOX/junit/java/svc/TEST-T.xml" ]
+}
+
+@test "junit: harvested reports with test cases do NOT trigger the no-report warning" {
+  # Found 2026-11-06 on the real swift lane: the check was `cat "$JB.xml" <harvested files> | grep -q`, and
+  # under pipefail cat's failure on the absent $JB.xml failed the pipeline although grep matched — every
+  # harvested lane warned NO JUNIT REPORT about reports that were there. The pipeline-status trap.
+  mkdir -p "$SANDBOX/fix/java" "$SANDBOX/scan"
+  printf '<project/>\n' > "$SANDBOX/fix/java/pom.xml"
+  : > "$SANDBOX/fix/java/HelloTest.java"
+  cat > "$STUB_DIR/mvn" <<'EOF'
+#!/usr/bin/env bash
+mkdir -p target/surefire-reports
+printf '<testsuite name="T" tests="1"><testcase classname="T" name="t"/></testsuite>\n' > target/surefire-reports/TEST-T.xml
+EOF
+  chmod +x "$STUB_DIR/mvn"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" java
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" != *"NO JUNIT REPORT"* ]]
+}
+
+@test "junit: a runner that should have written a report and did not is named, not silently skipped" {
+  # Absence is never success: a lane that ran tests but left no report would make Trunk show the
+  # source as quiet. The lane still passes (the TESTS passed), but it says so out loud.
+  mkdir -p "$SANDBOX/fix/java" "$SANDBOX/scan"
+  printf '<project/>\n' > "$SANDBOX/fix/java/pom.xml"
+  : > "$SANDBOX/fix/java/HelloTest.java"
+  stub mvn 0 "BUILD SUCCESS"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" java
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"NO JUNIT REPORT"*"java"* ]]
+}
+
+@test "junit: a report with ZERO test cases counts as no report" {
+  # Found 2026-11-06 on the real swift lane: without --parallel, `swift test --xunit-output` writes only
+  # the swift-testing file, with 0 cases, while the XCTest suite ran. An empty file is absence wearing a
+  # file's name, so the lane must still say NO JUNIT REPORT.
+  mkdir -p "$SANDBOX/fix/java" "$SANDBOX/scan"
+  printf '<project/>\n' > "$SANDBOX/fix/java/pom.xml"
+  : > "$SANDBOX/fix/java/HelloTest.java"
+  cat > "$STUB_DIR/mvn" <<'EOF'
+#!/usr/bin/env bash
+mkdir -p target/surefire-reports
+printf '<testsuites><testsuite name="T" tests="0"></testsuite></testsuites>\n' > target/surefire-reports/TEST-T.xml
+EOF
+  chmod +x "$STUB_DIR/mvn"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" java
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"NO JUNIT REPORT"*"java"* ]]
+}
+
+@test "junit: swift runs --parallel when reporting (XCTest's report only exists with it)" {
+  mkdir -p "$SANDBOX/fix/swift/Tests" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/swift/Package.swift"
+  : > "$SANDBOX/fix/swift/Tests/HelloTests.swift"
+  stub swift 0 "ok"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" swift
+  called_with swift "--parallel"
+  called_with swift "--xunit-output $SANDBOX/junit/swift/fixture/swift.xml"
+}

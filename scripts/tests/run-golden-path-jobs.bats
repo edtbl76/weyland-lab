@@ -158,3 +158,111 @@ mkpath() {
   [[ "$output" == *"REGISTRY_PUSH_AUTH is unset"* ]]
   teardown_stubs
 }
+
+# B189 (2026-11-06): one JUnit test case per golden path, for Trunk Flaky Tests. And the loop no longer stops at the
+# first build or apply failure: it used to `exit 2` there, so every path after a broken one was never built, never
+# smoked and never reported — a flaky apt mirror in one path hid the state of all the others.
+
+@test "GOLDEN_PATH_JUNIT writes one passing test case per golden path" {
+  mkpath demo/one
+  mkpath demo/two
+  setup_stubs
+  stub buildctl 0 ''
+  stub_dispatch kubectl
+  stub_case kubectl 'wait' 0 ''
+  GOLDEN_PATH_JUNIT="$GP/out/golden-path.xml" run bash "$EX"
+  [ "$status" -eq 0 ] || { echo "$output"; teardown_stubs; return 1; }
+  [ -f "$GP/out/golden-path.xml" ]
+  grep -q 'tests="2"' "$GP/out/golden-path.xml"
+  grep -q 'failures="0"' "$GP/out/golden-path.xml"
+  grep -q '<testcase classname="golden-path" name="demo/one"' "$GP/out/golden-path.xml"
+  grep -q '<testcase classname="golden-path" name="demo/two"' "$GP/out/golden-path.xml"
+  teardown_stubs
+}
+
+@test "a BUILD failure is recorded and the NEXT path still builds and smokes (exit 2 at the end)" {
+  mkpath demo/one
+  mkpath demo/two
+  setup_stubs
+  stub_dispatch buildctl
+  stub_case buildctl 'golden-demo-one' 1 'apt mirror timed out'
+  stub_case buildctl 'golden-demo-two' 0 ''
+  stub_dispatch kubectl
+  stub_case kubectl 'wait' 0 ''
+  GOLDEN_PATH_JUNIT="$GP/golden-path.xml" run bash "$EX"
+  [ "$status" -eq 2 ] || { echo "$output"; teardown_stubs; return 1; }
+  [[ "$output" == *"BUILD FAILED"*"golden-demo-one"* ]]
+  called_with buildctl 'golden-demo-two'
+  called_with kubectl 'job/gp-demo-two-'
+  grep -q 'tests="2"' "$GP/golden-path.xml"
+  grep -q 'failures="1"' "$GP/golden-path.xml"
+  grep -q '<failure message="BUILD FAILED"' "$GP/golden-path.xml"
+  grep -q 'apt mirror timed out' "$GP/golden-path.xml"
+  teardown_stubs
+}
+
+@test "an APPLY failure is recorded and the next path still runs (exit 2 at the end)" {
+  mkpath demo/one
+  mkpath demo/two
+  setup_stubs
+  stub buildctl 0 ''
+  stub_dispatch kubectl
+  stub_case kubectl 'apply' 1 'forbidden'
+  stub_case kubectl 'wait' 0 ''
+  GOLDEN_PATH_JUNIT="$GP/golden-path.xml" run bash "$EX"
+  [ "$status" -eq 2 ] || { echo "$output"; teardown_stubs; return 1; }
+  called_with buildctl 'golden-demo-two'
+  grep -q 'failures="2"' "$GP/golden-path.xml"
+  grep -q '<failure message="APPLY FAILED"' "$GP/golden-path.xml"
+  teardown_stubs
+}
+
+@test "a SMOKE failure is a failed test case carrying the Job's log tail (exit 1)" {
+  mkpath demo/one
+  setup_stubs
+  stub buildctl 0 ''
+  stub_dispatch kubectl
+  stub_case kubectl 'wait' 1 ''
+  stub_case kubectl 'logs' 0 'connection refused on :8080'
+  GOLDEN_PATH_JUNIT="$GP/golden-path.xml" run bash "$EX"
+  [ "$status" -eq 1 ] || { echo "$output"; teardown_stubs; return 1; }
+  grep -q '<failure message="SMOKE FAILED"' "$GP/golden-path.xml"
+  grep -q 'connection refused on :8080' "$GP/golden-path.xml"
+  teardown_stubs
+}
+
+@test "log text is XML-escaped, so a log with < > & still makes a parseable report" {
+  mkpath demo/one
+  setup_stubs
+  stub_dispatch buildctl
+  stub_case buildctl 'golden-demo-one' 1 'error: <tag> & "quote" > here'
+  GOLDEN_PATH_JUNIT="$GP/golden-path.xml" run bash "$EX"
+  [ "$status" -eq 2 ]
+  grep -q '&lt;tag&gt; &amp; &quot;quote&quot; &gt; here' "$GP/golden-path.xml"
+  # a raw '<tag>' inside the report would make the file unparseable
+  run grep -c '<tag>' "$GP/golden-path.xml"
+  [ "$output" = "0" ]
+  teardown_stubs
+}
+
+@test "a build failure still prefers exit 2 over a later smoke failure" {
+  mkpath demo/one
+  mkpath demo/two
+  setup_stubs
+  stub_dispatch buildctl
+  stub_case buildctl 'golden-demo-one' 1 'boom'
+  stub_case buildctl 'golden-demo-two' 0 ''
+  stub_dispatch kubectl
+  stub_case kubectl 'wait' 1 ''
+  run bash "$EX"
+  [ "$status" -eq 2 ] || { echo "$output"; teardown_stubs; return 1; }
+  [[ "$output" == *"SMOKE FAILED for demo/two"* ]]
+  teardown_stubs
+}
+
+@test "--dry-run writes no JUnit report" {
+  mkpath demo/one
+  GOLDEN_PATH_JUNIT="$GP/golden-path.xml" run bash "$EX" --dry-run
+  [ "$status" -eq 0 ]
+  [ ! -e "$GP/golden-path.xml" ]
+}

@@ -51,6 +51,13 @@ Also not in a provider table: **`GRAFANA_IRM_AM_URL`** (B184 phase 2), the Grafa
 URL. Anyone holding it can page the on-call. It is sealed as `monitoring/grafana-irm` and read by Alertmanager
 (`url_file`). Rotate it in IRM (regenerate the integration URL), then follow [secrets.md](secrets.md) § On-call.
 
+**Trunk Flaky Tests** (B189, 2026-11-06): **`TRUNK_ORG_TOKEN`** in `scripts/.env` is Trunk's **legacy org token**, and
+it is **unscoped**: it can do anything in the `weyland` Trunk org. It is the only key the uploader accepts (the CLI rejects
+v2 keys, and the v2 API has no upload endpoint). It reaches CI as the Woodpecker repo secret **`trunk_org_token`**, limited
+to the `trunk-upload` step's image (`alpine:3.20`). `TRUNK_UPLOAD_TOKEN` in `.env` is a v2 key ("Upload test results" only)
+made before the v2 limit was known. Nothing uses it, so it can be revoked. Rotate the org token in Trunk's Legacy Keys
+screen, update `.env`, then `repo secret update` per [trunk-flaky-tests.md](trunk-flaky-tests.md) § Install.
+
 Not provider keys, listed so nobody hunts for them: Open WebUI's `OPENAI_API_KEY` is the dummy `nemo-guardrails`
 (it talks to the guardrails service); the eval scripts set `OPENAI_API_KEY` to `gateway`/`ollama`; Codex uses a ChatGPT
 sign-in, not an API key. Other providers' keys (Gemini, Groq, Mistral, …) are still shared names in `.env`, sealed into

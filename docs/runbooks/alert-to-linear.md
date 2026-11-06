@@ -9,7 +9,7 @@ this is the record. Built 2026-11-04.
 | What runs | n8n workflow `alert-to-linear (U14)`, id `U14alertToLinear`, in the `n8n` namespace |
 | Source of truth | `nodes/mother/lab/weyland-platform/k8s/n8n/workflows/alert-to-linear.json` (git). The live copy is an import of it |
 | Trigger | Alertmanager receiver `linear-incidents` → `POST http://n8n.n8n.svc.cluster.local:5678/webhook/alertmanager-incident` (`send_resolved: true`) — `k8s/monitoring/kube-prometheus-stack-values.yaml` |
-| Writes | Linear team EMA, project Weyland Lab, label `incident`, priority Urgent, title `U14 incident — <alertname> (<namespace>)` |
+| Writes | Linear team EMA, project **Weyland Auto-Filed** (machine-filed issues; was Weyland Lab until 2026-11-06, see `docs/concepts/linear-evaluation.md` § Weyland Auto-Filed), label `incident`, priority Urgent, title `U14 incident — <alertname> (<namespace>)` |
 | Key | n8n credential **`Linear write key`** (Header Auth, `Authorization: <key>`): a dedicated Linear key, team EMA only. Lives encrypted in n8n's SQLite (`N8N_ENCRYPTION_KEY`), never in git |
 | Who can call it | NetworkPolicy `n8n-front-door-only` (`k8s/n8n/netpol.yaml`): Traefik (the SSO'd UI) and the Alertmanager pods only |
 | Alert when it breaks | the workflow answers **500** on any failure, so Alertmanager retries and `AlertmanagerFailedToSendAlerts` (warning, Telegram) fires |

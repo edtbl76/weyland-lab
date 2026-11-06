@@ -16,7 +16,7 @@ sequenceDiagram
     AM->>Tg: notification (route 2, explicit critical route)
     N->>L: find issue with label incident + alert-fingerprint marker
     alt no issue, or closed over 24 h ago
-        N->>L: issueCreate (Weyland Lab, Urgent, U14 incident title)
+        N->>L: issueCreate (Weyland Auto-Filed, Urgent, U14 incident title)
     else closed under 24 h ago (flapping)
         N->>L: issueUpdate to Todo + comment fired again
     else already open (repeat notification)
