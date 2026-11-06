@@ -275,7 +275,7 @@ run, no error, no metric — and `next_exec` simply freezes at its first-ever sl
 | 2 `weyland-lab` | `linear_api_key` (**READ-ONLY** key = `LINEAR_API_KEY_RO` in `scripts/.env`), `sonar_token` | `cron`, `manual`, `push` |
 | 2 `weyland-lab` | `linear_comment_key` (**write** key = `LINEAR_API_KEY` — the B190 `issue-readiness` step posts one comment per issue) | `cron`, `manual`, `push` |
 | 2 `weyland-lab` | `slack_webhook_deploys` (B184 — Slack `#deploys` incoming webhook = `SLACK_WEBHOOK_DEPLOYS`; the `notify-slack` step posts a failed pipeline) | `cron`, `manual`, `push` |
-| 2 `weyland-lab` | `trunk_org_token` (B189 — Trunk's legacy org token = `TRUNK_ORG_TOKEN`; the `trunk-upload` step uploads every pipeline's JUnit to Trunk Flaky Tests). Limited to image `alpine:3.20` | `cron`, `manual`, `push` |
+| 2 `weyland-lab` | `trunk_org_token` (B189 — Trunk's legacy org token = `TRUNK_ORG_TOKEN`; the `trunk-upload` step uploads every pipeline's JUnit to Trunk Flaky Tests). Limited to image `alpine` (the filter rejects a dotted tag like `alpine:3.20`) | `cron`, `manual`, `push` |
 | 1 `stud.io` | `sonar_token`, `minio_svc_access_key`, `minio_svc_secret_key` | `manual`, `push` |
 | 1 `stud.io` | `port_ingest_url` | `manual`, `pull_request`, `push` |
 

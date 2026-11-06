@@ -15,7 +15,7 @@ adds the Woodpecker secret.
 | The same, from the modal's first open | **EMA-334**: no project, no label, no assignee. The modal shows the saved defaults empty on first open (Trunk bug, reported). `check-linear-sync.sh` failed on it, "OPEN ISSUES WITH NO PROJECT" |
 | CLI contract (variant `b189-probe`) | landed and green: exit 0; landed with a failed test: **exit 1**; bad token: exit 70 + `Error Encountered`; no files: exit 70; no CA bundle: hung until killed |
 | `trunk-upload.sh` in `alpine:3.20`, the exact CI step | downloaded 0.16.1, sha256 OK, uploaded the `python` lane's 20 reports: **1,680 results, exit 0** |
-| Real lanes writing JUnit | python 20 reports; shell 1,235 cases; java 7 Surefire reports (harvested); swift 11 cases with `--parallel` (none without it, which the lane now reports) |
+| Real lanes writing JUnit | python 20 reports; shell 1,235 cases; java 7 Surefire reports (harvested); swift 11 cases with `--parallel` (none without it, which the lane now reports); kotlin, scala, php 4 fixture cases each |
 | golden-path report with `<`, `&` and a control character in a log | parses; Trunk's CLI accepts it |
 
 ## 2. The first real pipeline (after the owner adds `trunk_org_token`)

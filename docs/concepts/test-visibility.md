@@ -16,7 +16,7 @@ nothing heavy on mother (its memory is the lab's bottleneck).
 |---|---|---|---|
 | **Trunk Flaky Tests** | SaaS, free plan | **ADOPT** | all 1,208 bats tests ingested on the first upload; per-test history, flaky and broken detection, quarantine, AI failure summary; Linear tickets **on Free**, filed and closed automatically; 0 RAM on the lab |
 | **Allure 3** (3.21.0) | static report, CLI | **FALLBACK** | reads JUnit natively, per-test history from one history file, 0 RAM, no account. But no Linear, and its `flaky` flag means a retry *within* one run, so a test that flips between runs never trips it |
-| QA Sphere | SaaS test management | not trialled | strong at *manual* test cases and plans; the lab has none. Linear tickets are filed by hand per result. Revisit if manual test plans appear |
+| QA Sphere | SaaS test management | **trial pending** | owner's call (2026-11-06): trial it once the Trunk wiring is wrapped up. Strong at test-case management (manual cases and plans, which the lab has none of yet); JUnit upload via `qas-cli`; Linear tickets filed by hand per result. Outcome: adopt alongside Trunk, replace it, or don't adopt |
 | Testiny | SaaS test management | DON'T | Free excludes Automation and History (pricing page) |
 | Kiwi TCMS | self-hosted | DON'T | no Linear |
 | ReportPortal | self-hosted | DON'T | no Linear, and at least 6 GB of RAM on mother |

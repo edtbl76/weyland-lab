@@ -3972,9 +3972,9 @@ it with `--report-formatter junit`; CI emits none today).**
 - **Ruled out by sourced research:** Testiny (Free excludes Automation and History), Kiwi TCMS and ReportPortal (no Linear;
   ReportPortal needs at least 6 GB of RAM), TestDino, Qase, Tesults and Buildkite (Playwright-only, Linear paid, or capped).
   QA Sphere was **not trialled** (corrected 2026-11-06: an earlier note called this an owner decision, but the owner had never
-  confirmed it). Recommendation (2026-11-06, not yet an owner decision): leave it untrialled. Its strength is managing
-  *manual* test cases and plans, the lab has none (every test is automated), and its Linear tickets are filed by hand per
-  result. **Revisit it if manual test plans appear** (UAT checklists, say).
+  confirmed it). **Owner, 2026-11-06: it gets its trial, after the Trunk wiring is wrapped up** (so the two don't cross).
+  The trial checks JUnit upload on Free (`qas-cli` 0.10.1 `junit-upload --create-tcases`), its history and flakiness views,
+  whether a failed result can become a Linear issue in Weyland Auto-Filed, and what its test-case management adds over Trunk.
 - **Allure 3** (3.21.0, a static report, 0 RAM): reads bats JUnit natively; one history file carries the per-test history and
   transitions. Its `flaky` flag means a retry *within* a run, so cross-run flips don't trip it. No Linear.
 - **Trunk Flaky Tests** (free plan, 0 RAM):
@@ -4007,7 +4007,8 @@ it with `--report-formatter junit`; CI emits none today).**
   `test-shell` both run `scripts/tests`, so only `test-shell` reports (else every bats result counts twice). Pipeline: step
   `trunk-upload` (green and red runs; CLI 0.16.1 pinned by sha256), Woodpecker secret `trunk_org_token` limited to its image.
   Real lanes proven in their CI images: python (20 reports), shell (1,235 cases), java (7 harvested), swift (11 cases; it
-  needed `--parallel`, found when the first run wrote 0-case files). The exact CI step rehearsed against real Trunk: 1,680
+  needed `--parallel`, found when the first run wrote 0-case files), kotlin, scala and php (each fixture's 4 cases; no
+  real projects yet). The exact CI step rehearsed against real Trunk: 1,680
   python results, exit 0. Runbook `trunk-flaky-tests.md`, demo row 119, arch §10k, flow `flow-trunk-flaky-tests.md`, LikeC4
   `trunk`, `dr.md` row, secrets-map, woodpecker secrets table.
 

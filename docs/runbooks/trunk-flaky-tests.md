@@ -46,10 +46,12 @@ the step exits 1. No reports at all is exit 2. The token is redacted from every 
 
    [rogueone]
    ```
-   cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name trunk_org_token --value "$TRUNK_ORG_TOKEN" --image alpine:3.20 --event cron --event manual --event push
+   cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name trunk_org_token --value "$TRUNK_ORG_TOKEN" --image alpine --event cron --event manual --event push
    ```
-   `--image alpine:3.20` limits the secret to steps on the `trunk-upload` step's image, and only `trunk-upload` asks for
-   it: the token is unscoped (it can do anything in the Trunk org), so the fewer steps that could read it the better. If that step's image changes, update the secret's image
+   `--image alpine` limits the secret to steps on an `alpine` image, and only `trunk-upload` asks for it: the token is
+   unscoped (it can do anything in the Trunk org), so the fewer steps that could read it the better. The filter is a name,
+   not `alpine:3.20`: Woodpecker's image pattern allows no dot in a tag (`422 invalid secret image`, 2026-11-06). If that
+   step's image changes, update the secret's image
    too, or the step starts without its token and fails with `TRUNK_API_TOKEN is not set`. To rotate it, use
    `repo secret update` with the same arguments.
 3. **Trunk Linear connection and ticketing**: the values in the table above. Open **Create ticket** twice before filing

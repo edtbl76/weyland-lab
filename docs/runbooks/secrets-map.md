@@ -54,8 +54,9 @@ URL. Anyone holding it can page the on-call. It is sealed as `monitoring/grafana
 **Trunk Flaky Tests** (B189, 2026-11-06): **`TRUNK_ORG_TOKEN`** in `scripts/.env` is Trunk's **legacy org token**, and
 it is **unscoped**: it can do anything in the `weyland` Trunk org. It is the only key the uploader accepts (the CLI rejects
 v2 keys, and the v2 API has no upload endpoint). It reaches CI as the Woodpecker repo secret **`trunk_org_token`**, limited
-to the `trunk-upload` step's image (`alpine:3.20`). `TRUNK_UPLOAD_TOKEN` in `.env` is a v2 key ("Upload test results" only)
-made before the v2 limit was known. Nothing uses it, so it can be revoked. Rotate the org token in Trunk's Legacy Keys
+to `alpine` images (the `trunk-upload` step's; Woodpecker's filter takes no dotted tag). `TRUNK_UPLOAD_TOKEN` in `.env` is a v2 key scoped to "Upload test results"
+only. Nothing uses it yet, and it is **kept on purpose**: once the CLI accepts v2 keys, it replaces the org token in the
+Woodpecker secret, and the unscoped token leaves CI. Rotate the org token in Trunk's Legacy Keys
 screen, update `.env`, then `repo secret update` per [trunk-flaky-tests.md](trunk-flaky-tests.md) § Install.
 
 Not provider keys, listed so nobody hunts for them: Open WebUI's `OPENAI_API_KEY` is the dummy `nemo-guardrails`
