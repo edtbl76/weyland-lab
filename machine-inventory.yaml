@@ -399,6 +399,9 @@ hosts:
     - name: gstreamer1.0-packagekit
       kind: apt
       status: system
+    - name: gstreamer1.0-plugins-bad
+      kind: apt
+      status: system
     - name: gstreamer1.0-plugins-base-apps
       kind: apt
       status: system
@@ -1105,6 +1108,9 @@ hosts:
     - name: codescene/codescene-mcp
       kind: image
       status: system
+    - name: composer
+      kind: image
+      status: system
     - name: contiker/contiki-ng
       kind: image
       status: system
@@ -1133,6 +1139,15 @@ hosts:
       kind: image
       status: system
     - name: eclipse-temurin
+      kind: image
+      status: system
+    - name: erlang
+      kind: image
+      status: system
+    - name: flink
+      kind: image
+      status: system
+    - name: gcc
       kind: image
       status: system
     - name: gcr.io/projectsigstore/cosign
@@ -1183,6 +1198,9 @@ hosts:
     - name: golden-lua-openresty
       kind: image
       status: system
+    - name: gradle
+      kind: image
+      status: system
     - name: grafana/k6
       kind: image
       status: system
@@ -1214,6 +1232,9 @@ hosts:
       kind: image
       status: system
     - name: mcp/sonarqube
+      kind: image
+      status: system
+    - name: mcr.microsoft.com/dotnet/sdk
       kind: image
       status: system
     - name: minio/mc
@@ -1270,7 +1291,13 @@ hosts:
     - name: pytorch/pytorch
       kind: image
       status: system
+    - name: quay.io/argoproj/argocd
+      kind: image
+      status: system
     - name: quay.io/jupyter/scipy-notebook
+      kind: image
+      status: system
+    - name: quay.io/prometheus/alertmanager
       kind: image
       status: system
     - name: rancher/kubectl
@@ -1282,10 +1309,73 @@ hosts:
     - name: redis
       kind: image
       status: system
+    - name: registry-push.weyland.lab/a2a-inspector
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/finance-trainer
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/genre-trainer
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/mcp-server-datahub
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/ranger
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/ray-head
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/weyland-agent
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/weyland-jupyter
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/weyland-superset
+      kind: image
+      status: system
+    - name: registry.weyland.lab/a2a-inspector
+      kind: image
+      status: system
+    - name: registry.weyland.lab/finance-trainer
+      kind: image
+      status: system
+    - name: registry.weyland.lab/genre-trainer
+      kind: image
+      status: system
+    - name: registry.weyland.lab/mcp-server-datahub
+      kind: image
+      status: system
+    - name: registry.weyland.lab/ranger
+      kind: image
+      status: system
+    - name: registry.weyland.lab/ray-head
+      kind: image
+      status: system
+    - name: registry.weyland.lab/store-scaler
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-agent
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-jupyter
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-superset
+      kind: image
+      status: system
+    - name: rocker/r-ver
+      kind: image
+      status: system
     - name: ruby
       kind: image
       status: system
     - name: rust
+      kind: image
+      status: system
+    - name: sbtscala/scala-sbt
       kind: image
       status: system
     - name: semgrep/semgrep
