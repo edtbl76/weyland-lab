@@ -752,6 +752,29 @@ EOF
   [[ "$output" == *"cargo-nextest is not on PATH"* ]]
 }
 
+@test "junit: dotnet loads the JUnit logger by adapter path (no PackageReference) and keeps the selfcheck filter" {
+  # Observed 2026-11-07 in dotnet/sdk:8.0 with JunitXml.TestLogger 8.0.0: --test-adapter-path <dir with the DLLs>
+  # + --logger "junit;LogFilePath=<file>" writes the report with the test project untouched.
+  mkdir -p "$SANDBOX/fix/dotnet" "$SANDBOX/scan" "$SANDBOX/logger"
+  : > "$SANDBOX/fix/dotnet/F.sln"; : > "$SANDBOX/fix/dotnet/HelloTests.cs"
+  stub dotnet 0 "Passed!"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" JUNIT_LOGGER_DIR="$SANDBOX/logger" bash "$RUNNER" dotnet
+  called_with dotnet "--filter Category!=selfcheck --test-adapter-path $SANDBOX/logger --logger junit;LogFilePath=$SANDBOX/junit/dotnet/fixture.xml"
+}
+
+@test "junit: dotnet without JUNIT_LOGGER_DIR runs as before and says why" {
+  mkdir -p "$SANDBOX/fix/dotnet" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/dotnet/F.sln"; : > "$SANDBOX/fix/dotnet/HelloTests.cs"
+  stub dotnet 0 "Passed!"
+  run env -u JUNIT_LOGGER_DIR WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" dotnet
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  not_called_with dotnet "--logger"
+  [[ "$output" == *"JUNIT_LOGGER_DIR"* ]]
+  [[ "$output" != *"NO JUNIT REPORT"* ]]
+}
+
 @test "junit: with JEST_JUNIT_REPORTER set, a jest project runs jest-junit beside the default reporter" {
   node_project "$SANDBOX/fix/typescript" "jest --testPathIgnorePatterns /node_modules/"
   mkdir -p "$SANDBOX/scan"

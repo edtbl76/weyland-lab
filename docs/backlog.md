@@ -4046,8 +4046,13 @@ it with `--report-formatter junit`; CI emits none today).**
   unstable JSON):** the `test-rust` step installs the release binary (GitHub sha256 checked) into the image's cargo bin;
   the lane writes a nextest config outside the project naming the report path (observed working before it was coded).
   Proven in `rust:1-slim`: fixture + actix, rocket, 4 cases each; the `#[ignore]` self-check test stays out. Trade-off
-  recorded: nextest runs no doctests (none exist). Remaining 2b lanes, each proposed first: dotnet, R, mix, lein,
-  minitest, perl, dart, flutter.
+  recorded: nextest runs no doctests (none exist).
+- **Phase 2b, dotnet (2026-11-07, owner-approved JunitXml.TestLogger 8.0.0; `dotnet test` has only TRX, which Trunk does
+  not read):** the nupkg is sha256-pinned (nuget.org's catalog SHA512 matched) and its DLLs extracted per run; `dotnet
+  test` loads them by `--test-adapter-path`, so the golden path's csproj is untouched (observed working before it was
+  coded). Proven in `dotnet/sdk:8.0`: fixture 4 cases. Its test classes have no namespace, so cases read
+  `UnknownNamespace.UnknownType` / `ContractTests.<Method>`: stable, accepted. Remaining 2b lanes, each proposed first:
+  R, mix, lein, minitest, perl, dart, flutter.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.

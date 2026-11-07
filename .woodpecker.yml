@@ -486,9 +486,18 @@ steps:
   - name: test-dotnet
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " dotnet ")'}]
     image: mcr.microsoft.com/dotnet/sdk:8.0
+    environment:
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
+      # B189 phase 2b: JunitXml.TestLogger (owner-approved 8.0.0), loaded by adapter path from here (no PackageReference)
+      JUNIT_LOGGER_DIR: /tmp/junit-logger
     commands:
       # No NuGet cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) — dotnet
       # restores per run. Add the cache as a fast-follow once the lane is green.
+      # B189: the logger nupkg is checked against its sha256 (nuget.org's catalog SHA512 matched on 2026-11-07).
+      - apt-get update >/dev/null && apt-get install -y --no-install-recommends unzip >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/junit-logger.nupkg https://www.nuget.org/api/v2/package/JunitXml.TestLogger/8.0.0
+      - echo "9ddfe96a19048744ced3c482ae098f4cd0f7c9d4aec8a6e2cae168244b3da30b  /tmp/junit-logger.nupkg" | sha256sum -c -
+      - mkdir -p /tmp/junit-logger && unzip -j -o -q /tmp/junit-logger.nupkg 'build/_common/*.dll' -d /tmp/junit-logger
       - bash scripts/run-lang-tests.sh dotnet --self-check
       - bash scripts/run-lang-tests.sh dotnet
       # (coverage ratchet for dotnet is a fast-follow — the collector wiring differs per toolchain)

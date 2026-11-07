@@ -321,7 +321,7 @@ JB=""   # the current run's report base path (no extension); "" = do not report.
 # report (phase 3); until then they say so rather than look quiet.
 junit_supported() {
   case "$1" in
-    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust) return 0 ;;
+    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -456,6 +456,15 @@ run_in_raw() {
       # self-check runs ONLY it. A trait filter (not a test-NAME filter) does not fail open on a rename —
       # dropping the trait makes the deliberate test run in the NORMAL lane, which is loud, not silent.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && dotnet test --nologo --filter 'Category=selfcheck')
+      # B189 phase 2b: JunitXml.TestLogger (owner-approved 8.0.0; the test-dotnet step extracts its DLLs from the
+      # sha256-pinned nupkg into JUNIT_LOGGER_DIR) is loaded by ADAPTER PATH, so no PackageReference goes into the
+      # golden path's csproj. Absent, say so and clear JB.
+      elif [ -n "$JB" ] && [ -d "${JUNIT_LOGGER_DIR:-}" ]; then
+        (cd "$dir" && dotnet test --nologo --filter 'Category!=selfcheck' --test-adapter-path "$JUNIT_LOGGER_DIR" \
+           --logger "junit;LogFilePath=$JB.xml")
+      elif [ -n "$JB" ]; then
+        printf 'junit: %s — JUNIT_LOGGER_DIR is not set, so no JUnit (B189 phase 2b)\n' "$dir"
+        JB=""; (cd "$dir" && dotnet test --nologo --filter 'Category!=selfcheck')
       else (cd "$dir" && dotnet test --nologo --filter 'Category!=selfcheck'); fi ;;
     kotlin)
       # The deliberate test carries the JUnit `selfcheck` tag; build.gradle.kts excludes it from a normal
