@@ -791,6 +791,41 @@ EOF
   [[ "$output" != *"phase 2b"* ]]
 }
 
+@test "junit: node --test's bare test cases are wrapped in a testsuite (Trunk counts none without one)" {
+  # Found in pipeline #592 (2026-11-07): node's junit reporter puts <testcase> straight under <testsuites> when
+  # tests are not in a describe(); Trunk parsed fastify's file and counted 0 (a dry-run: raw 0, wrapped 4).
+  node_project "$SANDBOX/fix/typescript" ""
+  mkdir -p "$SANDBOX/scan"
+  cat > "$STUB_DIR/node" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in *-e*) exit 1 ;; esac
+for a in "$@"; do case "$a" in --test-reporter-destination=stdout) ;; --test-reporter-destination=*) d="${a#*=}" ;; esac; done
+printf '<?xml version="1.0" encoding="utf-8"?>\n<testsuites>\n\t<testcase name="a" classname="test"/>\n\t<testcase name="b" classname="test"/>\n</testsuites>\n' > "$d"
+EOF
+  chmod +x "$STUB_DIR/node"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" typescript
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  f="$(find "$SANDBOX/junit/node" -name '*.xml')"
+  grep -q '<testsuite name="' "$f"
+  [ "$(grep -c '<testcase' "$f")" -eq 2 ]
+  [[ "$output" != *"NO JUNIT REPORT"* ]]
+}
+
+@test "junit: a report whose test cases sit in no testsuite counts as NO report (Trunk would count 0)" {
+  mkdir -p "$SANDBOX/fix/java" "$SANDBOX/scan"
+  printf '<project/>\n' > "$SANDBOX/fix/java/pom.xml"; : > "$SANDBOX/fix/java/HelloTest.java"
+  cat > "$STUB_DIR/mvn" <<'EOF'
+#!/usr/bin/env bash
+mkdir -p target/surefire-reports
+printf '<testsuites><testcase classname="T" name="t"/></testsuites>\n' > target/surefire-reports/TEST-T.xml
+EOF
+  chmod +x "$STUB_DIR/mvn"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" java
+  [[ "$output" == *"NO JUNIT REPORT"*"java"* ]]
+}
+
 @test "junit: a jest project is not reported yet and says why (phase 2b), never a silent gap" {
   node_project "$SANDBOX/fix/typescript" "jest"
   mkdir -p "$SANDBOX/scan"

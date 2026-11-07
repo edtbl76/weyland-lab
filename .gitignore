@@ -259,3 +259,6 @@ golden-paths/c/*/build/
 
 # Serena (B166) code-intelligence MCP — per-project config + LSP symbol cache (regenerable)
 .serena/
+
+# B189: JUnit written by the CI test lanes (LANG_JUNIT_DIR / GOLDEN_PATH_JUNIT) for Trunk; generated, never committed
+/reports/

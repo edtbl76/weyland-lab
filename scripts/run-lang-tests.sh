@@ -356,6 +356,21 @@ harvest() {
   done
 }
 
+# wrap_bare_cases <file> — node's junit reporter puts <testcase> straight under <testsuites> when tests are not in a
+# describe(), and Trunk counts such cases as nothing (pipeline #592: fastify's 4 tests uploaded as 0; a dry-run
+# counted 0 raw, 4 wrapped). Wrap them in one <testsuite> named after the report. A file that already has a
+# <testsuite> is left alone.
+wrap_bare_cases() {
+  local f="$1" name
+  [ -f "$f" ] && ! grep -q '<testsuite[ >]' "$f" && grep -q '<testcase' "$f" || return 0
+  name="$(basename "$f" .xml)"
+  awk -v n="$name" '
+    /<testsuites[ >]/ && !opened { print; print "<testsuite name=\"" n "\">"; opened = 1; next }
+    /<\/testsuites>/              { print "</testsuite>" }
+    { print }
+  ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+}
+
 # Returns the runner's exit status. NEVER swallows it.
 run_in() {
   local lang="$1" dir="$2" rc
@@ -367,6 +382,7 @@ run_in() {
       kotlin) harvest "$JB" "$JB.stamp" "$dir"/build/test-results/test/*.xml ;;
       scala)  harvest "$JB" "$JB.stamp" "$dir"/target/test-reports/*.xml ;;
       shell)  [ -f "$JB.d/report.xml" ] && mv "$JB.d/report.xml" "$JB.xml"; rmdir "$JB.d" 2>/dev/null ;;
+      typescript|javascript|react|nextjs) wrap_bare_cases "$JB.xml" ;;
     esac
     rm -f "$JB.stamp"
     # A report counts only if it holds at least one <testcase>: an empty file is absence with a file's name
@@ -376,7 +392,8 @@ run_in() {
     local f; local -a reps=()
     [ -f "$JB.xml" ] && reps+=("$JB.xml")
     while IFS= read -r f; do reps+=("$f"); done < <(find "$JB" -name '*.xml' 2>/dev/null)
-    if [ "${#reps[@]}" -eq 0 ] || ! grep -q '<testcase' "${reps[@]}"; then
+    # …and only if its cases sit inside a <testsuite>: Trunk counts bare ones as nothing (pipeline #592).
+    if [ "${#reps[@]}" -eq 0 ] || ! grep -q '<testcase' "${reps[@]}" || ! grep -q '<testsuite[ >]' "${reps[@]}"; then
       printf 'NO JUNIT REPORT: the %s run in %s left none (Trunk will not see these tests)\n' "$lang" "$dir" >&2
     fi
   fi

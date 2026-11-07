@@ -4051,8 +4051,21 @@ it with `--report-formatter junit`; CI emits none today).**
   not read):** the nupkg is sha256-pinned (nuget.org's catalog SHA512 matched) and its DLLs extracted per run; `dotnet
   test` loads them by `--test-adapter-path`, so the golden path's csproj is untouched (observed working before it was
   coded). Proven in `dotnet/sdk:8.0`: fixture 4 cases. Its test classes have no namespace, so cases read
-  `UnknownNamespace.UnknownType` / `ContractTests.<Method>`: stable, accepted. Remaining 2b lanes, each proposed first:
-  R, mix, lein, minitest, perl, dart, flutter.
+  `UnknownNamespace.UnknownType` / `ContractTests.<Method>`: stable, accepted.
+- **#592 (phase 2a full run, 2026-11-07): 12 sources uploaded, and two findings.** (1) `golden-path-smoke` exit 2:
+  swift/vapor-app's image build segfaulted (`swift build` exit 139) while #592 and nightly #593 shared buildkitd; the
+  other 43 paths still ran and reported (the B189 keep-going fix), and Trunk now tracks the path's history. (2) **node
+  counted 3, not 7:** node's junit reporter puts `<testcase>` straight under `<testsuites>` for tests outside a
+  `describe()`, and Trunk counts those as nothing (dry-run: raw 0, wrapped 4). The lane check only looked for `<testcase>`,
+  so the loss was silent. Fixed: bare cases are wrapped in a `<testsuite>`, and a report now counts only if its cases sit
+  in one (2 bats); all 81 real reports from every runner checked, fastify's was the only bare one. Re-proven: Trunk's
+  parser counts all 32 node results.
+- **#594 (go/rust/dotnet, 2026-11-07): 15 sources uploaded, 0 test failures, but `sonar-gate` failed, and so did
+  nightly #593 (which also holds the nightly ship).** Sonar analyses `.`, and the JUnit reports now sit in the shared
+  workspace under `reports/` when it runs; node's report carries a `<!-- todo 0 -->` comment that S1135 flagged as new
+  code. Self-inflicted by this item. Fixed: `reports/**` in `sonar.exclusions` (with the reason) and `/reports/` in
+  `.gitignore`; Sonar's own precheck confirms the exclusion. Remaining 2b lanes, each proposed first: R, mix, lein,
+  minitest, perl, dart, flutter.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.
