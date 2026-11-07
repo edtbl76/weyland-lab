@@ -636,9 +636,18 @@ run_in_raw() {
         if [ "$mode" = selfcheck ]; then (cd "$dir" && npm run --silent test:selfcheck)
         elif [ -n "$JB" ]; then
           # B189: vitest has a built-in junit reporter (kept beside the default one). Jest needs the jest-junit
-          # package (phase 2b, not added yet): say so and clear JB, so run_in does not call it a missing report.
+          # package (phase 2b): CI installs it OUTSIDE the project (test-node step, /tmp/jest-junit) and names it
+          # in JEST_JUNIT_REPORTER, so the golden paths' package.json/lockfiles carry no CI plumbing. Without it,
+          # say so and clear JB, so run_in does not call it a missing report.
           case "$(npm_test_script "$dir")" in
             vitest*) (cd "$dir" && npm test --silent -- --reporter=default --reporter=junit "--outputFile.junit=$JB.xml") ;;
+            jest*)
+              if [ -n "${JEST_JUNIT_REPORTER:-}" ]; then
+                (cd "$dir" && JEST_JUNIT_OUTPUT_FILE="$JB.xml" npm test --silent -- --reporters=default "--reporters=$JEST_JUNIT_REPORTER")
+              else
+                printf 'junit: %s runs jest — no JUnit until B189 phase 2b (JEST_JUNIT_REPORTER is not set)\n' "$dir"
+                JB=""; (cd "$dir" && npm test --silent)
+              fi ;;
             *)       printf 'junit: %s runs %s — no JUnit until B189 phase 2b (a reporter package)\n' \
                        "$dir" "$(npm_test_script "$dir" | cut -d' ' -f1)"
                      JB=""; (cd "$dir" && npm test --silent) ;;

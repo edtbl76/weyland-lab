@@ -4034,6 +4034,11 @@ it with `--report-formatter junit`; CI emits none today).**
   JunitReporter needs `xml2`, absent from `rocker/r-ver:4`; wiring it in broke the lane in the real image (caught before
   any push, reverted, a bats test pins it). Proven CI-style (self-check, then normal) in each image: lua 4 cases, cpp 4,
   erlang 4, node 2 files (fastify 4, vue 3). bats 1,255 ok; ALL-GUARDS-PASSED.
+- **Phase 2b, jest (2026-11-06, owner-approved `jest-junit` 17.0.0):** installed per run into `/tmp/jest-junit` in the
+  `test-node` step, outside the projects, and passed to jest by path (`JEST_JUNIT_REPORTER`), so the 7 jest golden paths'
+  `package.json`/lockfiles are untouched. Proven in `node:24-alpine` CI-style: all 9 node projects report, one file each
+  (angular on jest 30 included). Remaining 2b lanes, each proposed first: go, rust, dotnet, R, mix, lein, minitest, perl,
+  dart, flutter.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.

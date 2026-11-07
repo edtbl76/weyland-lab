@@ -695,6 +695,22 @@ node_project() {   # node_project <dir> <test script or empty for node --test>
   called_with node "--test-reporter-destination=$SANDBOX/junit/node/"
 }
 
+@test "junit: with JEST_JUNIT_REPORTER set, a jest project runs jest-junit beside the default reporter" {
+  node_project "$SANDBOX/fix/typescript" "jest --testPathIgnorePatterns /node_modules/"
+  mkdir -p "$SANDBOX/scan"
+  cat > "$STUB_DIR/npm" <<EOF
+#!/usr/bin/env bash
+printf 'npm %s JEST_JUNIT_OUTPUT_FILE=%s\n' "\$*" "\${JEST_JUNIT_OUTPUT_FILE:-}" >> "$STUB_LOG"
+EOF
+  chmod +x "$STUB_DIR/npm"
+  stub node 0 ""
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" JEST_JUNIT_REPORTER=/tmp/jest-junit/node_modules/jest-junit bash "$RUNNER" typescript
+  called_with npm "--reporters=default --reporters=/tmp/jest-junit/node_modules/jest-junit"
+  called_with npm "JEST_JUNIT_OUTPUT_FILE=$SANDBOX/junit/node/"
+  [[ "$output" != *"phase 2b"* ]]
+}
+
 @test "junit: a jest project is not reported yet and says why (phase 2b), never a silent gap" {
   node_project "$SANDBOX/fix/typescript" "jest"
   mkdir -p "$SANDBOX/scan"
