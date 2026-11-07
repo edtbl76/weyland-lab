@@ -454,6 +454,7 @@ steps:
     environment:
       CARGO_HOME: /cache/cargo
       PATH: /cache/cargo/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
     volumes:
       - ci-cache-cargo:/cache/cargo
     # OOM-killed mid-compile (exit 137, nightly #253, 2026-10-04) during the cargo-llvm-cov coverage rebuild — the
@@ -467,6 +468,13 @@ steps:
           limits:
             memory: 4Gi
     commands:
+      # B189 phase 2b: cargo-nextest (owner-approved 0.9.149) writes JUnit for Trunk. Release binary, checked against
+      # GitHub's published sha256 before use, into the IMAGE's cargo bin (not the persistent cache, so no stale version
+      # outlives a bump). The slim image has no curl.
+      - apt-get update >/dev/null && apt-get install -y --no-install-recommends curl ca-certificates >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/nextest.tgz https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.149/cargo-nextest-0.9.149-x86_64-unknown-linux-gnu.tar.gz
+      - echo "32d1d8c0567b7a80bee2bad8bb09125c846da96bc009b2de11ec08557290c770  /tmp/nextest.tgz" | sha256sum -c -
+      - tar -xzf /tmp/nextest.tgz -C /usr/local/cargo/bin
       - bash scripts/run-lang-tests.sh rust --self-check
       - bash scripts/run-lang-tests.sh rust
       # Coverage ratchet — cargo-llvm-cov (the standard Rust line-coverage tool) is not in the base

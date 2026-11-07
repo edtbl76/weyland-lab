@@ -719,6 +719,39 @@ node_project() {   # node_project <dir> <test script or empty for node --test>
   [[ "$output" != *"NO JUNIT REPORT"* ]]
 }
 
+@test "junit: rust runs cargo nextest with a generated config naming the report path; the project gets no config file" {
+  # Observed 2026-11-06 in rust:1-slim with nextest 0.9.149: an outside --config-file with
+  # [profile.default.junit] path = "<absolute>" writes the report there.
+  mkdir -p "$SANDBOX/fix/rust/src" "$SANDBOX/scan"
+  printf '[package]\nname="f"\n' > "$SANDBOX/fix/rust/Cargo.toml"; : > "$SANDBOX/fix/rust/src/lib.rs"
+  cat > "$STUB_DIR/cargo" <<EOF
+#!/usr/bin/env bash
+printf 'cargo %s\n' "\$*" >> "$STUB_LOG"
+for a in "\$@"; do [ -f "\$a" ] && cat "\$a" >> "$STUB_LOG"; done
+exit 0
+EOF
+  chmod +x "$STUB_DIR/cargo"
+  stub cargo-nextest 0 ""
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" rust
+  called_with cargo "nextest run --config-file $SANDBOX/junit/rust/fixture.nextest.toml"
+  grep -qF "path = \"$SANDBOX/junit/rust/fixture.xml\"" "$STUB_LOG"
+  [ ! -e "$SANDBOX/junit/rust/fixture.nextest.toml" ]
+  [ ! -e "$SANDBOX/fix/rust/.config" ]
+}
+
+@test "junit: rust without cargo-nextest runs cargo test as before and says why" {
+  mkdir -p "$SANDBOX/fix/rust/src" "$SANDBOX/scan"
+  printf '[package]\nname="f"\n' > "$SANDBOX/fix/rust/Cargo.toml"; : > "$SANDBOX/fix/rust/src/lib.rs"
+  stub cargo 0 "test result: ok"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" rust
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  called_with cargo "test"
+  not_called_with cargo "nextest"
+  [[ "$output" == *"cargo-nextest is not on PATH"* ]]
+}
+
 @test "junit: with JEST_JUNIT_REPORTER set, a jest project runs jest-junit beside the default reporter" {
   node_project "$SANDBOX/fix/typescript" "jest --testPathIgnorePatterns /node_modules/"
   mkdir -p "$SANDBOX/scan"

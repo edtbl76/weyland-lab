@@ -321,7 +321,7 @@ JB=""   # the current run's report base path (no extension); "" = do not report.
 # report (phase 3); until then they say so rather than look quiet.
 junit_supported() {
   case "$1" in
-    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go) return 0 ;;
+    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -439,6 +439,17 @@ run_in_raw() {
     rust)
       # #[ignore] keeps it out of a normal run; --ignored is the only way to reach it.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && cargo test -- --ignored)
+      # B189 phase 2b: cargo-nextest (owner-approved 0.9.149; the test-rust step installs it, sha256-pinned) writes
+      # JUnit natively. Its config is GENERATED outside the project (--config-file), so the golden paths carry no
+      # .config/nextest.toml. nextest runs each test in its own process and does NOT run doctests (the golden paths
+      # have none). Absent, say so and clear JB.
+      elif [ -n "$JB" ] && command -v cargo-nextest >/dev/null 2>&1; then
+        printf '[profile.default.junit]\npath = "%s"\n' "$JB.xml" > "$JB.nextest.toml"
+        (cd "$dir" && cargo nextest run --config-file "$JB.nextest.toml"); local nrc=$?
+        rm -f "$JB.nextest.toml"; return "$nrc"
+      elif [ -n "$JB" ]; then
+        printf 'junit: %s — cargo-nextest is not on PATH, so no JUnit (B189 phase 2b)\n' "$dir"
+        JB=""; (cd "$dir" && cargo test)
       else (cd "$dir" && cargo test); fi ;;
     dotnet)
       # The deliberate test carries the `Category=selfcheck` trait; the normal run filters it OUT and the

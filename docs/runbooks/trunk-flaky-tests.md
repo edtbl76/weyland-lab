@@ -25,6 +25,7 @@ detects flaky and broken tests, and files them as Linear issues in project **Wey
 | `php` | `test-php` | `phpunit --log-junit` |
 | `swift` | `test-swift` | `swift test --parallel --xunit-output` (XCTest writes its report only with `--parallel`) |
 | `go` | `test-go` | `gotestsum --junitfile -- <the same go test flags>` (phase 2b). gotestsum **v1.13.0** (owner-approved 2026-11-06) is downloaded per run as the release binary and checked against its published sha256 (`11ccddea…40e8ee`) before use. Without it on PATH the lane says so and runs plain `go test` |
+| `rust` | `test-rust` | `cargo nextest run --config-file <generated>` (phase 2b). cargo-nextest **0.9.149** (owner-approved 2026-11-06), release binary checked against GitHub's sha256 (`32d1d8c0…290c770`), installed into the image's cargo bin (not the cache). The JUnit config is generated outside the project. **nextest runs no doctests**: the golden paths have none, but a crate that adds some must know its doctests leave the normal run |
 | `lua` | `test-lua` | `busted -o junit -Xoutput` (phase 2a) |
 | `cpp` | `test-cpp` | doctest `--reporters=junit --out` (phase 2a) |
 | `erlang` | `test-erlang` | eunit's surefire report, enabled through a generated `REBAR_CONFIG` copy so the golden path's `rebar.config` stays clean (phase 2a) |
