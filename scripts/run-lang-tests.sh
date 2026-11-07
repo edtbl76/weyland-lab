@@ -321,7 +321,7 @@ JB=""   # the current run's report base path (no extension); "" = do not report.
 # report (phase 3); until then they say so rather than look quiet.
 junit_supported() {
   case "$1" in
-    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet|r) return 0 ;;
+    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet|r|elixir) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -381,6 +381,7 @@ run_in() {
       java)   harvest "$JB" "$JB.stamp" "$dir"/target/surefire-reports/*.xml ;;
       kotlin) harvest "$JB" "$JB.stamp" "$dir"/build/test-results/test/*.xml ;;
       scala)  harvest "$JB" "$JB.stamp" "$dir"/target/test-reports/*.xml ;;
+      elixir) harvest "$JB" "$JB.stamp" "$dir"/_build/test/lib/*/test-junit-report.xml ;;
       shell)  [ -f "$JB.d/report.xml" ] && mv "$JB.d/report.xml" "$JB.xml"; rmdir "$JB.d" 2>/dev/null ;;
       typescript|javascript|react|nextjs) wrap_bare_cases "$JB.xml" ;;
     esac
@@ -524,6 +525,11 @@ run_in_raw() {
         out="$(cd "$dir" && mix test --only selfcheck 2>&1)"
         printf '%s\n' "$out" | tail -4
         printf '%s' "$out" | grep -qE '[1-9][0-9]* failure' && return 1 || return 0
+      elif [ -n "$JB" ]; then
+        # B189 phase 2b: junit_formatter (owner-approved 3.4.0, a test-only dep in each golden path's mix.exs — a Mix
+        # archive install was tried and writes nothing) writes _build/test/lib/<app>/test-junit-report.xml; run_in
+        # harvests it. A project without the dep exits 0 with no report, which run_in names as NO JUNIT REPORT.
+        (cd "$dir" && mix test --formatter ExUnit.CLIFormatter --formatter JUnitFormatter)
       else
         (cd "$dir" && mix test)
       fi ;;

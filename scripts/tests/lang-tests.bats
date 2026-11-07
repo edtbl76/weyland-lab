@@ -788,6 +788,27 @@ EOF
   [[ "$output" != *"NO JUNIT REPORT"* ]]
 }
 
+@test "junit: elixir runs mix test with the JUnit formatter and harvests its report from _build" {
+  # Observed 2026-11-07 in elixir:1.17: with {:junit_formatter, "3.4.0", only: :test} in mix.exs, the report lands at
+  # _build/test/lib/<app>/test-junit-report.xml. (A Mix ARCHIVE install of the same package writes nothing.)
+  mkdir -p "$SANDBOX/fix/elixir/test" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/elixir/mix.exs"; : > "$SANDBOX/fix/elixir/test/hello_test.exs"
+  cat > "$STUB_DIR/mix" <<EOF
+#!/usr/bin/env bash
+printf 'mix %s\n' "\$*" >> "$STUB_LOG"
+case "\$*" in test*) mkdir -p _build/test/lib/app
+  printf '<testsuites><testsuite name="T" tests="1"><testcase classname="T" name="t"/></testsuite></testsuites>\n' > _build/test/lib/app/test-junit-report.xml ;; esac
+exit 0
+EOF
+  chmod +x "$STUB_DIR/mix"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" elixir
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  called_with mix "test --formatter ExUnit.CLIFormatter --formatter JUnitFormatter"
+  [ -f "$SANDBOX/junit/elixir/fixture/test-junit-report.xml" ]
+  [[ "$output" != *"NO JUNIT REPORT"* ]]
+}
+
 @test "junit: with JEST_JUNIT_REPORTER set, a jest project runs jest-junit beside the default reporter" {
   node_project "$SANDBOX/fix/typescript" "jest --testPathIgnorePatterns /node_modules/"
   mkdir -p "$SANDBOX/scan"

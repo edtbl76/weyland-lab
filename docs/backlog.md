@@ -4069,7 +4069,14 @@ it with `--report-formatter junit`; CI emits none today).**
   `2026-10-20` (never `latest`, so nothing newer than reviewed), and the step fails unless exactly 1.6.0 installed. The lane
   asks R whether xml2 is present before using testthat's JunitReporter (wiring it in without xml2 broke the lane on
   2026-11-06). Proven in `rocker/r-ver:4`; Trunk's parser counts the report (8: 7 passing + the self-check test, skipped
-  in a normal run). Remaining 2b lanes, each proposed first: mix, lein, minitest, perl, dart, flutter.
+  in a normal run).
+- **Phase 2b, elixir (2026-11-07, owner-approved `junit_formatter` 3.4.0; owner chose the in-template route):** the
+  outside-the-project route (a Mix archive) writes no report; tested twice, the first verdict having rested on a search
+  that could not see the bind-mounted `_build`. So `{:junit_formatter, "3.4.0", only: :test}` went into the phoenix and plug
+  `mix.exs` (no lockfile is committed; the exact pin is the pin), and the lane runs `mix test --formatter … JUnitFormatter`
+  and harvests `_build/test/lib/<app>/test-junit-report.xml`. Images build with `deps.get --only prod`, so it never ships.
+  Proven in `elixir:1.17`; Trunk's parser counts 12. Remaining 2b lanes, each proposed first: lein, minitest, perl, dart,
+  flutter.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.

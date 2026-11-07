@@ -677,6 +677,7 @@ steps:
   - name: test-elixir
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " elixir ")'}]
     image: elixir:1.17   # Debian-based: bash + build tools present
+    environment: *junit_env   # B189: junit_formatter is a test-only dep in each elixir golden path's mix.exs
     commands:
       - mix local.hex --force && mix local.rebar --force
       - bash scripts/run-lang-tests.sh elixir --self-check
