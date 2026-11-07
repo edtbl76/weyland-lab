@@ -430,11 +430,17 @@ steps:
     environment:                              # B88 #6 — persist the go module + build caches
       GOMODCACHE: /cache/go/mod
       GOCACHE: /cache/go/build
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
     volumes:
       - ci-cache-go:/cache/go
     commands:
       # NOT -alpine: `go test -race` needs cgo, and alpine without build-base cannot race-detect —
       # it would silently run without the detector.
+      # B189 phase 2b: gotestsum (owner-approved v1.13.0) writes JUnit for Trunk from go test's own -json. The release
+      # binary is checked against its published sha256 before use; a mismatch fails the step.
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/gotestsum.tgz https://github.com/gotestyourself/gotestsum/releases/download/v1.13.0/gotestsum_1.13.0_linux_amd64.tar.gz
+      - echo "11ccddeaf708ef228889f9fe2f68291a75b27013ddfc3b18156e094f5f40e8ee  /tmp/gotestsum.tgz" | sha256sum -c -
+      - tar -xzf /tmp/gotestsum.tgz -C /usr/local/bin gotestsum
       - bash scripts/run-lang-tests.sh go --self-check
       - bash scripts/run-lang-tests.sh go
       - bash scripts/coverage-ratchet.sh run go   # B88 gap #1 — coverage ratchet

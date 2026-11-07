@@ -321,7 +321,7 @@ JB=""   # the current run's report base path (no extension); "" = do not report.
 # report (phase 3); until then they say so rather than look quiet.
 junit_supported() {
   case "$1" in
-    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs) return 0 ;;
+    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -428,6 +428,13 @@ run_in_raw() {
     go)
       # The deliberate test sits behind a build tag, so a plain `go test ./...` cannot see it.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && go test -tags deliberate -run DeliberateFailure ./...)
+      # B189 phase 2b: gotestsum (owner-approved v1.13.0; the test-go step installs it, sha256-pinned) runs the SAME
+      # `go test` and writes JUnit from go's own -json; its exit code is go test's. Absent, say so and clear JB.
+      elif [ -n "$JB" ] && command -v gotestsum >/dev/null 2>&1; then
+        (cd "$dir" && gotestsum --format standard-quiet --junitfile "$JB.xml" -- -race -coverprofile=coverage.out ./...)
+      elif [ -n "$JB" ]; then
+        printf 'junit: %s — gotestsum is not on PATH, so no JUnit (B189 phase 2b)\n' "$dir"
+        JB=""; (cd "$dir" && go test -race -coverprofile=coverage.out ./...)
       else (cd "$dir" && go test -race -coverprofile=coverage.out ./...); fi ;;
     rust)
       # #[ignore] keeps it out of a normal run; --ignored is the only way to reach it.

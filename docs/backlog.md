@@ -4037,8 +4037,12 @@ it with `--report-formatter junit`; CI emits none today).**
 - **Phase 2b, jest (2026-11-06, owner-approved `jest-junit` 17.0.0):** installed per run into `/tmp/jest-junit` in the
   `test-node` step, outside the projects, and passed to jest by path (`JEST_JUNIT_REPORTER`), so the 7 jest golden paths'
   `package.json`/lockfiles are untouched. Proven in `node:24-alpine` CI-style: all 9 node projects report, one file each
-  (angular on jest 30 included). Remaining 2b lanes, each proposed first: go, rust, dotnet, R, mix, lein, minitest, perl,
-  dart, flutter.
+  (angular on jest 30 included).
+- **Phase 2b, go (2026-11-06, owner-approved `gotestsum` v1.13.0):** the `test-go` step downloads the release binary and
+  checks its published sha256 before use; the lane runs the same `go test -race -coverprofile …` through it. Proven in
+  `golang:1.26`: fixture + echo, fiber, gin, 4 cases each. Wiring it hit a duplicate `environment:` key (the step already
+  had one, with a trailing comment); `woodpecker-cli lint` caught it where PyYAML silently kept the last one. Remaining 2b
+  lanes, each proposed first: rust, dotnet, R, mix, lein, minitest, perl, dart, flutter.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.

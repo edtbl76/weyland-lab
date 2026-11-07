@@ -49,7 +49,7 @@ too. The rule is in `AGENTS.md`; the design is in `docs/concepts/linear-evaluati
 |---|---|---|
 | 1 | Runners with built-in JUnit: pytest, bats, Maven, Gradle, sbt, phpunit, swift; one test case per golden path; the upload step | built 2026-11-06 |
 | 2a | Remaining runners with built-in JUnit: lua (busted), C++ (doctest), erlang (eunit surefire), node's vitest and `node --test`; the four node lanes share one `node` variant so a project is not counted four times | built 2026-11-06 |
-| 2b | Lanes that need a reporter package, each proposed with version and destination before it is added. **Done:** jest (`jest-junit` 17.0.0, installed per run outside the projects; all 9 node projects now report). **Next:** go, rust, dotnet, R (testthat's JunitReporter needs `xml2`, which broke the lane when wired in without it), mix, lein, minitest, perl, dart, flutter | in progress |
+| 2b | Lanes that need a reporter package, each proposed with version and destination before it is added. **Done:** jest (`jest-junit` 17.0.0, installed per run outside the projects; all 9 node projects now report); go (`gotestsum` v1.13.0, sha256-pinned release binary; fixture + 3 golden paths). **Next:** rust, dotnet, R (testthat's JunitReporter needs `xml2`, which broke the lane when wired in without it), mix, lein, minitest, perl, dart, flutter | in progress |
 | 3 | Lanes with no standard reporter (julia, haskell, ada, carton, the C runner): a lane-level report from the exit status and output | after 2 |
 | 4 | The other repos: stud.io (same Woodpecker), then the eight others once their CI is known; one Trunk collection per repo, every ticket to Weyland Auto-Filed with a repo label | after a week of real span counts |
 

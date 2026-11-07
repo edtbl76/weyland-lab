@@ -695,6 +695,30 @@ node_project() {   # node_project <dir> <test script or empty for node --test>
   called_with node "--test-reporter-destination=$SANDBOX/junit/node/"
 }
 
+@test "junit: go runs go test through gotestsum with --junitfile and the SAME go test flags" {
+  mkdir -p "$SANDBOX/fix/go" "$SANDBOX/scan"
+  printf 'module fixture\ngo 1.22\n' > "$SANDBOX/fix/go/go.mod"; : > "$SANDBOX/fix/go/hello_test.go"
+  stub gotestsum 0 "ok"
+  stub go 0 "ok"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" go
+  called_with gotestsum "--junitfile $SANDBOX/junit/go/fixture.xml"
+  called_with gotestsum "-- -race -coverprofile=coverage.out ./..."
+  not_called_with go "test"
+}
+
+@test "junit: go without gotestsum on PATH runs as before and says why there is no report" {
+  mkdir -p "$SANDBOX/fix/go" "$SANDBOX/scan"
+  printf 'module fixture\ngo 1.22\n' > "$SANDBOX/fix/go/go.mod"; : > "$SANDBOX/fix/go/hello_test.go"
+  stub go 0 "ok"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" go
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  called_with go "test -race -coverprofile=coverage.out ./..."
+  [[ "$output" == *"gotestsum"*"not on PATH"* ]]
+  [[ "$output" != *"NO JUNIT REPORT"* ]]
+}
+
 @test "junit: with JEST_JUNIT_REPORTER set, a jest project runs jest-junit beside the default reporter" {
   node_project "$SANDBOX/fix/typescript" "jest --testPathIgnorePatterns /node_modules/"
   mkdir -p "$SANDBOX/scan"
