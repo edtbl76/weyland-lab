@@ -935,6 +935,32 @@ EOF
   [[ "$output" == *"tojunit is not on PATH"* ]]
 }
 
+@test "junit: react-native runs jest-junit beside the default reporter when JEST_JUNIT_REPORTER is set" {
+  mkdir -p "$SANDBOX/fix/react-native/node_modules" "$SANDBOX/scan"
+  printf '{"scripts":{"test":"jest"}}\n' > "$SANDBOX/fix/react-native/package.json"
+  : > "$SANDBOX/fix/react-native/App.rn.test.tsx"
+  cat > "$STUB_DIR/npm" <<EOF
+#!/usr/bin/env bash
+printf 'npm %s JEST_JUNIT_OUTPUT_FILE=%s\n' "\$*" "\${JEST_JUNIT_OUTPUT_FILE:-}" >> "$STUB_LOG"
+EOF
+  chmod +x "$STUB_DIR/npm"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" JEST_JUNIT_REPORTER=/tmp/jest-junit/node_modules/jest-junit bash "$RUNNER" react-native
+  called_with npm "--reporters=default --reporters=/tmp/jest-junit/node_modules/jest-junit JEST_JUNIT_OUTPUT_FILE=$SANDBOX/junit/react-native/fixture.xml"
+}
+
+@test "junit: react-native without JEST_JUNIT_REPORTER runs as before and says why" {
+  mkdir -p "$SANDBOX/fix/react-native/node_modules" "$SANDBOX/scan"
+  printf '{"scripts":{"test":"jest"}}\n' > "$SANDBOX/fix/react-native/package.json"
+  : > "$SANDBOX/fix/react-native/App.rn.test.tsx"
+  stub npm 0 "ok"
+  run env -u JEST_JUNIT_REPORTER WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" react-native
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  not_called_with npm "--reporters"
+  [[ "$output" == *"JEST_JUNIT_REPORTER is not set"* ]]
+}
+
 # Phase 3 (B189): lanes with no per-test reporter (julia, haskell, ada, c, swift-tokamak, perl) get ONE test case per
 # project from the run's exit code; a failure carries the output tail. No package, and never from self-check.
 

@@ -321,7 +321,7 @@ JB=""   # the current run's report base path (no extension); "" = do not report.
 # report (phase 3); until then they say so rather than look quiet.
 junit_supported() {
   case "$1" in
-    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet|r|elixir|clojure|ruby|dart|flutter) return 0 ;;
+    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet|r|elixir|clojure|ruby|dart|flutter|react-native) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -736,6 +736,13 @@ run_in_raw() {
         npm_install_locked "$dir" || return 2
       fi
       if [ "$mode" = selfcheck ]; then (cd "$dir" && npm run --silent test:selfcheck)
+      # B189: jest-expo is jest, so the same jest-junit (owner-approved 17.0.0) the node lanes use, installed by the
+      # test-react-native step outside the project and named in JEST_JUNIT_REPORTER. Unset, say so and clear JB.
+      elif [ -n "$JB" ] && [ -n "${JEST_JUNIT_REPORTER:-}" ]; then
+        (cd "$dir" && JEST_JUNIT_OUTPUT_FILE="$JB.xml" npm test --silent -- --reporters=default "--reporters=$JEST_JUNIT_REPORTER")
+      elif [ -n "$JB" ]; then
+        printf 'junit: %s — JEST_JUNIT_REPORTER is not set, so no JUnit (B189)\n' "$dir"
+        JB=""; (cd "$dir" && npm test --silent)
       else (cd "$dir" && npm test --silent); fi ;;
     flutter)
       # B164 mobile CLIENT. `flutter test` resolves deps + compiles + runs widget tests. The deliberate

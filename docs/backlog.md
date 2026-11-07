@@ -4105,7 +4105,11 @@ it with `--report-formatter junit`; CI emits none today).**
   test case per project from the run's exit code, a failure carrying the last 30 output lines (XML-escaped); console
   output kept via `tee`, the status taken from `PIPESTATUS[0]`; self-check never writes. 4 bats; proven on the real C lane
   (`gcc:14`, Trunk counts it); CI proves the other five in their own images. **Found doing it: react-native was in no
-  phase** (its own step, jest-expo via `npm test`); proposed: the approved jest-junit 17.0.0, installed in that step too.
+  phase** (its own step, jest-expo via `npm test`).
+- **react-native (2026-11-07, owner-approved jest-junit 17.0.0 for its step too):** installed in `test-react-native` outside
+  the project, passed by path, like `test-node`. Proven in `node:24` on a clean copy: self-check OK, Trunk counts 4.
+  **Every CI test lane now reports to Trunk** (per test, or lane-level for the phase-3 six), and the CI map tags all of
+  them; the map is how the gap was found.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.

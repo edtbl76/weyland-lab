@@ -770,9 +770,14 @@ steps:
     image: node:24
     environment:
       npm_config_cache: /cache/npm            # same npm cache as test-node
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
+      # B189: jest-expo is jest, so the same jest-junit as test-node (owner-approved 17.0.0 for this step too),
+      # installed outside the project by the first command and passed to jest by this path.
+      JEST_JUNIT_REPORTER: /tmp/jest-junit/node_modules/jest-junit
     volumes:
       - ci-cache-npm:/cache/npm
     commands:
+      - npm install --prefix /tmp/jest-junit --no-audit --no-fund --silent jest-junit@17.0.0   # B189 (see JEST_JUNIT_REPORTER)
       - bash scripts/run-lang-tests.sh react-native --self-check
       - bash scripts/run-lang-tests.sh react-native
       # headless bundle smoke — prove the Expo app actually bundles for web (expo export). node_modules
