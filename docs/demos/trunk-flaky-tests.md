@@ -18,7 +18,14 @@ adds the Woodpecker secret.
 | Real lanes writing JUnit | python 20 reports; shell 1,235 cases; java 7 Surefire reports (harvested); swift 11 cases with `--parallel` (none without it, which the lane now reports); kotlin, scala, php 4 fixture cases each |
 | golden-path report with `<`, `&` and a control character in a log | parses; Trunk's CLI accepts it |
 
-## 2. The first real pipeline (after the owner adds `trunk_org_token`)
+## 2. The first real pipeline (RUN 2026-11-06, pipelines #589 and #590)
+
+**#589 (green):** all 8 sources uploaded, and it showed a leak: java 1/36 and scala 1/5 "failed", the self-check's report
+left in `target/` and copied by the normal run's harvest. Fixed (only reports newer than the run's stamp are copied).
+**#590 (green, after the fix):** `OK — 8 variant(s) uploaded`, every source 0 failures: golden-path 44, java 35, kotlin 4,
+php 4, python 1,680, scala 4, shell 1,240, swift 11. No Linear issue filed; `check-linear-sync.sh` OK.
+
+To repeat it:
 
 Trigger a full pipeline (no vars: every lane plus golden-path-smoke), then read the step:
 

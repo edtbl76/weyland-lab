@@ -4012,7 +4012,20 @@ it with `--report-formatter junit`; CI emits none today).**
   build. CI runs `--self-check` first in the same checkout, and Surefire/sbt leave its deliberate failure's report in
   `target/`, which the normal run's harvest copied. Fixed the same day: the harvest copies only reports newer than a stamp
   made just before the normal run (a bats regression; proven self-check-then-normal in both images: java 35/0, scala 4/0).
-  Those two deliberate results reached Trunk once (one run each, under every monitor threshold).
+  Those two deliberate results reached Trunk once (one run each, under every monitor threshold). **#590 (after the fix,
+  green): 8 sources, 3,022 results, 0 failures.**
+- **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
+  1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
+  secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.
+  3 Demo: `demos/trunk-flaky-tests.md` (row 119) parts 1 and 2 RUN. 4 Clean-up: trial runs stay in Trunk (labelled,
+  variant `b189-probe`); EMA-335 Canceled, EMA-334 in Auto-Filed; scratch only outside git; `TRUNK_UPLOAD_TOKEN` kept on
+  purpose (it replaces the org token once the CLI takes v2 keys). 5 Tracking: this entry; EMA-248 stays open;
+  `check-linear-sync.sh` OK. 6 Ops: the `trunk-upload` step fails closed (red on any unconfirmed upload, a timeout, or no
+  reports); runbook troubleshooting covers every failure seen; span budget is a monthly Billing check (manual; Trunk has no
+  usage alert on Free). 7 Scans: Sonar gate OK, 0 new issues (Sonar does not analyse `.sh`/`.bats`); bats 1,239 ok;
+  ALL-GUARDS-PASSED; `woodpecker-cli lint` valid. 8 Cascades: Woodpecker secret + secrets-map; `dr.md` row; LikeC4; image
+  provenance guard passed (`alpine:3.20` already allowed); `api.md` N/A (it lists no external SaaS, by precedent: Slack,
+  IRM, Linear). 9 DR: `dr.md` row, rebuildable by decision (history is derived from CI's JUnit).
   Real lanes proven in their CI images: python (20 reports), shell (1,235 cases), java (7 harvested), swift (11 cases; it
   needed `--parallel`, found when the first run wrote 0-case files), kotlin, scala and php (each fixture's 4 cases; no
   real projects yet). The exact CI step rehearsed against real Trunk: 1,680
