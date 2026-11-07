@@ -24,6 +24,10 @@ detects flaky and broken tests, and files them as Linear issues in project **Wey
 | `java` / `kotlin` / `scala` | `test-java` / `test-kotlin` / `test-scala` | the runner's own reports (Surefire, Gradle, sbt), copied out after the run whatever its exit |
 | `php` | `test-php` | `phpunit --log-junit` |
 | `swift` | `test-swift` | `swift test --parallel --xunit-output` (XCTest writes its report only with `--parallel`) |
+| `lua` | `test-lua` | `busted -o junit -Xoutput` (phase 2a) |
+| `cpp` | `test-cpp` | doctest `--reporters=junit --out` (phase 2a) |
+| `erlang` | `test-erlang` | eunit's surefire report, enabled through a generated `REBAR_CONFIG` copy so the golden path's `rebar.config` stays clean (phase 2a) |
+| `node` | `test-node` (all four node lanes) | vitest `--reporter=junit`, `node --test --test-reporter=junit` (phase 2a). The four node lanes discover the same projects, so they share ONE variant with files named by project path: four runs overwrite one file instead of counting four times. **Jest projects print `junit: … no JUnit until B189 phase 2b`**: jest needs the `jest-junit` package |
 | `golden-path` | `golden-path-smoke` | `run-golden-path-jobs.sh` writes one test case per golden path: OK, BUILD FAILED, APPLY FAILED or SMOKE FAILED, with the log tail (`GOLDEN_PATH_JUNIT`) |
 
 The other language lanes print `junit: <lang> has no JUnit reporter yet (B189 phase 2/3)`: phase 2 adds a reporter

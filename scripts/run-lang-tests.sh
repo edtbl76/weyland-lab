@@ -316,18 +316,33 @@ discover_roots() {
 # NEVER reports: its deliberate failure would reach Trunk as a test that fails every build. Unset = no change.
 JB=""   # the current run's report base path (no extension); "" = do not report. Set by main, read by run_in.
 
-# The languages whose runner writes JUnit with no added dependency (B189 phase 1). The rest get a reporter
-# package (phase 2) or a lane-level report (phase 3); until then they say so rather than look quiet.
-junit_supported() { case "$1" in python|shell|java|kotlin|scala|php|swift) return 0 ;; *) return 1 ;; esac; }
+# The languages whose runner writes JUnit with no added dependency: phase 1 (python … swift) and phase 2a (lua,
+# cpp, erlang, and node's vitest / `node --test` projects). The rest get a reporter package (phase 2b) or a lane-level
+# report (phase 3); until then they say so rather than look quiet.
+junit_supported() {
+  case "$1" in
+    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# The four node lanes discover the SAME projects (only their fixtures differ), so each node project runs up to four
+# times per pipeline. They all report into ONE variant, `node`, with every file named by project path: the four runs
+# overwrite one file instead of adding four copies to Trunk's span budget.
+junit_variant() { case "$1" in typescript|javascript|react|nextjs) echo node ;; *) echo "$1" ;; esac; }
 
 junit_base() {   # junit_base <lang> <dir> <fixture-dir> -> report base path, or nothing when not reporting
   [ -n "${LANG_JUNIT_DIR:-}" ] && junit_supported "$1" || return 0
-  local name root="$LANG_JUNIT_DIR"
+  local name root="$LANG_JUNIT_DIR" variant
+  variant="$(junit_variant "$1")"
   case "$root" in /*) ;; *) root="$PWD/$root" ;; esac   # runners cd into the project: a relative path would break
-  if [ "$2" = "$3" ]; then name=fixture
+  if [ "$2" = "$3" ] && [ "$variant" = "$1" ]; then name=fixture
   else name="${2#"$SCAN_ROOT"}"; name="${name#/}"; name="${name//\//__}"; [ -n "$name" ] || name=root; fi
-  printf '%s/%s/%s' "$root" "$1" "$name"
+  printf '%s/%s/%s' "$root" "$variant" "$name"
 }
+
+# The test script a package.json declares, read without node (the bats image has none): "" when there is none.
+npm_test_script() { sed -n 's/.*"test"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1/package.json" 2>/dev/null | head -1; }
 
 # harvest <base> <stamp> <glob...> — copy a runner's own report files into <base>/, but ONLY those written after
 # <stamp> (made just before this run). CI runs --self-check first in the same checkout, and Surefire/sbt leave its
@@ -485,7 +500,8 @@ run_in_raw() {
       (cd "$dir" && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release >/dev/null 2>&1 && cmake --build build --target unit_tests >/dev/null) || {
         printf 'LANE BROKEN: cmake build failed in %s\n' "$dir" >&2; return 2; }
       if [ "$mode" = selfcheck ]; then (cd "$dir" && ./build/unit_tests --test-suite=selfcheck)
-      else (cd "$dir" && ./build/unit_tests --test-suite-exclude=selfcheck); fi ;;
+      # doctest's built-in junit reporter (it replaces the console reporter; the exit code is unchanged)
+      else (cd "$dir" && ./build/unit_tests --test-suite-exclude=selfcheck ${JB:+--reporters=junit "--out=$JB.xml"}); fi ;;
     c)
       # cmake configure + build the assert-harness test binary. The `--selfcheck` arg triggers the
       # deliberate failure; fail-closed on a rename: without that branch, --selfcheck falls through to
@@ -499,6 +515,14 @@ run_in_raw() {
       # (rebar.config names it via eunit_tests), so a normal `rebar3 eunit` excludes it; the selfcheck
       # run executes exactly that module and asserts the failure reason — fail-closed on a rename.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && rebar3 as selfcheck eunit)
+      # rebar3 has no CLI flag for eunit's built-in surefire (JUnit) report, and the golden path's rebar.config is a
+      # template that must not carry CI plumbing: REBAR_CONFIG points rebar3 at a generated copy plus eunit_opts.
+      elif [ -n "$JB" ]; then
+        mkdir -p "$JB"
+        { cat "$dir/rebar.config"; printf '\n{eunit_opts, [{report, {eunit_surefire, [{dir, "%s"}]}}]}.\n' "$JB"; } > "$JB.rebar.config"
+        (cd "$dir" && REBAR_CONFIG="$JB.rebar.config" rebar3 eunit); local erc=$?
+        # surefire also writes a 0-case TEST-file_<app>.app.xml for the .app file check: noise, not a test source
+        rm -f "$JB.rebar.config" "$JB"/TEST-file_*.xml; return "$erc"
       else (cd "$dir" && rebar3 eunit); fi ;;
     julia)
       # Pkg.test() instantiates the test env. The deliberate test is env-gated (GOLDEN_SELFCHECK=1),
@@ -509,7 +533,8 @@ run_in_raw() {
       # busted reads .busted (default task excludes #selfcheck); the selfcheck task selects ONLY the
       # tagged deliberate spec. busted exits non-zero on a zero-tag match too → fail-closed on a rename.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && busted --run=selfcheck)
-      else (cd "$dir" && busted); fi ;;
+      # busted's built-in junit output handler writes to the file named by -Xoutput (it replaces the console output)
+      else (cd "$dir" && busted ${JB:+-o junit -Xoutput "$JB.xml"}); fi ;;
     swift)
       # swift test compiles + runs. The deliberate test is env-gated (GOLDEN_SELFCHECK=1) in its own
       # target, so a normal `swift test` skips it; selfcheck sets the env + filters to it so it fails.
@@ -538,6 +563,8 @@ run_in_raw() {
       (cd "$dir" && Rscript -e 'p<-c("plumber","jsonlite","testthat"); m<-p[!p %in% rownames(installed.packages())]; if(length(m)) install.packages(m)' >/dev/null 2>&1) || {
         printf 'LANE BROKEN: R package install failed in %s\n' "$dir" >&2; return 2; }
       if [ "$mode" = selfcheck ]; then (cd "$dir" && GOLDEN_SELFCHECK=1 Rscript -e 'testthat::test_dir("tests")')
+      # No JUnit yet (B189 phase 2b): testthat's JunitReporter needs the xml2 package, which the CI image lacks —
+      # found when the lane broke with "The package "xml2" is required to use JunitReporter" (2026-11-06).
       else (cd "$dir" && Rscript -e 'testthat::test_dir("tests")'); fi ;;
     perl)
       # cpanm brings Mojolicious (+Test::Mojo); the deliberate test lives in selfcheck/ (outside t/), so a
@@ -607,6 +634,15 @@ run_in_raw() {
           npm_install_locked "$dir" || return 2
         fi
         if [ "$mode" = selfcheck ]; then (cd "$dir" && npm run --silent test:selfcheck)
+        elif [ -n "$JB" ]; then
+          # B189: vitest has a built-in junit reporter (kept beside the default one). Jest needs the jest-junit
+          # package (phase 2b, not added yet): say so and clear JB, so run_in does not call it a missing report.
+          case "$(npm_test_script "$dir")" in
+            vitest*) (cd "$dir" && npm test --silent -- --reporter=default --reporter=junit "--outputFile.junit=$JB.xml") ;;
+            *)       printf 'junit: %s runs %s — no JUnit until B189 phase 2b (a reporter package)\n' \
+                       "$dir" "$(npm_test_script "$dir" | cut -d' ' -f1)"
+                     JB=""; (cd "$dir" && npm test --silent) ;;
+          esac
         else (cd "$dir" && npm test --silent); fi
       else
         # A `node --test` project is NOT automatically dependency-free — Fastify uses node:test yet
@@ -622,6 +658,9 @@ run_in_raw() {
         # would fail OPEN on a rename — the deliberate test would quietly stop running and the
         # self-check mode would start proving nothing.
         if [ "$mode" = selfcheck ]; then (cd "$dir" && node --test ./selfcheck/*.selfcheck.*)
+        # B189: node's built-in junit reporter to the file, the spec reporter still on the console
+        elif [ -n "$JB" ]; then (cd "$dir" && node --test --test-reporter=spec --test-reporter-destination=stdout \
+                                   --test-reporter=junit "--test-reporter-destination=$JB.xml")
         else (cd "$dir" && node --test); fi
       fi ;;
   esac

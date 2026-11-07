@@ -4026,6 +4026,14 @@ it with `--report-formatter junit`; CI emits none today).**
   `maps.md` updated; (3) **audit:** `scripts/check-maps.sh` in repo-guards (9 bats) fails on a pipeline step missing
   from the CI map, a stale step count, or a LikeC4 `ext` without a `data-c4` row on the Platform Map. It cannot judge
   whether a row's content is current; Pillar 2 says so.
+- **Phase 2a built 2026-11-06 (built-in reporters, no installs):** lua (`busted -o junit`), C++ (doctest junit), erlang
+  (eunit surefire through a generated `REBAR_CONFIG` copy, so the golden path's `rebar.config` stays clean; its 0-case
+  `TEST-file_*.app.xml` is dropped), node's vitest and `node --test`. **Found: the four node lanes run the same 8 projects**,
+  so all four report into one `node` variant with files named by project path (four runs overwrite one file, not four
+  copies in Trunk). Jest projects (7) print `junit: … no JUnit until B189 phase 2b`. **R moved to 2b:** testthat's
+  JunitReporter needs `xml2`, absent from `rocker/r-ver:4`; wiring it in broke the lane in the real image (caught before
+  any push, reverted, a bats test pins it). Proven CI-style (self-check, then normal) in each image: lua 4 cases, cpp 4,
+  erlang 4, node 2 files (fastify 4, vue 3). bats 1,255 ok; ALL-GUARDS-PASSED.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.

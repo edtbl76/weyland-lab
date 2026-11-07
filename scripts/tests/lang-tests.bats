@@ -606,3 +606,104 @@ EOF
   called_with swift "--parallel"
   called_with swift "--xunit-output $SANDBOX/junit/swift/fixture/swift.xml"
 }
+
+# Phase 2a (B189): runners whose JUnit is built in — lua (busted), r (testthat), cpp (doctest), erlang (eunit
+# surefire), and node's vitest / `node --test`. Jest needs a package (phase 2b) and must say so, not look quiet.
+
+@test "junit: lua runs busted with its junit output into the report file" {
+  mkdir -p "$SANDBOX/fix/lua/spec" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/lua/.busted"; : > "$SANDBOX/fix/lua/spec/hello_spec.lua"
+  stub busted 0 "ok"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" lua
+  called_with busted "-o junit -Xoutput $SANDBOX/junit/lua/fixture.xml"
+}
+
+@test "junit: r does not report yet (JunitReporter needs xml2) and says so; the lane is unchanged" {
+  # Found 2026-11-06 in rocker/r-ver:4: testthat's JunitReporter needs the xml2 package, absent from the CI
+  # image, and wiring it in broke the lane. R moves to phase 2b (a package install, proposed first).
+  mkdir -p "$SANDBOX/fix/r/tests" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/r/plumber.R"; : > "$SANDBOX/fix/r/tests/test-hello.R"
+  stub Rscript 0 "ok"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" r
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  not_called_with Rscript "JunitReporter"
+  [[ "$output" == *"r has no JUnit reporter yet"* ]]
+}
+
+@test "junit: cpp runs the doctest binary with the junit reporter" {
+  mkdir -p "$SANDBOX/fix/cpp/build" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/cpp/CMakeLists.txt"; : > "$SANDBOX/fix/cpp/hello_test.cpp"
+  stub cmake 0 ""
+  printf '#!/usr/bin/env bash\nprintf "unit_tests %%s\\n" "$*" >> "%s"\n' "$STUB_LOG" > "$SANDBOX/fix/cpp/build/unit_tests"
+  chmod +x "$SANDBOX/fix/cpp/build/unit_tests"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" cpp
+  called_with unit_tests "--reporters=junit --out=$SANDBOX/junit/cpp/fixture.xml"
+}
+
+@test "junit: erlang runs eunit with a generated config that adds the surefire report, golden path untouched" {
+  mkdir -p "$SANDBOX/fix/erlang/test" "$SANDBOX/scan"
+  printf '{deps, []}.\n' > "$SANDBOX/fix/erlang/rebar.config"
+  : > "$SANDBOX/fix/erlang/test/hello_tests.erl"
+  cat > "$STUB_DIR/rebar3" <<EOF
+#!/usr/bin/env bash
+printf 'rebar3 %s REBAR_CONFIG=%s\n' "\$*" "\${REBAR_CONFIG:-}" >> "$STUB_LOG"
+[ -n "\${REBAR_CONFIG:-}" ] && cat "\$REBAR_CONFIG" >> "$STUB_LOG"
+exit 0
+EOF
+  chmod +x "$STUB_DIR/rebar3"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" erlang
+  grep -qF "{deps, []}." "$STUB_LOG"
+  grep -qF "eunit_surefire" "$STUB_LOG"
+  grep -qF "$SANDBOX/junit/erlang/fixture" "$STUB_LOG"
+  [ "$(cat "$SANDBOX/fix/erlang/rebar.config")" = "{deps, []}." ]
+}
+
+node_project() {   # node_project <dir> <test script or empty for node --test>
+  mkdir -p "$1/node_modules"
+  if [ -n "$2" ]; then printf '{"scripts":{"test":"%s"}}\n' "$2" > "$1/package.json"
+  else printf '{}\n' > "$1/package.json"; fi
+  : > "$1/app.test.js"
+}
+
+@test "junit: node lanes report into ONE shared variant, so a project run by four lanes is counted once" {
+  node_project "$SANDBOX/fix/typescript" "vitest run"
+  node_project "$SANDBOX/fix/javascript" "vitest run"
+  node_project "$SANDBOX/scan/shared" "vitest run"
+  stub npm 0 "ok"
+  stub node 0 ""   # the lane's "has a test script?" probe (`node -e …`) answers yes
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" typescript
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" javascript
+  [ "$(calls_to npm | grep -c -- "--outputFile.junit=$SANDBOX/junit/node/shared.xml")" -eq 2 ]
+  not_called_with npm "junit/typescript/"
+  not_called_with npm "junit/javascript/"
+}
+
+@test "junit: node --test projects use the built-in junit reporter and keep the console one" {
+  node_project "$SANDBOX/fix/typescript" ""
+  mkdir -p "$SANDBOX/scan"
+  stub_dispatch node
+  stub_case node '-e' 1 ''   # the "has a test script?" probe answers no -> the node --test branch
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" typescript
+  called_with node "--test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit"
+  called_with node "--test-reporter-destination=$SANDBOX/junit/node/"
+}
+
+@test "junit: a jest project is not reported yet and says why (phase 2b), never a silent gap" {
+  node_project "$SANDBOX/fix/typescript" "jest"
+  mkdir -p "$SANDBOX/scan"
+  stub npm 0 "ok"
+  stub node 0 ""
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" typescript
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  not_called_with npm "--reporter"
+  [[ "$output" == *"jest"*"phase 2b"* ]]
+  [[ "$output" != *"NO JUNIT REPORT"* ]]
+}

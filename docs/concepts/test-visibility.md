@@ -48,7 +48,8 @@ too. The rule is in `AGENTS.md`; the design is in `docs/concepts/linear-evaluati
 | Phase | Scope | State |
 |---|---|---|
 | 1 | Runners with built-in JUnit: pytest, bats, Maven, Gradle, sbt, phpunit, swift; one test case per golden path; the upload step | built 2026-11-06 |
-| 2 | Lanes that need a reporter package (go, rust, dotnet, node runners, mix, lein, minitest, perl, dart, flutter, lua, R, C++, erlang): each package proposed with version and destination before it is added | next |
+| 2a | Remaining runners with built-in JUnit: lua (busted), C++ (doctest), erlang (eunit surefire), node's vitest and `node --test`; the four node lanes share one `node` variant so a project is not counted four times | built 2026-11-06 |
+| 2b | Lanes that need a reporter package (go, rust, dotnet, jest, R, mix, lein, minitest, perl, dart, flutter): each package proposed with version and destination before it is added. R is here because testthat's JunitReporter needs `xml2`, which broke the lane when wired in without it | next |
 | 3 | Lanes with no standard reporter (julia, haskell, ada, carton, the C runner): a lane-level report from the exit status and output | after 2 |
 | 4 | The other repos: stud.io (same Woodpecker), then the eight others once their CI is known; one Trunk collection per repo, every ticket to Weyland Auto-Filed with a repo label | after a week of real span counts |
 

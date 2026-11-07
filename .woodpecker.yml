@@ -483,6 +483,7 @@ steps:
   - name: test-erlang
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " erlang ")'}]
     image: erlang:27
+    environment: *junit_env
     commands:
       - bash scripts/run-lang-tests.sh erlang --self-check
       - bash scripts/run-lang-tests.sh erlang
@@ -497,6 +498,7 @@ steps:
   - name: test-lua
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " lua ")'}]
     image: alpine:3.20
+    environment: *junit_env
     commands:
       # OpenResty ships LuaJIT but no luarocks; busted runs on lua5.4 (the handlers are pure string ops,
       # version-agnostic) — install lua5.4 + luarocks + a C toolchain (busted's deps have C parts).
@@ -541,6 +543,7 @@ steps:
   - name: test-r
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " r ")'}]
     image: rocker/r-ver:4
+    environment: *junit_env
     commands:
       # the dispatch installs plumber/jsonlite/testthat (rocker PPM binaries) if absent
       - bash scripts/run-lang-tests.sh r --self-check
@@ -665,6 +668,7 @@ steps:
   - name: test-cpp
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " cpp ")'}]
     image: gcc:14   # trixie-based; cmake + git for FetchContent (cpp-httplib + doctest)
+    environment: *junit_env
     commands:
       - apt-get update && apt-get install -y --no-install-recommends cmake git >/dev/null
       - bash scripts/run-lang-tests.sh cpp --self-check
@@ -682,6 +686,7 @@ steps:
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " node ")'}]
     image: node:24-alpine
     environment:
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
       npm_config_cache: /cache/npm            # B88 #6 — persist the npm package cache
     volumes:
       - ci-cache-npm:/cache/npm
