@@ -71,6 +71,12 @@ capability is **NOT done** until ALL nine pillars hold. "Ran once" ≠ done.
   component; explorer at `likec4.weyland.lab`, embedded in the C4 doc pages.
 - **Sequence diagram** — every end-to-end workflow as a `docs/diagrams/flow-*.md` sequence diagram (real
   participants, ordered messages). An inline diagram in a demo does **not** satisfy this.
+- **Maps** (B189, 2026-11-06) — the hand-written HTML maps under `docs/` (`maps.md` indexes them) show the systems a
+  change adds or alters: a new or changed CI step on the **CI Architecture Map**, a new external system or platform
+  service on the **Platform Map**, a golden-path change on the **Golden Paths Map**, and so on. `scripts/check-maps.sh`
+  (repo-guards) fails when a pipeline step is missing from the CI map, its step count is stale, or a LikeC4 `ext` has no
+  `data-c4` row on the Platform Map. The guard cannot judge content: a row that exists but is out of date is caught only
+  by reading the map. Found when the CI map still said 23 steps against 70, and Slack, IRM and Trunk were on no map.
 
 ## 3. Demos — `docs/demos/` (exhaustive, not sampled) — AND the demo IS the test
 

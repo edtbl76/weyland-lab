@@ -3972,9 +3972,12 @@ it with `--report-formatter junit`; CI emits none today).**
 - **Ruled out by sourced research:** Testiny (Free excludes Automation and History), Kiwi TCMS and ReportPortal (no Linear;
   ReportPortal needs at least 6 GB of RAM), TestDino, Qase, Tesults and Buildkite (Playwright-only, Linear paid, or capped).
   QA Sphere was **not trialled** (corrected 2026-11-06: an earlier note called this an owner decision, but the owner had never
-  confirmed it). **Owner, 2026-11-06: it gets its trial, after the Trunk wiring is wrapped up** (so the two don't cross).
-  The trial checks JUnit upload on Free (`qas-cli` 0.10.1 `junit-upload --create-tcases`), its history and flakiness views,
-  whether a failed result can become a Linear issue in Weyland Auto-Filed, and what its test-case management adds over Trunk.
+  confirmed it). **Trialled 2026-11-06 after the Trunk wiring, then DON'T ADOPT (owner: "kill it").** `qas-cli` 0.10.1
+  uploaded the 1,208 bats results to project WEY (runs 12–14); history works and a re-upload matched by name. But it has
+  no flaky detection at all, files Linear issues only by hand per result and with no label (so they break the Auto-Filed
+  rule), and its name-only identity merged 19 different tests (1,208 results → 1,189 cases). Verdict row in
+  `concepts/test-visibility.md`. Left to the owner: the QA Sphere account / project WEY and the `QASPHERE_*` lines in
+  `scripts/.env` (recommended: remove both).
 - **Allure 3** (3.21.0, a static report, 0 RAM): reads bats JUnit natively; one history file carries the per-test history and
   transitions. Its `flaky` flag means a retry *within* a run, so cross-run flips don't trip it. No Linear.
 - **Trunk Flaky Tests** (free plan, 0 RAM):
@@ -4014,6 +4017,15 @@ it with `--report-formatter junit`; CI emits none today).**
   made just before the normal run (a bats regression; proven self-check-then-normal in both images: java 35/0, scala 4/0).
   Those two deliberate results reached Trunk once (one run each, under every monitor threshold). **#590 (after the fix,
   green): 8 sources, 3,022 results, 0 failures.**
+- **Closing Gap (owner, 2026-11-06): the maps.** The hand-written HTML maps had no owner: the CI map said 23 steps
+  against 70, and Slack, Grafana Cloud IRM and Trunk were on no map, so B184 and U14 also shipped without them. Closed:
+  (1) **DoD gate:** Pillar 2 now names the maps (`definition-of-done.md`); (2) **docs:** CI map rebuilt from the real
+  step list (70 steps; the 27 test and 23 scan lanes as compact chips; JUnit lanes, `golden-path-smoke`, `trunk-upload`,
+  `notify-slack` marked); Platform Map gained Trunk, Slack, IRM, Hosted LLM providers, TypeSafe, Clockify and grkit rows,
+  the Weyland Auto-Filed split on Linear, and U14 on Alertmanager; Golden Paths Map gained per-path JUnit to Trunk;
+  `maps.md` updated; (3) **audit:** `scripts/check-maps.sh` in repo-guards (9 bats) fails on a pipeline step missing
+  from the CI map, a stale step count, or a LikeC4 `ext` without a `data-c4` row on the Platform Map. It cannot judge
+  whether a row's content is current; Pillar 2 says so.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.
