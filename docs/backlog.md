@@ -4090,8 +4090,17 @@ it with `--report-formatter junit`; CI emits none today).**
   Trunk counts the reports. **The CI-style run then failed Sinatra**: `RUBYOPT -r` runs before `bundle exec` activates
   the lock, so the reporter loaded the machine's newest minitest (6.0.6, installed by the Rails fixture that ran first)
   against Sinatra's locked 5.27.0. The hand-run had passed only on ordering. Fixed with `require "bundler/setup"` first;
-  re-proven in the lane's real order: both projects, Trunk counts 8. Remaining 2b lanes, each proposed first: perl, dart,
-  flutter.
+  re-proven in the lane's real order: both projects, Trunk counts 8.
+- **Perl → phase 3 (owner, 2026-11-07).** `TAP::Formatter::JUnit` 0.17 requires Moose, MooseX::NonMoose, XML::Generator,
+  File::Slurp and namespace::clean, compiled on every run, to report one fixture with 4 tests (perl has no real projects).
+  It gets the phase-3 lane-level result instead; revisit if a real Perl project appears.
+- **Phase 2b, dart + flutter (2026-11-07, owner-approved `junitreport` 2.0.2, last released 2022): phase 2b complete.**
+  Both runners write their own JSON with `--file-reporter json:` (console kept); `tojunit --base <project>/` converts it,
+  activated globally per run (outside both projects); the exit code stays the test run's. Proven in `dart:stable` and
+  `cirruslabs/flutter:stable`: self-check OK, a failing probe test breaks the lane and is a `<failure>` in the report,
+  Trunk counts both (flutter 4: 3 + the skipped self-check suite). A first flutter run broke with a Flutter-SDK compile
+  error: my scratch copy had carried the working tree's `.dart_tool/` from a different local SDK; a clean copy passed,
+  and CI's own test-flutter was green in #596. Not a change defect.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.

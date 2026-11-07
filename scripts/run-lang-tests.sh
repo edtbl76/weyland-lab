@@ -321,7 +321,7 @@ JB=""   # the current run's report base path (no extension); "" = do not report.
 # report (phase 3); until then they say so rather than look quiet.
 junit_supported() {
   case "$1" in
-    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet|r|elixir|clojure|ruby) return 0 ;;
+    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet|r|elixir|clojure|ruby|dart|flutter) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -369,6 +369,22 @@ wrap_bare_cases() {
     /<\/testsuites>/              { print "</testsuite>" }
     { print }
   ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+}
+
+# dart_junit <runner> <dir> — B189 phase 2b, shared by the dart and flutter lanes. Both runners write their results as
+# JSON with --file-reporter (the console output is kept); junitreport's tojunit (owner-approved 2.0.2, activated
+# globally by the step, outside the projects) converts it, with the project path stripped from class names. The
+# exit code is the TEST RUN's, never the converter's. Without tojunit on PATH, say so and clear JB.
+dart_junit() {
+  local runner="$1" dir="$2" rc
+  if ! command -v tojunit >/dev/null 2>&1; then
+    printf 'junit: %s — tojunit is not on PATH, so no JUnit (B189 phase 2b)\n' "$dir"
+    JB=""; (cd "$dir" && "$runner" test); return
+  fi
+  (cd "$dir" && "$runner" test --file-reporter "json:$JB.json"); rc=$?
+  tojunit --input "$JB.json" --output "$JB.xml" --base "$dir/" || printf 'junit: tojunit failed on %s\n' "$JB.json" >&2
+  rm -f "$JB.json"
+  return "$rc"
 }
 
 # Returns the runner's exit status. NEVER swallows it.
@@ -633,6 +649,7 @@ run_in_raw() {
       (cd "$dir" && dart pub get >/dev/null 2>&1) || {
         printf 'LANE BROKEN: dart pub get failed in %s\n' "$dir" >&2; return 2; }
       if [ "$mode" = selfcheck ]; then (cd "$dir" && dart test -t selfcheck --run-skipped)
+      elif [ -n "$JB" ]; then dart_junit dart "$dir"
       else (cd "$dir" && dart test); fi ;;
     r)
       # install the runtime + test packages if absent (rocker's PPM serves binaries) — the R analogue of
@@ -695,6 +712,7 @@ run_in_raw() {
       # `-t selfcheck --run-skipped` (bare `-t selfcheck` reports "all skipped"/exit 0 — the same
       # package:test fail-open trap as dart/shelf) to force it to run and fail.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && flutter test -t selfcheck --run-skipped)
+      elif [ -n "$JB" ]; then dart_junit flutter "$dir"
       else (cd "$dir" && flutter test); fi ;;
     swift-tokamak)
       # B164 "Swift without iOS": Tokamak (SwiftUI-compatible) → WebAssembly via carton. Tests run as

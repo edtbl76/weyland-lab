@@ -881,6 +881,60 @@ EOF
   [[ "$output" == *"RUBY_JUNIT_REPORTERS_VERSION"* ]]
 }
 
+dartish_stub() {   # dartish_stub <runner> — a dart/flutter stub that writes the JSON file-reporter output it is asked for
+  cat > "$STUB_DIR/$1" <<EOF
+#!/usr/bin/env bash
+printf '$1 %s\n' "\$*" >> "$STUB_LOG"
+for a in "\$@"; do case "\$a" in json:*) printf '{"type":"done"}\n' > "\${a#json:}" ;; esac; done
+exit 0
+EOF
+  chmod +x "$STUB_DIR/$1"
+  cat > "$STUB_DIR/tojunit" <<EOF
+#!/usr/bin/env bash
+printf 'tojunit %s\n' "\$*" >> "$STUB_LOG"
+while [ \$# -gt 0 ]; do [ "\$1" = --output ] && out="\$2"; shift; done
+printf '<testsuites><testsuite name="t"><testcase classname="t" name="a"/></testsuite></testsuites>\n' > "\$out"
+EOF
+  chmod +x "$STUB_DIR/tojunit"
+}
+
+@test "junit: dart writes JSON with --file-reporter and converts it with tojunit, base path stripped" {
+  # Observed 2026-11-07 in dart:stable with junitreport 2.0.2: `dart test --file-reporter json:<f>` keeps the console
+  # output; `tojunit --input <f> --output <x> --base <dir>/` converts it (Trunk-countable, testsuite-wrapped).
+  mkdir -p "$SANDBOX/fix/dart/test" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/dart/pubspec.yaml"; : > "$SANDBOX/fix/dart/test/hello_test.dart"
+  dartish_stub dart
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" dart
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  called_with dart "test --file-reporter json:$SANDBOX/junit/dart/fixture.json"
+  called_with tojunit "--input $SANDBOX/junit/dart/fixture.json --output $SANDBOX/junit/dart/fixture.xml --base $SANDBOX/fix/dart/"
+  [ -f "$SANDBOX/junit/dart/fixture.xml" ]
+  [ ! -e "$SANDBOX/junit/dart/fixture.json" ]
+}
+
+@test "junit: flutter uses the same JSON-to-JUnit route" {
+  mkdir -p "$SANDBOX/fix/flutter/test" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/flutter/pubspec.yaml"; : > "$SANDBOX/fix/flutter/test/widget_test.dart"
+  dartish_stub flutter
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" flutter
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  called_with flutter "test --file-reporter json:$SANDBOX/junit/flutter/fixture.json"
+  [ -f "$SANDBOX/junit/flutter/fixture.xml" ]
+}
+
+@test "junit: dart without tojunit on PATH runs as before and says why" {
+  mkdir -p "$SANDBOX/fix/dart/test" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/dart/pubspec.yaml"; : > "$SANDBOX/fix/dart/test/hello_test.dart"
+  stub dart 0 "All tests passed!"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" dart
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  not_called_with dart "--file-reporter"
+  [[ "$output" == *"tojunit is not on PATH"* ]]
+}
+
 @test "junit: with JEST_JUNIT_REPORTER set, a jest project runs jest-junit beside the default reporter" {
   node_project "$SANDBOX/fix/typescript" "jest --testPathIgnorePatterns /node_modules/"
   mkdir -p "$SANDBOX/scan"

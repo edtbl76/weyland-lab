@@ -558,7 +558,12 @@ steps:
   - name: test-dart
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " dart ")'}]
     image: dart:stable
+    environment: *junit_env
     commands:
+      # B189 phase 2b: junitreport (owner-approved 2.0.2) converts `dart test --file-reporter json:` output to JUnit.
+      # Global activation sits outside the project; the PATH export lasts the step (its commands share one shell).
+      - dart pub global activate junitreport 2.0.2
+      - export PATH="$PATH:$HOME/.pub-cache/bin"
       - bash scripts/run-lang-tests.sh dart --self-check
       - bash scripts/run-lang-tests.sh dart
 
@@ -777,7 +782,11 @@ steps:
   - name: test-flutter
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " flutter ")'}]
     image: ghcr.io/cirruslabs/flutter:stable   # the standard Flutter CI image (Ubuntu; bash + flutter SDK)
+    environment: *junit_env
     commands:
+      # B189 phase 2b: the same junitreport 2.0.2 converter as test-dart (flutter test writes the same JSON format)
+      - dart pub global activate junitreport 2.0.2
+      - export PATH="$PATH:$HOME/.pub-cache/bin"
       - bash scripts/run-lang-tests.sh flutter --self-check
       - bash scripts/run-lang-tests.sh flutter
       # headless render smoke — build the web target (the Flutter client's bundle analogue)
