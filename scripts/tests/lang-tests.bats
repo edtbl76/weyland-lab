@@ -843,6 +843,44 @@ EOF
   [[ "$output" == *"test2junit"*"user profile"* ]]
 }
 
+ruby_project() {
+  mkdir -p "$SANDBOX/fix/ruby/test" "$SANDBOX/scan"
+  printf 'source "https://rubygems.org"\ngem "rake"\n' > "$SANDBOX/fix/ruby/Gemfile"
+  printf 'GEM\n  specs:\n    rake (13.2.1)\n' > "$SANDBOX/fix/ruby/Gemfile.lock"
+  : > "$SANDBOX/fix/ruby/test/hello_test.rb"
+  cat > "$STUB_DIR/bundle" <<EOF
+#!/usr/bin/env bash
+printf 'bundle %s BUNDLE_GEMFILE=%s RUBYOPT=%s WEYLAND_JUNIT_DIR=%s\n' "\$*" "\${BUNDLE_GEMFILE:-}" "\${RUBYOPT:-}" "\${WEYLAND_JUNIT_DIR:-}" >> "$STUB_LOG"
+[ -n "\${BUNDLE_GEMFILE:-}" ] && [ "\$1" = install ] && { cat "\$BUNDLE_GEMFILE" >> "$STUB_LOG"; [ -f "\$BUNDLE_GEMFILE.lock" ] && echo LOCK-COPIED >> "$STUB_LOG"; }
+[ -n "\${WEYLAND_JUNIT_DIR:-}" ] && [ "\$1" = exec ] && printf '<testsuite name="T"><testcase classname="T" name="t"/></testsuite>\n' > "\$WEYLAND_JUNIT_DIR/TEST-T.xml"
+exit 0
+EOF
+  chmod +x "$STUB_DIR/bundle"
+}
+
+@test "junit: ruby adds minitest-reporters via a CI-only Gemfile on top of the locked one; the project is untouched" {
+  ruby_project
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" RUBY_JUNIT_REPORTERS_VERSION=1.8.0 bash "$RUNNER" ruby
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -qF "eval_gemfile \"$SANDBOX/fix/ruby/Gemfile\"" "$STUB_LOG"
+  grep -qF 'gem "minitest-reporters", "1.8.0"' "$STUB_LOG"
+  grep -qF "LOCK-COPIED" "$STUB_LOG"
+  called_with bundle "RUBYOPT=-r$REPO_ROOT/scripts/ci/ruby_junit_setup.rb WEYLAND_JUNIT_DIR=$SANDBOX/junit/ruby/fixture"
+  [ -f "$SANDBOX/junit/ruby/fixture/TEST-T.xml" ]
+  [ -z "$(find "$SANDBOX/junit" -name 'Gemfile*')" ]
+  [ "$(cat "$SANDBOX/fix/ruby/Gemfile")" = "$(printf 'source "https://rubygems.org"\ngem "rake"')" ]
+}
+
+@test "junit: ruby without RUBY_JUNIT_REPORTERS_VERSION runs as before and says why" {
+  ruby_project
+  run env -u RUBY_JUNIT_REPORTERS_VERSION WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" ruby
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  not_called_with bundle "ruby_junit_setup"
+  [[ "$output" == *"RUBY_JUNIT_REPORTERS_VERSION"* ]]
+}
+
 @test "junit: with JEST_JUNIT_REPORTER set, a jest project runs jest-junit beside the default reporter" {
   node_project "$SANDBOX/fix/typescript" "jest --testPathIgnorePatterns /node_modules/"
   mkdir -p "$SANDBOX/scan"

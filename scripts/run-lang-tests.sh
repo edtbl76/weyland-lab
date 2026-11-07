@@ -321,7 +321,7 @@ JB=""   # the current run's report base path (no extension); "" = do not report.
 # report (phase 3); until then they say so rather than look quiet.
 junit_supported() {
   case "$1" in
-    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet|r|elixir|clojure) return 0 ;;
+    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet|r|elixir|clojure|ruby) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -510,6 +510,25 @@ run_in_raw() {
       (cd "$dir" && bundle install --quiet) || {
         printf 'LANE BROKEN: bundle install failed in %s\n' "$dir" >&2; return 2; }
       if [ "$mode" = selfcheck ]; then (cd "$dir" && bundle exec rake test:selfcheck)
+      # B189 phase 2b: minitest-reporters (owner-approved; version from RUBY_JUNIT_REPORTERS_VERSION, set by the
+      # test-ruby step) WITHOUT touching the project: a CI-only Gemfile beside the report `eval_gemfile`s the project's
+      # Gemfile and adds the gem, starting from a COPY of its committed lock so every existing gem stays at its locked
+      # version (observed: none moved). scripts/ci/ruby_junit_setup.rb, loaded by RUBYOPT, turns the reporter on.
+      # Observed in ruby:3.3: works under the Rails test task; a failing test still exits 1. Unset, say so, clear JB.
+      elif [ -n "$JB" ] && [ -n "${RUBY_JUNIT_REPORTERS_VERSION:-}" ]; then
+        mkdir -p "$JB"
+        printf 'eval_gemfile "%s"\ngem "minitest-reporters", "%s"\n' "$dir/Gemfile" "$RUBY_JUNIT_REPORTERS_VERSION" > "$JB.Gemfile"
+        [ -f "$dir/Gemfile.lock" ] && cp "$dir/Gemfile.lock" "$JB.Gemfile.lock"
+        local rrc
+        (cd "$dir" && BUNDLE_GEMFILE="$JB.Gemfile" bundle install --quiet) || {
+          rm -f "$JB.Gemfile" "$JB.Gemfile.lock"
+          printf 'LANE BROKEN: bundle install of the CI-only Gemfile (minitest-reporters) failed in %s\n' "$dir" >&2; return 2; }
+        (cd "$dir" && BUNDLE_GEMFILE="$JB.Gemfile" RUBYOPT="-r$REPO_ROOT/scripts/ci/ruby_junit_setup.rb" \
+           WEYLAND_JUNIT_DIR="$JB" bundle exec rake test); rrc=$?
+        rm -f "$JB.Gemfile" "$JB.Gemfile.lock"; return "$rrc"
+      elif [ -n "$JB" ]; then
+        printf 'junit: %s — RUBY_JUNIT_REPORTERS_VERSION is not set, so no JUnit (B189 phase 2b)\n' "$dir"
+        JB=""; (cd "$dir" && bundle exec rake test)
       else (cd "$dir" && bundle exec rake test); fi ;;
     elixir)
       # mix brings the deps; the deliberate test carries @tag :selfcheck (excluded by test_helper).
