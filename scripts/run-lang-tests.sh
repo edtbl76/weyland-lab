@@ -879,7 +879,8 @@ The fixture is what proves this lane can run at all; without it a pass would mea
 
   # ── the fixture must pass, or the lane is broken (2, never 1) ───────────────
   if [ -n "${LANG_JUNIT_DIR:-}" ] && ! junit_supported "$lang" && ! junit_lane_level "$lang"; then
-    printf 'junit: %s has no JUnit reporter yet (B189 phase 2/3) — Trunk will not see this lane\n' "$lang"
+    # Every lane is covered (B189, 2026-11-07); this only fires for a NEW language added to LANGS without one.
+    printf 'junit: %s has no JUnit report wired — add it to junit_supported or junit_lane_level (docs/runbooks/trunk-flaky-tests.md); Trunk will not see this lane\n' "$lang"
   fi
   JB="$(junit_base "$lang" "$fixture" "$fixture")"
   run_in "$lang" "$fixture" normal

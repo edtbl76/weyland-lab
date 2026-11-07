@@ -1858,9 +1858,11 @@ flowchart LR
 | Upload verdict | the CLI's printed output, plus a timeout; the step goes red when an upload is not confirmed | the CLI can exit 0 on a failed upload, and exits 1 when tests failed but the upload landed |
 | Key | the legacy org token, a Woodpecker secret only `trunk-upload` requests | the only key the uploader accepts. An image filter would fence it tighter, but Woodpecker applies those to plugins only, and on a commands step the whole pipeline refuses to start (#588) |
 
-Rollout is phased ([concepts/test-visibility.md](concepts/test-visibility.md) § Rollout): built-in reporters first,
-then a reporter package per remaining language, then a lane-level report for the rest, then the other repos within the
-free plan's roughly 1M results a month.
+**State (B189 closed 2026-11-07):** every CI test lane reports, 28 sources and about 3,200 results a full run (#597):
+per test where the runner has a reporter (built in, or one pinned package installed outside the project), and one result
+per project for the six lanes with none (julia, haskell, ada, C, swift-tokamak, perl). Rollout detail:
+[concepts/test-visibility.md](concepts/test-visibility.md) § Rollout. The other repos are B238 (EMA-337) and stud.io
+EMA-336 (deferred), within the free plan's roughly 1M results a month (weyland-lab uses ~600k).
 
 ## 11. Operational lessons (why the CTs are tuned the way they are)
 

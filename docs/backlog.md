@@ -4137,7 +4137,10 @@ it with `--report-formatter junit`; CI emits none today).**
   7 Scans: Sonar gate OK, 0 new issues (#595–#597; `reports/` exclusion added after #593/#594 tripped S1135); bats 1,279 ok;
   ALL-GUARDS-PASSED incl. the new `check-maps.sh`; `woodpecker-cli lint` valid. 8 Cascades: Woodpecker secret; `dr.md` row;
   LikeC4; image provenance (every new CI image already allowed); maps guard. 9 DR: `dr.md` row, rebuildable by decision
-  (history is derived from CI's JUnit).
+  (history is derived from CI's JUnit). **DoD re-check (owner asked, 2026-11-07):** a sweep against what shipped found
+  four docs still describing the mid-rollout state (concept phase-4 row, demo's "8 variants", arch §10k "then the other
+  repos", runbook "the other lanes print no reporter yet") plus one stale script message; all corrected, demo part 3 (#597)
+  added, and every language in `LANGS` confirmed to have a JUnit path.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.

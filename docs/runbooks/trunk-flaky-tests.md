@@ -40,9 +40,10 @@ detects flaky and broken tests, and files them as Linear issues in project **Wey
 | `node` | `test-node` (all four node lanes) | vitest `--reporter=junit`, `node --test --test-reporter=junit` (phase 2a). The four node lanes discover the same projects, so they share ONE variant with files named by project path: four runs overwrite one file instead of counting four times. **Jest projects (phase 2b):** `jest-junit` **17.0.0** (owner-approved 2026-11-06) is installed per run into `/tmp/jest-junit`, outside the projects, and passed to jest by path (`JEST_JUNIT_REPORTER`), so the golden paths' `package.json`/lockfiles carry no CI plumbing. Unset, a jest project prints `junit: … no JUnit until B189 phase 2b` |
 | `golden-path` | `golden-path-smoke` | `run-golden-path-jobs.sh` writes one test case per golden path: OK, BUILD FAILED, APPLY FAILED or SMOKE FAILED, with the log tail (`GOLDEN_PATH_JUNIT`) |
 
-The other language lanes print `junit: <lang> has no JUnit reporter yet (B189 phase 2/3)`: phase 2 adds a reporter
-package per language, phase 3 a lane-level report for the rest. Self-check runs **never** report: their deliberate failure
-would reach Trunk as a test that fails every build.
+Every test lane reports (28 sources, #597). A lane whose reporter tool is missing at run time says so in its log
+(`junit: <dir> — <tool> is not on PATH / not set`) and runs its tests as before; a lane whose runner ran but left no
+report with a test case in a `<testsuite>` prints `NO JUNIT REPORT`. Self-check runs **never** report: their deliberate
+failure would reach Trunk as a test that fails every build.
 
 ## How it decides an upload worked
 

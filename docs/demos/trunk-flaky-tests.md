@@ -25,6 +25,13 @@ left in `target/` and copied by the normal run's harvest. Fixed (only reports ne
 **#590 (green, after the fix):** `OK — 8 variant(s) uploaded`, every source 0 failures: golden-path 44, java 35, kotlin 4,
 php 4, python 1,680, scala 4, shell 1,240, swift 11. No Linear issue filed; `check-linear-sync.sh` OK.
 
+## 3. Every lane (RUN 2026-11-07, pipeline #597)
+
+After phases 2 and 3: `OK — 28 variant(s) uploaded`, every source 0 failures, about 3,200 results. Per test: python 1,680,
+shell 1,280, golden-path 44, java 35, node 32, go 16, elixir 12, rust 12, swift 11, clojure 8, r 8, ruby 8, dart 5, and 4
+each for cpp, dotnet, erlang, flutter, kotlin, lua, php, react-native and scala. Lane-level (one result per project): ada,
+c, haskell, julia, perl, swift-tokamak.
+
 To repeat it:
 
 Trigger a full pipeline (no vars: every lane plus golden-path-smoke), then read the step:
@@ -34,7 +41,7 @@ Trigger a full pipeline (no vars: every lane plus golden-path-smoke), then read 
 cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && woodpecker-cli pipeline create edtbl76/weyland-lab --branch main
 ```
 
-Expect, in the `trunk-upload` step's log: one `<variant>: uploaded` line each for `python`, `shell`, `java`, `kotlin`,
-`scala`, `php`, `swift` and `golden-path`, then `OK — 8 variant(s) uploaded`. In Trunk, the `bats` collection shows those
-variants with the run's results. In Linear, nothing new unless a monitor fires; any issue Trunk files must be in Weyland
+Expect, in the `trunk-upload` step's log: one `<variant>: uploaded` line per source (the 28 listed in part 3), then
+`OK — 28 variant(s) uploaded`. A lean run (no fixture lanes) uploads only python, shell and java. In Trunk, the `bats`
+collection shows those variants with the run's results. In Linear, nothing new unless a monitor fires; any issue Trunk files must be in Weyland
 Auto-Filed with `trunk-flaky`, and `check-linear-sync.sh` stays OK.
