@@ -809,6 +809,40 @@ EOF
   [[ "$output" != *"NO JUNIT REPORT"* ]]
 }
 
+@test "junit: clojure with test2junit in the lein user profile runs lein test2junit and harvests test2junit/xml" {
+  # Observed 2026-11-07 in clojure:temurin-21-lein with test2junit 1.4.4 from ~/.lein/profiles.clj: it honours the
+  # project's :test-selectors (the ^:selfcheck test stays out), exits 1 on a failing test, and writes
+  # test2junit/xml/<ns>.xml, which Trunk's parser counts.
+  mkdir -p "$SANDBOX/fix/clojure/test" "$SANDBOX/scan" "$SANDBOX/home/.lein"
+  : > "$SANDBOX/fix/clojure/project.clj"; : > "$SANDBOX/fix/clojure/test/hello_test.clj"
+  printf '{:user {:plugins [[test2junit "1.4.4"]]}}\n' > "$SANDBOX/home/.lein/profiles.clj"
+  cat > "$STUB_DIR/lein" <<EOF
+#!/usr/bin/env bash
+printf 'lein %s\n' "\$*" >> "$STUB_LOG"
+[ "\$1" = test2junit ] && { mkdir -p test2junit/xml
+  printf '<testsuite name="g" tests="1"><testcase classname="g" name="t"/></testsuite>\n' > test2junit/xml/g.xml; }
+exit 0
+EOF
+  chmod +x "$STUB_DIR/lein"
+  run env HOME="$SANDBOX/home" WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" clojure
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  called_with lein "test2junit"
+  [ -f "$SANDBOX/junit/clojure/fixture/g.xml" ]
+}
+
+@test "junit: clojure without test2junit in the user profile runs lein test as before and says why" {
+  mkdir -p "$SANDBOX/fix/clojure/test" "$SANDBOX/scan" "$SANDBOX/home"
+  : > "$SANDBOX/fix/clojure/project.clj"; : > "$SANDBOX/fix/clojure/test/hello_test.clj"
+  stub lein 0 "Ran 4 tests"
+  run env HOME="$SANDBOX/home" WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" clojure
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  called_with lein "test"
+  not_called_with lein "test2junit"
+  [[ "$output" == *"test2junit"*"user profile"* ]]
+}
+
 @test "junit: with JEST_JUNIT_REPORTER set, a jest project runs jest-junit beside the default reporter" {
   node_project "$SANDBOX/fix/typescript" "jest --testPathIgnorePatterns /node_modules/"
   mkdir -p "$SANDBOX/scan"

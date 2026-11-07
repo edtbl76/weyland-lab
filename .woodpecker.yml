@@ -687,7 +687,10 @@ steps:
   - name: test-clojure
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " clojure ")'}]
     image: clojure:temurin-21-lein   # Debian-based: bash present; lein is the toolchain
+    environment: *junit_env
     commands:
+      # B189 phase 2b: test2junit (owner-approved 1.4.4) via the lein USER profile, so project.clj stays clean.
+      - mkdir -p ~/.lein && echo '{:user {:plugins [[test2junit "1.4.4"]]}}' > ~/.lein/profiles.clj
       - bash scripts/run-lang-tests.sh clojure --self-check
       - bash scripts/run-lang-tests.sh clojure   # Compojure fixture + the Ring golden path (discovered)
       # (coverage ratchet for clojure is a fast-follow, like dotnet/kotlin/scala/php/ruby/elixir)

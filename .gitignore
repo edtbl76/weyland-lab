@@ -262,3 +262,6 @@ golden-paths/c/*/build/
 
 # B189: JUnit written by the CI test lanes (LANG_JUNIT_DIR / GOLDEN_PATH_JUNIT) for Trunk; generated, never committed
 /reports/
+# B189: lein test2junit (the clojure lane's JUnit plugin) writes test2junit/ and an Ant build.xml into each project
+golden-paths/clojure/*/test2junit/
+golden-paths/clojure/*/build.xml

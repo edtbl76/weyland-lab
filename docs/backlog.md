@@ -4075,8 +4075,13 @@ it with `--report-formatter junit`; CI emits none today).**
   that could not see the bind-mounted `_build`. So `{:junit_formatter, "3.4.0", only: :test}` went into the phoenix and plug
   `mix.exs` (no lockfile is committed; the exact pin is the pin), and the lane runs `mix test --formatter … JUnitFormatter`
   and harvests `_build/test/lib/<app>/test-junit-report.xml`. Images build with `deps.get --only prod`, so it never ships.
-  Proven in `elixir:1.17`; Trunk's parser counts 12. Remaining 2b lanes, each proposed first: lein, minitest, perl, dart,
-  flutter.
+  Proven in `elixir:1.17`; Trunk's parser counts 12.
+- **Phase 2b, clojure (2026-11-07, owner-approved `test2junit` 1.4.4, unmaintained since 2022):** from the lein user
+  profile the `test-clojure` step writes, so `project.clj` is untouched. Three risks checked before adopting: it honours
+  `:test-selectors` (the `^:selfcheck` test stays out), `lein test2junit` exits 1 on a failing test (a probe test), and
+  Trunk's parser counts its reports. Its `test2junit/` and Ant `build.xml` leftovers are gitignored. Proven in
+  `clojure:temurin-21-lein`: fixture + ring, Trunk counts 8. Remaining 2b lanes, each proposed first: minitest, perl,
+  dart, flutter.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.

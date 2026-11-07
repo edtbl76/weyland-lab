@@ -321,7 +321,7 @@ JB=""   # the current run's report base path (no extension); "" = do not report.
 # report (phase 3); until then they say so rather than look quiet.
 junit_supported() {
   case "$1" in
-    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet|r|elixir) return 0 ;;
+    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet|r|elixir|clojure) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -382,6 +382,7 @@ run_in() {
       kotlin) harvest "$JB" "$JB.stamp" "$dir"/build/test-results/test/*.xml ;;
       scala)  harvest "$JB" "$JB.stamp" "$dir"/target/test-reports/*.xml ;;
       elixir) harvest "$JB" "$JB.stamp" "$dir"/_build/test/lib/*/test-junit-report.xml ;;
+      clojure) harvest "$JB" "$JB.stamp" "$dir"/test2junit/xml/*.xml ;;
       shell)  [ -f "$JB.d/report.xml" ] && mv "$JB.d/report.xml" "$JB.xml"; rmdir "$JB.d" 2>/dev/null ;;
       typescript|javascript|react|nextjs) wrap_bare_cases "$JB.xml" ;;
     esac
@@ -541,6 +542,14 @@ run_in_raw() {
       # :selfcheck match zero tests -> "Ran 0 tests" -> exit 0 -> the --self-check guard reports LANE
       # BROKEN (verified: lein test with 0 tests run exits 0).
       if [ "$mode" = selfcheck ]; then (cd "$dir" && lein test :selfcheck)
+      # B189 phase 2b: test2junit (owner-approved 1.4.4) from the lein USER profile (~/.lein/profiles.clj, written by
+      # the test-clojure step), so project.clj stays clean. Observed: it honours :test-selectors, exits 1 on a failing
+      # test, and writes test2junit/xml/<ns>.xml (run_in harvests it). Absent from the profile, say so and clear JB.
+      elif [ -n "$JB" ] && grep -q 'test2junit' "${HOME:-/nonexistent}/.lein/profiles.clj" 2>/dev/null; then
+        (cd "$dir" && lein test2junit)
+      elif [ -n "$JB" ]; then
+        printf 'junit: %s — test2junit is not in the lein user profile, so no JUnit (B189 phase 2b)\n' "$dir"
+        JB=""; (cd "$dir" && lein test)
       else (cd "$dir" && lein test); fi ;;
     cpp)
       # cmake configure + build the doctest binary (FetchContent pulls cpp-httplib + doctest into
