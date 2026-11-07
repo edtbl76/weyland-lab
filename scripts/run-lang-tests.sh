@@ -326,13 +326,36 @@ junit_supported() {
   esac
 }
 
+# Phase 3 (B189): lanes with no per-test reporter (julia, haskell, ada, the C runner, swift-tokamak) and perl (owner:
+# its reporter's Moose stack is not worth it for one fixture). Each run gets ONE JUnit test case — the project —
+# from its exit code, a failure carrying the output tail: Trunk still sees the lane pass, fail and flake.
+junit_lane_level() { case "$1" in julia|haskell|ada|c|swift-tokamak|perl) return 0 ;; *) return 1 ;; esac; }
+
+# write_lane_case <base> <lang> <rc> <log> — the one-test-case report for a lane-level run.
+write_lane_case() {
+  local base="$1" lang="$2" rc="$3" log="$4" name body
+  name="$(basename "$base")"
+  {
+    printf '<?xml version="1.0" encoding="UTF-8"?>\n<testsuites>\n'
+    printf '<testsuite name="%s lane" tests="1" failures="%d">\n' "$lang" "$([ "$rc" -eq 0 ] && echo 0 || echo 1)"
+    if [ "$rc" -eq 0 ]; then
+      printf '  <testcase classname="%s lane" name="%s"/>\n' "$lang" "$name"
+    else
+      body="$(tail -30 "$log" 2>/dev/null | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' | tr -d '\000-\010\013\014\016-\037')"
+      printf '  <testcase classname="%s lane" name="%s">\n    <failure message="exit %d">%s</failure>\n  </testcase>\n' \
+        "$lang" "$name" "$rc" "$body"
+    fi
+    printf '</testsuite>\n</testsuites>\n'
+  } > "$base.xml"
+}
+
 # The four node lanes discover the SAME projects (only their fixtures differ), so each node project runs up to four
 # times per pipeline. They all report into ONE variant, `node`, with every file named by project path: the four runs
 # overwrite one file instead of adding four copies to Trunk's span budget.
 junit_variant() { case "$1" in typescript|javascript|react|nextjs) echo node ;; *) echo "$1" ;; esac; }
 
 junit_base() {   # junit_base <lang> <dir> <fixture-dir> -> report base path, or nothing when not reporting
-  [ -n "${LANG_JUNIT_DIR:-}" ] && junit_supported "$1" || return 0
+  [ -n "${LANG_JUNIT_DIR:-}" ] && { junit_supported "$1" || junit_lane_level "$1"; } || return 0
   local name root="$LANG_JUNIT_DIR" variant
   variant="$(junit_variant "$1")"
   case "$root" in /*) ;; *) root="$PWD/$root" ;; esac   # runners cd into the project: a relative path would break
@@ -391,6 +414,14 @@ dart_junit() {
 run_in() {
   local lang="$1" dir="$2" rc
   [ -z "$JB" ] || { mkdir -p "$(dirname "$JB")"; : > "$JB.stamp"; }
+  if [ -n "$JB" ] && junit_lane_level "$lang"; then
+    # Phase 3: keep the console output, capture it for the failure body, and take the RUNNER's status (PIPESTATUS[0],
+    # never tee's — the pipeline-status trap).
+    run_in_raw "$@" 2>&1 | tee "$JB.log"; rc=${PIPESTATUS[0]}
+    write_lane_case "$JB" "$lang" "$rc" "$JB.log"
+    rm -f "$JB.log" "$JB.stamp"
+    return "$rc"
+  fi
   run_in_raw "$@"; rc=$?
   if [ -n "$JB" ]; then
     case "$lang" in
@@ -840,7 +871,7 @@ The fixture is what proves this lane can run at all; without it a pass would mea
   fi
 
   # ── the fixture must pass, or the lane is broken (2, never 1) ───────────────
-  if [ -n "${LANG_JUNIT_DIR:-}" ] && ! junit_supported "$lang"; then
+  if [ -n "${LANG_JUNIT_DIR:-}" ] && ! junit_supported "$lang" && ! junit_lane_level "$lang"; then
     printf 'junit: %s has no JUnit reporter yet (B189 phase 2/3) — Trunk will not see this lane\n' "$lang"
   fi
   JB="$(junit_base "$lang" "$fixture" "$fixture")"

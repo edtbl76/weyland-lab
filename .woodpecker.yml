@@ -514,6 +514,7 @@ steps:
   - name: test-julia
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " julia ")'}]
     image: julia:1.11
+    environment: *junit_env
     commands:
       - bash scripts/run-lang-tests.sh julia --self-check
       - bash scripts/run-lang-tests.sh julia
@@ -583,6 +584,7 @@ steps:
   - name: test-perl
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " perl ")'}]
     image: perl:5.40
+    environment: *junit_env
     commands:
       # the dispatch runs `cpanm --installdeps .` (Mojolicious) — cpanm ships in the perl image
       - bash scripts/run-lang-tests.sh perl --self-check
@@ -597,6 +599,7 @@ steps:
     # stays under the (GHC-sized) 6Gi limit. Same class/fix as test-swift. A cabal cache volume is a
     # fast-follow (like the kotlin/scala note) that would also make this lane fast.
     environment:
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
       CABAL_BUILD_JOBS: "2"
     backend_options:
       kubernetes:
@@ -618,6 +621,7 @@ steps:
     # Memory request → Burstable; ADA_BUILD_JOBS forwards -j to gprbuild; 6Gi limit gives the gnatcoll
     # build headroom. Same class/fix as test-swift/test-haskell.
     environment:
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
       ADA_BUILD_JOBS: "2"
     backend_options:
       kubernetes:
@@ -717,6 +721,7 @@ steps:
   - name: test-c
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " c ")'}]
     image: gcc:14
+    environment: *junit_env
     commands:
       - apt-get update && apt-get install -y --no-install-recommends cmake pkg-config libmicrohttpd-dev >/dev/null
       - bash scripts/run-lang-tests.sh c --self-check
@@ -814,6 +819,7 @@ steps:
             memory: 1Gi
           limits:
             memory: 4Gi
+    environment: *junit_env
     commands:
       - bash scripts/run-lang-tests.sh swift-tokamak --self-check
       - bash scripts/run-lang-tests.sh swift-tokamak

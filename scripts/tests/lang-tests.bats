@@ -935,6 +935,56 @@ EOF
   [[ "$output" == *"tojunit is not on PATH"* ]]
 }
 
+# Phase 3 (B189): lanes with no per-test reporter (julia, haskell, ada, c, swift-tokamak, perl) get ONE test case per
+# project from the run's exit code; a failure carries the output tail. No package, and never from self-check.
+
+perl_project() {
+  mkdir -p "$SANDBOX/fix/perl/t" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/perl/cpanfile"; : > "$SANDBOX/fix/perl/t/hello.t"
+  stub cpanm 0 ""
+}
+
+@test "junit (lane-level): a passing perl run writes one passing test case for the project" {
+  perl_project
+  stub prove 0 "All tests successful."
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" perl
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  f="$SANDBOX/junit/perl/fixture.xml"
+  grep -q '<testsuite name="perl lane"' "$f"
+  grep -q '<testcase classname="perl lane" name="fixture"' "$f"
+  [ "$(grep -c '<failure' "$f")" -eq 0 ]
+  [[ "$output" != *"NO JUNIT REPORT"* ]]
+}
+
+@test "junit (lane-level): a failing run's test case carries the failure and its XML-escaped output tail" {
+  perl_project
+  stub prove 1 'Failed test <in> t/hello.t & more'
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" perl
+  [ "$status" -eq 2 ]
+  f="$SANDBOX/junit/perl/fixture.xml"
+  grep -q '<failure message="exit 1">' "$f"
+  grep -q 'Failed test &lt;in&gt; t/hello.t &amp; more' "$f"
+}
+
+@test "junit (lane-level): the run's own output still reaches the console" {
+  perl_project
+  stub prove 0 "All tests successful."
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" perl
+  [[ "$output" == *"All tests successful."* ]]
+}
+
+@test "junit (lane-level): self-check writes nothing" {
+  perl_project
+  mkdir -p "$SANDBOX/fix/perl/selfcheck"
+  stub prove 1 "Failed"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" perl --self-check
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [ ! -e "$SANDBOX/junit" ]
+}
+
 @test "junit: with JEST_JUNIT_REPORTER set, a jest project runs jest-junit beside the default reporter" {
   node_project "$SANDBOX/fix/typescript" "jest --testPathIgnorePatterns /node_modules/"
   mkdir -p "$SANDBOX/scan"

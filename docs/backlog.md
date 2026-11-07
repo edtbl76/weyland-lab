@@ -4101,6 +4101,11 @@ it with `--report-formatter junit`; CI emits none today).**
   Trunk counts both (flutter 4: 3 + the skipped self-check suite). A first flutter run broke with a Flutter-SDK compile
   error: my scratch copy had carried the working tree's `.dart_tool/` from a different local SDK; a clean copy passed,
   and CI's own test-flutter was green in #596. Not a change defect.
+- **Phase 3 built (2026-11-07, no packages):** julia, haskell, ada, the C runner, swift-tokamak and perl write ONE JUnit
+  test case per project from the run's exit code, a failure carrying the last 30 output lines (XML-escaped); console
+  output kept via `tee`, the status taken from `PIPESTATUS[0]`; self-check never writes. 4 bats; proven on the real C lane
+  (`gcc:14`, Trunk counts it); CI proves the other five in their own images. **Found doing it: react-native was in no
+  phase** (its own step, jest-expo via `npm test`); proposed: the approved jest-junit 17.0.0, installed in that step too.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.
