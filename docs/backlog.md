@@ -4064,8 +4064,12 @@ it with `--report-formatter junit`; CI emits none today).**
   nightly #593 (which also holds the nightly ship).** Sonar analyses `.`, and the JUnit reports now sit in the shared
   workspace under `reports/` when it runs; node's report carries a `<!-- todo 0 -->` comment that S1135 flagged as new
   code. Self-inflicted by this item. Fixed: `reports/**` in `sonar.exclusions` (with the reason) and `/reports/` in
-  `.gitignore`; Sonar's own precheck confirms the exclusion. Remaining 2b lanes, each proposed first: R, mix, lein,
-  minitest, perl, dart, flutter.
+  `.gitignore`; Sonar's own precheck confirms the exclusion.
+- **Phase 2b, R (2026-11-07, owner-approved `xml2` 1.6.0):** installed per run in `test-r` from the dated Posit snapshot
+  `2026-10-20` (never `latest`, so nothing newer than reviewed), and the step fails unless exactly 1.6.0 installed. The lane
+  asks R whether xml2 is present before using testthat's JunitReporter (wiring it in without xml2 broke the lane on
+  2026-11-06). Proven in `rocker/r-ver:4`; Trunk's parser counts the report (8: 7 passing + the self-check test, skipped
+  in a normal run). Remaining 2b lanes, each proposed first: mix, lein, minitest, perl, dart, flutter.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.

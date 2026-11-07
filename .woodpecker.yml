@@ -569,6 +569,9 @@ steps:
     environment: *junit_env
     commands:
       # the dispatch installs plumber/jsonlite/testthat (rocker PPM binaries) if absent
+      # B189 phase 2b: xml2 (owner-approved 1.6.0) for testthat's JunitReporter, from a DATED Posit snapshot so it can
+      # never pull a newer, unreviewed version; the step fails if the installed version is not exactly 1.6.0.
+      - Rscript -e 'install.packages("xml2", repos = "https://p3m.dev/cran/__linux__/resolute/2026-10-20", quiet = TRUE); v <- as.character(packageVersion("xml2")); cat("xml2", v, "\n"); if (v != "1.6.0") quit(status = 1)'
       - bash scripts/run-lang-tests.sh r --self-check
       - bash scripts/run-lang-tests.sh r
 

@@ -619,17 +619,30 @@ EOF
   called_with busted "-o junit -Xoutput $SANDBOX/junit/lua/fixture.xml"
 }
 
-@test "junit: r does not report yet (JunitReporter needs xml2) and says so; the lane is unchanged" {
-  # Found 2026-11-06 in rocker/r-ver:4: testthat's JunitReporter needs the xml2 package, absent from the CI
-  # image, and wiring it in broke the lane. R moves to phase 2b (a package install, proposed first).
+@test "junit: r WITHOUT xml2 installed runs as before and says why (JunitReporter would break the lane)" {
+  # Found 2026-11-06 in rocker/r-ver:4: testthat's JunitReporter needs the xml2 package, and wiring it in without
+  # xml2 broke the lane. So the lane asks R first and only uses the reporter when xml2 is really there.
   mkdir -p "$SANDBOX/fix/r/tests" "$SANDBOX/scan"
   : > "$SANDBOX/fix/r/plumber.R"; : > "$SANDBOX/fix/r/tests/test-hello.R"
-  stub Rscript 0 "ok"
+  stub_dispatch Rscript
+  stub_case Rscript 'requireNamespace' 1 ''
   run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
       LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" r
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
   not_called_with Rscript "JunitReporter"
-  [[ "$output" == *"r has no JUnit reporter yet"* ]]
+  [[ "$output" == *"xml2 is not installed"* ]]
+  [[ "$output" != *"NO JUNIT REPORT"* ]]
+}
+
+@test "junit: r WITH xml2 runs testthat with a JunitReporter beside the console reporter" {
+  mkdir -p "$SANDBOX/fix/r/tests" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/r/plumber.R"; : > "$SANDBOX/fix/r/tests/test-hello.R"
+  stub_dispatch Rscript
+  stub_case Rscript 'requireNamespace' 0 ''
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      LANG_JUNIT_DIR="$SANDBOX/junit" bash "$RUNNER" r
+  called_with Rscript "JunitReporter\$new(file = \"$SANDBOX/junit/r/fixture.xml\")"
+  called_with Rscript "ProgressReporter"
 }
 
 @test "junit: cpp runs the doctest binary with the junit reporter" {

@@ -321,7 +321,7 @@ JB=""   # the current run's report base path (no extension); "" = do not report.
 # report (phase 3); until then they say so rather than look quiet.
 junit_supported() {
   case "$1" in
-    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet) return 0 ;;
+    python|shell|java|kotlin|scala|php|swift|lua|cpp|erlang|typescript|javascript|react|nextjs|go|rust|dotnet|r) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -607,8 +607,15 @@ run_in_raw() {
       (cd "$dir" && Rscript -e 'p<-c("plumber","jsonlite","testthat"); m<-p[!p %in% rownames(installed.packages())]; if(length(m)) install.packages(m)' >/dev/null 2>&1) || {
         printf 'LANE BROKEN: R package install failed in %s\n' "$dir" >&2; return 2; }
       if [ "$mode" = selfcheck ]; then (cd "$dir" && GOLDEN_SELFCHECK=1 Rscript -e 'testthat::test_dir("tests")')
-      # No JUnit yet (B189 phase 2b): testthat's JunitReporter needs the xml2 package, which the CI image lacks —
-      # found when the lane broke with "The package "xml2" is required to use JunitReporter" (2026-11-06).
+      # B189 phase 2b: testthat's built-in JunitReporter needs the xml2 package (owner-approved 1.6.0; the test-r
+      # step installs it from a dated Posit snapshot). Wiring the reporter in WITHOUT xml2 broke the lane ("The
+      # package "xml2" is required to use JunitReporter", 2026-11-06), so ask R first; absent, say so and clear JB.
+      # stop_on_failure (the default) keeps the exit code with the MultiReporter.
+      elif [ -n "$JB" ] && (cd "$dir" && Rscript -e 'quit(status = if (requireNamespace("xml2", quietly = TRUE)) 0 else 1)') >/dev/null 2>&1; then
+        (cd "$dir" && Rscript -e "testthat::test_dir(\"tests\", reporter = testthat::MultiReporter\$new(list(testthat::ProgressReporter\$new(), testthat::JunitReporter\$new(file = \"$JB.xml\"))))")
+      elif [ -n "$JB" ]; then
+        printf 'junit: %s — xml2 is not installed, so no JUnit (testthat JunitReporter needs it; B189 phase 2b)\n' "$dir"
+        JB=""; (cd "$dir" && Rscript -e 'testthat::test_dir("tests")')
       else (cd "$dir" && Rscript -e 'testthat::test_dir("tests")'); fi ;;
     perl)
       # cpanm brings Mojolicious (+Test::Mojo); the deliberate test lives in selfcheck/ (outside t/), so a
