@@ -4110,6 +4110,12 @@ it with `--report-formatter junit`; CI emits none today).**
   the project, passed by path, like `test-node`. Proven in `node:24` on a clean copy: self-check OK, Trunk counts 4.
   **Every CI test lane now reports to Trunk** (per test, or lane-level for the phase-3 six), and the CI map tags all of
   them; the map is how the gap was found.
+- **Phases 1–3 confirmed in CI (2026-11-07):** #596 green (18 sources: R, elixir, clojure confirmed); **#597 green, 28
+  sources, every one 0 failures**, about 3,200 results a full run (python 1,680, shell 1,280, golden-path 44, java 35,
+  node 32, go 16, elixir 12, rust 12, swift 11, clojure 8, r 8, ruby 8, dart 5, cpp/dotnet/erlang/flutter/kotlin/lua/php/
+  react-native/scala 4 each, and the six lane-level lanes 1 each). Sonar gate OK. **Left in B189:** a week of real span
+  counts from Trunk's Billing page (about 200 pipelines a month × ~3,000 results, lean or full since python and shell
+  dominate both, is ~600k of the free plan's ~1M, so the number matters before phase 4); phase 4 (stud.io, then the other 8 repos); the final DoD; close EMA-248.
 - **DoD (recorded 2026-11-06, per pillar) — PHASE 1 only; B189 stays open for phases 2–4 and the QA Sphere trial:**
   1 Docs: runbook `trunk-flaky-tests.md`, verdict `concepts/test-visibility.md`, arch §10k, secrets-map, woodpecker
   secrets table, this entry. 2 Diagrams: `flow-trunk-flaky-tests.md`, the arch §10k flowchart, LikeC4 `trunk` + 2 relations.

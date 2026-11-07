@@ -86,8 +86,11 @@ Expect `<variant>: uploaded` per source and `OK — N variant(s) uploaded`. Rehe
 
 Free plan: "1M test spans per committer per month, up to 5M". A span is one test result, and only non-bot committers count,
 so for this lab about **1M a month across every repo**. The limit is soft: over it, Trunk shows an upgrade banner and keeps
-accepting uploads. **Check Settings → Billing monthly.** A full weyland-lab run is a few thousand results and the lab runs
-about 200 pipelines a month, so weyland-lab alone may use about half; that estimate is replaced by the first real week.
+accepting uploads. **Check Settings → Billing monthly.** Measured: a **full** weyland-lab run uploads about **3,200**
+results (#597, 28 sources, 2026-11-07), and a lean run nearly as many (python + shell + java, about 3,000: python and
+shell dominate both). At about 200 pipelines a month that is ~600k, most of the ~1M before any other repo joins. Check the Billing page after a week of real
+traffic before adding repos (phase 4); the levers if it runs hot are fewer full runs, or reporting `shell` (the biggest
+source after python) only on full runs.
 
 ## Troubleshooting
 
