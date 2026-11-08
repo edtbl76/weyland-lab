@@ -12,7 +12,7 @@ from pathlib import Path
 
 import lab_commands as lc
 
-CLI = Path(__file__).resolve().parents[1] / "lab_commands.py"
+CLI = Path(__file__).resolve().parents[1] / "lab-commands.py"
 
 RUNBOOK = textwrap.dedent("""\
     # Woodpecker CI

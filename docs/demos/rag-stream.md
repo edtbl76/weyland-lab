@@ -81,15 +81,14 @@ Kubectl runs on **mother**. SSH user is `emangini@mother`, `edwardmangini@rogueo
 [mother] kubectl -n data-mesh exec redpanda-0 -- rpk cluster health
 ```
 
-Trigger the producer (UI is the reliable path; this is the CLI equivalent from the design's Step 4):
+Trigger the producer through Dagster (UI: Assets → `rag_stream_produce` → Materialize; CLI: the GraphQL `launchRun`
+in [runbooks/rag-stream.md § Index changes now](../runbooks/rag-stream.md#index-changes-now)).
 
-```
-[mother] kubectl -n weyland exec deploy/dagster-user-code -- dagster asset materialize -m weyland_pipeline --select "*rag_stream_produce"
-```
-
-`TODO: verify` the exact `dagster asset materialize` invocation inside the pod (module flag `-m weyland_pipeline`
-= the code-location name; confirm it resolves the instance/Postgres from the pod's `DAGSTER_HOME`). The design
-records the canonical selector as `dagster asset materialize --select "*rag_stream_produce"`.
+**Resolved (B239, 2026-11-08):** this step used to run `dagster asset materialize` through `kubectl exec`, with a
+`TODO: verify` on whether it reached the instance through `DAGSTER_HOME`. It does not: the pod has no `DAGSTER_HOME`,
+so that CLI runs on a throwaway in-memory instance. The side effects are real, but the run never reaches the run
+database or the watchdog (memory `dagster-cli-exec-is-ephemeral`, [runbooks/dagster.md](../runbooks/dagster.md)).
+Use the UI or `launchRun`.
 
 Inspect the topic + schema + lag:
 

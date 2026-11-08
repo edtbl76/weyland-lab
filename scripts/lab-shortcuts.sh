@@ -19,9 +19,9 @@ export CLAUDE_OBSIDIAN_HOME SCRATCH_VAULTS
 
 lab-commands() {
   if [ "$#" -gt 0 ]; then
-    python3 "$WEYLAND_REPO/scripts/lab_commands.py" --grep "$@"
+    python3 "$WEYLAND_REPO/scripts/lab-commands.py" --grep "$@"
   else
-    python3 "$WEYLAND_REPO/scripts/lab_commands.py"
+    python3 "$WEYLAND_REPO/scripts/lab-commands.py"
   fi
 }
 
@@ -31,7 +31,7 @@ lab-ask() {
     return 2
   fi
   local payload
-  payload="$(python3 "$WEYLAND_REPO/scripts/lab_commands.py" --prompt "$@")" || return 2
+  payload="$(python3 "$WEYLAND_REPO/scripts/lab-commands.py" --prompt "$@")" || return 2
   # No tools: the answer comes from the roster on stdin, never from running anything. Run from $HOME so the
   # repo's project instructions are not loaded into a one-shot lookup.
   printf '%s\n' "$payload" | (cd "$HOME" && claude -p --model "$LAB_ASK_MODEL" --tools "" --no-session-persistence \
@@ -44,7 +44,7 @@ vault() {
     return 2
   fi
   local path
-  path="$(python3 "$WEYLAND_REPO/scripts/scratch_vault.py" create "$1")" || return 2
+  path="$(python3 "$WEYLAND_REPO/scripts/scratch-vault.py" create "$1")" || return 2
   echo "vault: $path"
   echo "Put text sources in $path/inbox (each starting with a Source: URL line), then run /claude-obsidian:wiki-ingest."
   (cd "$path" && claude --plugin-dir "$CLAUDE_OBSIDIAN_HOME")
@@ -56,6 +56,6 @@ vault-rm() {
     return 2
   fi
   local path
-  path="$(python3 "$WEYLAND_REPO/scripts/scratch_vault.py" check-rm "$1")" || return 2
+  path="$(python3 "$WEYLAND_REPO/scripts/scratch-vault.py" check-rm "$1")" || return 2
   rm -r -- "$path" && echo "deleted $path (also remove it from Obsidian's vault list if you opened it there)"
 }

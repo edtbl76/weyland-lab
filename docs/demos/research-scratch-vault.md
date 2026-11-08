@@ -91,7 +91,7 @@ the refusal and the delete:
 
 [rogueone]
 ```bash
-python3 /home/edwardmangini/IdeaProjects/weyland/scripts/scratch_vault.py create shortcut-smoke; vault B22; echo "exit=$?"; vault-rm shortcut-smoke
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/scratch-vault.py create shortcut-smoke; vault B22; echo "exit=$?"; vault-rm shortcut-smoke
 ```
 
 Expected: the vault path, then `vault: topic 'B22' must be lowercase letters, digits and hyphens` with `exit=2`,

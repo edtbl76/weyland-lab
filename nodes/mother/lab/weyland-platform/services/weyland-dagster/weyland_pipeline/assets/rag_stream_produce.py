@@ -88,7 +88,8 @@ def _rec(source_path: str, op: str, run_id: str, **kw) -> dict:
 @asset(
     group_name="rag",
     description="Streaming RAG producer: chunk+embed CHANGED docs, publish upserts+tombstones to rag.chunks. "
-                "rag_manifest = change-detection + prune state; embedding is done on the rogueone GPU service.",
+                "rag_manifest = change-detection + prune state; embedding is done by the rogueone rag-embed service "
+                "(CPU since 2026-09-27).",
 )
 def rag_stream_produce(context, postgres: PostgresResource) -> Output[dict]:
     run_id = context.run_id

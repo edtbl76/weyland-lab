@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Print the lab's command roster, generated from docs/runbooks/*.md (the `lab-commands` / `lab-ask` shortcuts).
 
-  usage: lab_commands.py [--root DIR] [--grep WORD ...]      the roster, or only entries matching every WORD
-         lab_commands.py [--root DIR] --prompt QUESTION...  the `claude -p` payload for `lab-ask`
+  usage: lab-commands.py [--root DIR] [--grep WORD ...]      the roster, or only entries matching every WORD
+         lab-commands.py [--root DIR] --prompt QUESTION...  the `claude -p` payload for `lab-ask`
 
 Exit codes: 0 printed; 1 --grep matched nothing (a finding: the runbooks have no such command); 2 could not do the
 job (no runbooks, or runbooks with no commands at all). Runbook: docs/runbooks/research-scratch-vault.md § Shortcuts.

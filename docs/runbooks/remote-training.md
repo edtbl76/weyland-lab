@@ -369,4 +369,6 @@ Then `mlflow.weyland.lab` → experiment `genre-classifier`, model `genre_classi
   ```
   kubectl -n weyland exec deploy/dagster-user-code -- dagster asset materialize --select mart_spotify_audio_export -m weyland_pipeline.definitions
   ```
+  (The CLI writes the parquet but runs on a throwaway instance, so the run is not recorded in Dagster; that is fine
+  for a prereq. Use the UI when the run must show in history, [dagster.md](dagster.md#run-a-job-now).)
   Full contrast: [../query/dbt-marts.md](../query/dbt-marts.md).

@@ -327,6 +327,8 @@ OpenRouter + Ollama need no key).
 ```
 kubectl exec -n weyland deploy/dagster-user-code -- dagster asset materialize --select model_catalog -m weyland_pipeline.definitions
 ```
+This fills the catalog but is not recorded in Dagster (the CLI runs on a throwaway instance), so it does not reset
+`weyland_catalog_job`'s watchdog budget; the schedule's first run does ([dagster.md](dagster.md#run-a-job-now)).
 Then flip on `weyland_catalog_schedule` (cron `0 */6 * * *`) in the Dagster UI (Automation → Schedules).
 
 **Query it** — counts per source:

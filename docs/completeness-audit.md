@@ -18,7 +18,7 @@ Dagster runbook. That raised the question of what else is missing.
 **Method.** The inventory is the B82 application registry (`applications.yaml`): 61 deployed apps plus 41 stores
 and plumbing entries, which `check-app-registry.sh` keeps complete against all 83 Argo apps. For each system:
 - runbook coverage, and whether its commands answer five operator questions (health, logs, why did it fail, restart,
-  restore), measured on the runbook command roster (`scripts/lab_commands.py`, 885 commands);
+  restore), measured on the runbook command roster (`scripts/lab-commands.py`, 885 commands);
 - demo ledger rows, diagrams, and maps;
 - runbook hygiene: host labels, dead paths, retired systems.
 
@@ -39,10 +39,54 @@ the end. Baseline: the full repo-guards suite was green the same day (`ALL_GUARD
     `emit_source_terms_op`). Its last success was 824,247 s ago. The watchdog fired `DagsterJobFailed` and
     `DagsterJobStale` correctly, but at warning severity, and U14 files Linear incidents for critical alerts only. So
     the alerting worked, and the routing let it sit.
+    **Diagnosis (2026-11-08).** Not a sudden break:
+    - the job ran 23-31.5 min every night from 2026-10-02 against the 30-min cap, and failed whenever it ran long
+      (10-04, 10-09..11, 10-13, 10-22..23), then every night from 10-31;
+    - every large step slowed by about the same ~20% (applications 4.6 to 5.5 min, domains 4.3 to 5.4, structured
+      properties 4.2 to 5.5);
+    - it makes one synchronous DataHub write per aspect, 33 steps in sequence. It runs sequentially on purpose:
+      parallel ops each re-imported ~1.1 GB of definitions and ran the pod out of memory;
+    - DataHub reads are fast (GET median 4 ms), so the cost is the volume of synchronous writes.
+
+    **Fix:** `dagster/max_runtime` raised 1800 to 4200, with the reason in `definitions.py`.
+    `tests/test_job_runtime_limits.py` keeps the cap at least 2x the measured runtime (written red first; it also
+    caught my first choice, 3600, as too small). A one-off run with a 4200 launch tag (`35c66452`, owner-launched)
+    **succeeded in 33.2 min** on 2026-11-08. It would have been stopped under the old cap, and the catalog is current
+    again. The watchdog's next run (19:30 UTC) read `status=SUCCESS last_success_age=582s` and fired 0 alerts. The
+    nightly schedule gets the new cap when the Dagster image ships.
+
+    **Possible follow-ups, not done here:** batching the writes (`emit_mcps`, supported by SDK 1.6.0.15) would cut
+    the runtime. Raising `DagsterJobStale` to critical after some days would have opened an incident on day one.
 2. **weyland-tool-server has no runbook.** It is the core RAG/MCP API. All that exists is a perf baseline
    (`perf-baseline.md`) and one guardrails section.
+   **RESOLVED 2026-11-08** by the new `docs/runbooks/tool-server.md`: health in one call, a retrieval check, guard
+   counters, a symptom-to-cause table, logs and restart. Demo row 123. Writing it corrected an assumption: the
+   NodePort has no NetworkPolicy (reads are open on the LAN), and the act routes are protected by the Istio policy
+   `toolserver-act-gateway-only`.
+16. **The tool-server has no service-specific down alert, found 2026-11-08 while writing its runbook.** Only the
+    generic `TargetDown` and `KubePodNotReady` (both warning) cover it, although every agent act goes through it.
+    That is a monitoring gap (Pillar 6), recorded here, not fixed in this docs batch. The same runbook confirmed that
+    natural-language retrieval misses documents that wording-matched search finds (the known B74 limit). It is
+    documented in the runbook and is not a new item.
 3. **The RAG streaming indexer has no runbook**: the `rag_stream_produce` producer, the `rag.chunks` topic, and five
    `rag-index-*` consumers that write the live index.
+   **RESOLVED 2026-11-08** by `docs/runbooks/rag-stream.md`: topology, health (5 consumers, embedder, all five
+   groups' lag, index size), symptom to cause, logs, launching the producer through Dagster, restart, and the
+   destructive rebuild. Live state that day: every group `Stable`, lag 0; 10,540 points in `weyland_chunks`.
+   Also corrected the producer's own description, which still said embedding ran "on the rogueone GPU service" (CPU
+   since 2026-09-27).
+17. **Docs run Dagster through the throwaway CLI, found 2026-11-08.** About 15 docs use `dagster asset materialize` or
+    `dagster job execute` through `kubectl exec`. That runs on a throwaway in-memory instance (the pod has no
+    `DAGSTER_HOME`), so the run is never recorded and the watchdog never sees it. This is fine for checking side
+    effects, wrong where a run must count.
+    - Fixed:
+      - `demos/rag-stream.md` now launches through Dagster, and its `TODO: verify` on this exact question is
+        answered;
+      - `remote-training.md` and `model-gateway.md` now say the run is not recorded;
+      - `linear-backup.md` already said so.
+    - Left for B240, which runs these walkthroughs live: the E2E demos, two of which carry the same `TODO: verify`
+      (`rag-e2e.md`, `streaming-cdc-e2e.md`, also `streaming.md`).
+    - Acceptable as side-effect checks: the remaining demos.
 4. **The DR catalog admits a gap.** `docs/dr.md` line 55: "Not yet catalogued (unverified coverage): Keycloak realm
    and users, Grafana state outside provisioned dashboards, the Uptime Kuma PVC, DataHub metadata, and each app's
    PVCs." This is Pillar 9 for those systems.

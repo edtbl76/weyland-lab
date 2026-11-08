@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Create or check a research scratch vault (the `vault` / `vault-rm` shortcuts).
 
-  usage: scratch_vault.py create <topic>     create or reuse the vault; prints its path
-         scratch_vault.py check-rm <topic>   prints the path only if it is a real scratch vault (the shell deletes it)
+  usage: scratch-vault.py create <topic>     create or reuse the vault; prints its path
+         scratch-vault.py check-rm <topic>   prints the path only if it is a real scratch vault (the shell deletes it)
 
 Environment: SCRATCH_VAULTS (default ~/Documents/scratch-vaults), CLAUDE_OBSIDIAN_HOME (default ~/claude-obsidian).
 Exit codes: 0 done; 2 refused or failed, with the reason on stderr. Runbook: docs/runbooks/research-scratch-vault.md.
@@ -29,7 +29,7 @@ def run_cli(argv: list[str]) -> str:
 
 def main() -> int:
     if len(sys.argv) != 3 or sys.argv[1] not in {"create", "check-rm"}:
-        print("usage: scratch_vault.py create <topic> | check-rm <topic>", file=sys.stderr)
+        print("usage: scratch-vault.py create <topic> | check-rm <topic>", file=sys.stderr)
         return 2
     action, topic = sys.argv[1], sys.argv[2]
     try:
