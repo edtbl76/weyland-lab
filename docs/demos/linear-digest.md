@@ -24,13 +24,23 @@ Then the same module on the real snapshot of 2026-11-07T10:20Z, read from MinIO 
 And the Dagster wiring, loaded in the real user-code image (`weyland-dagster-user-code:git-94e2807e`, the new package
 overlaid): `linear_digest_job` → `linear_weekly_digest`, schedule `40 5 * * 1` America/New_York, RUNNING by default.
 
-## 2. The live post (after the image ships)
+## 2. The live post (RUN 2026-11-08 02:29 UTC, run `d3d50641`)
+
+Shipped with `ship-images.sh` (`git-8498523f`: pipeline #602, PR #315 merged, Dagster and Feast answered a real
+transaction). The on-demand run below: `RUN_SUCCESS` (the asset only succeeds when Slack answers `200 ok`); the owner
+confirmed the message in `#linear-updates` ("It's there"). Counts, from the 2026-11-07T10:20Z snapshot: **closed 9,
+opened 1, High lane 10, stale 17**, exactly what the module computes from that snapshot for the run's time. A live Linear
+query for the same window read closed 10 / opened 2 / High 9 / stale 17: the differences are EMA-248 (closed) and EMA-337
+(created) that evening, after the snapshot. Expected: the digest reads the snapshot by design, and the Monday run reads a
+20-minute-old one.
+
+To repeat it:
 
 Run it now, from the runbook (it posts a real message):
 
 [mother]
 ```
-kubectl exec -n weyland deploy/dagster-user-code -- python3 -c "import json,urllib.request;q='mutation(\$p:ExecutionParams!){launchRun(executionParams:\$p){__typename ... on LaunchRunSuccess{run{runId}} ... on PythonError{message}}}';v={'p':{'selector':{'repositoryLocationName':'weyland_pipeline','repositoryName':'__repository__','jobName':'linear_digest_job'},'runConfigData':{}}};r=urllib.request.Request('http://dagster-webserver.weyland.svc.cluster.local:3000/graphql',data=json.dumps({'query':q,'variables':v}).encode(),headers={'Content-Type':'application/json'});print(json.load(urllib.request.urlopen(r))['data']['launchRun'])"
+kubectl exec -n weyland deploy/dagster-user-code -- python3 -c "import json,urllib.request;q='mutation(\$p:ExecutionParams'+chr(33)+'){launchRun(executionParams:\$p){__typename ... on LaunchRunSuccess{run{runId}} ... on PythonError{message}}}';v={'p':{'selector':{'repositoryLocationName':'weyland_pipeline','repositoryName':'__repository__','jobName':'linear_digest_job'},'runConfigData':{}}};r=urllib.request.Request('http://dagster-webserver.weyland.svc.cluster.local:3000/graphql',data=json.dumps({'query':q,'variables':v}).encode(),headers={'Content-Type':'application/json'});print(json.load(urllib.request.urlopen(r))['data']['launchRun'])"
 ```
 
 **UAT (eyes-on):**
