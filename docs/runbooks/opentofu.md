@@ -90,10 +90,26 @@ The provider's **source type (`port-labs`) ≠ its resource prefix (`port_`)**. 
   ```
   Check the whole repo the way CI does: `bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-tofu-fmt.sh`.
 
-## Proxmox lane (done) — `tofu/proxmox/`
-All **3 guests imported** (brownfield CLI `tofu import <addr> <node>/<vmid>`, e.g. `weyland/103`): CTs
-whisper (103), hermes (104) = `proxmox_virtual_environment_container`; VM mother (101) =
-`proxmox_virtual_environment_vm`. Auth: API token — `PROXMOX_VE_API_TOKEN='root@pam!tofu=<uuid>'` (create in
+## Proxmox lane (done) — `tofu/proxmox/` — RECORD ONLY, never applied
+
+> **How this lane is used (owner, 2026-11-08).** Guests are managed by hand on weyland (`pct` / `qm`). The code and
+> state are a record of what exists, kept in step by hand when a guest is added or removed (edit the `.tf`, then
+> `tofu import` or `tofu state rm`). Nothing applies this directory. The Port, GitHub and Keycloak lanes ARE
+> applied routinely; this one is not. There is no stored tofu token: the `root@pam!tofu` token described below
+> was used once for the import and not kept. The only stored Proxmox credential is the pve-exporter's read-only
+> PVEAuditor token (`monitoring/pve-exporter-secret`, [observability.md](observability.md)). Because `tofu plan`
+> only reads, that token is enough to check the record against Proxmox, but it is not kept in `.env`.
+> Check the live guest set without any token: `pve_guest_info` in Prometheus (command below).
+Guests were imported brownfield (CLI `tofu import <addr> <node>/<vmid>`, e.g. `weyland/103`). **Live on Proxmox as
+of 2026-11-08: only VM mother (101, `proxmox_virtual_environment_vm`) and CT whisper (103,
+`proxmox_virtual_environment_container`)** (checked through `pve_guest_info`). Hermes (CT 104) was destroyed
+2026-07-23 and its resource is gone from the code. **Drift fixed by B239 (2026-11-08):** `openclaw.tf` (VM 100,
+OpenClaw dropped) and `ollama.tf` (CT 102, Ollama moved to rogueone in B79) declared guests that no longer existed,
+so a `tofu apply` would have tried to recreate them. Both files are deleted and both resources removed from state
+(`tofu state rm`, owner, 2026-11-08: "Successfully removed 2 resource instance(s)"). The state now lists exactly
+`proxmox_virtual_environment_vm.mother` and `proxmox_virtual_environment_container.whisper`, the two guests Proxmox
+runs (`tofu state list` needs only the MinIO backend credentials in `scripts/.env`). The live set is checked with
+`pve_guest_info` in Prometheus (`curl -s 'http://192.168.1.243:30909/api/v1/query' --data-urlencode 'query=pve_guest_info'`). Auth: API token — `PROXMOX_VE_API_TOKEN='root@pam!tofu=<uuid>'` (create in
 Datacenter→Permissions→API Tokens, **Privilege Separation OFF**) + `PROXMOX_VE_ENDPOINT='https://weyland:8006/'`;
 provider `insecure = true` (self-signed cert). No phantom here — bpg's source type (`proxmox`) == resource prefix.
 

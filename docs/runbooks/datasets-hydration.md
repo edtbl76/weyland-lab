@@ -25,8 +25,9 @@ Three factories now ride one `DomainConfig`:
 Before building any store's loader, answer two questions (and gate on them):
 1. **Where's the real data source?** — almost always the silver **Parquet** (`parquet/<dataset>/`). Loaders
    read Parquet, not raw, so they inherit the cleaning (name-normalize, null-coerce) and the quality checks.
-2. **Always-on or KEDA'd?** — `kubectl -n data-mesh get scaledobject,deploy | grep -i <store>`. A
-   `ScaledObject` means the loader must trigger/await scale-up; a plain `Deployment` means load directly.
+2. **Is the store running?** — `kubectl -n data-mesh get deploy,sts | grep -i <store>`. Every store is always-on
+   (KEDA was retired 2026-08-22), so load directly; a store that is not ready is a fault to fix first, not a
+   scale-to-zero.
 
 The loader asset `deps` on `datasets_<domain>_parquet`, so it runs after silver exists and the parquet
 **`no_failures`** blocking check gates it — bad silver never hydrates.

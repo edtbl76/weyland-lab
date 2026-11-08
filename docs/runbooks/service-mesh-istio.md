@@ -6,7 +6,8 @@ Traefik stays the front door**). First slice meshed: **weyland-tool-server + the
 Manifests: `nodes/mother/lab/weyland-platform/k8s/istio/`. Istio version: **1.30.1**, Kiali **v2.26**.
 
 **Why PERMISSIVE, not STRICT (slice 1):** two un-meshed clients force it — the tool-server serves external
-**NodePort** MCP clients (Hermes CT 104 + Claude Code), and the backends serve un-meshed **Dagster** (ingestion/
+**NodePort** MCP clients (Claude Code and other off-cluster agents; Hermes on CT 104 too, until its retirement on
+2026-07-23), and the backends serve un-meshed **Dagster** (ingestion/
 eval writes). STRICT would reject both. **STRICT = slice 2** (mesh Dagster, mind its egress to Ollama on
 rogueone + GitHub, then flip backends STRICT).
 

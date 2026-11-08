@@ -10,6 +10,136 @@ artifacts that "run once" but aren't operationally complete. Graded each against
 
 ---
 
+## 2026-11-07 — Docs, diagrams, runbooks and maps audit (B239, EMA-338) — pass 1 findings
+
+**Why now.** `lab-ask` (B187) answered "I want to see why a Dagster run failed" with "not in the index": there is no
+Dagster runbook. That raised the question of what else is missing.
+
+**Method.** The inventory is the B82 application registry (`applications.yaml`): 61 deployed apps plus 41 stores
+and plumbing entries, which `check-app-registry.sh` keeps complete against all 83 Argo apps. For each system:
+- runbook coverage, and whether its commands answer five operator questions (health, logs, why did it fail, restart,
+  restore), measured on the runbook command roster (`scripts/lab_commands.py`, 885 commands);
+- demo ledger rows, diagrams, and maps;
+- runbook hygiene: host labels, dead paths, retired systems.
+
+The scripts produce signals only. **Every finding below was checked by hand**, and the false positives are listed at
+the end. Baseline: the full repo-guards suite was green the same day (`ALL_GUARDS_OK`).
+
+### Tier 1 — core systems you cannot operate from the docs
+
+1. **Dagster has no runbook.** It runs most of the lab's scheduled work. Its commands are scattered: the freshness
+   watchdog is in `observability.md`, and per-job reruns are in `linear-backup.md` and others. Nothing says how to
+   find out why a run failed.
+   **RESOLVED 2026-11-08** by the new `docs/runbooks/dagster.md` and `flow-dagster-runs.md`, with demo row 122. The
+   read-only diagnostic `scripts/lib/dagster_runs.py` covers health, failed runs and why they failed (17 tests).
+   `lab-ask` now answers the question.
+15. **A daily job had been failing for 9 days with no incident, found by the new runbook's demo (2026-11-08).**
+    `datahub_catalog_emit_job` failed every night from at least 2026-11-04, always at its 30-minute
+    `dagster/max_runtime`, cut off in a different step each time (`emit_tag_assignments_op`,
+    `emit_source_terms_op`). Its last success was 824,247 s ago. The watchdog fired `DagsterJobFailed` and
+    `DagsterJobStale` correctly, but at warning severity, and U14 files Linear incidents for critical alerts only. So
+    the alerting worked, and the routing let it sit.
+2. **weyland-tool-server has no runbook.** It is the core RAG/MCP API. All that exists is a perf baseline
+   (`perf-baseline.md`) and one guardrails section.
+3. **The RAG streaming indexer has no runbook**: the `rag_stream_produce` producer, the `rag.chunks` topic, and five
+   `rag-index-*` consumers that write the live index.
+4. **The DR catalog admits a gap.** `docs/dr.md` line 55: "Not yet catalogued (unverified coverage): Keycloak realm
+   and users, Grafana state outside provisioned dashboards, the Uptime Kuma PVC, DataHub metadata, and each app's
+   PVCs." This is Pillar 9 for those systems.
+5. **The roster cannot answer restore questions.** `lab-ask` reads only `docs/runbooks/`, but the restore commands
+   live in `docs/dr.md` (13 commands).
+
+14. **Infrastructure-as-code drift, found while fixing Tier 2 on 2026-11-08.** `tofu/proxmox/` still declares
+    OpenClaw (`openclaw.tf`, VM 100) and Ollama (`ollama.tf`, CT 102). Proxmox runs only mother (101) and whisper
+    (103), checked through `pve_guest_info` in Prometheus. A `tofu apply` in that directory would try to recreate both
+    retired guests. `opentofu.md` also still listed Hermes (CT 104) among the imported guests.
+    **RESOLVED 2026-11-08:**
+    - both `.tf` files were deleted, and the owner ran `tofu state rm` for both resources; the state now lists
+      exactly mother and whisper;
+    - `opentofu.md` now says what the lane really is: a record only, never applied, with guests managed by hand on
+      weyland and no tofu token stored (the Port, GitHub and Keycloak lanes are the applied ones).
+
+    Follow-up, small: the owner's `tofu plan` printed a bpg deprecation warning for `enabled = false` on a
+    `network_device` in `mother.tf`. It is harmless today and will break on a future provider release.
+
+### Tier 2 — stale docs that mislead
+
+6. **Retired systems described as live.** Each of these was checked; it is a current-tense instruction or claim,
+   not history:
+   - `model-gateway.md` § 4 "Wire Hermes (CT 104)" (Hermes retired 2026-07-23);
+   - `argocd.md`:33/38, which lists `keda` and `keda-http-add-on` among the Helm apps (KEDA retired 2026-08-22);
+   - `datasets-hydration.md`:28 ("Always-on or KEDA'd?" with a `scaledobject` check);
+   - `trino.md`:5 ("revisit KEDA");
+   - the Hermes consumer and bot-owner claims in `unleash.md`:5-6, `model-serving-ollama.md`:29,
+     `service-mesh-istio.md`:9, `glitchtip.md`:75, `cube.md`:27 and `uptime-kuma.md`:89-91;
+   - demo row **E11**, whose agent walkthrough runs through Hermes.
+7. **A removed component is still documented.** `k8s/lightdash/trino-noauth-proxy.yaml` was deleted 2026-10-23
+   (B233), but `lightdash.md` and `write-surfaces.md` still describe Lightdash reaching Trino through it.
+8. **Wrong paths: 1 real, 8 cleared on reading (corrected 2026-11-08 in pass 2).** The real one is `cube.md`'s
+   follow-up, which still said Cube was `kubectl apply`-ed and not in Argo (it is: `subdir-apps.yaml`). It also
+   listed MetricFlow as not done (it is). The other 8 read fine in context:
+   - already described as gone: `flink.md` ("it was …") and `mcp-gateway.md` ("obsolete (removed)");
+   - deliberately not in the repo: `uptime-kuma.md`'s `kuma-backup.json` is gitignored on purpose (it holds a dev
+     password);
+   - paths in other repos: `package.ts` (the upstream AI-DLC clone) and `docs/arch/…` (the STUD.io repo);
+   - a hypothetical: `woodpecker-step-menu.md`'s `.woodpecker/build.yml`;
+   - prose, not a path: "scripts/agents" in `code-intelligence.md`.
+
+   Lesson for the path guard (Closing Gaps below): a path in prose is not a claim that it exists. The guard must
+   check only paths written as instructions, or allow a marker.
+
+### Tier 3 — coverage gaps in smaller systems
+
+9. **No runbook:**
+   - Realm of Agents (24 agents);
+   - lakeFS (only a secret-escrow note);
+   - APISIX;
+   - Neo4j (sections in hydration and mesh docs only);
+   - Kokoro (a demo only);
+   - six thin UIs: OpenSearch Dashboards, Headlamp, NeoDash, A2A Inspector, Promptfoo, docs-site.
+10. **Thin runbooks.** `keycloak.md` has no health, log or troubleshooting command (the IdP for every UI), and
+    `cube.md` has a single command.
+11. **Not on any map:** Sourcebot, Zoekt, Promptfoo, Pyroscope, Sealed Secrets. `check-maps.sh` checks CI steps and
+    external systems only, so nothing catches this.
+12. **Demos.**
+    - No demo at all: Headlamp, OpenCost, Pyroscope.
+    - The 12 end-to-end walkthroughs (E1–E12) are all PARTIAL and have never had a live run.
+    - Rows 36, 47 and 48 are PARTIAL.
+
+### Tier 4 — mechanical hygiene
+
+13. **Host labels: mostly not a finding (corrected 2026-11-08).** 350 fenced command blocks have no host label. But
+    the owner ruled on 2026-10-03 that kubectl-only commands get **no** label, because kubectl works from either host
+    (memory `feedback-kubectl-runs-on-mother`). So an unlabelled kubectl block is correct. Only blocks that depend on
+    a host's files or tools need a label. The remaining gap is a subset of the 350, not all of them, and it should be
+    counted with kubectl-only blocks excluded before anything is changed. The roster prints these as `[any]`, which
+    is accurate.
+
+### What would keep these gaps closed (Closing Gaps: the audit question)
+
+- A `runbook:` field per deployed app in `applications.yaml`, enforced by `check-app-registry.sh`. The registry is
+  already the source of truth that guard reads.
+- `check-maps.sh` extended so that every deployed app appears on at least one map.
+- ~~A runbook path guard~~: dropped on evidence. 8 of the 9 hits were legitimate prose (other repos, gitignored files,
+  history, hypotheticals), so a guard would mostly block correct docs. The two guards above cover the gaps that
+  matter.
+
+### False positives (checked and cleared)
+
+- `keda.md` and `agent-hermes.md` mention retired systems, but both are bannered RETIRED at the top.
+- Some "dead paths" are short forms that exist under a service directory (`scripts/feast_setup.py` is in
+  `services/weyland-dagster/scripts/`), or are stems of real files (`machine-inv-drift` → `.service`/`.timer`).
+  `docs/code` in `embedding-model-swap.md` is prose. `scripts/claude-obsidian.py` is in the external checkout.
+- Grafana, LiteLLM, Bifrost, SonarQube, n8n, Sourcebot/Zoekt, Ray, the scan suite, the store-scaler, the guard
+  services, Port's exporter and forward-auth all looked runbook-less by name. Each has its home in a runbook under
+  another name (`observability.md`, `model-gateway.md`, `mcp-gateway.md`, `code-quality.md`, `alert-to-linear.md`,
+  `code-intelligence.md`, `remote-training.md`, `port-agent-easy-button.md`, `guardrails.md`, `port.md`,
+  `keycloak.md`).
+- History is not drift: `observability.md`'s 2026-06 Jaeger phase and `code-quality.md`'s old Hermes scan results
+  are dated records.
+
+---
+
 ## B69 CURRENT REGISTER — re-audit 2026-07-17 (supersedes the 2026-06-26 snapshot below)
 
 Fresh 3-agent sweep (secrets+gitops · monitoring · backup/trigger/docs) graded against the DoD **operational-completeness** pillar (reproducible · secret-restorable · monitored · backed-up · triggered). The 2026-06-26 register below is kept for history; several items are now RESOLVED (data-mesh backups, all schedules `RUNNING`, Kuma backup committed, Grafana recipe codified) or OBSOLETE (Ollama→rogueone B79, OpenClaw dropped). Current open gaps, prioritized into waves:

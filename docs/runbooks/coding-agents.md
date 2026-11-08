@@ -132,6 +132,24 @@ scaffolds, non-thinking, native function-calling) is the one model worth pulling
 (desktop-freeze risk on rogueone). Also raise `OLLAMA_CONTEXT_LENGTH` on rogueone first (4096 is unusable for agentic
 work). Until then, **hosted-direct (Gemini free) is the driver; local is a $0 offline convenience for light tasks only.**
 
+## Shortcuts (rogueone shell)
+
+`source /home/edwardmangini/IdeaProjects/weyland/scripts/lab-shortcuts.sh` in `~/.bashrc` adds:
+
+| Command | What it does |
+|---|---|
+| `lab-commands [WORD ...]` | the lab's command roster, generated from the runbooks, or the entries matching every word |
+| `lab-ask "QUESTION"` | "I want to do X in the lab, what does this?": the runbook command, its host and its section |
+| `vault TOPIC` / `vault-rm TOPIC` | create and open, or delete, a research scratch vault |
+
+Details: [research-scratch-vault.md § Shortcuts](research-scratch-vault.md#shortcuts).
+
+## Research scratch vault (claude-obsidian)
+
+For a research task that spans several sources, a throwaway claude-obsidian vault holds cited notes that survive
+`/compact`; the session answers from them and the folder is deleted at the end (B187). Setup, use and safety:
+[research-scratch-vault.md](research-scratch-vault.md).
+
 ## Harnesses — all proven in-hand
 
 Each verified end-to-end (writes both files, pytest green), all `$0`, same key-from-`.env` discipline. opencode / Cline /

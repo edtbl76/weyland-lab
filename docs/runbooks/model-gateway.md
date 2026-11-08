@@ -35,7 +35,7 @@ Three lines:
 ```
 GEMINI_API_KEY=...
 OPENROUTER_API_KEY=...
-LITELLM_MASTER_KEY=<any random string Hermes/consumers present to the proxy>
+LITELLM_MASTER_KEY=<any random string the consumers present to the proxy>
 ```
 ```
 kubectl delete secret litellm-secrets -n weyland --ignore-not-found
@@ -273,7 +273,7 @@ kubectl exec -n monitoring "$(kubectl get pod -n monitoring -l app.kubernetes.io
 
 ## 3. Cut-off valve (human-only; agent cannot reach it)
 
-The valve lives on mother (k3s control plane) — Hermes has no kubectl and `/mcp-act` doesn't expose it.
+The valve lives on mother (k3s control plane) — no agent has kubectl, and `/mcp-act` doesn't expose it.
 ```
 ./valve.sh close     # scale to 0 — stops all off-LAN model calls (drops in-flight)
 ./valve.sh open      # scale to 1
@@ -288,12 +288,11 @@ whole time replicas > 0, and LiteLLM is the permanent agentic lane, so it was li
 could not see the Bifrost-routed money, so it never fired while $12.44 was spent in 14 days.
 `scripts/tests/litellm-routes.bats` guards the split: every `openai/` route must point at Bifrost.
 
-## 4. Wire Hermes (CT 104) — optional, default stays local
+## 4. ~~Wire Hermes (CT 104)~~ — RETIRED
 
-Add a `custom` provider via `hermes model` (writes the correct schema — do **not** hand-edit `config.yaml`):
-base_url `http://192.168.1.243:30400/v1`, api_key = `LITELLM_MASTER_KEY`, model e.g. `gemini-flash`,
-api_mode `chat_completions`. Default stays `qwen3-coder:30b`; escalate a turn with `/model <name> --provider <n>`.
-**Never** add it to `fallback_providers` or the `auxiliary` lanes (those must stay local — see §6).
+Hermes was decommissioned on 2026-07-23 (CT 104 destroyed; [agent-hermes.md](agent-hermes.md) is kept for history).
+The operator lane it held is now the B66 operator ([operator.md](operator.md)). There is nothing to wire here; the
+section number is kept so the later sections' numbers stay stable.
 
 ---
 
@@ -343,7 +342,11 @@ account-level) · ollama 6 (6 free).
 
 ---
 
-## 6. Auxiliary lanes pinned local (Hermes safety, done 2026-06-17)
+## 6. Auxiliary lanes pinned local (Hermes safety, done 2026-06-17) — HISTORY
+
+> Hermes was retired on 2026-07-23 and CT 104 destroyed, so the config and the `pct exec 104` check below no longer
+> apply. Kept as the record of why background lanes were pinned local; the rule itself (nothing background leaves the
+> LAN by default) still holds for today's agents.
 
 Independent of the gateway but part of the same work: Hermes's `auxiliary.*` tasks defaulted to
 `provider: auto`, which could route background calls (title-gen, etc.) off-LAN to Nous/cloud. Pinned the

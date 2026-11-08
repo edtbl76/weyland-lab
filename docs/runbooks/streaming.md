@@ -87,5 +87,6 @@ stay in the topic (mixed history).
 ## Pending follow-ons
 
 Strimzi on-demand learning lane (single-node KRaft for the operator/CRD experience; temporarily 3-broker to
-observe ISR — which Redpanda's Raft-per-partition can't teach) + a **KEDA consumer-lag scaler** (the canonical
-KEDA+Kafka pattern — scale a consumer on `datasets.*`/`cdc.*` lag). See memory `streaming-tier-redpanda-strimzi`.
+observe ISR — which Redpanda's Raft-per-partition can't teach). See memory `streaming-tier-redpanda-strimzi`.
+(A KEDA consumer-lag scaler was also listed here; it is dropped: KEDA was retired on 2026-08-22 and is a rejected
+option, [keda.md](keda.md).)

@@ -91,8 +91,8 @@ Add to `k8s/argocd/applications/helm-apps.yaml` (pin `targetRevision` to the ver
 ## 5. Trino auth-strip proxy (HISTORY — not needed since B233)
 
 > **Since B233 (2026-10-23)** Trino authenticates (a password over HTTPS on 8443), so Lightdash sends its own
-> `lightdash` login straight to Trino (§6 step 3, [trino.md § Authentication](trino.md#authentication-b233-2026-10-23)). The proxy below stays deployed until
-> B233's stage 3 removed it (2026-10-23). The rest of this section is why it existed.
+> `lightdash` login straight to Trino (§6 step 3, [trino.md § Authentication](trino.md#authentication-b233-2026-10-23)). The proxy below was removed by
+> B233's stage 3 (2026-10-23); its manifest is gone from the repo. The rest of this section is why it existed.
 
 Lightdash's Trino connector **forces a password** (mandatory form field) → it sends HTTP **Basic auth**. Trino has
 **no authenticator** (deliberate LAN no-auth — dbt/DataHub/Superset all connect passwordless), and Trino returns
@@ -100,10 +100,10 @@ Lightdash's Trino connector **forces a password** (mandatory form field) → it 
 other passwordless client. So Lightdash points at a tiny **nginx proxy that strips the `Authorization` header** and
 forwards to Trino — Trino then sees only `X-Trino-User` (the same no-auth path dbt uses).
 
-Manifest: `k8s/lightdash/trino-noauth-proxy.yaml` (ConfigMap + Deployment + Service `trino-noauth.data-mesh.svc`).
-It's a raw manifest (not an Argo app) — `kubectl apply` it, restart the pod on any ConfigMap change.
+It was `k8s/lightdash/trino-noauth-proxy.yaml` (ConfigMap + Deployment + Service `trino-noauth.data-mesh.svc`),
+deleted in commit `97b5e99c`. The gotchas stay useful for any header-rewriting proxy in front of a meshed service.
 
-**Two gotchas baked into it:**
+**Two gotchas it taught:**
 - **Strip `Authorization`** (`proxy_set_header Authorization "";`) — the whole point.
 - **Do NOT override `Host`.** An early `proxy_set_header Host $host` forwarded `Host: trino-noauth…`; Istio's Envoy
   routes the outbound hop by `:authority` and expects `trino.data-mesh.svc…` → mismatch → **503**. Leave Host to

@@ -24,7 +24,7 @@ This is the part to be honest about, because the mesh already has a lot of overl
 
 **Cube's distinctive value in THIS stack** (be clear — much of it overlaps dbt + Lightdash):
 1. **A governed metrics API for NON-BI consumers.** Lightdash/Superset are BI *UIs* — a human clicks charts. Cube
-   is an *API*: an app, an **agent (Hermes)**, or an LLM can ask "avg life expectancy in country X" over REST/GraphQL
+   is an *API*: an app, an **agent** (the operator, a Realm agent), or an LLM can ask "avg life expectancy in country X" over REST/GraphQL
    and get the *same governed number* a dashboard would. That's the thing nothing else here does.
 2. **One metric definition, many protocols.** `avg_danceability` is defined once; SQL clients, a React app, and a
    GraphQL query all get the identical `avg(danceability)` compiled to Trino — no drift.
@@ -106,7 +106,7 @@ resolved from available columns". Dimensions select normally; measures go throug
 ---
 
 ## 5. Follow-ups
-- Pin the image to a digest; register an **Argo Application** (`k8s/argocd/applications/cube.yaml`) — currently
-  `kubectl apply`-ed, not GitOps-managed.
-- **MetricFlow** (the other half of B1.7) — `semantic_models` + `metrics` in the dbt project.
+- Pin the image to a digest: `k8s/cube/cube.yaml` still runs `cubejs/cube:latest` (checked 2026-11-08). The
+  **Argo Application** part is done: `cube` is in `k8s/argocd/applications/subdir-apps.yaml`.
+- ~~**MetricFlow** (the other half of B1.7)~~ — done: `semantic_models.yml` is in the dbt project.
 - Wire **Superset → Cube SQL API** so BI consumes governed metrics, not raw Trino. See [[dbt-transform-tier]], [[cube-semantic-layer-b1.7]].

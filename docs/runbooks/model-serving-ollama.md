@@ -26,7 +26,8 @@ reference — they still apply to the CPU-offloaded portion of any model that ov
   [§ Front door](#front-door--token-proxy-b211-2026-10-22).
 - **Hardware:** RTX 5000 Ada (16 GB VRAM) + 128 GB RAM. Models that fit in VRAM run fully on GPU;
   larger models (e.g. 30B@Q4 ≈ 20 GB) offload the overflow layers to CPU/RAM.
-- **Serves:** the eval-judge panel, weyland-tool-server RAG (`/context/ask`), Open WebUI, and Hermes.
+- **Serves:** the eval-judge panel, weyland-tool-server RAG (`/context/ask`), Open WebUI, and the B66 operator
+  (`qwen2.5:7b-operator`). Hermes was a consumer until its retirement on 2026-07-23.
 
 ## Access — get a shell on rogueone
 rogueone is a first-class LAN host with a normal login (no `pct` — that was the CT-102 era):
@@ -361,12 +362,12 @@ ollama ps
   resident model.
 - **Prompt caching (free win):** llama.cpp caches the prompt-prefix KV, so an unchanged system
   prompt is prefilled **once** — later turns reuse it (we saw turn-2 prefill drop from 13.5K tokens
-  to ~111). The cache **survives a Hermes restart** (it lives here, keyed by prefix + resident model)
+  to ~111). The cache **survives a client restart** (it lives here, keyed by prefix + resident model)
   but **dies on Ollama restart or model eviction** — so don't churn this service if you want warm
   turns. Any cross-model request (a different model) evicts + cold-loads.
 
 > **Consumer pairing:** a client's declared context length **must match** `OLLAMA_CONTEXT_LENGTH`.
-> If a client thinks the window is larger (e.g. Hermes auto-detecting the model's 262K), it packs
+> If a client thinks the window is larger (e.g. a client auto-detecting the model's 262K, as Hermes did), it packs
 > past 64K and Ollama **silently drops the overflow**. Keep both equal.
 
 ## Model architecture note (matters when CPU-offloaded)

@@ -2,7 +2,8 @@
 
 Uptime monitoring + status page at `kuma.weyland.lab`. **37 monitors** across the platform (live count, 2026-07-17). Two notifiers,
 both default-on: **Port.io webhook** (→ `uptime_monitor` blueprint, catalog/status) and **direct Telegram**
-(active paging — reuses the shared Telegram bot token (was Hermes's; the B66 operator inherits it); sending doesn't conflict with the operator consuming). Telegram is
+(active paging — a Telegram bot token, set up with Hermes's; which bot it is now is under Telegram paging below;
+sending doesn't conflict with the operator consuming). Telegram is
 the paging path on purpose — independent of any agent that could itself fail (see B45). Has its own built-in
 auth (set on first login). Single container, SQLite state on a PVC.
 
@@ -86,9 +87,11 @@ failed (an unreachable host, host placement drift, Port emit/verify, a push-inte
   `heartbeat.ping`) maps to the blueprint.
 
 ## Telegram paging
-- 2nd notifier (default-on): Telegram, **reusing the Hermes bot token** + your chat ID. Sending is fine
-  alongside Hermes (only *receiving*/getUpdates conflicts — which is why `getUpdates` returns nothing while
-  Hermes owns the bot). Get your chat ID from **@userinfobot** (DM = your numeric user id), not getUpdates.
+- 2nd notifier (default-on): Telegram, a bot token + your chat ID. It was set up with the Hermes bot's token
+  (Hermes retired 2026-07-23); the B66 operator runs on a freshly minted bot ([operator.md](operator.md) § Bot mint),
+  so check which token the notifier holds in Kuma (Settings → Notifications). Sending is fine alongside any
+  receiver; only *receiving* (`getUpdates`) conflicts, and the operator pod owns receiving on its bot. Get your chat
+  ID from **@userinfobot** (DM = your numeric user id), not `getUpdates`.
 
 ## Deploy (first time)
 ```

@@ -29,13 +29,21 @@ Proxmox, SaaS). Part of the IaC track (B58).
   `sonarqube`, `unleash`, `uptime-kuma`, `litellm`) + loose-file apps via include-globs (`postgres`, `qdrant`,
   `weaviate`, `neo4j`, `neodash`, `weyland-tool-server`, `apisix`) + raw-extras (`loki-rules`,
   `monitoring-extras`, `opencost-ingress`). Files: `applications/{subdir,loose}-apps.yaml`, `raw-extras.yaml`.
-- **Helm** (8, multi-source — chart from helm repo + values from git via `$values`): `loki`, `alloy`, `tempo`,
-  `kube-prometheus-stack`, `opencost`, `woodpecker`, `keda`, `keda-http-add-on`. File: `applications/helm-apps.yaml`.
+- **Helm** (19 as of 2026-11-08, multi-source — chart from helm repo + values from git via `$values`): `loki`, `alloy`,
+  `tempo`, `kube-prometheus-stack`, `opencost`, `woodpecker`, `port-k8s-exporter`, `port-agent`, `opensearch`,
+  `opensearch-dashboards`, `datahub-prerequisites`, `datahub`, `datahub-gms-secret`, `superset`, `lightdash`,
+  `gatekeeper`, `jupyterhub`, `flink-operator`, `sealed-secrets`, `headlamp`. File: `applications/helm-apps.yaml`
+  (`grep -E '^\s+name: ' …/helm-apps.yaml` lists them). `keda` and `keda-http-add-on` were removed when KEDA was
+  retired (2026-08-22, [keda.md](keda.md)).
 - **NOT onboarded (deliberate — still running, just not GitOps-tracked):** istio (istioctl), argocd (self),
-  port-agent (Port outbound-polling action agent), traefik/coredns/rbac (k3s system), code-quality (run-once Jobs). **headlamp onboarded 2026-09-28** (`headlamp` app in `helm-apps.yaml`: chart 0.42.0 + its Ingress and admin token), and `trino-noauth-proxy` is now the `lightdash` app's third source — both found outside Argo by the B198 placement inventory.
+  traefik/coredns/rbac (k3s system), code-quality (run-once Jobs). **headlamp onboarded 2026-09-28** (`headlamp` app
+  in `helm-apps.yaml`: chart 0.42.0 + its Ingress and admin token), found outside Argo by the B198 placement
+  inventory. (The `trino-noauth-proxy`, adopted as the `lightdash` app's third source the same day, was removed with
+  B233 stage 3 on 2026-10-23: Trino authenticates every caller now.)
 
 ## Hard-won gotchas
-- **Server-Side Apply for big CRDs.** keda `scaledjobs` + kube-prometheus-stack `prometheuses`/`alertmanagers`
+- **Server-Side Apply for big CRDs.** kube-prometheus-stack `prometheuses`/`alertmanagers` (and, before KEDA's
+  retirement, keda `scaledjobs`)
   CRDs exceed the 256 KB `last-applied-configuration` annotation under client-side apply →
   `metadata.annotations: Too long`. Fix = `syncPolicy.syncOptions: [ServerSideApply=true]` (SSA doesn't write
   that annotation). Set on **all** helm apps.

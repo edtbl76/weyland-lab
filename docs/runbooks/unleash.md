@@ -2,8 +2,9 @@
 
 Self-hosted OSS feature flags at `unleash.weyland.lab`. The **call:** LaunchDarkly is SaaS ($, breaks $0) →
 Unleash is the free self-hostable pick. **Use case** in weyland: centralize runtime toggles that today live in
-env/config — guardrail mode (shadow/flag/block, B14/B35), model/RAG experiments, Hermes feature gates + kill
-switches. Consumers are Python (tool-server, Hermes) → use the **Python SDK** when wiring real flags.
+env/config — guardrail mode (shadow/flag/block, B14/B35), model/RAG experiments, agent feature gates + kill
+switches. Consumers are Python (the tool-server, the operator) → use the **Python SDK** when wiring real flags. (The
+original plan named Hermes, retired 2026-07-23.)
 
 - Manifest: `k8s/unleash/unleash.yaml` (Deployment + Service + Ingress, Traefik TLS). **Stateless** — all state
   in Postgres, so no PVC and rolling updates are fine.

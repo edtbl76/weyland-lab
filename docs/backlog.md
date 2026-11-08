@@ -191,6 +191,20 @@ applied each push within one 30 s check instead of ~3.5 min (`down` ~5 min → u
   POST to Slack). 9 DR: N/A by design: the digest is stateless (it reads the B194 backup, already in `dr.md`) and its one
   secret is rebuildable from the Slack app per `secrets.md`.
 - **B238** — **Extend Trunk Flaky Tests to the other active repos (survey first)** — **LOW (2026-11-07, Linear EMA-337; split out of B189 when the owner closed it).** B189 wired weyland-lab's CI to Trunk; this is its phase 4 for the 8 other active repos in `repos.yaml` (Algopedia, ServiceTransformation, emangini-tailwind-nextjs-contentlayer, startme-curator, freejack, MyBodyGraph, OJayFloyd, grkit). None runs on the lab's Woodpecker, so it starts as a survey per repo (tests? CI? where?), then a wire / don't-wire decision with a reason, then wiring the ones worth it, each in its own Trunk collection with weyland's fail-closed upload. The span budget is the constraint: Trunk Free is ~1M results a month across all repos and weyland-lab alone uses ~600k. stud.io is separate (EMA-336, deferred). Full spec in Linear EMA-337.
+- **B239** — **Docs, diagrams, runbooks and maps coverage audit (2026-11), then fix in the owner's order** — **HIGH (2026-11-07, Linear EMA-338; owner: "This is a good time to do a docs and diagrams and runbook and maps audit").** Prompted by `lab-ask` (B187) answering "why did a Dagster run fail?" with "not in the index": there is no Dagster runbook. Pass 1 only reports, and every finding is verified before it is listed:
+  - a coverage matrix: every deployed system against a runbook, a demo row, a flow diagram and its map;
+  - operator questions per system checked against the runbook command roster (keyword match first, `lab-ask` only when ambiguous);
+  - runbook hygiene (unlabelled hosts, dead file references, retired systems mentioned as live);
+  - triage of the PARTIAL demo rows;
+  - the full guard suite as the baseline.
+
+  Findings go in a new dated section of `docs/completeness-audit.md`. Pass 2 fixes them in the order the owner picks, starting with `docs/runbooks/dagster.md`. Full spec in Linear EMA-338.
+- **B240** — **DR catalog gaps (Keycloak, Grafana, Kuma, DataHub, app PVCs) and the first live run of the E1–E12 walkthroughs** — **MEDIUM (2026-11-08, Linear EMA-339; split out of B239 with the owner's go: operations work, not docs).** The B239 audit found `docs/dr.md` saying of itself that Keycloak's realm and users, Grafana state, the Uptime Kuma PVC, DataHub metadata and the app PVCs are "not yet catalogued (unverified coverage)". It also found all twelve end-to-end walkthroughs (demo rows E1–E12) PARTIAL and never run live; E11 still routes through Hermes. Scope:
+  - a `dr.md` row or a written "reproducible" reason for each of those systems and every PVC;
+  - a non-destructive restore drill per new row;
+  - a live run of each walkthrough.
+
+  Full spec in Linear EMA-339.
 - **B236** — **Investigate IcePanel (free tier): hosted C4 diagramming vs the lab's LikeC4 model** — **DONE 2026-11-03 — DON'T ADOPT** (HIGH, ↑ Medium→High 2026-11-03 rebalance, to give High workable room; was MEDIUM 2026-10-29, Linear EMA-324; raised by the owner). **Verdict: [concepts/icepanel.md](concepts/icepanel.md).** IcePanel's own pricing page (read 2026-11-03) settles it:
   - **It doesn't fit:** the free plan holds up to 100 model objects, against the lab model's 156 elements.
   - **Its features are thinner than LikeC4's:** 1 flow per diagram and 2 tag groups.
@@ -347,7 +361,7 @@ bumps add no stateful system.
 - **B184** — **Adopt Slack (free) + audit every Slack integration across the platform** — **DONE 2026-11-05** (was HIGH, 2026-09-25, Linear EMA-242). **Phase 1 (adopt + audit + wire) and phase 2 (on-call) both live; DoD in the detail section.** Free workspace; one custom app `weyland` whose incoming webhooks every webhook tool shares, plus the Linear and GitHub apps: 3 of the free plan's 10 installation slots. The 25-tool audit and routing table are in `concepts/slack.md`. Alertmanager and Kuma post to `#alerts`, Argo CD and Woodpecker failures to `#deploys`, GlitchTip to `#errors`, Linear to `#linear-updates`, GitHub to `#github`. Telegram stays the pager. The alert → Linear requirement was met by U14. **Phase 1 LIVE 2026-11-05:** Alertmanager (fire → resolve), Kuma, Argo CD (in-cluster controller test `200 OK`), GlitchTip and GitHub all proven; Linear connected (first post on the next completion); Woodpecker waits for a real red pipeline. **Found and fixed on the way:** GlitchTip had silently dropped EVERY error since at least 2026-10-31 (its psycopg pool kept 2 idle DB connections that died behind the Istio sidecar; every first event after a quiet spell 500'd). Fixed with `DATABASE_POOL_MIN_SIZE=0`, proven after a 30-min idle. Also: the `#deploys` webhook URL leaked into a session transcript through `argocd admin notifications` debug output (owner declined rotation; runbook and memory now say to filter it). Left: phase 2 = the incident tool + one exercised pager rotation. A free Slack workspace for the lab — useful even purely as a demo surface, since nearly every platform tool ships a Slack integration. Adopt it (free-plan limits verified first — an app cap would decide which integrations earn a slot), then audit EVERY component for its Slack integration (send/receive, overlap with today's Telegram alerting, verdict), then wire the chosen set with a channel map + demos. Found in the B119 integrations walk. See detail below.
 - **B185** — **Time per Linear issue: agent session time (lane 1) + owner time via ActivityWatch (lane 2)** (re-scoped 2026-10-12) — **DONE 2026-10-23** (HIGH, 2026-09-25, Linear EMA-243). **Lane 1 DONE 2026-10-12; lane 2 is Clockify only — ActivityWatch KILLED 2026-10-23 on its trial's verdict.** **Verdict:** CPU passed (0.39% average, 0.79% peak, limit 1%); memory failed — 27 of 53 samples over the 150 MB budget, peak 180 MB, growing with uptime (74 → 127 MB over 3.5 days, 160 → 180 MB after a restart); it attributed ~6.5 h in 10 days and its id matcher also counted non-issues (`UTF-8`, `M1-1`); Clockify recorded 0.4 min. Owner: kill it. **Done:** units disabled and removed (repo + installed), `placement.yaml` rows and the LikeC4 element removed, `~/.local/opt/activitywatch-v0.14.1` deleted; `owner_time.py` rewritten Clockify-only — never contacts ActivityWatch, records it `retired`, so the report and Port show its column unknown, never 0 (tests written first, red then green; live: `owner_time: 1 issue(s); Clockify ok; ActivityWatch retired`); the 16 MB database kept, restic-backed, as history. Lane 1 re-verified on real logs: EMA-237 (B179) 13.6 agent hours. Docs: runbook § Owner time (verdict), demo RUN 2026-10-23 + ledger 95b, flow diagram, arch, api, dr, schedules, the producer unit and backup-path comments. Left as is: Port's Time per Issue card "Owner hours, ActivityWatch" (now empty; removing it is a tofu change if wanted); the Chrome extensions are the owner's to remove. **Follow-up:** the other owner-time options (Wakapi, deriving it from Linear + git) are **B235** (EMA-323, Medium spike), filed by the owner at close. Lane 1: agent time per issue, attributed inside B62's producer from what the prompts name, plus `issue_time_report.py` (lead and cycle time from the B194 snapshot); it also fixed B62's ~2.7x token overcount and counted subagent logs. Runbook `docs/runbooks/issue-time.md`, demo row 95. Lane 2: the owner's own time from ActivityWatch (localhost user units) and **Clockify** (in scope by owner decision 2026-10-15: the manual timer, whose extension puts an `[EMA-###]` timer on every Linear issue; it was previously rejected as a manual timer), joined into the report and Port; the ActivityWatch trial is killed above 1% CPU or 150 MB RSS. Rize and Reclaim are paid. See detail below.
 - **B186** — **Configure GitLens in VS Code (Community; Pro only if it earns its cost)** — **WON'T DO (2026-09-26, Linear EMA-244 canceled — not used enough to pay for; Pro's first-year deal doesn't change that, since the full price after year one won't be kept up; was HIGH 2026-09-25).** VS Code is now a harness host (Codex + Claude Code extensions); GitLens is its git layer. Community is free and covers Commit Graph / Visual File History / Worktrees on public + local repos (most lab repos are public); Pro is ~$8/user/mo billed annually (~$96/yr — not $0, the owner's call) and mostly duplicates what's in place (PR triage, Claude/Codex AI) and it has **no Linear integration**. Upgrade only if a private repo needs it. See detail below.
-- **B187** — **Spike: Claude + Obsidian workflow (claude-obsidian, with graphify's Obsidian export)** — **HIGH (↑ Medium→High 2026-10-20 rebalance, for balance not urgency; was MEDIUM) (2026-09-25, Linear EMA-245).** Get hands-on competent with the Claude Code + Obsidian knowledge workflow (`AgriciDaniel/claude-obsidian`: ingest → linked, cited notes → vault-grounded Q&A → answers saved back), plus graphify's opt-in `--obsidian` export of the code graph. Doubles as evidence for B182 — Obsidian's Markdown + wikilinks is the same format as Claude's memory and Basic Memory. See detail below.
+- **B187** — **Spike: Claude + Obsidian workflow (claude-obsidian, with graphify's Obsidian export)** — **DONE 2026-11-07: research scratch vault KEPT as a habit; agent-memory window and graphify export SKIPPED (`docs/runbooks/research-scratch-vault.md`).** HIGH (↑ Medium→High 2026-10-20 rebalance, for balance not urgency; was MEDIUM) (2026-09-25, Linear EMA-245). Get hands-on competent with the Claude Code + Obsidian knowledge workflow (`AgriciDaniel/claude-obsidian`: ingest → linked, cited notes → vault-grounded Q&A → answers saved back), plus graphify's opt-in `--obsidian` export of the code graph. Doubles as evidence for B182 — Obsidian's Markdown + wikilinks is the same format as Claude's memory and Basic Memory. See detail below.
 - **B188** — **PostHog for the product apps (deferred until OJay Floyd / MyBodyGraph have users)** — **LOW · HELD (2026-09-25, Linear EMA-246, `parked:held`).** PostHog's free cloud tier (analytics, session replay, errors → Linear issues) is the natural analytics layer for the product apps, but nothing needs it until OJay Floyd or MyBodyGraph ships to real users. Un-hold then, and evaluate it together with website feedback/bug capture (Iteration X / Marker.io, rejected in the B119 walk only for lack of users). See detail below.
 - **B189** — **Spike: test management + quality visibility (self-hosted vs hosted-free with Linear)** — **DONE 2026-11-07 — ADOPT Trunk Flaky Tests (Allure 3 fallback); every weyland-lab CI test lane reports (28 sources, #597)** (HIGH, ↑ Medium→High 2026-10-20 rebalance, for balance not urgency; was MEDIUM) (2026-09-25, Linear EMA-248; Testiny added — hosted, free to 3 users, Linear on free). Remainder split out: other repos → B238 (EMA-337); stud.io → EMA-336 (deferred). Quality visibility is scattered (Woodpecker logs, SonarQube coverage, Port `ci_pipeline`); nothing shows which tests exist, their history or flakiness. Compare the free self-hosted options on one real bats + pytest suite — Kiwi TCMS (imports JUnit/pytest/**TAP**, and bats emits TAP natively), Allure Report (CI-generated reports), ReportPortal (results analytics; likely heavy on mother). Linear linkage is the deciding requirement — Testomat was ruled out because its free tier has no Linear links. See detail below.
 - **B190** — **Replace SpecBot: check every issue against the lab's implementation-ready standard** — **DONE 2026-10-07** (HIGH, 2026-09-25, rewritten 2026-10-06, Linear EMA-249). SpecBot's job here is enforcing `AGENTS.md`'s required issue sections before delegation; it is capped (25/month), cloud-only and cannot gate CI. A deterministic per-kind section check (CLI + lean-CI step + one comment listing what is missing) replaces it, and `AGENTS.md` / the templates stop naming SpecBot. An LLM 0-100 quality score was built and dropped on evidence: no text-based readiness score predicted agent PR outcomes (AUC ~0.51, n=200). See detail below. **DoD re-audit fixes 2026-10-21:** `scripts/tests/test_readiness_judge.py`'s docstring said it tests `issue_readiness.py`, the production check; it tests the dropped LLM judge (`readiness_judge.py`, kept as a research harness) and now says so. **Scan suite re-run 2026-10-21** (covers B190's `issue_readiness.py` / `issue-readiness.sh`, B203's watchdog, B174's shadow and B199's `store-park.sh`, all on main): `scripts/run-scan-suite.sh` exit 0 across all 11 repos; weyland-lab archive `2026-10-21T19-06-15Z` diffed against `2026-10-19T19-57-41Z`: bandit, semgrep, hadolint and gitleaks **0 new** (none of these items' code raised a finding). The new findings are not from these changes: new upstream advisories against unchanged pins (`certifi` GHSA-6q48-6c7w-9gw2 CRITICAL in ~20 lockfiles; seven `pillow` advisories, one CRITICAL, in ~8), base-image OS churn in `trivy-images` (523 new / 1,092 gone), and kubescape's control C-0236 (image signatures) newly flagging 123 workloads at once. Raised to the owner, not fixed here. The CodeScene lane could not run (its MCP server failed to connect this session).
@@ -1211,7 +1225,7 @@ so that list named a system that no longer exists. The real consumers to re-poin
 the **[B17] realm-of-agents** fleet, and the **tool-server**. Confirm the live set before scoping; do not
 trust the pair named above.
 
-**Why it stays LOW, stated plainly so it is not re-litigated:** unlike [B53] — where Sentry has a genuine
+**Why it was rated LOW before the 2026-11 rebalances (which raised it for balance, not on a new case), stated plainly so it is not re-litigated:** unlike [B53] — where Sentry has a genuine
 feature delta over GlitchTip — **SearXNG's delta versus Tavily is negative** by this entry's own admission
 (rawer, non-agent-tuned results). The gain is *privacy*, and that argument is weak in a lab whose IDP
 (Port.io), status source of truth (Linear) and LLM egress (Bifrost → ~15 providers) are all cloud. By the
@@ -4211,7 +4225,7 @@ Customer Experience category, where every other entry was a hosted support/feedb
 
 Relates B119, B183 (Figma Make prototyping for the same apps).
 
-### B187 — Spike: Claude + Obsidian workflow (claude-obsidian, with graphify's Obsidian export) — HIGH (↑ Medium→High 2026-10-20 rebalance, for balance not urgency; was MEDIUM) (2026-09-25, Linear EMA-245)
+### B187 — Spike: Claude + Obsidian workflow (claude-obsidian, with graphify's Obsidian export) — DONE 2026-11-07 (HIGH, ↑ Medium→High 2026-10-20 rebalance, for balance not urgency; was MEDIUM) (2026-09-25, Linear EMA-245)
 
 **Why.** The Claude Code + Obsidian knowledge workflow is a widely used pattern worth being competent in. Checked
 2026-09-25:
@@ -4225,6 +4239,81 @@ Relates B119, B183 (Figma Make prototyping for the same apps).
 **Tie-in to B182.** Obsidian notes are Markdown + `[[wikilinks]]` — the format of Claude's auto-memory and of Basic
 Memory, the leading B182 store candidate. The spike doubles as evidence: is an Obsidian vault a usable human front end
 for a shared memory store?
+
+**Purpose (owner, 2026-11-07).** Competence alone gives no verdict, so the spike judges Obsidian against real jobs, each
+with its own pass/fail. It also stays open to new uses found along the way: record each one with evidence, and judge it
+like the rest.
+1. **Seeing and correcting what agents remember (primary).** The shared memory store (~200 linked notes) is a valid
+   vault; today the owner sees it only through the dense `MEMORY.md` index or by asking an agent. Run on a **copy** of the
+   store (the constraint gate stands; fixes go back into the real store the normal way). Passes if browsing and graph
+   view find a stale or wrong note faster than chat does, and surface link problems we can't see now (dangling
+   `[[links]]`, orphan notes).
+2. **Keeping spike research (secondary).** Research from spikes (Trunk, QA Sphere) ends up in chat and backlog prose.
+   Passes if claude-obsidian's ingest → cited notes → vault answer → save loop, on one real research question, gives
+   better-grounded, reusable notes than that.
+3. **graphify's Obsidian export (side check).** Browsing the exported code graph has to beat `graphify.sh affected` and
+   god-nodes, or it is dropped.
+
+Guardrail: the vault never becomes a second home for backlog or status. The Stud.io Obsidian Kanban went stale for
+exactly that reason; Linear and this file stay the source of truth. Verdict per job: keep as a habit / demo only / skip.
+
+**Verdict (2026-11-07).** Tools: Obsidian 1.15.0 (snap, already installed); claude-obsidian `v3.0.1` (commit
+`6414e1a2`, checksums verified) at `/home/edwardmangini/claude-obsidian`, loaded only through `--plugin-dir`.
+1. **Agent-memory window: SKIP.** Opened on a copy of the store, it showed the same graph Basic Memory does (links
+   resolve by file name, which matches `name:` for all but 3 of 260 notes). But the owner can't tell right from wrong
+   in agent-written technical notes ("there is no way I'm going to be able to tell you what is right or wrong"), so
+   browsing adds nothing over chat. The job-1 criterion as written (find a stale note by browsing) was not met, and
+   that is the finding. Link health is a script job: 64 links to 33 missing notes, measured on the copy.
+2. **Research vault: KEEP as a habit, in the shape the owner named: a volatile scratch pad, a poor man's RAG.** Run on
+   B22's question: 10 text sources became 6 pages and 17 claims (14 accepted, 2 provisional, 1 contested), lint 0
+   issues. Answers cited pages and claim IDs, and were the same after `/compact` (the session re-read the vault). It
+   flagged a partial source instead of guessing and labelled its own inferences. It also found a fact we lacked
+   (Whoogle reached end of life on 2026-07-24) and a contradiction in this file (B22 rated HIGH while its text said
+   "Why it stays LOW", fixed in B22 in the same change). Runbook `docs/runbooks/research-scratch-vault.md`, demo
+   row 121, flow `docs/diagrams/flow-research-scratch-vault.md`.
+3. **graphify Obsidian export: SKIP.** `graphify export obsidian` wrote 22,685 notes (97 MB) for weyland, too many for
+   the graph view. The notes drop edge direction, which `graphify.sh affected` keeps, along with depth and `file:line`.
+4. **New use found (the owner's ask: stay open to new uses):** the volatile vault itself. The owner proposed it
+   mid-spike; it outlives context compaction, which chat research does not.
+
+**Follow-on, same item (owner, 2026-11-07): shortcuts and a lab command roster.** The owner asked for shortcuts,
+and for a way to ask "I want to do X in the lab, what does this?". There was no command list: the commands live in 98
+runbooks, and the lab RAG did not find the CI trigger. claude-obsidian was not used for the roster. Every command has
+exactly one source, its runbook, so there is nothing to reconcile, and a 98-runbook ingest per call would cost minutes.
+Built `scripts/lab-shortcuts.sh`:
+- `lab-commands [WORD...]`: the roster, regenerated from the runbooks on every call and never stored (884 commands);
+- `lab-ask "Q"`: one `claude -p` call, Sonnet, no tools, answers from the roster only, about 14 s;
+- `vault` / `vault-rm`: the scratch-vault lifecycle.
+
+The decisions are in tested Python (`scripts/lib/lab_commands.py`, `scripts/lib/scratch_vault.py`: 32 pytest cases)
+plus 7 bats cases for the wiring. The owner installs it with one `source` line in `~/.bashrc` (runbook § Shortcuts).
+
+**For B182:** Obsidian and Basic Memory read the same files, so Obsidian is a viable viewer if one is ever wanted.
+Never point a vault tool at the live store (`docs/runbooks/shared-agent-memory.md` § Gotchas). The store was
+checksummed before and after the spike: unchanged.
+
+**DoD (recorded 2026-11-07, per pillar):**
+1. **Docs:** DONE. New runbook `docs/runbooks/research-scratch-vault.md`, including § Shortcuts. `coding-agents.md`
+   has a Shortcuts table and a pointer to the runbook. The B182 evidence is in `shared-agent-memory.md` § Gotchas. A local habit on rogueone, so no `arch.md` or `tools.md`
+   row (repo-tooling rule: no deployed system changes).
+2. **Diagrams:** DONE. `docs/diagrams/flow-research-scratch-vault.md` (the approval and conflict paths). No LikeC4
+   placement: nothing is deployed.
+3. **Demo:** DONE. Row 121 and `docs/demos/research-scratch-vault.md`. The CLI run was on B22's sources, with the
+   negative case (the caller-limit gap reported, not guessed) and the post-`/compact` repeat. The owner did the
+   eyes-on in Obsidian. Part 2 ran the shortcuts live, including `lab-ask`'s "not in the index" and the vault
+   B-number refusal.
+4. **Clean-up:** DONE. The memory copy, the empty research vault, the 97 MB code-graph export and the demo vault were
+   all deleted, and nothing was written in the repo. The claude-obsidian checkout stays, because the habit uses it.
+5. **Tracking:** DONE. EMA-245 is Done with its boxes ticked; job 1's box is annotated as not met as written, which is
+   the finding. `check-linear-sync.sh` OK.
+6. **Ops:** run by hand, on purpose. A scratch vault lives as long as one task, and the shortcuts are interactive
+   commands, so there is nothing to schedule or monitor. The tests run in CI (`shell-tests`, the Python lane).
+7. **Scans:** DONE. shellcheck clean (CI image), 32 pytest and 7 bats cases green in their images, and the SonarQube
+   precheck run on the new files. `ALL_GUARDS_OK`.
+8. **Cascades:** DONE. B22's "stays LOW" wording was fixed (found by the vault), and the B182 note was added. The new
+   scripts are leaves (nothing imports them), so `graphify.sh affected` has no callers to trace.
+9. **DR:** N/A. The vaults are volatile by design and deleted at the end of the task. The checkout can be re-cloned
+   from a pinned tag (`v3.0.1`, `6414e1a2`).
 
 **Scope.**
 1. Vault on rogueone; one claude-obsidian workflow end to end (ingest → query → save answer as a note).

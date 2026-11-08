@@ -72,7 +72,7 @@ sentry_sdk.init(
 
 - **DSN by location:** in-cluster apps use the **internal-service** DSN
   `http://<key>@glitchtip.weyland.svc.cluster.local:8000/<projectId>` (they can't resolve the `*.weyland.lab`
-  ingress). Off-cluster apps (e.g. Hermes on CT 104, B52) use the **ingress** DSN
+  ingress). Off-cluster apps (e.g. a service on rogueone; Hermes on CT 104 was the first, B52, retired 2026-07-23) use the **ingress** DSN
   `https://<key>@glitchtip.weyland.lab/<projectId>` — which needs the **mkcert root CA** in that host's trust
   store or the HTTPS POST fails TLS silently.
 - **One project per app** (cleaner issue streams + per-app alerting; self-hosted GlitchTip has **no event

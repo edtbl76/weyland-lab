@@ -2,7 +2,8 @@
 
 Single-node Trino in `data-mesh`. The keystone the lab queries the lake + relational stores through;
 Superset / dbt / the B73 "use the data" work all ride on it. Manifest: `k8s/data-mesh/trino.yaml`
-(deployed by the data-mesh Argo app). Always-on (~2 GB heap) — revisit KEDA at the footprint gate.
+(deployed by the data-mesh Argo app). Always-on (~2 GB heap). (The old "revisit KEDA" note is moot: KEDA was
+retired 2026-08-22.)
 
 ## Catalogs
 - **`iceberg`** — the Nessie lake (`datasets.*` music gold, `catalog`, `eval`). **Uses Trino's NATIVE

@@ -347,7 +347,10 @@ def soda_quality_job():
 # each op-subprocess re-importing the full ~1.1 GB definitions → N-concurrent × 1.1 GB OOM'd the 12 Gi pod even
 # though every emit function is individually cheap (~1.24 GB cumulative). One process, one import, ops run
 # sequentially → ~1.3 GB peak, and faster (no per-op subprocess spawn + re-import).
-@job(executor_def=in_process_executor, tags={"dagster/max_runtime": 1800})
+# max_runtime 4200 (was 1800, B239 2026-11-08): sequential by design (above), the job measured 23-31.5 min every night
+# from 2026-10-02 and failed on the 30-min cap from 2026-10-31, leaving the DataHub catalog stale 9+ days. The cap
+# keeps 2x headroom over the measured runtime (tests/test_job_runtime_limits.py); a run past 70 min is a real fault.
+@job(executor_def=in_process_executor, tags={"dagster/max_runtime": 4200})
 def datahub_catalog_emit_job():
     emit_dagster_assets_op()
     emit_qdrant_op()

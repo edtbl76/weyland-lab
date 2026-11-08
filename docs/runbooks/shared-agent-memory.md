@@ -169,6 +169,11 @@ Then remove `Agent_Memory` from the two Bifrost scripts and re-run the three reg
   two yielded streams (was three), `is_error` / `input_schema` (were camelCase).
 - **Search quality is moderate**: 3 of 5 known answers in the top 5 with semantic search (2 of 5 keyword-only). The
   `MEMORY.md` index stays the primary recall path; search is the second.
+- **Obsidian opens the store as a vault, but don't use it as a front end** (B187, 2026-11-07, on a copy). Its `[[links]]`
+  resolve by file name, which matches the frontmatter `name:` for all but 3 of 260 notes, so it shows the same graph
+  Basic Memory does. The owner can't judge agent-written notes by browsing them, so it adds nothing; link health is a
+  script job (64 links to 33 missing notes on that date). Never point Obsidian or claude-obsidian at the live store:
+  `docs/runbooks/research-scratch-vault.md` § Safety.
 
 ## Open WebUI — connect the memory tool server (once, on the live PVC)
 
