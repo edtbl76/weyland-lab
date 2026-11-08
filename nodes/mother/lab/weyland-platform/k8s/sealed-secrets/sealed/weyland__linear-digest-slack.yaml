@@ -1,0 +1,16 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: linear-digest-slack
+  namespace: weyland
+spec:
+  encryptedData:
+    webhook: AgAy1GTM/DB4U6RGGbTlAH5Nlyin0O0NROqqKgEdxBd+Rg/hQn+6I+DxeQfpzD5y41feHlGr6WoOiHNBVciVSqyHAHU0+J4TZbBAIz0beiwnzB1B1xfTSxMQBwzQUxLprZ3dBpuT4tzzCNEZlG8BLhEzmk76jtbiqHRKeHB9neJBEYD56yO7TslJXUmrzc86DkKKKRvkLCewim0CxAlZagSPTWTBeXY7+iPD8mov71v4bpEpshoYFYIcsF8j5dtdxet5WhIi0aIkDzxkfvGaP4JTqz5V8Njxdb4sr42wav//AmwlkUcsZv6bC5OpjNJow0K5YWMcqR7Zlw0axzm57aS5BWXFVeBRtjjs2DsbcQac454t0du2avprp0pf69Vrm6PC4qyG5eAvyB/HzgM+Vv78KcuDwQaiXV8gnniJXj4lDey5U8jxBcKP+9EOUSwoazJkBr+JocHpHP8eZeN5/CXr5x5Uj5N8D6V39PxIyLPpm8G2c9zWxWZE+XfcLjJF45Lk9JfNKnCk8ke7ltIlEpJ0CX3W6BFAWGZmqyRPz3QV7h/LdRPcHpxpvxeX+2WgjukEPMrmO68Ehhpx33DhcG3gb3DHSOnCnYBLtuxHKOQ0C3NRGRjSAz0CHbrwv4muLuzNhgR/MDr8lgTOnUq93DsZRMbxuzYqslVti+LifiXKbCb6I2BPiCW6vAm8M3vvDq3TkYKBu5+Pqg++pl34p4pK+3F/HoYT+d3XlEt7j1EXMp4tyJP8q5I3niPjyJou3Eo+T/1EYT3YOFCBEq52HlGfBJSVDgejKiW/RfrkYpMlSt0=
+  template:
+    metadata:
+      annotations:
+        sealedsecrets.bitnami.com/managed: "true"
+      name: linear-digest-slack
+      namespace: weyland
+    type: Opaque

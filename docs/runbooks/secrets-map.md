@@ -39,11 +39,13 @@ owner, never through a terminal. It is one key per consumer, separate from the a
 with Read + Write, and paste it into that credential. There is no re-import: the workflow references the credential by
 id. [alert-to-linear.md](alert-to-linear.md).
 
-Not provider keys either: the **Slack incoming-webhook URLs** (B184), `SLACK_WEBHOOK_ALERTS` / `_DEPLOYS` / `_ERRORS`
+Not provider keys either: the **Slack incoming-webhook URLs** (B184, B237), `SLACK_WEBHOOK_ALERTS` / `_DEPLOYS` / `_ERRORS` / `_LINEAR_UPDATES`
 in `scripts/.env`. Each is a capability (anyone holding it can post into that channel).
 - `#alerts`: sealed `monitoring/slack-webhooks`, read by Alertmanager, and pasted into Uptime Kuma.
 - `#deploys`: sealed `argocd/argocd-notifications-secret`, and the Woodpecker repo secret `slack_webhook_deploys`.
 - `#errors`: pasted into GlitchTip's per-project alerts.
+- `#linear-updates` (B237, `SLACK_WEBHOOK_LINEAR_UPDATES`): sealed `weyland/linear-digest-slack`, read by the Dagster
+  user-code pod for the weekly Linear digest.
 
 Rotate in the Slack app's Incoming Webhooks page, then follow [secrets.md](secrets.md) § Slack webhooks.
 

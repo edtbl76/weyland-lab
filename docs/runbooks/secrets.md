@@ -258,6 +258,24 @@ kubectl -n argocd annotate secret argocd-notifications-secret sealedsecrets.bitn
 set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ "$(kubectl -n argocd get secret argocd-notifications-secret -o jsonpath='{.data.slack-webhook-deploys}')" = "$(printf %s "$SLACK_WEBHOOK_DEPLOYS" | base64 -w0)" ] && echo "stored value matches .env" || echo "MISMATCH"; grep -rlF --exclude=.env -- "$SLACK_WEBHOOK_DEPLOYS" /home/edwardmangini/IdeaProjects/weyland || echo "URL not in the tree"
 ```
 
+**`#linear-updates` — `weyland/linear-digest-slack`** (key `webhook`, B237): the incoming webhook the weekly Linear
+digest posts through, `SLACK_WEBHOOK_LINEAR_UPDATES` in `scripts/.env`, read by the Dagster user-code pod as an env var
+(`optional: true`, so a missing Secret fails only the digest run). Same steps, its own names; order does not matter:
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ -n "${SLACK_WEBHOOK_LINEAR_UPDATES:-}" ] && kubectl -n weyland create secret generic linear-digest-slack --from-literal=webhook="$SLACK_WEBHOOK_LINEAR_UPDATES" --dry-run=client -o yaml | kubectl -n weyland apply -f -
+```
+[rogueone]
+```
+kubectl -n weyland annotate secret linear-digest-slack sealedsecrets.bitnami.com/managed=true --overwrite && kubectl -n weyland get secret linear-digest-slack -o yaml | kubeseal --format yaml > /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/sealed-secrets/sealed/weyland__linear-digest-slack.yaml
+```
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && [ "$(kubectl -n weyland get secret linear-digest-slack -o jsonpath='{.data.webhook}')" = "$(printf %s "$SLACK_WEBHOOK_LINEAR_UPDATES" | base64 -w0)" ] && echo "stored value matches .env" || echo "MISMATCH"; grep -rlF --exclude=.env -- "$SLACK_WEBHOOK_LINEAR_UPDATES" /home/edwardmangini/IdeaProjects/weyland || echo "URL not in the tree"
+```
+Created, sealed and verified 2026-11-07.
+
 **On-call — `monitoring/grafana-irm`** (key `url`, B184 phase 2): the Grafana Cloud IRM Alertmanager integration URL,
 `GRAFANA_IRM_AM_URL` in `scripts/.env`. Anyone holding it can page the on-call. Alertmanager reads it from a file
 (`url_file`). Create it **before** the values change that mounts it syncs:

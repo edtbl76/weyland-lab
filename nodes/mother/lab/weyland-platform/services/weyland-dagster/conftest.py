@@ -76,6 +76,14 @@ def linear_export():
 
 
 @pytest.fixture
+def linear_digest():
+    """The dagster-free ``datasets_lib/linear_digest`` module (B237), loaded in isolation (stdlib-only)."""
+    return load_isolated(
+        "weyland_pipeline/assets/datasets_lib/linear_digest.py", "linear_digest"
+    )
+
+
+@pytest.fixture
 def edgar_parse():
     """The dagster-free ``datasets_lib/edgar_parse`` module (B113 Phase 2), loaded in isolation (pyarrow-only)."""
     return load_isolated(

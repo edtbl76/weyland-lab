@@ -1480,6 +1480,9 @@ change lead time) and B119.1 initiative progress. One export, two purposes: the 
 instead of an Airbyte/Fivetran connector for the second.
 
 Flow: [flow-linear-backup.md](diagrams/flow-linear-backup.md). Runbook: [linear-backup.md](runbooks/linear-backup.md).
+The snapshots also feed the **weekly Linear digest** (B237): Mondays 05:40 NY, Dagster posts a Weyland Lab summary
+(closed, opened, the High lane, stale) to Slack `#linear-updates`, refusing a snapshot older than 26 h
+([flow-linear-digest.md](diagrams/flow-linear-digest.md)).
 DR catalog: [dr.md](dr.md).
 
 ---
@@ -1807,6 +1810,7 @@ flowchart LR
   W[Woodpecker notify-slack] -->|failed pipeline| D
   G[GlitchTip] --> E["#errors"]
   L[Linear app] --> LU["#linear-updates"]
+  DG[Dagster weekly digest] -->|Mon 05:40, B237| LU
   GH[GitHub app] --> GC["#github"]
   AM -->|pager, unchanged| TG[Telegram]
 ```

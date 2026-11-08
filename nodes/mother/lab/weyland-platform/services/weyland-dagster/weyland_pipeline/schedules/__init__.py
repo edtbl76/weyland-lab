@@ -5,6 +5,9 @@ from weyland_pipeline.assets.datasets_kindle_transform import KINDLE_CFG
 from weyland_pipeline.assets.datasets_lib.domain_jobs import build_domain_jobs
 from weyland_pipeline.dbt_assets import weyland_dbt_assets
 
+# Every schedule runs on New York wall-clock time (docs/schedules.md is written in NY time).
+NEW_YORK_TZ = "America/New_York"
+
 # Serialize the dataset transforms: each format step re-reads ALL of raw/ into memory, so running the
 # 5 formats concurrently meant 5× peak memory → node-level OOMKilled (no container mem limit; ~43GiB
 # node already heavily committed). max_concurrent=1 runs the formats one at a time → 1× peak. (2026-06-29)
@@ -120,7 +123,7 @@ weyland_ingestion_schedule = ScheduleDefinition(
     job=weyland_ingestion_job,
     cron_schedule="17 2 * * *",  # daily 02:17 — per docs/schedules.md (HEAVY; staggered by minute)
     name="weyland_ingestion_schedule",
-    execution_timezone="America/New_York",  # crons read in NY time (else UTC) — see docs/schedules.md
+    execution_timezone=NEW_YORK_TZ,  # crons read in NY time (else UTC) — see docs/schedules.md
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
@@ -128,7 +131,7 @@ weyland_catalog_schedule = ScheduleDefinition(
     job=weyland_catalog_job,
     cron_schedule="50 0 * * *",  # daily 00:50 — OVERNIGHT-ONLY (no mid-day auto-runs; single-node RAM guard, 2026-08-07) — per docs/schedules.md
     name="weyland_catalog_schedule",
-    execution_timezone="America/New_York",
+    execution_timezone=NEW_YORK_TZ,
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
@@ -136,7 +139,7 @@ weyland_ai_session_schedule = ScheduleDefinition(
     job=weyland_ai_session_job,
     cron_schedule="5 0 * * *",  # daily 00:05 — OVERNIGHT-ONLY (also STOPPED/OFF; no mid-day auto-runs, 2026-08-07) — per docs/schedules.md
     name="weyland_ai_session_schedule",
-    execution_timezone="America/New_York",
+    execution_timezone=NEW_YORK_TZ,
     # STOPPED to match live (2026-09-27, B196): the code said RUNNING while the UI held it STOPPED and the job had
     # never passed. check-dagster-watchdog-budgets.sh reads this default — enable it here AND add its budget.
     default_status=DefaultScheduleStatus.STOPPED,
@@ -210,7 +213,7 @@ weyland_datasets_music_land_schedule = ScheduleDefinition(
     job=weyland_datasets_music_land_job,
     cron_schedule="0 3 * * *",  # 3 AM daily — assets self-skip if fresh (30-day window)
     name="weyland_datasets_music_land_schedule",
-    execution_timezone="America/New_York",
+    execution_timezone=NEW_YORK_TZ,
     default_status=DefaultScheduleStatus.RUNNING,  # enabled in the UI and running nightly; code matched to live 2026-09-27 (B196)
 )
 
@@ -218,7 +221,7 @@ weyland_datasets_health_land_schedule = ScheduleDefinition(
     job=weyland_datasets_health_land_job,
     cron_schedule="0 4 * * *",  # 4 AM daily — assets self-skip if fresh (7-day window)
     name="weyland_datasets_health_land_schedule",
-    execution_timezone="America/New_York",
+    execution_timezone=NEW_YORK_TZ,
     default_status=DefaultScheduleStatus.RUNNING,  # enabled in the UI and running nightly; code matched to live 2026-09-27 (B196)
 )
 
@@ -233,7 +236,7 @@ weyland_timeseries_schedule = ScheduleDefinition(
     job=weyland_timeseries_job,
     cron_schedule="20 0 * * *",  # daily 00:20 — OVERNIGHT-ONLY (no mid-day auto-runs; single-node RAM guard, 2026-08-07) — per docs/schedules.md
     name="weyland_timeseries_schedule",
-    execution_timezone="America/New_York",
+    execution_timezone=NEW_YORK_TZ,
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
@@ -248,7 +251,7 @@ weyland_dbt_schedule = ScheduleDefinition(
     job=weyland_dbt_job,
     cron_schedule="0 6 * * 0",  # weekly Sun 06:00 — per docs/schedules.md
     name="weyland_dbt_schedule",
-    execution_timezone="America/New_York",
+    execution_timezone=NEW_YORK_TZ,
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
@@ -263,7 +266,7 @@ registrations_schedule = ScheduleDefinition(
     job=registrations_reconcile_job,
     cron_schedule="0 5 * * 0",  # weekly Sun 05:00
     name="registrations_schedule",
-    execution_timezone="America/New_York",
+    execution_timezone=NEW_YORK_TZ,
     default_status=DefaultScheduleStatus.RUNNING,
 )
 
@@ -279,7 +282,23 @@ linear_backup_schedule = ScheduleDefinition(
     job=linear_backup_job,
     cron_schedule="20 5 * * *",  # daily 05:20 — per docs/schedules.md
     name="linear_backup_schedule",
-    execution_timezone="America/New_York",
+    execution_timezone=NEW_YORK_TZ,
+    default_status=DefaultScheduleStatus.RUNNING,
+)
+
+# B237 — the weekly Linear digest to Slack #linear-updates (docs/runbooks/linear-backup.md § Weekly digest). Mondays
+# 05:40 NY: pre-dawn (Design Rule #5), 20 min after the 05:20 snapshot it reads, which the leaf refuses if older than
+# 26 h. Light: it reads one snapshot from MinIO and makes one webhook POST. RUNNING by default; failure and staleness
+# alert through dagster-freshness-check (budget 8 days).
+linear_digest_job = define_asset_job(
+    name="linear_digest_job",
+    selection=AssetSelection.groups("linear_digest"),
+)
+linear_digest_schedule = ScheduleDefinition(
+    job=linear_digest_job,
+    cron_schedule="40 5 * * 1",  # Mondays 05:40 — per docs/schedules.md
+    name="linear_digest_schedule",
+    execution_timezone=NEW_YORK_TZ,
     default_status=DefaultScheduleStatus.RUNNING,
 )
 

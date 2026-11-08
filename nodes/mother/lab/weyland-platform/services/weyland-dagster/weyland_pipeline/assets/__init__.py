@@ -93,6 +93,7 @@ from .datasets_kindle_transform import (
     datasets_kindle_stream_assets,
 )
 from .linear_backup import linear_lakehouse_tables, linear_workspace_snapshot
+from .linear_digest import linear_weekly_digest
 from .registrations import (
     bifrost_loops_registered,
     bifrost_prompts_registered,

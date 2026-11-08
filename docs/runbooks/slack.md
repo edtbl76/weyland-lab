@@ -24,10 +24,10 @@ installations** (third-party or custom apps), 90 days of message history, no wor
 | `#deploys` | Argo CD notifications | `weyland` webhook | sync failed, health degraded, deployed |
 | `#deploys` | Woodpecker | `weyland` webhook, a `curl` step on failure | pipeline failed |
 | `#errors` | GlitchTip | `weyland` webhook, set per project in GlitchTip's UI | new error alert |
-| `#linear-updates` | Linear Slack app | Linear's app (1 slot) | issue completed / canceled, added to triage, project and initiative updates |
+| `#linear-updates` | Linear Slack app; Dagster `linear_digest_job` (B237) | Linear's app (1 slot); the `weyland` app's `#linear-updates` webhook (no extra slot) | issue completed / canceled, added to triage, project and initiative updates; **Mondays 05:40 NY the "Weekly Linear digest"** (closed / opened, High lane, stale; [linear-backup.md](linear-backup.md) § Weekly digest) |
 | `#github` | GitHub app for Slack | GitHub's app (1 slot) | `edtbl76/weyland-lab`: issues, PRs, commits, releases, deployments |
 
-Webhook URLs live in the gitignored `scripts/.env` (`SLACK_WEBHOOK_ALERTS` / `_DEPLOYS` / `_ERRORS`). They are
+Webhook URLs live in the gitignored `scripts/.env` (`SLACK_WEBHOOK_ALERTS` / `_DEPLOYS` / `_ERRORS` / `_LINEAR_UPDATES`). They are
 secrets: anyone holding one can post. Sealing and rotation: [secrets.md](secrets.md) § Slack webhooks.
 
 ## Alertmanager → `#alerts`

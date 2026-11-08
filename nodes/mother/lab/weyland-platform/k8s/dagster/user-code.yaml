@@ -182,6 +182,15 @@ spec:
                   name: linear-backup-secret
                   key: LINEAR_API_KEY_RO
                   optional: true
+            # linear_weekly_digest asset (B237): the Slack #linear-updates incoming-webhook URL, a capability. optional:
+            # true for the same reason as above — a missing Secret fails only the digest run ("SLACK_WEBHOOK_LINEAR_UPDATES
+            # is not set"), never the whole code server. Sealed as weyland__linear-digest-slack (secrets.md § Slack webhooks).
+            - name: SLACK_WEBHOOK_LINEAR_UPDATES
+              valueFrom:
+                secretKeyRef:
+                  name: linear-digest-slack
+                  key: webhook
+                  optional: true
             # aidlc_kb_ingest asset (B37): reads the brand-neutral AIDLC KB from the MinIO bucket.
             # Creds live in the minio ns (minio-creds) — mirror them into THIS ns as aidlc-kb-minio-secret
             # (see runbook); secretKeyRef can't cross namespaces.

@@ -2,7 +2,8 @@
 
 A nightly snapshot of the whole Linear workspace (emangini) into MinIO, so the lab's status history, comments,
 projects, initiatives, labels, templates and views survive a Linear outage, a bad bulk edit, or a lost account.
-Catalogued in [../dr.md](../dr.md); timer in [../schedules.md](../schedules.md) (05:20 NY daily).
+Catalogued in [../dr.md](../dr.md); timer in [../schedules.md](../schedules.md) (05:20 NY daily). The weekly digest
+to Slack `#linear-updates` (B237) reads these snapshots: § Weekly digest.
 
 | | |
 |---|---|
@@ -29,6 +30,46 @@ run. The dbt marts on top — `mart_linear_issue_cycle_time` (B185), `mart_linea
 ```
 kubectl exec -n weyland deploy/dagster-user-code -- python3 -c "import json,urllib.request;q='mutation(\$p:ExecutionParams!){launchRun(executionParams:\$p){__typename ... on LaunchRunSuccess{run{runId}} ... on PythonError{message}}}';v={'p':{'selector':{'repositoryLocationName':'weyland_pipeline','repositoryName':'__repository__','jobName':'weyland_dbt_job','assetSelection':[{'path':[m]} for m in ['mart_linear_issue_cycle_time','mart_linear_weekly_flow','mart_linear_initiative_progress']]},'runConfigData':{}}};r=urllib.request.Request('http://dagster-webserver.weyland.svc.cluster.local:3000/graphql',data=json.dumps({'query':q,'variables':v}).encode(),headers={'Content-Type':'application/json'});print(json.load(urllib.request.urlopen(r))['data']['launchRun'])"
 ```
+
+## Weekly digest (B237)
+
+Every Monday at 05:40 NY, 20 minutes after the snapshot, `linear_digest_job` (asset `linear_weekly_digest`, group
+`linear_digest`) reads the newest complete snapshot and posts one message to Slack **`#linear-updates`**, headed "Weekly
+Linear digest", for project **Weyland Lab** over the last 7 days:
+
+- **Closed**: completed, canceled or marked duplicate in the window, oldest first, with the state;
+- **Opened**: created in the window, whatever its state now;
+- **High lane**: open, not archived, priority 2 (High), with any `parked:*` hold label shown;
+- **Stale 30+ days**: open, not archived, `updatedAt` older than 30 days: the count plus the oldest 5.
+
+Each list shows at most 10 lines and then "+N more"; the heading always carries the true count, and a quiet week still
+posts, with zeros ("Nothing closed this week."). The plain-text fallback (what Slack's notification shows) carries the
+counts and the snapshot id.
+
+| | |
+|---|---|
+| Code | `assets/linear_digest.py` (thin asset, reuses this runbook's snapshot reader) + `assets/datasets_lib/linear_digest.py` (all the logic, dagster-free, tested in `tests/test_linear_digest.py`) |
+| Reads | the newest `snapshots/<ts>/` that has a `manifest.json`; **refuses it if `finished_at` is older than 26 h** (the backup did not run), so stale numbers are never posted as this week's |
+| Writes | one POST to the `#linear-updates` incoming webhook of the `weyland` Slack app; delivered only if Slack answers HTTP 200 with body `ok` |
+| Key | `SLACK_WEBHOOK_LINEAR_UPDATES` (`scripts/.env`), Secret `weyland/linear-digest-slack` key `webhook`, sealed ([secrets.md](secrets.md) § Slack webhooks). Mounted `optional: true`: a missing Secret fails only this run |
+| Alerts | `dagster-freshness-check`: the run FAILED, or no success within 8 days |
+
+Run it now (recorded, via the Dagster API). It posts a real message to `#linear-updates`:
+
+[mother]
+```
+kubectl exec -n weyland deploy/dagster-user-code -- python3 -c "import json,urllib.request;q='mutation(\$p:ExecutionParams!){launchRun(executionParams:\$p){__typename ... on LaunchRunSuccess{run{runId}} ... on PythonError{message}}}';v={'p':{'selector':{'repositoryLocationName':'weyland_pipeline','repositoryName':'__repository__','jobName':'linear_digest_job'},'runConfigData':{}}};r=urllib.request.Request('http://dagster-webserver.weyland.svc.cluster.local:3000/graphql',data=json.dumps({'query':q,'variables':v}).encode(),headers={'Content-Type':'application/json'});print(json.load(urllib.request.urlopen(r))['data']['launchRun'])"
+```
+
+Then check the run in Dagster (https://dagster.weyland.lab, Runs → `linear_digest_job`): its metadata shows the snapshot,
+its age, the window and the four counts; the message is in `#linear-updates`.
+
+| Symptom | Cause / fix |
+|---|---|
+| `weekly Linear digest not sent: the newest snapshot is N h old, older than 26 h` | the nightly `linear_backup_job` failed or did not run: fix that first (this runbook § Troubleshooting), then re-run the digest |
+| `… SLACK_WEBHOOK_LINEAR_UPDATES is not set` | the Secret is missing or empty: create and seal it ([secrets.md](secrets.md) § Slack webhooks), restart the user-code pod |
+| `… Slack did not accept the digest: HTTP 403/404, body 'invalid_token' / 'no_service'` | the webhook was revoked or the channel archived: make a new one in the `weyland` app (Incoming Webhooks → `#linear-updates`), update `.env`, re-create and re-seal the Secret |
+| `… project 'Weyland Lab' is not in the snapshot` | the project was renamed in Linear: update `PROJECT` in `assets/linear_digest.py` |
 
 ## What a snapshot holds
 
