@@ -13,10 +13,10 @@ import register_bifrost_client_config as r
 
 BASE_CC = {"drop_excess_requests": True, "disable_content_logging": False, "prometheus_labels": [],
            "mcp_server_auth_mode": "headers", "whitelisted_routes": None, "allowed_origins": None,
-           "enforce_auth_on_inference": False}
+           "enforce_auth_on_inference": False, "skills_external_client_url": ""}
 LIVE = {"client_config": BASE_CC, "framework_config": {"pricing_url": "x"}, "auth_config": {"is_enabled": False}}
 DONE = {"whitelisted_routes": ["/metrics"], "allowed_origins": ["https://bifrost.weyland.lab"],
-        "enforce_auth_on_inference": True}
+        "enforce_auth_on_inference": True, "skills_external_client_url": "https://bifrost.weyland.lab"}
 
 
 class _Resp:
@@ -100,3 +100,33 @@ def test_a_locked_read_fails_with_the_token_hint():
             return _Resp(401, {"error": "setup token required"})
     with pytest.raises(SystemExit, match="BIFROST_SETUP_TOKEN"):
         r.ensure_settings(Locked([LIVE]))
+
+
+def test_the_skills_marketplace_url_is_set_so_the_marketplace_serves():
+    # B241: unset, Bifrost answers 503 "skills marketplace disabled: configure skills_external_client_url" on every
+    # marketplace route, and it never derives the URL from Host headers, so it must be stored explicitly.
+    fake = _Fake([_with(**{**DONE, "skills_external_client_url": ""}), _with(**DONE)])
+    assert r.ensure_settings(fake).startswith("updated:")
+    assert fake.puts[0]["client_config"]["skills_external_client_url"] == "https://bifrost.weyland.lab"
+
+
+def test_the_marketplace_url_as_bifrost_stores_it_counts_as_set():
+    # Observed live 2026-11-08 (v2.3.1): a plain string PUT is stored and read back as an env-var object
+    # {"value": ..., "type": "plain_text"} (the same field takes env./vault references). The first live run wrote the
+    # value, then failed its read-back because it compared that object with the string.
+    stored = {"value": "https://bifrost.weyland.lab", "type": "plain_text"}
+    fake = _Fake([_with(**{**DONE, "skills_external_client_url": stored})])
+    assert r.ensure_settings(fake) == "unchanged: client_config already as owned"
+    assert fake.puts == []
+
+
+def test_an_env_reference_is_not_the_owned_value():
+    stored = {"value": "env.BIFROST_SKILLS_URL", "type": "env"}
+    fake = _Fake([_with(**{**DONE, "skills_external_client_url": stored}), _with(**DONE)])
+    assert r.ensure_settings(fake).startswith("updated:")
+
+
+def test_a_different_marketplace_url_is_corrected():
+    fake = _Fake([_with(**{**DONE, "skills_external_client_url": "http://localhost:8080"}), _with(**DONE)])
+    r.ensure_settings(fake)
+    assert fake.puts[0]["client_config"]["skills_external_client_url"] == "https://bifrost.weyland.lab"

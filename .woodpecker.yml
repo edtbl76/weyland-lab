@@ -86,6 +86,8 @@ steps:
       # B239 — every deployed app names its runbook (or a recorded runbook_gap) and appears on a docs/*-map.html.
       # The registry is the exact source; the 2026-11 audit's fuzzy matching is what this replaces.
       - python3 scripts/check-doc-coverage.py
+      # B241 — the weyland-capabilities skill (register_bifrost_skills.py) must match capabilities.yaml + repos.yaml.
+      - python3 scripts/capabilities-skill.py --check
       # B138 — every repo-watching lane (pr-staleness, Port github integration, …) must match the canonical
       # repos.yaml SoT for its ENFORCED lanes, or a repo silently goes unwatched (found 1..6-repo divergence).
       # File analysis, plus the ci lane: an ANONYMOUS Woodpecker activation lookup (no secret, in-cluster svc).

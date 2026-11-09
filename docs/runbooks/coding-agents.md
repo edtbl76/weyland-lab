@@ -144,6 +144,13 @@ work). Until then, **hosted-direct (Gemini free) is the driver; local is a $0 of
 
 Details: [research-scratch-vault.md § Shortcuts](research-scratch-vault.md#shortcuts).
 
+## Weyland capabilities in any managed repo
+
+The `weyland-capabilities` skill (user-level on rogueone, for Claude Code, Codex and OpenCode) tells an agent in any
+repo Weyland manages what the lab offers it (CI, scanning, Linear, PR lifecycle, Port, backups, MCP tools, memory,
+golden paths) and how to use each. Source `capabilities.yaml`; how to change and reinstall it:
+[weyland-capabilities.md](weyland-capabilities.md).
+
 ## Research scratch vault (claude-obsidian)
 
 For a research task that spans several sources, a throwaway claude-obsidian vault holds cited notes that survive

@@ -298,9 +298,16 @@ gets a new version via `PUT /api/skills/{id}`, one patch above `latest_version`;
 bifrost-restore, diagnose-pod-oom, k8s-rwo-recreate, wake-sleep-store, swap-embedding-model, run-eval-suite, use-model-gateway,
 remote-training-rogueone, weyland-conventions, …) + generic dev skills. API: `POST /api/skills {name (kebab), version (semver),
 description, skill_md_body, compatibility, allowed_tools, license, metadata}`. Bifrost SERVES them as a Claude Code / Codex
-plugin marketplace (`/api/skills/serve/claude-code/.claude-plugin/marketplace.json`) — but those routes are **gated on object
-storage**: they 404 ("marketplace routes disabled … object storage to be configured") until Bifrost has MinIO wired as its
-object store. `download.zip` works from the DB regardless. TODO: wire Bifrost object storage to activate agent-installable skills.
+plugin marketplace (`/api/skills/serve/claude-code/.claude-plugin/marketplace.json`; Codex: `/api/skills/serve/codex`).
+**It needs `skills_external_client_url`** (the owned `client_config`, § Bifrost setup token): from the v2 upgrade
+(2026-10-09) to 2026-11-08 it was unset and every marketplace route answered
+`503 skills marketplace disabled: configure skills_external_client_url` (B241 found and fixed it; on v1 the same routes
+404'd until `git` was installed). Refresh the agents' copies after a skill changes:
+`claude plugin marketplace update bifrost-skills && claude plugin update bifrost-weyland-conventions@bifrost-skills`
+and `codex plugin marketplace upgrade bifrost-skills`. `weyland-capabilities` is published here too, but agents load
+it as a user skill file instead ([weyland-capabilities.md](weyland-capabilities.md)); do not install its plugin as
+well. `download.zip` works from the DB
+regardless.
 
 **Prompt Repository (B111 2026-08-01):** model-agnostic, reusable prompts (`register_bifrost_prompts.py`'s own: 101 across 12 folders on 2026-10-21; the repository's total, ~280, includes the other registrars') (system-prompts, coding,
 rag-retrieval, data-analytics, eval-judge, agentic-operator, search-web, guardrails-safety, content-ops, meta-prompt-eng)
@@ -329,6 +336,7 @@ inference (`/v1`) and `/mcp` are not affected by the lock (they use virtual keys
 | `whitelisted_routes` | includes `/metrics` | exempts the scrape from the setup lock (exact match, or a trailing `*` for a prefix) |
 | `allowed_origins` | includes `https://bifrost.weyland.lab` | CORS. Empty already means localhost-only; this makes it explicit (the dashboard's "Restrict CORS origins") |
 | `enforce_auth_on_inference` | `true` | every inference call needs a virtual key; dashboard credentials do not count. All callers already send one (LiteLLM `realm-llm`; Claude Code, Codex, OpenCode `x-bf-vk` on `/mcp`; the Realm), checked 2026-10-09 against 30 days of `logs.db` |
+| `skills_external_client_url` | `https://bifrost.weyland.lab` | the Skills marketplace's public base URL (B241). Unset, every marketplace route answers `503 skills marketplace disabled`; Bifrost never derives it from Host headers. Unset from the v2 upgrade (2026-10-09) to 2026-11-08 |
 
 It round-trips the FULL `client_config` because `PUT /api/config` resets fields a partial body leaves out, sends
 `enforce_auth_on_inference` explicitly (an omitted key keeps the stored value), then reads it back:

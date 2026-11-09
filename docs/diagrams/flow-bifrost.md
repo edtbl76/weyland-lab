@@ -48,7 +48,7 @@ sequenceDiagram
     W->>AM: BifrostMCPClientUnhealthy per client not healthy
 ```
 
-The three settings live in `config.db` and are restored by `register_bifrost_client_config.py`; VK→MCP scoping by `register_bifrost_vk_mcp.py` (B203); the token is the sealed
+The four settings (with `skills_external_client_url`, B241) live in `config.db` and are restored by `register_bifrost_client_config.py`; VK→MCP scoping by `register_bifrost_vk_mcp.py` (B203); the token is the sealed
 `bifrost-setup-token` Secret (runbook § Bifrost setup token).
 
 **Read-only fleet;** write/act tools live on the separate `/mcp-act` mount (Keycloak-authed, `policy.gate`).

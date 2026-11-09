@@ -1,0 +1,156 @@
+# Weyland capability registry (B241, EMA-340) — what Weyland offers the repositories it manages, written for the
+# coding agent working IN one of those repositories.
+#
+# This file is the source. scripts/capabilities-skill.py renders it, together with repos.yaml, into the
+# `weyland-capabilities` Agent Skill, published through register_bifrost_skills.py to the Bifrost plugin marketplace
+# and installed at user level, so it loads in every repository on rogueone. scripts/check-capabilities-skill.py
+# (CI repo-guards) fails when the published skill text and this file differ.
+#
+# SCHEMA — capabilities[]:
+#   key       stable id (kebab-case)
+#   name      display name
+#   summary   one line: what it gives a repository
+#   scope     lane       — per-repo coverage comes from repos.yaml `lanes.<lane>` (one source, never duplicated here)
+#             all        — every managed repository on rogueone has it, nothing to set up
+#             weyland    — weyland-lab only today (say what extending it would take in `use`)
+#   lane      (scope lane only) the repos.yaml lane key: iac | ci | scan | pr | catalog | backup
+#   use       what the agent does, in order: commands with absolute paths, where to look, what to ask the owner
+#   runbook   the weyland runbook (path under docs/runbooks/), read on rogueone at /home/edwardmangini/IdeaProjects/weyland
+#
+# Keep every line true: a capability that is retired leaves this file in the same change.
+
+capabilities:
+  - key: onboarding
+    name: Join Weyland's lanes
+    summary: one guide that prints the exact steps to bring a repo onto every lane it should have
+    scope: all
+    use:
+      - "Run `bash /home/edwardmangini/IdeaProjects/weyland/scripts/onboard-repo.sh <repo-name>` (the name as in repos.yaml). It prints the Linear, central and in-repo steps for each lane, and what is enforced."
+      - "A repo not in /home/edwardmangini/IdeaProjects/weyland/repos.yaml is not managed yet: ask the owner before adding it there."
+      - "Central edits (tofu, k8s) belong in the weyland repo, in a reviewed commit; in-repo files (.woodpecker.yml, scanner configs) belong in this repo."
+    runbook: repo-coverage.md
+
+  - key: linear
+    name: Linear project and issue tracking
+    summary: every active repo maps to a Linear project in team EMA; issues are checked for implementation-readiness
+    scope: all
+    use:
+      - "Find this repo's project: the `linear_project` field for it in /home/edwardmangini/IdeaProjects/weyland/repos.yaml."
+      - "Use the Linear MCP tools (mcp__bifrost__Linear-*, or a direct Linear MCP) against that project. An issue an agent drafts must carry Technical context, Acceptance criteria, Edge cases and Out of scope."
+      - "Check an issue is ready before working it: `cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && bash scripts/issue-readiness.sh EMA-<n>` (prints READY or what is missing)."
+    runbook: issue-readiness.md
+
+  - key: ci
+    name: CI on Woodpecker
+    summary: pipelines on the lab's Woodpecker (LAN-only, so triggered by CLI, not GitHub webhooks)
+    scope: lane
+    lane: ci
+    use:
+      - "If this repo has CI: trigger a run with `woodpecker-cli pipeline create edtbl76/<repo> --branch main` (credentials: `set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a`), then `woodpecker-cli pipeline ps edtbl76/<repo> <N>`."
+      - "If it has none: add a .woodpecker.yml in this repo and have the owner activate it (`woodpecker-cli repo add edtbl76/<repo>`); onboard-repo.sh prints the full step. Steps run on the lab's agents (stud.io uses the local rogueone agents)."
+    runbook: woodpecker.md
+
+  - key: scan
+    name: Code quality and security scanning
+    summary: SonarQube, the weekly multi-language scan suite, and the AI reviewers (DeepSource, CodeRabbit, Sourcery)
+    scope: lane
+    lane: scan
+    use:
+      - "In-repo configs: .deepsource.toml, .coderabbit.yaml, .sourcery.yaml (onboard-repo.sh lists what is missing)."
+      - "Results: SonarQube at https://sonarqube.weyland.lab; the scan suite reports to Port (code_quality, security_scan) and the Code Health dashboard."
+    runbook: code-quality.md
+
+  - key: pr-lifecycle
+    name: PR lifecycle
+    summary: stale pull requests are flagged and reconciled for every watched repo
+    scope: lane
+    lane: pr
+    use:
+      - "Nothing to run: open PRs in this repo are watched by the pr-staleness check and the reconcile job."
+    runbook: pr-lifecycle.md
+
+  - key: catalog
+    name: Port service catalog
+    summary: the repo and its pull requests appear in the Port developer portal
+    scope: lane
+    lane: catalog
+    use:
+      - "Look the repo up in Port (app.getport.io): the github-weyland integration ingests it. Port's MCP tools are flaky; use its REST API when an agent needs data."
+    runbook: port.md
+
+  - key: backup
+    name: Backup of the local checkout
+    summary: the repo's checkout on rogueone is in the nightly restic backup
+    scope: lane
+    lane: backup
+    use:
+      - "Nothing to run. Uncommitted work in the checkout is covered by the restic backup of rogueone; git remains the real copy."
+    runbook: backups.md
+
+  - key: iac
+    name: GitHub repository as code
+    summary: the GitHub repository's settings are declared in OpenTofu (tofu/github), so settings changes go through code
+    scope: lane
+    lane: iac
+    use:
+      - "Change repo settings (branch protection, features) in /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/tofu/github/, never in the GitHub UI."
+    runbook: opentofu.md
+
+  - key: agent-tools
+    name: Bifrost MCP tools and skills
+    summary: one MCP endpoint with the lab's tools (Linear, GitHub, Context7, Perplexity, Playwright, Hugging Face, the lab's own fleet) plus the lab's skills
+    scope: all
+    use:
+      - "The tools are already connected in every harness on rogueone: their names start with mcp__bifrost__ (for example mcp__bifrost__Linear-list_issues)."
+      - "The lab's user-level skills on rogueone: this one (weyland-capabilities, installed by `scripts/capabilities-skill.py --install` in ~/.agents/skills, linked from ~/.claude/skills and ~/.codex/skills) and weyland-conventions (the house rules, from the bifrost-skills plugin marketplace). Refresh that marketplace with `claude plugin marketplace update bifrost-skills`. Do not install bifrost-weyland-capabilities from it: the user skill above is the current copy."
+    runbook: mcp-gateway.md
+
+  - key: agent-memory
+    name: Shared agent memory
+    summary: the lab's durable lessons as Markdown notes, shared by every harness
+    scope: all
+    use:
+      - "Search before re-deriving a lab fact: the Agent_Memory tools (mcp__bifrost__Agent_Memory-search_notes) or read /home/edwardmangini/agent-memory/weyland/MEMORY.md."
+      - "The store is the weyland lab's: write a note there only for a lesson about the lab, never a secret."
+    runbook: shared-agent-memory.md
+
+  - key: lab-ask
+    name: Lab command lookup
+    summary: "ask which runbook command does a job in the lab: `lab-ask \"...\"`, or list them with `lab-commands`"
+    scope: all
+    use:
+      - "In a rogueone shell: `lab-ask \"I want to do X in the lab\"` returns the command, host and runbook section; `lab-commands WORD` greps the same roster (every command in weyland's runbooks)."
+    runbook: research-scratch-vault.md
+
+  - key: research-vault
+    name: Research scratch vault
+    summary: a throwaway claude-obsidian vault of cited notes for one research task, surviving context compaction
+    scope: all
+    use:
+      - "`vault <topic>` in a rogueone shell creates it and opens Claude there; put text sources in its inbox, run /claude-obsidian:wiki-ingest, ask with /claude-obsidian:wiki-query; `vault-rm <topic>` deletes it."
+    runbook: research-scratch-vault.md
+
+  - key: golden-paths
+    name: Golden-path service templates
+    summary: tested starting points for a new service in 21 language/framework stacks
+    scope: all
+    use:
+      - "Scaffold a service: `bash /home/edwardmangini/IdeaProjects/weyland/scripts/new-service.sh <language/framework> <service-name> [dest-dir]` (for example python/fastapi, go/gin, rust/axum)."
+      - "The paths themselves are in /home/edwardmangini/IdeaProjects/weyland/golden-paths/; each is built and smoke-tested by weyland's CI."
+    runbook: ../demos/golden-paths.md
+
+  - key: test-visibility
+    name: Test visibility (Trunk Flaky Tests)
+    summary: JUnit results uploaded to Trunk, with flaky and broken tests filed to Linear
+    scope: weyland
+    use:
+      - "weyland-lab only today. Extending it to the other repos is backlog item B238 (EMA-337): a survey first, then per-repo wiring."
+    runbook: trunk-flaky-tests.md
+
+  - key: code-search
+    name: Code search (Sourcebot and Zoekt)
+    summary: indexed code search with a web UI and an MCP for agents
+    scope: weyland
+    use:
+      - "Indexes weyland-lab only today (a daily 03:35 clone and index). Adding a repo means adding it to the Zoekt index job."
+    runbook: code-intelligence.md
