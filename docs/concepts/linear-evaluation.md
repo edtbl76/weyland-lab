@@ -133,6 +133,12 @@ a value would *overwrite* an orthogonal fact, it is a facet (label), not a state
 - **`parked:deferred`** — deliberately deferred; a decision, not a blocker. Applied to **B86 / EMA-76**
   (REOPENED / DEFERRED).
 
+**Held items are out of the tier account (owner, 2026-11-09).** An issue labelled `parked:held` keeps its priority,
+but it is left out of every tier count, High list and rebalance: rebalance the workable issues as if the held ones were
+not there, and list the held ones separately. When the blocker clears (for the B134 hardware: the day it arrives), stop
+and address the held items as a special case, then fold them back into the account. `parked:deferred` is a decision,
+not a blocker, so a deferred issue still counts.
+
 Each issue kept its priority label and its `Backlog` state (verified in the `save_issue` response) — the
 orthogonality proof. The specific *why* still lives in the `docs/backlog.md` entry; the label is the queryable
 facet, the backlog is the prose. Terminal mappings are unchanged: WON'T-DO / MOOT → `Canceled`, DONE → `Done`.

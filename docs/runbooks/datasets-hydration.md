@@ -314,8 +314,9 @@ The three vector backends now have both a quality gate and a dashboard:
 | MongoDB | ▢ parked (B199) — wake first | ✅ **done** | who_gho (8 collections) + open_food_facts (4.5M docs) + aidlc-kb (511 frontmatter docs) |
 | Feast | ▢ deploy first | ▢ | feature store (audio/health features) |
 
-Each new store = a `<store>_allow` field on `DomainConfig` + a writer arm in `loaders.py` + (if not
-deployed) standing up the store first. Full per-dataset targets in [data-pipeline-flows.md](../data-pipeline-flows.md).
+Each new store = a `<store>_allow` field on `DomainConfig` + a `_Store` row in `loaders._STORES` (asset name,
+description, run function, metadata keys) + its writer in a `datasets_lib/store_*.py` module + (if not deployed)
+standing up the store first. Full per-dataset targets in [data-pipeline-flows.md](../data-pipeline-flows.md).
 
 ## Deploy
 

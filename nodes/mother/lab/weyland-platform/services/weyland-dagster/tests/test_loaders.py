@@ -608,7 +608,9 @@ def _parquet_bytes(rows):
 
 def test_load_dataset_to_mysql_writes_rows_read_back(loaders, monkeypatch):
     rows = [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
-    monkeypatch.setattr(loaders, "_mysql_ensure_database", lambda dataset, log: None)   # no live CREATE DATABASE
+    import sys
+    store_sql = sys.modules[loaders.__name__.rsplit(".", 1)[0] + ".store_sql"]   # the MySQL loader lives here
+    monkeypatch.setattr(store_sql, "_mysql_ensure_database", lambda dataset: None)   # no live CREATE DATABASE
     monkeypatch.setattr(loaders.io, "branch", lambda: "main", raising=False)
     monkeypatch.setattr(loaders.io, "fetch", lambda mc, repo, name: _parquet_bytes(rows), raising=False)
     eng = _sa.create_engine("sqlite://")

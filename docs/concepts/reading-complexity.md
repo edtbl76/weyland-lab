@@ -89,7 +89,8 @@ Run across the real-code services (weyland-dagster, weyland-guard, weyland-tool-
 - **True nesting earned its place.** `neo4j_write` (CCN 9, density **0.08** — reads as deep) is `TANGLED` because it
   hides a **6-level pyramid**; same for `weaviate_write`/`pgvector_write`/`eval_scores`. That is the case density
   alone misses — a clean signature over deeply-nested guts.
-- **Hotspot:** `datahub_emit.py` (the largest cluster of dense emitters) and `datasets_lib/loaders.py`.
+- **Hotspot:** `datahub_emit.py` (the largest cluster of dense emitters) and `datasets_lib/loaders.py` (the
+  latter refactored 2026-11-09 into a store table plus `store_*` modules, CodeScene 4.52 → at least 9.38).
 - **SHALLOW:** `finance_common.py` / `music_common.py` / `health_common.py` each re-declare the same `download()`
   and `client()` pass-throughs → collapse to one shared `_io`.
 - Stage 3 is visibly self-calibrating — z_loc up to 6.7 on `neo4j_write`, because this codebase's mean function is

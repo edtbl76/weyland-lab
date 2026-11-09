@@ -112,7 +112,7 @@ Expect the health JSON with the pinned `revision`, and the lockfile's certifi ve
   replay safe.
 - **ivfflat built empty = bad recall.** The `ALTER … TYPE vector(768)` rebuilds `rag_chunks_embedding_idx` on an empty
   table; centroids are garbage until you `REINDEX INDEX rag_chunks_embedding_idx` **after** the corpus is loaded.
-- **The datasets pipeline has its OWN embedder** (`datasets_lib/loaders.py` `_embedder()`, env `EMBED_MODEL`, separate
+- **The datasets pipeline has its OWN embedder** (`datasets_lib/store_vectors.py` `_embedder()`, env `EMBED_MODEL`, separate
   collections) — a model swap is RAG/KB-scoped and does **not** touch the 9 datasets unless you change that too.
 
 Related: [runbooks/eval-harness.md](eval-harness.md) (the golden set), [runbooks/coding-agents.md](coding-agents.md),

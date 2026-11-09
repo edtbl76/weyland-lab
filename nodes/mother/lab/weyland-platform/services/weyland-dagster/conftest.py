@@ -229,10 +229,15 @@ def loaders():
     ts = types.ModuleType(pkg + ".timeseries"); ts.hypertable_ts = lambda *a, **k: None
     _put(pkg + ".timeseries", ts)
 
-    sys.modules.pop(pkg + ".loaders", None)
+    # loaders re-exports the store_* modules; drop them too so each test binds them to THIS fixture's io stub.
+    fresh = [pkg + ".loaders"] + [pkg + "." + m for m in
+                                  ("store_common", "store_sql", "store_docs", "store_cassandra", "store_neo4j",
+                                   "store_vectors")]
+    for name in fresh:
+        sys.modules.pop(name, None)
     module = importlib.import_module(pkg + ".loaders")
     yield module
-    for name in added + [pkg + ".loaders"]:
+    for name in added + fresh:
         sys.modules.pop(name, None)
 
 

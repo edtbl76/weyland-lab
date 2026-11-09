@@ -112,7 +112,8 @@ adjudicated acceptable. Zero behavior change.
   `emit_asset_check_assertions` (`_emit_assertion` + `_emit_table_assertions`), `emit_field_docs`
   (`_resolve_field_doc` + `_apply_field_docs`). Guarded by `test_datahub_emit.py`.
 - **`loaders.py` (2):** `_load_dataset_to_cassandra` (`_cassandra_write_file`), `_build_vectors`
-  (`_read_vector_frame` + `_vectors_from_frame`). Guarded by `test_loaders.py`.
+  (`_read_vector_frame` + `_vectors_from_frame`). Guarded by `test_loaders.py`. (Since 2026-11-09 these live in
+  `store_cassandra.py` and `store_vectors.py`; see the refactor note below.)
 - **Store writers (4):** `neo4j_write`, `weaviate_write`, `pgvector_write` (`_write_source` each), `eval_scores`
   (`_persist_scores` + `_log_judge_error`). Untested integration code (`assets/*.py`, excluded from coverage by
   design) — verified by compile + triage-clear + pure code-motion.
@@ -126,10 +127,11 @@ adjudicated acceptable. Zero behavior change.
 - **SHALLOW (2):** the `finance_common.py` / `music_common.py` / `health_common.py` facades re-declared the same
   `client()` and `download()` pass-throughs → converted to re-exports (the repo-binding `*_put`/`*_fput` stay).
 
-**Adjudicated acceptable (not refactored):** `loaders.py:build_store_load_assets`. It is a per-store asset
-registry — ~11 near-identical `if cfg.<store>_allow: @asset …` gates — with **density 0.17** (well below the
-0.28 tangle line) and nesting 4; the `ccn=20` is just the sum of the per-store gates. Clearing the verdict would
-mean converting the gates to a data-driven factory table, relocating ~250 lines of live dagster asset
-registration (names/groups/deps the running pipeline depends on) for a cosmetic verdict change, not a genuine
-complexity reduction. This is the design's "long but not tangled → acceptable" case — the human-glance the triage
-prescribes.
+**Was adjudicated acceptable, then refactored (2026-11-09, owner: the scan debt is fixed, not parked):**
+`loaders.py:build_store_load_assets` was a per-store asset registry of ~11 near-identical `if cfg.<store>_allow:
+@asset …` gates (density 0.17, below the 0.28 tangle line). The file scored 4.52 in CodeScene (1,002 lines, the
+factory at cc 56). It is now a data-driven table (`loaders._STORES`, one row per store, one asset factory), and
+the per-store writers live in `store_sql.py`, `store_docs.py`, `store_cassandra.py`, `store_neo4j.py` and
+`store_vectors.py`, with shared helpers in `store_common.py`; every module scores at least 9.38. The live asset
+registration (the names, groups, deps and descriptions the running pipeline depends on) was proven unchanged by
+dumping all 30 store assets in the user-code image before and after.

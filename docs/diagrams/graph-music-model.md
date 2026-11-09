@@ -38,7 +38,7 @@ graph LR
 **Not modeled:** musicbrainz (flat mbid dictionary, no inter-row edges), and the flat feature/caption sets
 (spotify, fma_echonest/features, gtzan, lp_musiccaps, uci) — those live in the tabular/OLAP/vector stores.
 
-**Loader mechanics (`datasets_lib/loaders.py`):** unique constraint per (label, key) first (MERGE without an
+**Loader mechanics (`datasets_lib/store_neo4j.py`):** unique constraint per (label, key) first (MERGE without an
 index is O(n)/row); clean rebuild = batched `DETACH DELETE` of the spec's `clear_labels` (fma_tracks omits the
 shared `:Artist`/`:Genre` so a reload never wipes lastfm's `PLAYS` graph or the tree); then per-batch nodes
 `MERGE`, edges **`MATCH`-both-endpoints + `CREATE`** (MERGE-relationship into a supernode is O(degree) — death
