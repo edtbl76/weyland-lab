@@ -291,43 +291,45 @@ def _split_reviewed(hotspots: list) -> tuple:
     return new, known, open_
 
 
-def precheck(files: list) -> int:
-    """Scan `files` in a throwaway project with the server's default profiles (the ones weyland-lab uses) and report
-    every finding. The verdict is the findings, never the scratch project's gate: a first analysis has no new-code
-    period, so that gate passed with a CRITICAL issue open (2026-10-12). Project and token are always removed."""
+def _repo_rel(f: str) -> str:
+    """A path as findings should name it: repo-relative, or the bare name for a file outside the repo."""
+    rel = os.path.relpath(f)
+    return os.path.basename(f) if rel.startswith("..") else rel
+
+
+def _precheck_targets(files: list):
+    """(files to scan, None), or ([], exit code) when there is nothing to scan or the input is unusable."""
     if not files:
         print("sonar_api: precheck <file> [file ...] — name the changed files", file=sys.stderr)
-        return 2
+        return [], 2
     missing = [f for f in files if not os.path.isfile(f)]
     if missing:
         print(f"sonar_api: precheck: not a file: {', '.join(missing)}", file=sys.stderr)
-        return 2
-    rel = {f: (os.path.relpath(f) if not os.path.relpath(f).startswith("..") else os.path.basename(f)) for f in files}
+        return [], 2
     patterns = _exclusions()
-    excluded = sorted(rel[f] for f in files if _excluded(rel[f], patterns))
+    excluded = sorted(_repo_rel(f) for f in files if _excluded(_repo_rel(f), patterns))
     if excluded:
         print(f"precheck: {len(excluded)} excluded by sonar-project.properties: {' '.join(excluded)}")
-        files = [f for f in files if rel[f] not in excluded]
+        files = [f for f in files if _repo_rel(f) not in excluded]
     if not files:
         print("precheck: nothing for Sonar to analyse (every file is excluded by sonar-project.properties)")
-        return 0
+        return [], 0
     # Only KNOWN non-analysed types skip the scan; anything else is scanned, and 0 files analysed then fails closed.
     # A shell + Markdown change otherwise could never print `clean` (2026-10-13).
     exts = {os.path.splitext(f)[1].lower() for f in files}
     if exts <= NOT_ANALYSED:
         print(f"precheck: nothing for Sonar to analyse ({len(files)} files: {' '.join(sorted(exts))})")
-        return 0
-    binaries, uncompiled = _java_class_dirs(files)
-    if uncompiled:
-        print("sonar_api: precheck: the Java analyzer needs compiled classes, and these Maven modules have none — "
-              "compile first, then re-run:\n  " + "\n  ".join(
-                  f"(cd {m} && mvn -q -B -DskipTests test-compile)" for m in uncompiled), file=sys.stderr)
-        return 2
+        return [], 0
+    return files, None
+
+
+def _scratch_scan(files: list, binaries: list) -> int:
+    """Copy `files` (repo-relative paths kept, so findings name the real file) and any Java class dirs into a temp
+    tree, scan it as a throwaway project, and always delete the project and revoke its token."""
     key = f"{PROJECT}-precheck-{os.getpid()}"
     with tempfile.TemporaryDirectory(prefix="sonar-precheck-") as src:
-        for f in files:                            # keep repo-relative paths so findings name the real file
-            rel = os.path.relpath(f)
-            rel = os.path.basename(f) if rel.startswith("..") else rel
+        for f in files:
+            rel = _repo_rel(f)
             os.makedirs(os.path.join(src, os.path.dirname(rel)), exist_ok=True)
             shutil.copy(f, os.path.join(src, rel))
         _stage_java_binaries(src, binaries)
@@ -337,6 +339,22 @@ def precheck(files: list) -> int:
         finally:
             cleaned = _precheck_cleanup(key) == 0
     return result if cleaned else 2
+
+
+def precheck(files: list) -> int:
+    """Scan `files` in a throwaway project with the server's default profiles (the ones weyland-lab uses) and report
+    every finding. The verdict is the findings, never the scratch project's gate: a first analysis has no new-code
+    period, so that gate passed with a CRITICAL issue open (2026-10-12). Project and token are always removed."""
+    files, done = _precheck_targets(files)
+    if done is not None:
+        return done
+    binaries, uncompiled = _java_class_dirs(files)
+    if uncompiled:
+        print("sonar_api: precheck: the Java analyzer needs compiled classes, and these Maven modules have none — "
+              "compile first, then re-run:\n  " + "\n  ".join(
+                  f"(cd {m} && mvn -q -B -DskipTests test-compile)" for m in uncompiled), file=sys.stderr)
+        return 2
+    return _scratch_scan(files, binaries)
 
 
 BINARIES_DIR = ".precheck-binaries"
