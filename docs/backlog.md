@@ -5838,7 +5838,7 @@ Linear: EMA-186 (project `rogueone Hardware`). Memory: `rogueone-gpu-freeze-vram
 
 ---
 
-### B151 — B88 follow-on: deferred integration-tier depth (Flink MiniCluster + future test-tier deferrals) — HIGH (↑ Medium→High 2026-11-09 rebalance, held items out of the account; ↑ Low→Medium 2026-09-14 rebalance; 2026-08-29) [Linear EMA-224]
+### B151 — B88 follow-on: deferred integration-tier depth (Flink MiniCluster + future test-tier deferrals) — DONE 2026-11-09 (HIGH, ↑ Medium→High 2026-11-09 rebalance, held items out of the account; ↑ Low→Medium 2026-09-14 rebalance; 2026-08-29) [Linear EMA-224]
 
 The catch-all for test-tier depth **deliberately deferred** from B88's #2 integration tier — so the deferrals live in ONE tracked place rather than scattered as inline "someday" notes. B88 #2 itself is DONE: two black-box integration lanes (guard, DataHub↔Redpanda) built, bats-tested, and verified GREEN in a real Woodpecker run (#41). What was consciously NOT built lands here.
 
@@ -5849,6 +5849,19 @@ The catch-all for test-tier depth **deliberately deferred** from B88's #2 integr
 **Future B88 test-tier deferrals append here** rather than spawning new items. Also available on demand (not deferrals, just not-yet-built): extending the black-box pattern to more service boundaries (e.g. `tool-server`'s HTTP layer) — the tier is complete with its two highest-value boundaries, and more can be added when a driver appears.
 
 Relates **B88** (the integration tier this spun off from), B136 (Flink modules).
+
+**Outcome (2026-11-09).** The Flink MiniCluster harness is built. `HealthStateRisk.topology()` and `SqlRunner.run()` were extracted from the two `main()` methods (main wires the same code between the real Kafka source and sink), and two MiniCluster tests run them end to end with no broker: `HealthStateRiskPipelineTest` asserts the exact JSON per state (including skipped footnote rows and the `??` placeholder), and `SqlRunnerPipelineTest` runs a script with comments, a `SET`, a view and a `SELECT`. Each was proven to fail on a broken job: a constant `keyBy` key (Texas inherited California's state) and a dropped `SET`; the existing unit tests caught neither. Test-scope dependencies only (`flink-test-utils`, `flink-clients`, the table planner and runtime, all 1.20.1, owner-approved); the job jars carry none of them. **Found and fixed on the way:** the Sonar precheck could not analyse Java at all (the analyzer needs compiled classes), so it now stages each module's classes or fails closed with the compile command; and CI #616 caught `precheck()` going TANGLED, split into three functions. The black-box lanes for other services (tool-server HTTP) stay available on demand, not deferred.
+
+**DoD (recorded 2026-11-09, per pillar):**
+1. **Docs:** DONE. `runbooks/flink.md` (the test section and the local command), `runbooks/code-quality.md` (precheck and Java).
+2. **Diagrams:** N/A. Test code and a precheck fix; no runtime flow changed (the jobs' topology is the same).
+3. **Demos:** N/A. A test harness; its demonstration is the two mutation runs (recorded on EMA-224) and CI #617.
+4. **Clean-up:** DONE. The shade plugin's `dependency-reduced-pom.xml` was removed; mutant copies were in the scratchpad.
+5. **Tracking:** DONE. EMA-224's five boxes ticked with evidence and set to Done; `check-linear-sync.sh` OK.
+6. **Ops:** DONE. The tests run in the existing `test-java` lane and report to Trunk; no service changed.
+7. **Scans:** DONE. Sonar precheck clean, including the Java files (the precheck's own fix made that possible); the complexity gate passes; CI #617 green and the Sonar gate OK; test-java 61 s → 99 s.
+8. **Cascades:** DONE. `main()` in both jobs calls the extracted methods with identical behaviour; the job jars contain no test classes (checked); `ship-images.sh` shipped `git-85833b1c` with smoke and transaction checks passing. The precheck change affects every future Java precheck (now possible) and nothing else (35 tests).
+9. **DR:** N/A. No state.
 
 ---
 
