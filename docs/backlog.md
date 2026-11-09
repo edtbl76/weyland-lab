@@ -816,6 +816,19 @@ not urgent. **Open:** which scripts? Go vs alternatives?
 
 **When this activates:** the platform/application split becoming real work. At that point the open questions above (which scripts, Go vs alternatives) get answered against the split's actual boundaries rather than in the abstract — which is also why answering them *now* would be premature.
 
+**The scan debt that raised B9 on 2026-11-05 is fixed in place, not here (2026-11-09, owner: it "should never have been added to a separate issue").** That debt was the U14 workflow JavaScript (fixed the same day) and the CodeScene hotspot `datasets_lib/loaders.py` (score 4.52: 1,002 lines, `build_store_load_assets` at cc 56). `loaders.py` is now a store table (`_STORES`, one row per store, one asset factory) plus `store_common.py`, `store_sql.py`, `store_docs.py`, `store_cassandra.py`, `store_neo4j.py` and `store_vectors.py`; every module scores at least 9.38. Commit `e23829c6`, shipped as `git-e23829c6`.
+
+**DoD of that fix (recorded 2026-11-09, per pillar):**
+1. **Docs:** DONE. `runbooks/complexity-triage.md` (the "adjudicated acceptable" verdict replaced by the refactor and its proof), `runbooks/datasets-hydration.md` (how to add a store now), `runbooks/embedding-model-swap.md`, `diagrams/graph-music-model.md`, `concepts/reading-complexity.md`.
+2. **Diagrams:** DONE. No flow changed (`build_store_load_assets` keeps its name in every flow); the one diagram naming the old file now names `store_neo4j.py`.
+3. **Demos:** DONE as live runs recorded in `complexity-triage.md`: `datasets_finance_qdrant_load` (run `f695ad66`, 8,851 vectors) and `datasets_finance_mysql_load` (run `7186b55d`, 20,790 rows), both exactly their 2026-09-05 baselines. A third run (`4fe02f1f`, kindle) found the kindle lakeFS repo was never created; recorded in B165, nothing written.
+4. **Clean-up:** DONE. Baseline dumps and scratch copies stayed in the scratchpad.
+5. **Tracking:** DONE. No issue by the owner's rule (fixed in place); recorded here and on B9's header, which went back to Low.
+6. **Ops:** DONE. The 30 store assets are unchanged (same names, groups, deps, metadata keys), so schedules, asset checks and alerts are unchanged.
+7. **Scans:** DONE. CodeScene 4.52 → at least 9.38 per module; Sonar precheck clean (3 issues and 2 hotspots carried over with the moved code, fixed); the complexity gate passes; the CI Python lane 19/19; Trivy on `weyland-dagster-user-code:git-e23829c6` (#615): 343 findings (1 critical, 83 high), "no new CVEs introduced by this change".
+8. **Cascades:** DONE. All 30 store assets dumped identical in the user-code image before and after; every consumer of the re-exported names (`checks.py`, `aidlc_kb.py`, `datahub_emit.emit_lancedb`, `definitions.py`, `scripts/lancedb_query.py`) imports cleanly (`graphify.sh affected` listed them); `ship-images.sh` smoke and transaction checks passed.
+9. **DR:** N/A. Code only; the stores it writes keep their own `dr.md` rows.
+
 ### B10 — Model registry
 **MERGED with B16 — see B16 for MLflow detail.**
 
@@ -5859,7 +5872,7 @@ Relates **B88** (the integration tier this spun off from), B136 (Flink modules).
 4. **Clean-up:** DONE. The shade plugin's `dependency-reduced-pom.xml` was removed; mutant copies were in the scratchpad.
 5. **Tracking:** DONE. EMA-224's five boxes ticked with evidence and set to Done; `check-linear-sync.sh` OK.
 6. **Ops:** DONE. The tests run in the existing `test-java` lane and report to Trunk; no service changed.
-7. **Scans:** DONE. Sonar precheck clean, including the Java files (the precheck's own fix made that possible); the complexity gate passes; CI #617 green and the Sonar gate OK; test-java 61 s → 99 s.
+7. **Scans:** DONE. Sonar precheck clean, including the Java files (the precheck's own fix made that possible); the complexity gate passes; CI #617 green and the Sonar gate OK; test-java 61 s → 99 s. Trivy on the rebuilt images (#617): `weyland-flink:git-85833b1c` 125 findings (2 critical, 41 high) and `weyland-flink-py` 69 (1 critical, 8 high), both "no new CVEs introduced by this change" against the deployed images.
 8. **Cascades:** DONE. `main()` in both jobs calls the extracted methods with identical behaviour; the job jars contain no test classes (checked); `ship-images.sh` shipped `git-85833b1c` with smoke and transaction checks passing. The precheck change affects every future Java precheck (now possible) and nothing else (35 tests).
 9. **DR:** N/A. No state.
 
