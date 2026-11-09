@@ -131,8 +131,9 @@ the end. Baseline: the full repo-guards suite was green the same day (`ALL_GUARD
       writes back only what drifted, through `etcdctl` in the etcd pod;
     - `deploy-apisix.sh` calls `restore`, and the broken `routes-init.sh` is removed.
 
-    The live write path is tested against a fake etcd only: a scratch write was refused, because cluster writes are
-    the owner's.
+    **The live write path was proven on 2026-11-08 with the owner's go:** route 5 was backed up and deleted (the
+    gateway answered 404), `check` flagged it missing, `restore` wrote back exactly that record, and the route served
+    200 on the first try. The other routes were unaffected.
 
 ### Tier 2 — stale docs that mislead
 

@@ -82,8 +82,15 @@ python3 /home/edwardmangini/IdeaProjects/weyland/scripts/apisix-routes.py restor
 ```
 
 `restore` writes to etcd, so run it only to repair. Its logic is tested against a fake etcd
-(`scripts/tests/test_apisix_routes.py`); the live write has not been exercised, because writes to the cluster are
-the owner's.
+(`scripts/tests/test_apisix_routes.py`), and the live write was proven on 2026-11-08 with the owner's go:
+- route 5 was backed up (`etcdctl get /apisix/routes/5 --print-value-only`), then deleted, and `/neo4j/health`
+  through the gateway went to `404`;
+- `check` reported `/apisix/routes/5: missing` (exit 1), and `restore` wrote back only that record and re-checked
+  in sync;
+- the route answered `200` on the first try, the other routes were unaffected, and the record matched the backup
+  apart from its timestamps.
+
+If a restore ever writes something wrong, put the saved value back with `etcdctl put <key> '<saved json>'`.
 
 This replaces the old seed (`deploy-apisix.sh` running `routes-init.sh` in the gateway pod), which could not work:
 the gateway image has no `curl`, and the script expected `APISIX_ADMIN_KEY` in `scripts/.env`, which no longer holds
