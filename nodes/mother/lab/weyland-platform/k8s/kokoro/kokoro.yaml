@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: kokoro
-          image: ghcr.io/remsky/kokoro-fastapi-cpu:latest   # pin to a release tag once smoke-tested
+          image: ghcr.io/remsky/kokoro-fastapi-cpu@sha256:2ff7f4d5ecd43efbd4216ee3f6f17f6d99693dbf0d3e19bac65e8adc2e9927cc   # B239 2026-11-08: pinned to the digest that was running (was :latest; health + synthesis verified on it)
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

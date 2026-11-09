@@ -375,6 +375,12 @@ class _FakeGraph:
     def get_aspect(self, urn, aspect_type, *a, **k):
         return self._aspects.get(aspect_type)
 
+    def get_entities(self, entity_name, urns, aspects=None, with_system_metadata=False):
+        # Same answers as get_aspect, in get_entities' shape ({urn: {aspectName: (aspect, systemMetadata)}}), for the
+        # loops that batch-read (B239).
+        by_name = {t.ASPECT_NAME: v for t, v in self._aspects.items() if v is not None}
+        return {u: {n: (by_name[n], None) for n in (aspects or []) if n in by_name} for u in urns}
+
 
 @pytest.fixture
 def fake_graph(monkeypatch):
@@ -677,3 +683,126 @@ def test_emit_applications_empty_owns_attaches_nothing(datahub_emit, captured, m
     n_apps, n_attached = datahub_emit.emit_applications()
     assert n_apps == 1 and n_attached == 0
     assert not [m for m in captured.mcps if isinstance(m.aspect, ApplicationsClass)]  # empty owns → no attach
+
+
+# ── B239: batched reads and writes for datahub_catalog_emit_job ────────────────────────────────────────────
+# Measured 2026-11-08: 11,823 datasets, get_aspect median 13 ms, so one per-dataset read pass costs ~2.6 min and the
+# job made ~8 of them; get_entities in chunks fetched the same aspects 3.6x faster with identical results (200/200).
+class _BatchGraph:
+    """get_entities + get_aspect over a fixed {urn: {aspect_type: value}} map; counts calls of each kind."""
+    def __init__(self, data):
+        self.data = data
+        self.batch_calls = []
+        self.single_calls = 0
+
+    def get_entities(self, entity_name, urns, aspects=None, with_system_metadata=False):
+        self.batch_calls.append(list(urns))
+        names = {cls.ASPECT_NAME: cls for row in self.data.values() for cls in row}
+        out = {}
+        for u in urns:
+            row = self.data.get(u, {})
+            out[u] = {n: (row[names[n]], None) for n in (aspects or []) if n in names and names[n] in row}
+        return out
+
+    def get_aspect(self, urn, aspect_type, *a, **k):
+        self.single_calls += 1
+        return self.data.get(urn, {}).get(aspect_type)
+
+
+def test_aspect_reader_prefetches_in_chunks_and_answers_from_the_batch(datahub_emit):
+    from datahub.metadata.schema_classes import GlobalTagsClass, StatusClass
+    urns = [f"urn:li:dataset:(urn:li:dataPlatform:trino,t{i},PROD)" for i in range(250)]
+    g = _BatchGraph({u: {StatusClass: StatusClass(removed=(i % 2 == 0))} for i, u in enumerate(urns)})
+    r = datahub_emit._AspectReader(g, [StatusClass, GlobalTagsClass])
+    r.prefetch(urns)
+    assert [len(c) for c in g.batch_calls] == [100, 100, 50]
+    assert r.get(urns[0], StatusClass).removed is True and r.get(urns[1], StatusClass).removed is False
+    assert r.get(urns[0], GlobalTagsClass) is None      # absent aspect -> None, as get_aspect returns
+    assert g.single_calls == 0
+
+
+def test_aspect_reader_falls_back_to_a_single_read_for_an_unfetched_urn(datahub_emit):
+    from datahub.metadata.schema_classes import StatusClass
+    u = "urn:li:dataset:(urn:li:dataPlatform:trino,late,PROD)"
+    g = _BatchGraph({u: {StatusClass: StatusClass(removed=True)}})
+    r = datahub_emit._AspectReader(g, [StatusClass])
+    assert r.get(u, StatusClass).removed is True and g.single_calls == 1
+
+
+class _InnerEmitter:
+    def __init__(self, fail=False):
+        self.batches, self.singles, self.fail = [], [], fail
+
+    def emit_mcps(self, mcps, **kw):
+        if self.fail:
+            raise RuntimeError("GMS 500")
+        self.batches.append(list(mcps))
+
+    def emit(self, item, **kw):
+        self.singles.append(item)
+
+
+def _mcp(i):
+    from datahub.emitter.mcp import MetadataChangeProposalWrapper
+    from datahub.metadata.schema_classes import StatusClass
+    return MetadataChangeProposalWrapper(entityUrn=f"urn:li:dataset:(urn:li:dataPlatform:trino,t{i},PROD)",
+                                         aspect=StatusClass(removed=False))
+
+
+def test_batching_emitter_sends_in_batches_and_flushes_the_rest(datahub_emit):
+    inner = _InnerEmitter()
+    e = datahub_emit.BatchingEmitter(inner, batch_size=200)
+    for i in range(450):
+        e.emit(_mcp(i))
+    assert [len(b) for b in inner.batches] == [200, 200]
+    e.flush()
+    assert [len(b) for b in inner.batches] == [200, 200, 50] and inner.singles == []
+
+
+def test_batching_emitter_keeps_order_when_a_non_mcp_item_arrives(datahub_emit):
+    inner = _InnerEmitter()
+    e = datahub_emit.BatchingEmitter(inner, batch_size=200)
+    e.emit(_mcp(1))
+    other = object()            # e.g. a MetadataChangeEvent: not batchable, sent on its own
+    e.emit(other)
+    assert [len(b) for b in inner.batches] == [1] and inner.singles == [other]
+
+
+def test_a_failed_batch_raises_instead_of_dropping_writes(datahub_emit):
+    e = datahub_emit.BatchingEmitter(_InnerEmitter(fail=True), batch_size=200)
+    e.emit(_mcp(1))
+    with pytest.raises(RuntimeError, match="GMS 500"):
+        e.flush()
+
+
+def test_every_definitions_caller_of_a_datahub_emit_function_flushes():
+    """Writes are buffered, so a caller that neither goes through _safe_emit (which flushes) nor calls
+    flush_pending itself would leave them unsent. The Soda job was exactly that case when batching was added."""
+    import ast
+    import pathlib
+    src = (pathlib.Path(__file__).resolve().parents[1] / "weyland_pipeline" / "definitions.py").read_text()
+    tree = ast.parse(src)
+    offenders = []
+    for fn in ast.walk(tree):
+        if not isinstance(fn, ast.FunctionDef) or fn.name == "_safe_emit":
+            continue
+        imported = {a.asname or a.name for n in ast.walk(fn) if isinstance(n, ast.ImportFrom)
+                    and (n.module or "").endswith("datahub_emit") for a in n.names}
+        emits = {n.func.id for n in ast.walk(fn) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                 and n.func.id in imported and n.func.id.startswith("emit")}
+        names = {n.id for n in ast.walk(fn) if isinstance(n, ast.Name)}
+        if emits and not ({"_safe_emit", "flush_pending"} & names):
+            offenders.append((fn.name, sorted(emits)))
+    assert offenders == []
+
+
+def test_flush_pending_flushes_every_emitter_handed_out(datahub_emit, monkeypatch):
+    inners = []
+    monkeypatch.setattr(datahub_emit, "DatahubRestEmitter", lambda **kw: inners.append(_InnerEmitter()) or inners[-1])
+    a, b = datahub_emit._gms_emitter(), datahub_emit._gms_emitter()
+    a.emit(_mcp(1))
+    b.emit(_mcp(2))
+    datahub_emit.flush_pending()
+    assert [len(x.batches) for x in inners] == [1, 1]
+    datahub_emit.flush_pending()            # nothing left: a second flush sends nothing
+    assert [len(x.batches) for x in inners] == [1, 1]

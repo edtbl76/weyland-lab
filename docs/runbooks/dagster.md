@@ -139,9 +139,11 @@ Check Runs for anything in progress first. A run stopped this way shows as faile
 ## Watchdog and alerts
 
 `dagster-freshness-check` (a CronJob) checks every scheduled job's latest run against a budget in
-`k8s/dagster/freshness.yaml`. It fires `DagsterJobFailed` (the last run failed), `DagsterJobStale` (no success within
-the budget) and `DagsterJobNeverRan`, all at **warning** severity. Warnings do not open a Linear incident (U14 files
-critical alerts only), so a failing job can stay failing until someone reads the warning. Details and how to run
+`k8s/dagster/freshness.yaml`. It fires `DagsterJobFailed` (the last run failed) and `DagsterJobNeverRan` at
+**warning**, and `DagsterJobStale` (no success within the budget) at warning when first past the budget, rising to
+**critical** once more than a day past it (B239, 2026-11-08). Critical opens a Linear incident (U14) and pages
+through on-call; warnings do neither. Before the escalation, `datahub_catalog_emit_job` failed for 9 days on
+warnings alone. Details and how to run
 the check now: [observability.md § Dagster job watchdog](observability.md#dagster-job-watchdog--budgets-and-the-guard-b94-b196-2026-09-27).
 
 ## Related

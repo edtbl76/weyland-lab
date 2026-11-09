@@ -50,12 +50,10 @@ kubectl apply -f "${K8S_DIR}/apisix-dashboard.yaml"
 echo "==> Waiting for APISIX to be ready..."
 kubectl rollout status deployment/weyland-apisix -n "$NAMESPACE" --timeout=120s
 
-echo "==> Seeding routes via kubectl exec..."
-APISIX_POD=$(kubectl get pod -n "$NAMESPACE" -l app=weyland-apisix -o jsonpath='{.items[0].metadata.name}')
-kubectl cp "${SERVICE_DIR}/conf/routes-init.sh" \
-  "${NAMESPACE}/${APISIX_POD}:/tmp/routes-init.sh"
-kubectl exec -n "$NAMESPACE" "$APISIX_POD" -- \
-  env APISIX_ADMIN_KEY="$APISIX_ADMIN_KEY" bash /tmp/routes-init.sh
+echo "==> Restoring routes into etcd..."
+# B239 (2026-11-08): the routes are defined in scripts/lib/apisix_routes.py and written to etcd with etcdctl. The old
+# step (copy conf/routes-init.sh into the gateway pod and run it) could not work: the gateway image has no curl.
+python3 "$(git -C "$SERVICE_DIR" rev-parse --show-toplevel)/scripts/apisix-routes.py" restore
 
 echo ""
 echo "APISIX deployed."

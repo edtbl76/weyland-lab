@@ -97,8 +97,10 @@ that is `ship-images.sh`, and Argo reverts any hand edit (`selfHeal`).
 
 - Scraped by Prometheus (`up{job="weyland-tool-server"}`), with dashboard panels in the app-services dashboard.
 - `GuardCallsFailing`: critical for the act hook, warning for input/output (`k8s/weyland-tool-server.yaml`).
-- Down coverage is generic only (`TargetDown`, `KubePodNotReady`, both warning). There is no tool-server-specific
-  critical alert although every agent act goes through it (B239 audit, finding 16).
+- `ToolServerDown` (critical, B239, 2026-11-08): the scrape has failed, or the target has vanished, for 5 minutes.
+  Critical opens a Linear incident (U14) and pages through on-call. Tested with `promtool test rules`
+  (`scripts/tests/fixtures/alert-rules/tool-server-down.test.yaml`: down pages, vanished pages, healthy and a 2-minute
+  blip stay silent). Before it, only the generic `TargetDown` and `KubePodNotReady` warnings covered an outage.
 
 ## Related
 

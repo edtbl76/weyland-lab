@@ -64,9 +64,20 @@ def _safe_emit(context, label, emit_fn):
     """Run one store's emitter, swallowing failures so a single flaky store (Qdrant timing out, a store
     restarting) logs a WARNING and is skipped — the whole nightly catalog run doesn't fail, and the other
     stores still emit. Was the missing piece: one Qdrant read-timeout failed the entire catalog job."""
+    # B239 (2026-11-08): writes are batched (datahub_emit.BatchingEmitter), so each step's buffered writes are flushed
+    # here. On failure the writes built before it are still sent, as the old one-request-per-write code did, and they
+    # can never leak into the next step's flush.
+    from weyland_pipeline.datahub_emit import flush_pending
     try:
-        context.log.info(f"✓ {label} → DataHub: {emit_fn()}")
+        result = emit_fn()
+        flush_pending()
+        context.log.info(f"✓ {label} → DataHub: {result}")
     except Exception as e:  # noqa: BLE001 — one flaky store must not sink the catalog run
+        try:
+            flush_pending()
+        # broad on purpose: a flush failure is reported below, never swallowed
+        except Exception as flush_err:  # noqa: BLE001
+            context.log.warning(f"⚠ {label}: flushing the writes built before the failure also failed: {flush_err}")
         context.log.warning(f"⚠ {label} → DataHub emit SKIPPED (failed, run continues): {e}")
 
 
@@ -287,6 +298,7 @@ def soda_scan_op(context):
     from weyland_pipeline.datahub_emit import (
         emit_soda_assertions,
         emit_soda_profiles,
+        flush_pending,
     )
     # (data source, results file, [check files]) — the emitters map the data source name → the right Trino schema.
     # B80 breadth: baseline.yml (row_count>0 for-each-dataset) fans across every table in each schema; the specific
@@ -324,7 +336,13 @@ def soda_scan_op(context):
                 scan_results = json.load(f)
             context.log.info(f"DataHub [{ds}]: {emit_soda_assertions(scan_results)} assertions, "
                              f"{emit_soda_profiles(scan_results)} profiles (Stats)")
+            flush_pending()   # B239: DataHub writes are batched; send this scan's before the next
         except Exception as e:
+            try:
+                flush_pending()
+            # broad on purpose: a flush failure is reported below, never swallowed
+            except Exception as flush_err:  # noqa: BLE001
+                context.log.warning(f"DataHub [{ds}]: flushing the writes built before the failure failed: {flush_err}")
             context.log.warning(f"DataHub quality emit skipped for {ds} (non-fatal): {e}")
     # Marts (data source `weyland`) violating their contract = a real failure → raise. SILVER source-data findings
     # (dirty ages, 0-duration tracks in downloaded datasets we don't control) are ADVISORY: already emitted to

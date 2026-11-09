@@ -77,6 +77,10 @@ PY
   promtool_test guard-failures.test.yaml weyland-tool-server.yaml
 }
 
+@test "ToolServerDown pages on a failed or vanished scrape after 5m, and not on a blip (promtool test rules)" {
+  promtool_test tool-server-down.test.yaml weyland-tool-server.yaml
+}
+
 @test "the two spend alerts partition paid egress without double-counting (promtool test rules)" {
   promtool_test spend.test.yaml litellm/prometheusrule.yaml bifrost/prometheusrule.yaml
 }

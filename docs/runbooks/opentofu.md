@@ -122,6 +122,11 @@ provider `insecure = true` (self-signed cert). No phantom here — bpg's source 
   perpetual diff (cosmetic warning, kept on purpose). VM timeouts import already-set → no diff.
 - **mother's raw passthrough disk** (`/dev/disk/by-id/…`, 4TB Seagate, `datastore_id/file_format = ""`) can't
   round-trip → omit disk blocks + `lifecycle { ignore_changes = [disk] }`; tofu adopts the VM, never touches storage.
+- **`network_device` `enabled` is deprecated** (bpg/proxmox, seen 2026-11-08). The generated list-of-objects form
+  (`network_device = [{ … }]`) requires every attribute, `enabled` included, so it always warns. Write the NIC in
+  block form (`network_device { … }`) and omit `enabled` (default true). `mother.tf` was converted by B239: `tofu
+  validate` is clean for it. A `tofu plan` against Proxmox (which needs a token, see above) has not been run on the
+  new form.
 - Pattern: generate (fails, writes `generated.tf`) → read it → fix sentinels into resource blocks → **CLI
   `tofu import`** (not `import` blocks) → `tofu plan` to no-op. Per-guest `.tf` files.
 

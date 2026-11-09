@@ -19,10 +19,11 @@ resource "proxmox_virtual_environment_vm" "mother" {
   machine                              = "q35"
   migrate                              = false
   name                                 = "mother"
-  network_device = [{
+  # Block form (B239, 2026-11-08): the list-of-objects form requires the deprecated `enabled` attribute; the block form
+  # lets it be omitted (true is the default), which clears bpg/proxmox's deprecation warning.
+  network_device {
     bridge       = "vmbr0"
     disconnected = false
-    enabled      = true
     firewall     = true
     mac_address  = "BC:24:11:D9:78:2C"
     model        = "virtio"
@@ -31,7 +32,7 @@ resource "proxmox_virtual_environment_vm" "mother" {
     rate_limit   = 0
     trunks       = ""
     vlan_id      = 0
-  }]
+  }
   node_name           = "weyland"
   on_boot             = false
   pool_id             = ""

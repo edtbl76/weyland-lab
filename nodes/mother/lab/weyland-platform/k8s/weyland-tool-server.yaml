@@ -214,3 +214,15 @@ spec:
           annotations:
             summary: "The tool-server is answering unguarded: {{ $labels.hook }} guard calls failing ({{ $labels.cause }})"
             description: "weyland-tool-server's {{ $labels.hook }} guard calls got no usable answer for 10m, so answers went out unguarded (content fails open). Check weyland-guard: kubectl -n weyland rollout status deploy/weyland-guard"
+    # B239 finding 16 (2026-11-08): every agent act and every RAG call goes through the tool-server, but only the
+    # generic TargetDown / KubePodNotReady warnings covered it going down, so an outage opened no incident.
+    - name: weyland-tool-server-availability
+      rules:
+        - alert: ToolServerDown
+          expr: up{job="weyland-tool-server"} == 0 or absent(up{job="weyland-tool-server"})
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "weyland-tool-server is down: agent acts, MCP and RAG are unavailable"
+            description: "Prometheus has not scraped weyland-tool-server for 5m (the scrape failed, or the target is gone). Agents' MCP calls and every act fail while it is down. Runbook: docs/runbooks/tool-server.md. Check: kubectl -n weyland get deploy weyland-tool-server; kubectl -n weyland describe pod -l app=weyland-tool-server"

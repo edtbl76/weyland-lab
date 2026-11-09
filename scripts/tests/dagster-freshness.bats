@@ -73,6 +73,23 @@ rows() {
   [[ "$output" == *"ALERT DagsterJobStale job=weyland_catalog_job"* ]]
 }
 
+@test "a job just past its budget is a warning (a short blip should not page)" {
+  # datahub_catalog_emit_job: budget 108000s; 120000s is past it by under a day.
+  stub psql 0 "$(rows 'datahub_catalog_emit_job|SUCCESS|120000')"
+  run sh "$LOGIC"
+  [[ "$output" == *"ALERT DagsterJobStale job=datahub_catalog_emit_job"* ]]
+  grep 'DagsterJobStale' "$STUB_LOG" | grep -q '\\"severity\\":\\"warning\\"\|"severity":"warning"'
+  ! grep 'DagsterJobStale' "$STUB_LOG" | grep -q 'critical'
+}
+
+@test "a job more than a day past its budget is critical, so U14 opens an incident (B239)" {
+  # The real case: 824247s without a success on 2026-11-08, nine days of warnings and no incident.
+  stub psql 0 "$(rows 'datahub_catalog_emit_job|FAILURE|824247')"
+  run sh "$LOGIC"
+  [[ "$output" == *"ALERT DagsterJobStale job=datahub_catalog_emit_job"* ]]
+  [ "$(grep 'DagsterJobStale' "$STUB_LOG" | grep -c 'critical')" -ge 1 ]
+}
+
 @test "an unbudgeted (on-demand) job is ignored, whatever its state" {
   stub psql 0 "$(rows 'weyland_datasets_music_hydrate_job|FAILURE|9999999')"
   run sh "$LOGIC"

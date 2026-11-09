@@ -66,7 +66,11 @@ the end. Baseline: the full repo-guards suite was green the same day (`ALL_GUARD
    `toolserver-act-gateway-only`.
 16. **The tool-server has no service-specific down alert, found 2026-11-08 while writing its runbook.** Only the
     generic `TargetDown` and `KubePodNotReady` (both warning) cover it, although every agent act goes through it.
-    That is a monitoring gap (Pillar 6), recorded here, not fixed in this docs batch. The same runbook confirmed that
+    That is a monitoring gap (Pillar 6). **FIXED 2026-11-08 (owner decision):** `ToolServerDown`, critical, 5 minutes
+    of a failed or vanished scrape, in the tool-server's PrometheusRule, with four `promtool test rules` cases. Also on
+    the owner's decision, `DagsterJobStale` now rises from warning to critical once a job is more than a day past
+    its budget, so finding 15's nine silent days would have opened an incident on day one (two bats cases on the real
+    numbers). The same runbook confirmed that
     natural-language retrieval misses documents that wording-matched search finds (the known B74 limit). It is
     documented in the runbook and is not a new item.
 3. **The RAG streaming indexer has no runbook**: the `rag_stream_produce` producer, the `rag.chunks` topic, and five
@@ -107,6 +111,24 @@ the end. Baseline: the full repo-guards suite was green the same day (`ALL_GUARD
     Follow-up, small: the owner's `tofu plan` printed a bpg deprecation warning for `enabled = false` on a
     `network_device` in `mother.tf`. It is harmless today and will break on a future provider release.
 
+18. **APISIX is deployed but unused, and its reseed path is broken (found 2026-11-08 writing its runbook).**
+    - Zero requests on any of its five routes in 7 days, although `api.md` called it the "Active API/data-plane
+      gateway" (corrected).
+    - Its routes live only in etcd. The documented reseed (`deploy-apisix.sh` running `routes-init.sh` in the pod)
+      cannot work: the image has no `curl`, and the script expects `APISIX_ADMIN_KEY` in `.env`, which no longer holds
+      it.
+    - There is no `dr.md` row for its etcd.
+
+    Recorded in `runbooks/apisix.md`; the DR row is B240's.
+    **Owner decision 2026-11-08: keep it (a lab gateway, idle but working) and fix the restore. FIXED:**
+    - the routes are now defined in git, in `scripts/lib/apisix_routes.py` (8 tests);
+    - `scripts/apisix-routes.py check` compares them with etcd (read-only, live: in sync, 6 records), and `restore`
+      writes back only what drifted, through `etcdctl` in the etcd pod;
+    - `deploy-apisix.sh` calls `restore`, and the broken `routes-init.sh` is removed.
+
+    The live write path is tested against a fake etcd only: a scratch write was refused, because cluster writes are
+    the owner's.
+
 ### Tier 2 — stale docs that mislead
 
 6. **Retired systems described as live.** Each of these was checked; it is a current-tense instruction or claim,
@@ -142,8 +164,32 @@ the end. Baseline: the full repo-guards suite was green the same day (`ALL_GUARD
    - Neo4j (sections in hydration and mesh docs only);
    - Kokoro (a demo only);
    - six thin UIs: OpenSearch Dashboards, Headlamp, NeoDash, A2A Inspector, Promptfoo, docs-site.
+    **RESOLVED 2026-11-08 (batch D):** new runbooks `realm-of-agents.md`, `lakefs.md`, `apisix.md`, `kokoro.md`,
+    `neo4j.md`, and `lab-uis.md` for the six UIs. Each was checked against the live system. The registry has **zero
+    runbook gaps**: all 61 deployed apps name a runbook.
+    - Writing them corrected `data-mesh-secrets.md`: the lakeFS `encrypt-key` "escrow NOW" warning was stale, since
+      the key has been sealed since B69.
+    - It corrected `hosts.md`: Neo4j's PVC is 20Gi, not 5Gi.
+    - It found finding 18 (APISIX) and the Kokoro image still on `:latest`.
 10. **Thin runbooks.** `keycloak.md` has no health, log or troubleshooting command (the IdP for every UI), and
     `cube.md` has a single command.
+    **Keycloak RESOLVED 2026-11-08:** a health and troubleshooting section, with discovery, in-pod readiness, a
+    symptom table and restart impact, all checked live. `cube.md` is unchanged (low traffic).
+19. **OpenCost allocates $0 to everything (found 2026-11-08 while preparing its demo).** The 1-day allocation API
+    shows `totalCost $0.0000` for every namespace.
+    - `node_cpu_hourly_cost` is 0, and the RAM cost metric does not exist.
+    - The `custom-pricing-model` ConfigMap holds the right prices ($0.001029 per core-hour, $0.000343 per GB-hour,
+      `provider: custom`).
+    - The exporter logs `node pricing has illegal CostPerRAMHr; replacing with custom pricing: weyland-cluster/mother 0`.
+    So the lab's Cloud Cost numbers (Port `cost`, the Cost dashboard) have been zero.
+    **Diagnosed 2026-11-08 (owner decision: fix it).** The file OpenCost actually uses, `/tmp/custom-config/default.json`,
+    held `CPU "0.000001"`, `RAM "0"`. OpenCost reads the ConfigMap's rates as **monthly** and divides by 730 hours
+    (six decimals): `0.001029 / 730` rounds to `0.000001`, and `0.000343 / 730` rounds to `0`. The values had been
+    written as hourly rates.
+    **Fix:** the same model written as monthly rates (CPU 0.751406, RAM 0.250469, storage 0.000292), with the rule in
+    the values file and in `runbooks/opencost.md` § Are costs being allocated? (both checks run live: the "before" state
+    reads 0.000001 / 0 and $0.0000). Takes effect when Argo syncs the OpenCost Helm app after the push. Verification
+    (`default.json` showing 0.001029 / 0.000343, and non-zero allocations) is due then.
 11. **Not on any map:** Sourcebot, Zoekt, Promptfoo, Pyroscope, Sealed Secrets. `check-maps.sh` checks CI steps and
     external systems only, so nothing catches this.
     **RESOLVED 2026-11-08 (batch C).** The exact guard found two more the fuzzy audit had passed: the A2A Inspector

@@ -117,6 +117,40 @@ gateway's `/mcp-memory` returned 401 and the chat model invented an answer. Idle
 Realm-wide on purpose: a client's session cannot outlive the realm idle timeout. Apps that hold their own login must
 expire it at the same 10h (Open WebUI: Admin Panel → Settings → Authentication → JWT Expiration = `10h`).
 
+## Health and troubleshooting (B239, 2026-11-08)
+
+Every browser login in the lab goes through Keycloak and `traefik-forward-auth`, so check both:
+
+```bash
+kubectl -n weyland get deploy keycloak traefik-forward-auth
+```
+
+The realm's public discovery document (what every OIDC client and forward-auth read; no login needed):
+
+```bash
+curl -s https://keycloak.weyland.lab/realms/weyland/.well-known/openid-configuration | python3 -c "import json,sys; print(json.load(sys.stdin)['issuer'])"
+```
+
+Expected: `https://keycloak.weyland.lab/realms/weyland`.
+
+Keycloak's own readiness, on the management port inside the pod (the image has no curl, so bash's `/dev/tcp`):
+
+```bash
+kubectl -n weyland exec deploy/keycloak -- bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000; printf "GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3; cat <&3' | grep -E 'HTTP/|"status"'
+```
+
+Expected: `HTTP/1.0 200 OK` and `"status": "UP"` (checked 2026-11-08, Keycloak 26.1.0).
+
+| Symptom | Likely cause | Check and fix |
+|---|---|---|
+| every gated UI fails, the discovery `curl` fails | Keycloak down, or its database unreachable (Postgres is STRICT mTLS: the pod needs its sidecar) | `kubectl -n weyland logs deploy/keycloak --tail=200`; look for JDBC connection resets |
+| discovery works, gated UIs loop or return 500 | `traefik-forward-auth`, or its back-channel trust (the mkcert CA bundle, above) | `kubectl -n weyland logs deploy/traefik-forward-auth --tail=100` |
+| one OIDC app (Grafana, Superset, JupyterHub) fails, forward-auth apps work | that client's config or secret in the realm | the client in `tofu/keycloak/`; never edit it in the UI |
+| logged out after about 10 hours | the session limit, by design | the section above |
+
+Restarting Keycloak (`kubectl -n weyland rollout restart deploy/keycloak`) blocks every login until it is ready
+again; existing forward-auth cookies keep working until they expire.
+
 ## Gotchas
 
 - **Meshed, or Postgres resets the JDBC connection.** The `sidecar.istio.io/inject` label is load-bearing

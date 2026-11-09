@@ -1,0 +1,51 @@
+# promtool unit tests for ToolServerDown (B239 finding 16, 2026-11-08). Every agent act goes through the tool-server,
+# but until this rule only the generic TargetDown / KubePodNotReady warnings covered it going down, so an outage opened
+# no incident. The rule pages critical after 5 minutes of a failed scrape OR of the scrape target vanishing (absent),
+# and stays silent through a short blip. Run by scripts/tests/alert-rules.bats (CI).
+rule_files:
+- rules.yaml
+evaluation_interval: 1m
+tests:
+- name: 'ToolServerDown: a scrape failing for 10m pages critical'
+  interval: 1m
+  input_series:
+  - series: up{job="weyland-tool-server",instance="10.42.0.9:8080"}
+    values: '0x15'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: ToolServerDown
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: weyland-tool-server
+        instance: 10.42.0.9:8080
+- name: 'ToolServerDown: a healthy target stays silent'
+  interval: 1m
+  input_series:
+  - series: up{job="weyland-tool-server",instance="10.42.0.9:8080"}
+    values: '1x15'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: ToolServerDown
+    exp_alerts: []
+- name: 'ToolServerDown: the target vanishing from Prometheus entirely pages too (absent)'
+  interval: 1m
+  input_series:
+  - series: up{job="some-other-job",instance="a:1"}
+    values: '1x15'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: ToolServerDown
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: weyland-tool-server
+- name: 'ToolServerDown: a 2-minute blip does not page'
+  interval: 1m
+  input_series:
+  - series: up{job="weyland-tool-server",instance="10.42.0.9:8080"}
+    values: '1x5 0x2 1x8'
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: ToolServerDown
+    exp_alerts: []

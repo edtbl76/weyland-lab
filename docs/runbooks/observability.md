@@ -319,7 +319,7 @@ bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-placement.sh --migra
 | Alert | Condition |
 |---|---|
 | `DagsterJobFailed` | the job's most recent run is FAILURE |
-| `DagsterJobStale` | the last SUCCESS is older than the job's budget |
+| `DagsterJobStale` | the last SUCCESS is older than the job's budget: **warning**, then **critical** once more than a day past it (B239, 2026-11-08), which opens a Linear incident (U14) and pages through on-call |
 | `DagsterJobNeverRan` | the job is budgeted but has no run at all (B196 — a schedule that never fires was invisible before) |
 
 The watchdog fails the Job (so `ScheduledJobFailed` fires) when psql errors or returns no runs — an empty run list is

@@ -17,7 +17,12 @@ raw-escrowed off-cluster.
 | `minio-creds` (minio) | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | risky | regenerating root creds requires re-keying every S3 client |
 | Grafana SA token (DataHub Secret) | `GRAFANA_SA_TOKEN` | yes | mint via the Grafana admin API (`grafana-admin` secret → `POST /api/serviceaccounts` → `/tokens`) |
 
-## ⚠️ lakeFS `encrypt-key` — escrow this NOW
+## lakeFS `encrypt-key` — sealed in git since B69 (the escrow step below is history)
+
+> **Current state (checked 2026-11-08, B239):** `lakefs-secret`, `encrypt-key` included, is sealed in
+> `k8s/sealed-secrets/sealed/data-mesh__lakefs-secret.yaml`, so it restores with the Sealed Secrets controller key
+> ([secrets.md](secrets.md)). The one-time copy below was the stopgap before B69 and is no longer required.
+> Operating lakeFS: [lakefs.md](lakefs.md).
 
 `lakefs-secret/encrypt-key` (`LAKEFS_AUTH_ENCRYPT_SECRET_KEY`) is the key lakeFS uses to encrypt
 its **stored credentials and auth data in Postgres**. If it's lost, **every credential lakeFS has

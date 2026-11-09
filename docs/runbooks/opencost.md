@@ -41,13 +41,35 @@ ConfigMap; log line `Found configmap custom-pricing-model, watching…`). The mo
 | box specs | 32 vCPU / 96 GB (Ryzen 9 9955HX) |
 
 - hardware: `2500 / 60 = $41.67/mo` · power: `0.055kW × 730h × $0.16 = $6.42/mo` → **~$48.09/mo whole box**
-- split 50/50 CPU:RAM over the full box → **`CPU: 0.001029`** /core/hr, **`RAM: 0.000343`** /GB/hr (and a tiny
-  `storage` for the 8TB USB). OpenCost applies these to the **mother node's 8 vCPU / 32 GB** slice → k3s shows
-  **~$15/mo** (its share; the other Proxmox VMs/CTs aren't k8s, so OpenCost rightly doesn't see them).
+- split 50/50 CPU:RAM over the full box → $0.001029 per core-hour and $0.000343 per GB-hour (and a tiny `storage`
+  for the 8TB USB). OpenCost applies these to the **mother node's 8 vCPU / 32 GB** slice → k3s shows **~$15/mo**
+  (its share; the other Proxmox VMs/CTs aren't k8s, so OpenCost rightly doesn't see them).
+- **Write the rates MONTHLY in the values file** (`CPU: 0.751406` per vCPU-month, `RAM: 0.250469` per GB-month,
+  `storage: 0.000292` per GB-month). OpenCost divides the ConfigMap's values by 730 hours and keeps six decimals.
+  Until B239 (2026-11-08) the hourly rates were written instead, so they became `0.000001` and `0` and every
+  allocation read $0 for months.
 
-**Retune:** change any of the five inputs → recompute the three rates → `helm upgrade opencost … -f
-opencost-values.yaml` (+ `kubectl rollout restart deploy/opencost -n opencost`). The formula lives in the
-values-file comment.
+**Retune:** change any of the five inputs → recompute the monthly rates in `k8s/opencost/opencost-values.yaml` → push
+(Argo syncs the Helm app). The formula lives in the values-file comment.
+
+## Are costs being allocated?
+
+What OpenCost actually uses (written from the ConfigMap into the pod):
+
+```bash
+kubectl -n opencost exec deploy/opencost -c opencost -- sh -c 'grep -o "\"CPU\":\"[^\"]*\",\"spotCPU\":\"[^\"]*\",\"RAM\":\"[^\"]*\"" /tmp/custom-config/default.json'
+```
+
+Expected: `"CPU":"0.001029"…"RAM":"0.000343"` (hourly, after OpenCost's conversion). `"CPU":"0.000001"` and
+`"RAM":"0"` is the hourly-written-as-monthly mistake above.
+
+Yesterday's allocation by namespace (read-only, through the API server's service proxy, not a port-forward):
+
+```bash
+kubectl get --raw '/api/v1/namespaces/opencost/services/opencost:9003/proxy/allocation/compute?window=1d&aggregate=namespace' | python3 -c "import json,sys; a=json.load(sys.stdin)['data'][0]; [print(f'{k:20} \${v[\"totalCost\"]:.4f}') for k, v in sorted(a.items(), key=lambda kv: -kv[1]['totalCost'])[:6]]"
+```
+
+Expected: non-zero totals, `weyland` and `data-mesh` largest. All `$0.0000` means the pricing is not applied.
 
 ## In Port (B50-aligned)
 OpenCost is the **live detail** (per-namespace, efficiency) — linked from the Port **Launcher** (`endpoint`

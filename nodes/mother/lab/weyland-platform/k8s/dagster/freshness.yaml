@@ -142,7 +142,12 @@ spec:
                       ALERTS=$((ALERTS+1))
                     fi
                     if [ "$AGE" -gt "$T" ]; then
-                      fire "DagsterJobStale" "$JOB" "warning" \
+                      # B239 (2026-11-08): warning when first past budget (a blip can recover), CRITICAL once more than a
+                      # day past it, so U14 (critical-only) opens a Linear incident. datahub_catalog_emit_job sat at
+                      # warning for 9 days with no incident before this.
+                      SEV=warning
+                      [ "$AGE" -gt $((T + 86400)) ] && SEV=critical
+                      fire "DagsterJobStale" "$JOB" "$SEV" \
                         "Dagster job $JOB has no success in ${AGE}s (budget ${T}s)" \
                         "$JOB has not completed successfully within its expected cadence — it may be failing, its schedule may be STOPPED, or the daemon may be stuck. Check https://dagster.weyland.lab/automation for the schedule state."
                       ALERTS=$((ALERTS+1))
