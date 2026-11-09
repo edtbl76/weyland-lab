@@ -6,6 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,25 +35,42 @@ public final class SqlRunner {
         }
 
         String raw = new String(Files.readAllBytes(Paths.get(args[0])));
-        StringBuilder sb = new StringBuilder(stripLineComments(raw));
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
+        run(tEnv, raw);
+    }
 
-        for (String part : sb.toString().split(";")) {
+    /**
+     * Runs one SQL script through {@code tEnv}: strip line comments, split on {@code ;}, apply {@code SET} to the
+     * config, execute everything else in order. Extracted from {@link #main} by B151 so a MiniCluster test can run a
+     * real script end to end.
+     *
+     * @return the result of the last executed statement (the job-submitting INSERT in a shipped script), or
+     *         {@code null} when the script held only SET statements
+     */
+    static TableResult run(StreamTableEnvironment tEnv, String raw) {
+        TableResult last = null;
+        for (String part : stripLineComments(raw).split(";")) {
             String stmt = part.trim();
-            if (stmt.isEmpty()) {
-                continue;
+            TableResult result = stmt.isEmpty() ? null : runStatement(tEnv, stmt);
+            if (result != null) {
+                last = result;
             }
-            Matcher m = SET_STMT.matcher(stmt);
-            if (m.matches()) {
-                LOG.info("SET {} = {}", m.group(1), m.group(2));
-                tEnv.getConfig().getConfiguration().setString(m.group(1), m.group(2));
-                continue;
-            }
-            LOG.info("{}", stmt.replaceAll("\\s+", " "));
-            tEnv.executeSql(stmt);
         }
+        return last;
+    }
+
+    /** A SET goes to the config (executeSql rejects SET as a statement) and returns null; anything else executes. */
+    private static TableResult runStatement(StreamTableEnvironment tEnv, String stmt) {
+        Matcher m = SET_STMT.matcher(stmt);
+        if (m.matches()) {
+            LOG.info("SET {} = {}", m.group(1), m.group(2));
+            tEnv.getConfig().getConfiguration().setString(m.group(1), m.group(2));
+            return null;
+        }
+        LOG.info("{}", stmt.replaceAll("\\s+", " "));
+        return tEnv.executeSql(stmt);
     }
 
     /**

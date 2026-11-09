@@ -57,6 +57,32 @@
       <version>1.7.36</version>
       <scope>provided</scope>
     </dependency>
+    <!-- B151: an in-JVM Flink MiniCluster plus the Table planner/runtime, so a test can run a real SQL script
+         through the runner end to end. Test scope only (the Flink dist supplies the planner at runtime). -->
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-test-utils</artifactId>
+      <version>${flink.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-clients</artifactId>
+      <version>${flink.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-table-planner-loader</artifactId>
+      <version>${flink.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-table-runtime</artifactId>
+      <version>${flink.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>

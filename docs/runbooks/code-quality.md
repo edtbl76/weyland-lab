@@ -150,7 +150,12 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   answer it exits 2, never clean. It also scans only what the
   CI gate scans: files matching `sonar.exclusions` in `sonar-project.properties` (`**/*.yaml`, Dockerfiles, Terraform…)
   are dropped and named (`N excluded by sonar-project.properties`); a k8s manifest change otherwise reported findings
-  the real project never sees.
+  the real project never sees. **Java (2026-11-09, B151):** Sonar's Java analyzer refuses `.java` without compiled
+  classes, so every Java precheck used to fail with a scanner error. For each changed `.java` file the precheck now finds
+  the Maven module (the nearest `pom.xml`), copies its `target/classes` and `target/test-classes` into the scratch
+  project and sets `sonar.java.binaries`. A module with no `target/classes` exits 2 before anything is scanned and
+  prints the command to compile it (`mvn -q -B -DskipTests test-compile` in that module, e.g. in the
+  `maven:3.9-eclipse-temurin-21` image as your user).
   ~12 s for 3 files. Files Sonar does not analyse (Markdown, YAML) are simply not counted. Flow:
   [flow-sonar-precheck.md](../diagrams/flow-sonar-precheck.md) · demo: [sonar-precheck.md](../demos/sonar-precheck.md).
 - Always-on (NOT KEDA scale-to-zero): the 32GB RAM bump made the cost moot; scale-to-zero would need the KEDA

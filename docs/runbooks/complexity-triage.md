@@ -134,4 +134,6 @@ factory at cc 56). It is now a data-driven table (`loaders._STORES`, one row per
 the per-store writers live in `store_sql.py`, `store_docs.py`, `store_cassandra.py`, `store_neo4j.py` and
 `store_vectors.py`, with shared helpers in `store_common.py`; every module scores at least 9.38. The live asset
 registration (the names, groups, deps and descriptions the running pipeline depends on) was proven unchanged by
-dumping all 30 store assets in the user-code image before and after.
+dumping all 30 store assets in the user-code image before and after. Live after shipping `git-e23829c6`:
+`datasets_finance_qdrant_load` (run `f695ad66`) loaded 1 collection / 8,851 vectors and `datasets_finance_mysql_load`
+(run `7186b55d`) 2 tables / 20,790 rows, both exactly the 2026-09-05 baselines.

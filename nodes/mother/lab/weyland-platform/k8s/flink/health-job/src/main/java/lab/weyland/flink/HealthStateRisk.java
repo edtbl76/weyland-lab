@@ -44,14 +44,13 @@ public final class HealthStateRisk {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        Schema readerSchema = new Schema.Parser().parse(READER_SCHEMA);
         KafkaSource<GenericRecord> source = KafkaSource.<GenericRecord>builder()
                 .setBootstrapServers(BROKERS)
                 .setTopics(SRC_TOPIC)
                 .setGroupId("flink-health-state-risk")
                 .setStartingOffsets(OffsetsInitializer.earliest())
                 .setValueOnlyDeserializer(
-                        ConfluentRegistryAvroDeserializationSchema.forGeneric(readerSchema, REGISTRY))
+                        ConfluentRegistryAvroDeserializationSchema.forGeneric(readerSchema(), REGISTRY))
                 .build();
 
         KafkaSink<String> sink = KafkaSink.<String>builder()
@@ -64,12 +63,24 @@ public final class HealthStateRisk {
                 .build();
 
         DataStream<GenericRecord> in = env.fromSource(source, WatermarkStrategy.noWatermarks(), "brfss-src");
-
-        in.keyBy(r -> str(r.get("Locationdesc")))
-          .flatMap(new RunningMean())
-          .sinkTo(sink);
+        topology(in).sinkTo(sink);
 
         env.execute("health-state-risk");
+    }
+
+    /** The reader schema the job deserializes BRFSS records with (also what a test builds its records from). */
+    static Schema readerSchema() {
+        return new Schema.Parser().parse(READER_SCHEMA);
+    }
+
+    /**
+     * The job's processing between source and sink: key by state, keep the per-state running mean in keyed
+     * state, emit one JSON line per counted record. Extracted by B151 so a MiniCluster test can run it end to end
+     * with a test source in place of Kafka; {@link #main} wires the same method between the real source and sink.
+     */
+    static DataStream<String> topology(DataStream<GenericRecord> in) {
+        return in.keyBy(r -> str(r.get("Locationdesc")))
+                 .flatMap(new RunningMean());
     }
 
     /** Renders a possibly-null Avro field for the JSON sink; null becomes the "??" placeholder. */

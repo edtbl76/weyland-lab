@@ -465,6 +465,66 @@ def test_precheck_with_only_excluded_files_has_nothing_to_analyse(tmp_path, monk
     assert "precheck: nothing for Sonar to analyse" in capsys.readouterr().out
 
 
+def _java_module(tmp_path, compiled=True):
+    """A Maven module with one source file; compiled=True also lays down target/classes (and test-classes)."""
+    mod = tmp_path / "flink" / "job"
+    (mod / "src" / "main" / "java" / "lab").mkdir(parents=True)
+    (mod / "pom.xml").write_text("<project/>\n")
+    (mod / "src" / "main" / "java" / "lab" / "Job.java").write_text("class Job {}\n")
+    if compiled:
+        (mod / "target" / "classes" / "lab").mkdir(parents=True)
+        (mod / "target" / "classes" / "lab" / "Job.class").write_bytes(b"\xca\xfe\xba\xbe")
+        (mod / "target" / "test-classes" / "lab").mkdir(parents=True)
+        (mod / "target" / "test-classes" / "lab" / "JobTest.class").write_bytes(b"\xca\xfe\xba\xbe")
+    return "flink/job/src/main/java/lab/Job.java"
+
+
+def test_precheck_gives_the_java_analyzer_the_compiled_classes(tmp_path, monkeypatch, capsys):
+    # Observed 2026-11-09 (B151): Sonar's Java analyzer refuses .java with no sonar.java.binaries, so a precheck of a
+    # Java change failed every time. The precheck now ships the module's compiled classes with the sources.
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    monkeypatch.chdir(tmp_path)
+    java = _java_module(tmp_path)
+    scan = Scanner()
+    _serve(monkeypatch, _precheck_routes(files="1"))
+    monkeypatch.setattr(sa, "_run_scanner", scan)
+    assert sa.main(["precheck", java]) == 0
+    files = scan.calls[0]["files"]
+    assert java in files
+    assert ".precheck-binaries/0/classes/lab/Job.class" in files
+    assert ".precheck-binaries/0/test-classes/lab/JobTest.class" in files
+    assert "sonar-project.properties" in files
+
+
+def test_precheck_points_sonar_at_the_copied_classes(tmp_path, monkeypatch):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    monkeypatch.chdir(tmp_path)
+    java = _java_module(tmp_path)
+    props = {}
+
+    def scanner(src, key, token):
+        props["text"] = (__import__("pathlib").Path(src) / "sonar-project.properties").read_text()
+        return 0, "INFO  EXECUTION SUCCESS"
+
+    _serve(monkeypatch, _precheck_routes(files="1"))
+    monkeypatch.setattr(sa, "_run_scanner", scanner)
+    assert sa.main(["precheck", java]) == 0
+    assert "sonar.java.binaries=.precheck-binaries/0/classes,.precheck-binaries/0/test-classes" in props["text"]
+
+
+def test_precheck_of_an_uncompiled_java_module_fails_closed_before_scanning(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    monkeypatch.chdir(tmp_path)
+    java = _java_module(tmp_path, compiled=False)
+    seen, scan = [], Scanner()
+    _serve(monkeypatch, _precheck_routes(), seen)
+    monkeypatch.setattr(sa, "_run_scanner", scan)
+    assert sa.main(["precheck", java]) == 2
+    assert scan.calls == [] and seen == []                         # no token minted, nothing scanned
+    err = capsys.readouterr().err
+    assert "flink/job" in err and "mvn" in err and "compile" in err
+
+
 def test_ant_patterns_match_like_sonar():
     m = sa._excluded
     assert m("a/b/node_modules/c/d.js", ["**/node_modules/**"]) and m("node_modules/x.js", ["**/node_modules/**"])

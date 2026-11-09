@@ -39,6 +39,19 @@ under Flink 1.20 and are accepted per exact version in `osv-scanner.toml` (B214)
 Bump the others there (B214 moved urllib3 to 2.8.0 and pymongo to 4.18.2), then rebuild and prove the image:
 `pip3 check`, freeze == the file, and a `TableEnvironment` starting.
 
+**Tests (the CI `test-java` lane).** Each module carries unit tests for its extracted logic (B88), ArchUnit rules
+(B152), and since B151 a MiniCluster test that runs the real job in an in-JVM Flink cluster with no Kafka:
+`HealthStateRiskPipelineTest` feeds Avro BRFSS records through `HealthStateRisk.topology()` (the same method `main()`
+wires between the Kafka source and sink) and asserts the exact JSON per state; `SqlRunnerPipelineTest` runs a script
+through `SqlRunner.run()` (comments, `SET`, a view, a final `SELECT`) and asserts the rows and the config. Both were
+proven to fail on a broken job (a constant `keyBy` key; a dropped `SET`). `flink-test-utils`, `flink-clients` and, for
+the SQL runner, the table planner and runtime are test-scope only, never shaded into a job jar. Run one module locally:
+
+[rogueone]
+```bash
+cd /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/k8s/flink/health-job && docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/w -w /w maven:3.9-eclipse-temurin-21 mvn -B -Dmaven.repo.local=/tmp/.m2/repository test
+```
+
 After rebuilding a jar that the session jobs fetch, `rollout restart deploy/flink-jars` so its initContainer
 re-copies the new jar, then delete+re-apply the affected `FlinkSessionJob` (a bare re-apply may keep the failed
 reconcile).

@@ -317,6 +317,12 @@ def precheck(files: list) -> int:
     if exts <= NOT_ANALYSED:
         print(f"precheck: nothing for Sonar to analyse ({len(files)} files: {' '.join(sorted(exts))})")
         return 0
+    binaries, uncompiled = _java_class_dirs(files)
+    if uncompiled:
+        print("sonar_api: precheck: the Java analyzer needs compiled classes, and these Maven modules have none — "
+              "compile first, then re-run:\n  " + "\n  ".join(
+                  f"(cd {m} && mvn -q -B -DskipTests test-compile)" for m in uncompiled), file=sys.stderr)
+        return 2
     key = f"{PROJECT}-precheck-{os.getpid()}"
     with tempfile.TemporaryDirectory(prefix="sonar-precheck-") as src:
         for f in files:                            # keep repo-relative paths so findings name the real file
@@ -324,12 +330,58 @@ def precheck(files: list) -> int:
             rel = os.path.basename(f) if rel.startswith("..") else rel
             os.makedirs(os.path.join(src, os.path.dirname(rel)), exist_ok=True)
             shutil.copy(f, os.path.join(src, rel))
+        _stage_java_binaries(src, binaries)
         token = _call("POST", "user_tokens/generate", {"name": key})["token"]
         try:
             result = _scan_and_report(src, key, token)
         finally:
             cleaned = _precheck_cleanup(key) == 0
     return result if cleaned else 2
+
+
+BINARIES_DIR = ".precheck-binaries"
+
+
+def _maven_module(path: str):
+    """The nearest directory at or above `path` that holds a pom.xml, or None."""
+    d = os.path.dirname(os.path.abspath(path))
+    while True:
+        if os.path.isfile(os.path.join(d, "pom.xml")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            return None
+        d = parent
+
+
+def _java_class_dirs(files: list) -> tuple:
+    """For the .java files among `files`: ([[class dirs of one module], ...], [uncompiled modules]). Sonar's Java
+    analyzer refuses .java without sonar.java.binaries (observed 2026-11-09, B151), so a module with no
+    target/classes cannot be prechecked until it is compiled."""
+    modules = sorted({m for m in (_maven_module(f) for f in files if f.endswith(".java")) if m})
+    binaries, uncompiled = [], []
+    for m in modules:
+        dirs = [os.path.join(m, "target", d) for d in ("classes", "test-classes")
+                if os.path.isdir(os.path.join(m, "target", d))]
+        if os.path.join(m, "target", "classes") not in dirs:
+            uncompiled.append(os.path.relpath(m))
+        else:
+            binaries.append(dirs)
+    return binaries, uncompiled
+
+
+def _stage_java_binaries(src: str, binaries: list) -> None:
+    """Copy each module's class dirs into the scratch tree and point sonar.java.binaries at them."""
+    if not binaries:
+        return
+    paths = []
+    for i, dirs in enumerate(binaries):
+        for d in dirs:
+            rel = f"{BINARIES_DIR}/{i}/{os.path.basename(d)}"
+            shutil.copytree(d, os.path.join(src, rel))
+            paths.append(rel)
+    with open(os.path.join(src, "sonar-project.properties"), "w", encoding="utf-8") as fh:
+        fh.write(f"sonar.java.binaries={','.join(paths)}\n")
 
 
 def _precheck_cleanup(key: str) -> int:
