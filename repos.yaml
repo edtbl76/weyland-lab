@@ -107,11 +107,14 @@ repos:
       ci: "no pipeline yet — no .woodpecker.yml, not activated in Woodpecker (found 2026-09-24); flip to true on activation"
 
   - name: MyBodyGraph
-    visibility: public           # confirmed public via tofu import 2026-09-15
+    visibility: private          # PRIVATE since 2026-11-08 on the owner's instruction (public at the 2026-09-15 tofu import) — Port/scan/CI tokens need access
     status: active
     linear_project: "MyBodyGraph"
     backup_path: ~/IdeaProjects/MyBodyGraph
     lanes: { iac: true, ci: false, scan: true, pr: true, catalog: true, backup: true }
+    # scan: central scan-suite + sonarqube + an in-repo .coderabbit.yaml only. No .deepsource.toml or .sourcery.yaml
+    # (decided 2026-11-08): both tools are free only for public repos, Sourcery is Python-only, and this repo is a
+    # private TypeScript app on a $0 budget.
     except:
       ci: "no pipeline yet — no .woodpecker.yml, not activated in Woodpecker (found 2026-09-24); flip to true on activation"
 

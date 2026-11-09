@@ -18,7 +18,12 @@ curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://headlamp.weylan
 Seen: `307` to `https://keycloak.weyland.lab/realms/weyland/protocol/openid-connect/auth?...`: the ingress answers and
 the Keycloak gate is in front of it.
 
-## UI walkthrough (eyes-on, pending the owner)
+## UI walkthrough (eyes-on, done by the owner 2026-11-08)
+
+Seen: after Keycloak and the token login, the Overview loads with 1/1 nodes Ready, 218/218 pods, CPU 2.18/16,
+memory 62.91/76.51 GB (82.2%), and 0 warning events. The token lives in the owner's 1Password.
+
+The steps:
 
 Reading the login token is a credential step, so this part is the owner's.
 1. Open <https://headlamp.weyland.lab>, sign in to Keycloak.

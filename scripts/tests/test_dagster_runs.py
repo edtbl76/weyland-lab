@@ -100,6 +100,23 @@ def test_health_with_no_daemons_reported_is_not_healthy():
     assert not ok
 
 
+def test_explaining_a_successful_run_says_it_succeeded():
+    # Found 2026-11-08 on run 5d9ef454 (SUCCESS): the tool printed "why ... failed" and "probably died from outside".
+    lines = dr.explain_lines("5d9ef454-87e0-4d5e-b97b-76ac568ad1d6",
+                             {"jobName": "datahub_catalog_emit_job", "status": "SUCCESS",
+                              "eventConnection": {"events": [{"__typename": "RunStartEvent"}]}})
+    assert any("succeeded" in ln for ln in lines)
+    assert not any("failed" in ln or "died" in ln for ln in lines)
+
+
+def test_explaining_a_failed_run_lists_its_failures():
+    lines = dr.explain_lines("6a6f3d61-f0be-4d2f-ab89-87f6fb37701c",
+                             {"jobName": "datahub_catalog_emit_job", "status": "FAILURE",
+                              "eventConnection": {"events": REAL_EVENTS}})
+    assert lines[0].startswith("why 6a6f3d61") and "failed:" in lines[0]
+    assert "  run failed: Exceeded maximum runtime of 1800 seconds." in lines
+
+
 def test_run_rows_show_short_id_job_and_utc_start():
     rows = dr.run_rows([{"runId": "6a6f3d61-0000-4000-8000-000000000000", "jobName": "datahub_catalog_emit_job",
                          "status": "FAILURE", "startTime": 1794116110.25}])

@@ -56,8 +56,13 @@ the end. Baseline: the full repo-guards suite was green the same day (`ALL_GUARD
     nightly schedule has the new cap since the ship of `git-97855d2a` (2026-11-08, `ship-images.sh`, PR #316, all
     gates including FR-DRAIN, SMOKE and TXN). Dagster reports `dagster/max_runtime: 4200` for the job.
 
-    **Possible follow-ups, not done here:** batching the writes (`emit_mcps`, supported by SDK 1.6.0.15) would cut
-    the runtime. Raising `DagsterJobStale` to critical after some days would have opened an incident on day one.
+    **Follow-ups, both done on the owner's decisions (2026-11-08):**
+    - **Faster.** Measurement showed reads, not writes, dominated: 11,823 datasets at 13 ms per `get_aspect`, about
+      8 full passes. Each read loop now batch-prefetches with `get_entities` (`_AspectReader`, 3.6x faster with
+      identical results on 200/200), and writes go in batches (`BatchingEmitter`, flushed by `_safe_emit` after every
+      step; a structural test makes every caller flush). Shipped as `git-bc18e3c3`. Run `5d9ef454`: **7.0 min, down
+      from 33.2**, all 33 steps SUCCESS, 0 warnings, slowest step 1.3 min (was 5.5).
+    - **Louder.** `DagsterJobStale` escalates to critical one day past budget (see finding 16).
 2. **weyland-tool-server has no runbook.** It is the core RAG/MCP API. All that exists is a perf baseline
    (`perf-baseline.md`) and one guardrails section.
    **RESOLVED 2026-11-08** by the new `docs/runbooks/tool-server.md`: health in one call, a retrieval check, guard
@@ -188,8 +193,14 @@ the end. Baseline: the full repo-guards suite was green the same day (`ALL_GUARD
     written as hourly rates.
     **Fix:** the same model written as monthly rates (CPU 0.751406, RAM 0.250469, storage 0.000292), with the rule in
     the values file and in `runbooks/opencost.md` § Are costs being allocated? (both checks run live: the "before" state
-    reads 0.000001 / 0 and $0.0000). Takes effect when Argo syncs the OpenCost Helm app after the push. Verification
-    (`default.json` showing 0.001029 / 0.000343, and non-zero allocations) is due then.
+    reads 0.000001 / 0 and $0.0000).
+    **VERIFIED 2026-11-08 after the push and Argo's sync:**
+    - `default.json` reads `CPU 0.001029`, `RAM 0.000343`;
+    - allocations are non-zero for the first time, and the last hour runs at **$17.94/month**, in line with the
+      model's ~$15 for mother's slice.
+
+    The exported Prometheus metric kept the old `0.000001` until an OpenCost restart (owner-authorized, 2026-11-08).
+    After it, `node_cpu_hourly_cost` reads 0.00103 and `node_ram_hourly_cost` 0.000343.
 11. **Not on any map:** Sourcebot, Zoekt, Promptfoo, Pyroscope, Sealed Secrets. `check-maps.sh` checks CI steps and
     external systems only, so nothing catches this.
     **RESOLVED 2026-11-08 (batch C).** The exact guard found two more the fuzzy audit had passed: the A2A Inspector

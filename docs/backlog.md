@@ -191,7 +191,7 @@ applied each push within one 30 s check instead of ~3.5 min (`down` ~5 min → u
   POST to Slack). 9 DR: N/A by design: the digest is stateless (it reads the B194 backup, already in `dr.md`) and its one
   secret is rebuildable from the Slack app per `secrets.md`.
 - **B238** — **Extend Trunk Flaky Tests to the other active repos (survey first)** — **LOW (2026-11-07, Linear EMA-337; split out of B189 when the owner closed it).** B189 wired weyland-lab's CI to Trunk; this is its phase 4 for the 8 other active repos in `repos.yaml` (Algopedia, ServiceTransformation, emangini-tailwind-nextjs-contentlayer, startme-curator, freejack, MyBodyGraph, OJayFloyd, grkit). None runs on the lab's Woodpecker, so it starts as a survey per repo (tests? CI? where?), then a wire / don't-wire decision with a reason, then wiring the ones worth it, each in its own Trunk collection with weyland's fail-closed upload. The span budget is the constraint: Trunk Free is ~1M results a month across all repos and weyland-lab alone uses ~600k. stud.io is separate (EMA-336, deferred). Full spec in Linear EMA-337.
-- **B239** — **Docs, diagrams, runbooks and maps coverage audit (2026-11), then fix in the owner's order** — **HIGH (2026-11-07, Linear EMA-338; owner: "This is a good time to do a docs and diagrams and runbook and maps audit").** Prompted by `lab-ask` (B187) answering "why did a Dagster run fail?" with "not in the index": there is no Dagster runbook. Pass 1 only reports, and every finding is verified before it is listed:
+- **B239** — **Docs, diagrams, runbooks and maps coverage audit (2026-11), then fix in the owner's order** — **DONE 2026-11-08** (HIGH, 2026-11-07, Linear EMA-338; owner: "This is a good time to do a docs and diagrams and runbook and maps audit"). Outcome and DoD are below this entry. Prompted by `lab-ask` (B187) answering "why did a Dagster run fail?" with "not in the index": there is no Dagster runbook. Pass 1 only reports, and every finding is verified before it is listed:
   - a coverage matrix: every deployed system against a runbook, a demo row, a flow diagram and its map;
   - operator questions per system checked against the runbook command roster (keyword match first, `lab-ask` only when ambiguous);
   - runbook hygiene (unlabelled hosts, dead file references, retired systems mentioned as live);
@@ -199,12 +199,42 @@ applied each push within one 30 s check instead of ~3.5 min (`down` ~5 min → u
   - the full guard suite as the baseline.
 
   Findings go in a new dated section of `docs/completeness-audit.md`. Pass 2 fixes them in the order the owner picks, starting with `docs/runbooks/dagster.md`. Full spec in Linear EMA-338.
+
+  **Outcome (2026-11-08).** 19 verified findings, all recorded in `docs/completeness-audit.md` § 2026-11-07 with their false positives. Fixed:
+  - **Runbooks.** 11 new ones: `dagster.md`, `tool-server.md`, `rag-stream.md`, `realm-of-agents.md`, `lakefs.md`, `apisix.md`, `kokoro.md`, `neo4j.md` and `lab-uis.md` (six UIs), plus Keycloak troubleshooting. All 61 deployed apps now name a runbook. `lab-ask` answers the question that started it all.
+  - **Guard.** `scripts/check-doc-coverage.py` in CI: every deployed app needs a `runbook:` (or a recorded gap) and a map entry. The registry carries the fields. It found two unmapped apps the fuzzy audit had passed; seven apps were added to maps.
+  - **Stale docs.** Retired Hermes and KEDA described as live in 11 places; the removed Trino no-auth proxy; Cube's follow-ups; the lakeFS key "escrow NOW" warning; Neo4j's PVC size; the ephemeral-CLI trap in the rag-stream demo.
+  - **Live outages found and fixed:**
+    - `datahub_catalog_emit_job` had failed 9 nights on its 30-min cap. It got a 70-min cap and **batched reads and writes: 33.2 → 7.0 min**.
+    - OpenCost allocated $0 for months (hourly rates read as monthly). It now runs at $17.94/month.
+  - **Infrastructure.** Proxmox tofu drift (two retired guests that would have been recreated); the APISIX route restore rebuilt as `scripts/apisix-routes.py`; Kokoro pinned by digest; the `mother.tf` deprecation.
+  - **Alerting.** `ToolServerDown` (critical), and `DagsterJobStale` escalating to critical a day past budget.
+  - **Demos.** Rows 122–126. Split out: B240 (DR gaps + E1–E12 live runs), B241 (capabilities skill).
+
+  **DoD (recorded 2026-11-08, per pillar):**
+  1. **Docs:** DONE. The 11 runbooks above, the audit section, api/hosts/DoD/registry schema updates.
+  2. **Diagrams:** DONE. `flow-dagster-runs.md`; 7 apps added to maps. The new guard makes "on a map" a CI check.
+  3. **Demos:** DONE. Rows 122 (Dagster), 123 (tool-server), 124 (Pyroscope), 125 (Headlamp, owner eyes-on), 126 (OpenCost before/after); row 1 refreshed. Every new runbook's commands were run live.
+  4. **Clean-up:** DONE. Scratch copies are outside the repo, and the one-off catalog runs were recorded runs. No probe data was written to the cluster: a scratch etcd write was refused, so APISIX's `restore` is tested only against a fake.
+  5. **Tracking:** DONE. EMA-338 Done with its boxes ticked. B240/EMA-339 and B241/EMA-340 filed READY. `check-linear-sync.sh` OK.
+  6. **Ops:** DONE. Two new critical alerts (promtool and bats tested); the catalog job's cap and runtime are covered by `test_job_runtime_limits.py`; the OpenCost restart rule is in its runbook. The doc-coverage guard runs in CI.
+  7. **Scans:** DONE. Sonar precheck clean on every changed file (two complexity CRITICALs fixed before handoff); gate OK on #605–#608; the CI Python lane 19/19 (433 Dagster tests); 1,289 bats; shellcheck clean.
+  8. **Cascades:** DONE. Registry consumers (Port, DataHub) read explicit fields, so the new ones do not leak. The tool-server's act path is unchanged (APISIX sits behind its Istio policy). Shipped `git-97855d2a` and `git-bc18e3c3` via `ship-images.sh`. Argo synced OpenCost and the rules.
+  9. **DR:** split to B240, which covers the stores this audit found with no `dr.md` row (APISIX etcd, Neo4j, Promptfoo's PVC, plus the catalog's own list). The Proxmox state now matches live.
 - **B240** — **DR catalog gaps (Keycloak, Grafana, Kuma, DataHub, app PVCs) and the first live run of the E1–E12 walkthroughs** — **MEDIUM (2026-11-08, Linear EMA-339; split out of B239 with the owner's go: operations work, not docs).** The B239 audit found `docs/dr.md` saying of itself that Keycloak's realm and users, Grafana state, the Uptime Kuma PVC, DataHub metadata and the app PVCs are "not yet catalogued (unverified coverage)". It also found all twelve end-to-end walkthroughs (demo rows E1–E12) PARTIAL and never run live; E11 still routes through Hermes. Scope:
   - a `dr.md` row or a written "reproducible" reason for each of those systems and every PVC;
   - a non-destructive restore drill per new row;
   - a live run of each walkthrough.
 
   Full spec in Linear EMA-339.
+- **B241** — **Make Weyland capabilities discoverable by the coding agent in any managed repository (capabilities skill)** — **HIGH (2026-11-08, Linear EMA-340; owner: "When I open a repository and start using an AI native workflow, I need to be able to discover these capabilities easily").** Weyland gives the 10 active repos in `repos.yaml` real capabilities: CI on Woodpecker, the scan suite and SonarQube, PR lifecycle, Linear projects, Port, Trunk (B238), shared agent memory, Bifrost MCP. But an agent session opened in one of those repos sees none of it. Scope:
+  - a capability registry in weyland (what each capability is, how a managed repo uses it, which repos use it);
+  - published as a `weyland-capabilities` Agent Skill through the existing path (`register_bifrost_skills.py` → Bifrost Skills Repository → the plugin marketplace), installed at user level like `bifrost-weyland-conventions`, so it loads in every repo;
+  - Codex and OpenCode reached too;
+  - a CI guard keeps the skill and the registry in step;
+  - proven eyes-on from a fresh session in stud.io.
+
+  Onboarding repos to capabilities is out of scope (gaps become their own items). Full spec in Linear EMA-340.
 - **B236** — **Investigate IcePanel (free tier): hosted C4 diagramming vs the lab's LikeC4 model** — **DONE 2026-11-03 — DON'T ADOPT** (HIGH, ↑ Medium→High 2026-11-03 rebalance, to give High workable room; was MEDIUM 2026-10-29, Linear EMA-324; raised by the owner). **Verdict: [concepts/icepanel.md](concepts/icepanel.md).** IcePanel's own pricing page (read 2026-11-03) settles it:
   - **It doesn't fit:** the free plan holds up to 100 model objects, against the lab model's 156 elements.
   - **Its features are thinner than LikeC4's:** 1 flow per diagram and 2 tag groups.

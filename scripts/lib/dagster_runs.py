@@ -146,13 +146,21 @@ def _list_failures(job: str | None, limit: int) -> str | int:
     return runs["results"][0]["runId"]
 
 
+def explain_lines(run_id: str, run: dict) -> list[str]:
+    """What to print for one run: its failures, or that it did not fail (a run given by --run may have succeeded)."""
+    if run["status"] != "FAILURE":
+        return [f"{run_id} ({run['jobName']}) is {run['status']}: it did not fail, so there is nothing to explain."
+                + (" It succeeded." if run["status"] == "SUCCESS" else "")]
+    return [f"why {run_id} ({run['jobName']}, {run['status']}) failed:"] + [
+        "  " + ln for ln in failure_lines(run["eventConnection"]["events"])]
+
+
 def _explain(run_id: str) -> int:
     run = _ask(run_query(run_id))["runOrError"]
     if run["__typename"] != "Run":
         print(f"dagster_runs: {run.get('message', run['__typename'])}", file=sys.stderr)
         return 2
-    print(f"\nwhy {run_id} ({run['jobName']}, {run['status']}) failed:")
-    print("\n".join("  " + ln for ln in failure_lines(run["eventConnection"]["events"])))
+    print("\n" + "\n".join(explain_lines(run_id, run)))
     return 0
 
 

@@ -183,7 +183,7 @@ resource "github_repository" "freejack" {
 
 resource "github_repository" "MyBodyGraph" {
   name                        = "MyBodyGraph"
-  visibility                  = "public"
+  visibility                  = "private" # made private 2026-11-08 on the owner's instruction (was public at import)
   vulnerability_alerts        = true
   allow_auto_merge            = false
   allow_forking               = true

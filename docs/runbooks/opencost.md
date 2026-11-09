@@ -71,6 +71,10 @@ kubectl get --raw '/api/v1/namespaces/opencost/services/opencost:9003/proxy/allo
 
 Expected: non-zero totals, `weyland` and `data-mesh` largest. All `$0.0000` means the pricing is not applied.
 
+After a pricing change, the allocation API uses the new rates at once, but OpenCost's exported Prometheus metrics
+(`node_cpu_hourly_cost`, `node_ram_hourly_cost`, which dashboards read) keep the old values until the pod restarts:
+`kubectl -n opencost rollout restart deploy/opencost`. Seen 2026-11-08.
+
 ## In Port (B50-aligned)
 OpenCost is the **live detail** (per-namespace, efficiency) — linked from the Port **Launcher** (`endpoint`
 entity `opencost`). Port itself holds only the **summary**: the `cost` blueprint's `weyland-infra` line (~$48/mo,

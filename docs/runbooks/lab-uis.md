@@ -39,8 +39,9 @@ its pod is down; `404` means the ingress is missing.
 - **Promptfoo:** evals run inside the pod (`kubectl exec … promptfoo eval`) and land on its `/data` PVC; the UI
   only views them. How the eval lanes use it: [demos/eval-lanes.md](../demos/eval-lanes.md).
 - **Headlamp** logs in with the token of ServiceAccount `kube-system/headlamp-admin`, which is bound to
-  **cluster-admin** (`k8s/headlamp-admin-token.yaml`). Reading that token is a credential step, so it is the
-  owner's. Headlamp is a write-capable cluster UI: Argo reverts live edits to Argo-managed objects (`selfHeal`), but
+  **cluster-admin** (`k8s/headlamp-admin-token.yaml`). The token is in the Secret `kube-system/headlamp-admin-token`.
+  Reading it is a credential step, so it is the owner's (it prints in your terminal; never paste it into a chat):
+  `kubectl -n kube-system get secret headlamp-admin-token -o jsonpath='{.data.token}' | base64 -d; echo` Headlamp is a write-capable cluster UI: Argo reverts live edits to Argo-managed objects (`selfHeal`), but
   use it to look, not to change.
 - **OpenSearch Dashboards** reads the same OpenSearch the `rag-index-opensearch` consumer writes
   ([rag-stream.md](rag-stream.md)).
