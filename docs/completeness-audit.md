@@ -53,7 +53,8 @@ the end. Baseline: the full repo-guards suite was green the same day (`ALL_GUARD
     caught my first choice, 3600, as too small). A one-off run with a 4200 launch tag (`35c66452`, owner-launched)
     **succeeded in 33.2 min** on 2026-11-08. It would have been stopped under the old cap, and the catalog is current
     again. The watchdog's next run (19:30 UTC) read `status=SUCCESS last_success_age=582s` and fired 0 alerts. The
-    nightly schedule gets the new cap when the Dagster image ships.
+    nightly schedule has the new cap since the ship of `git-97855d2a` (2026-11-08, `ship-images.sh`, PR #316, all
+    gates including FR-DRAIN, SMOKE and TXN). Dagster reports `dagster/max_runtime: 4200` for the job.
 
     **Possible follow-ups, not done here:** batching the writes (`emit_mcps`, supported by SDK 1.6.0.15) would cut
     the runtime. Raising `DagsterJobStale` to critical after some days would have opened an incident on day one.
@@ -145,6 +146,11 @@ the end. Baseline: the full repo-guards suite was green the same day (`ALL_GUARD
     `cube.md` has a single command.
 11. **Not on any map:** Sourcebot, Zoekt, Promptfoo, Pyroscope, Sealed Secrets. `check-maps.sh` checks CI steps and
     external systems only, so nothing catches this.
+    **RESOLVED 2026-11-08 (batch C).** The exact guard found two more the fuzzy audit had passed: the A2A Inspector
+    and OpenSearch Dashboards.
+    - All seven are now on a map: rows on the Platform Map, and the A2A Inspector in the Realm map's A2A line.
+    - Four apps that were on maps under other names carry a `map_label:`: Dagster, the LanceDB Viewer, the MCP server
+      fleet and the k8s exporter.
 12. **Demos.**
     - No demo at all: Headlamp, OpenCost, Pyroscope.
     - The 12 end-to-end walkthroughs (E1–E12) are all PARTIAL and have never had a live run.
@@ -161,9 +167,14 @@ the end. Baseline: the full repo-guards suite was green the same day (`ALL_GUARD
 
 ### What would keep these gaps closed (Closing Gaps: the audit question)
 
-- A `runbook:` field per deployed app in `applications.yaml`, enforced by `check-app-registry.sh`. The registry is
-  already the source of truth that guard reads.
-- `check-maps.sh` extended so that every deployed app appears on at least one map.
+- **DONE 2026-11-08 (batch C):** one guard, `scripts/check-doc-coverage.py`, in CI repo-guards, with its logic in
+  `scripts/lib/doc_coverage.py` (12 tests). It covers both of the planned checks, a `runbook:` field per deployed app
+  and every deployed app on at least one map, in one place instead of extending two scripts.
+  - Every deployed app in `applications.yaml` now names its runbook, or carries `runbook: null` + `runbook_gap:`.
+    That is 10 recorded gaps, batch D's list.
+  - Every deployed app appears on a map by name, key or `map_label:`.
+  - The DoD (Pillar 2) and the registry's schema comment describe it.
+  - The tool-server, Port and DataHub consumers read registry fields explicitly, so the new fields do not leak.
 - ~~A runbook path guard~~: dropped on evidence. 8 of the 9 hits were legitimate prose (other repos, gitignored files,
   history, hypotheticals), so a guard would mostly block correct docs. The two guards above cover the gaps that
   matter.

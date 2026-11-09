@@ -77,6 +77,11 @@ capability is **NOT done** until ALL nine pillars hold. "Ran once" ≠ done.
   (repo-guards) fails when a pipeline step is missing from the CI map, its step count is stale, or a LikeC4 `ext` has no
   `data-c4` row on the Platform Map. The guard cannot judge content: a row that exists but is out of date is caught only
   by reading the map. Found when the CI map still said 23 steps against 70, and Slack, IRM and Trunk were on no map.
+- **Runbook and map per deployed app** (B239, 2026-11-08) — every `deployed: true` entry in the application registry
+  (`applications.yaml`) names its runbook (`runbook:`) or records why it has none (`runbook: null` + `runbook_gap:`),
+  and appears on at least one map (by name, key or `map_label:`). `scripts/check-doc-coverage.py` (repo-guards)
+  enforces both. Found when an audit showed Dagster, the tool-server and the RAG indexer with no runbook, and
+  Sourcebot, Zoekt, Promptfoo, the A2A Inspector and OpenSearch Dashboards on no map, and no guard noticed.
 
 ## 3. Demos — `docs/demos/` (exhaustive, not sampled) — AND the demo IS the test
 
