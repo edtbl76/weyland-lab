@@ -1259,6 +1259,10 @@ items in Tentative (shared VRAM-diffusion need). `vision_analyze` (image *analys
 on (may run on CPU via `mistral-small3.2`). Re-evaluate when/if the eGPU lands.
 
 ### B22 — SearXNG (self-hosted search) — privacy-max — HIGH (↑ Medium→High 2026-11-05 rebalance; ↑ Low→Medium 2026-11-03 rebalance; was LOW, reviewed 2026-08-27)
+**Correction (2026-11-09):** no Tavily wiring exists in git. The lab's web search is Perplexity (Bifrost's stdio
+`perplexity-mcp`, the realm-of-agents research role, LiteLLM's `wl-search` lane). Read "Tavily" below as "the
+search middleman"; EMA-22 carries the corrected technical context.
+
 Optional replacement for **Tavily**. Web search is inherently off-LAN, but SearXNG removes the **cloud
 middleman**: queries go from your box straight to search engines — self-hosted, free, no key. **Cost:**
 another service to run + rawer (non-agent-tuned) results vs Tavily's clean search+extract. **Not urgent** —
