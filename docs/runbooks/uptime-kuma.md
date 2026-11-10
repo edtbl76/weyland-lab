@@ -1,6 +1,7 @@
 # Uptime Kuma — runbook (incident-management category, B43)
 
-Uptime monitoring + status page at `kuma.weyland.lab`. **37 monitors** across the platform (live count, 2026-07-17). Two notifiers,
+Uptime monitoring + status page at `kuma.weyland.lab`. **55 monitors** across the platform (live count, 2026-11-09; the
+nightly `uptime-kuma-backup` log line carries the current one). Two notifiers,
 both default-on: **Port.io webhook** (→ `uptime_monitor` blueprint, catalog/status) and **direct Telegram**
 (active paging — a Telegram bot token, set up with Hermes's; which bot it is now is under Telegram paging below;
 sending doesn't conflict with the operator consuming). Telegram is
@@ -10,8 +11,8 @@ auth (set on first login). Single container, SQLite state on a PVC.
 - Manifest: `k8s/uptime-kuma/uptime-kuma.yaml` (PVC + Deployment + Service + Ingress, Traefik TLS).
 - **UI access:** `kuma.weyland.lab` is now **Keycloak SSO gated via `traefik-forward-auth`** (forward-auth →
   Keycloak, in front of Kuma's own built-in login). The backup-script auth below is a separate API path, unaffected.
-- Backup (monitors + notification): `scripts/kuma-backup.json` — **gitignored** (inline dev-password basic
-  auth + the Port ingest key). Local-only.
+- Backup: the nightly `uptime-kuma-backup` CronJob (B240, 2026-11-09), § Backup + restore below. (The old local export
+  `scripts/kuma-backup.json` named here before was gone when B240 looked, so until then nothing held a copy.)
 - **Kuma's own login** (behind Keycloak): user `admin`, password = `LAB_PASSWORD` in `scripts/.env` (the lab dev
   password). Recorded 2026-10-03 after it was unknown when needed. The API is reachable for scripts via
   the `uptime-kuma-lan` NodePort `http://192.168.1.243:30301` (the UI hostname sits behind forward-auth); the
@@ -59,6 +60,41 @@ Exit 0 all match · 1 findings, named · 2 could not read Kuma (never clean).
 A **down** push is not the same as a missed one: `machine-inventory-drift` pushes `down` when the job or the estate
 failed (an unreachable host, host placement drift, Port emit/verify, a push-interval finding). Catalog drift alone is
 `up`, with the change and the open inventory PR in the message (since 2026-10-13).
+
+## Backup + restore — `uptime-kuma-backup` (B240, 2026-11-09)
+
+Kuma's whole state is ONE SQLite file, `kuma.db` (WAL mode, ~1.3 GB, mostly heartbeat history) on PVC
+`uptime-kuma-pvc`: the 55 monitors, the 2 notifiers and their 78 links, the status page, the admin user. None of it is in
+git. `k8s/uptime-kuma/uptime-kuma-backup.yaml` (deployed by the `uptime-kuma` Argo app) runs a CronJob at **23:58 NY**:
+`scripts/sqlite_backup.py --db kuma.db --require monitor --require notification --require user` (the script shared with
+the Open WebUI, Woodpecker and Bifrost backups, embedded by `scripts/embed-sqlite-backup.sh`), as root with every
+capability dropped (Kuma runs as root and owns the file). It writes a consistent snapshot plus `manifest.json` to PVC
+`uptime-kuma-backup` (mother NVMe) and keeps 7 (~9 GB). It fails closed → `ScheduledBackupFailed` (critical);
+`ScheduledJobStale` after 26 h. **The copy holds the Telegram bot token and the Port webhook URL** (Kuma stores them in
+its notification rows), the same boundary as the live PVC.
+
+Run one now (and before any Kuma upgrade):
+```
+kubectl -n weyland create job --from=cronjob/uptime-kuma-backup uptime-kuma-backup-manual-$(date +%s)
+```
+Expect `sqlite-backup OK (kuma.db): /backup/uptime-kuma/<ts> — counts={'monitor': 55, 'notification': 2, 'user': 1,
+'monitor_notification': 78, 'heartbeat': …} files=['kuma.db', 'manifest.json']`.
+
+**Restore drill (non-destructive)** — opens the newest backup in a throwaway pod (copied to `/tmp`, never written back)
+and prints integrity, the manifest counts and the same tables counted from the copy:
+```
+kubectl -n weyland run kuma-restore-drill --restart=Never --image=python:3.12-alpine --overrides='{"metadata":{"labels":{"sidecar.istio.io/inject":"false"}},"spec":{"automountServiceAccountToken":false,"containers":[{"name":"drill","image":"python:3.12-alpine","securityContext":{"runAsUser":0,"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}},"command":["python3","-c","import glob,json,os,shutil,sqlite3; d=sorted(glob.glob(\"/backup/uptime-kuma/2*\"))[-1]; m=json.load(open(d+\"/manifest.json\")); shutil.copy(d+\"/kuma.db\",\"/tmp/r.db\"); c=sqlite3.connect(\"/tmp/r.db\"); q=lambda s: c.execute(s).fetchone()[0]; print(\"backup\",os.path.basename(d),\"integrity\",q(\"pragma integrity_check\"),\"manifest\",m[\"counts\"]); print(\"copy counts:\",{t:q(\"select count(*) from \"+t) for t in [\"monitor\",\"notification\",\"user\",\"monitor_notification\"]}); print(\"active monitors:\",q(\"select count(*) from monitor where active=1\"))"],"volumeMounts":[{"name":"b","mountPath":"/backup","readOnly":true}]}],"volumes":[{"name":"b","persistentVolumeClaim":{"claimName":"uptime-kuma-backup"}}]}}' >/dev/null && kubectl -n weyland wait --for=jsonpath='{.status.phase}'=Succeeded pod/kuma-restore-drill --timeout=300s >/dev/null; kubectl -n weyland logs kuma-restore-drill; kubectl -n weyland delete pod kuma-restore-drill
+```
+Pass = `integrity ok` and the counts matching the manifest and the live ones (read-only:
+`kubectl -n weyland exec deploy/uptime-kuma -- sqlite3 -readonly /app/data/kuma.db "select count(*) from monitor"`).
+Record the date in `docs/dr.md`.
+
+**Restore (destructive).** Argo selfHeal reverts a scale-down, so pause the app first:
+`argocd app set uptime-kuma --sync-policy none --grpc-web` → `kubectl -n weyland scale deploy/uptime-kuma --replicas=0` →
+a one-off pod (root, no sidecar) mounting `uptime-kuma-pvc` (rw) and `uptime-kuma-backup` (ro) copies the chosen
+`kuma.db` over `/app/data/kuma.db` and DELETES `kuma.db-wal` / `kuma.db-shm` → scale back to 1 → `argocd app set
+uptime-kuma --sync-policy automated --self-heal --auto-prune --grpc-web`. Verify the monitor count in the UI and that a
+test notification reaches Telegram.
 
 ## Gotchas (all hit during bring-up — don't repeat)
 1. **DNS — `*.weyland.lab` is `ENOTFOUND` from the pod by default.** The pod must point at the LAN CoreDNS,

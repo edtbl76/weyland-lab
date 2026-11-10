@@ -40,6 +40,11 @@ PY
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
+@test "uptime-kuma-backup runs the identical embedded script against kuma.db, requiring monitors + notifiers + the user" {
+  run check "$K/uptime-kuma/uptime-kuma-backup.yaml" uptime-kuma-pvc kuma.db monitor notification user
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
 @test "bifrost-backup runs the identical embedded script against config.db, requiring providers + VKs + prompts + skills" {
   run check "$K/bifrost/bifrost-backup.yaml" bifrost-data config.db config_providers governance_virtual_keys prompts skills
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }

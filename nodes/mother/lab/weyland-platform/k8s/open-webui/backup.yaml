@@ -25,6 +25,7 @@ data:
       open-webui-backup  --db webui.db --require user --count chat --archive vector_db --archive uploads
       woodpecker-backup  --db woodpecker.sqlite --require users --require pipelines
       bifrost-backup     --db config.db --require config_providers --require governance_virtual_keys --require prompts --require skills
+      uptime-kuma-backup --db kuma.db --require monitor --require notification --require user
 
     Writes <backup-root>/<UTC timestamp>/ with:
       <FILE>            a CONSISTENT snapshot via SQLite's online backup API (a file copy of a live WAL db is not one)
@@ -35,7 +36,8 @@ data:
     "ok", a --require table that is missing or EMPTY (the wrong file, an empty one, or a schema change — never the real
     state), or no --require at all (a check that checks nothing). The run writes into `.inprogress-<ts>` and renames it only
     once complete; rotation keeps the newest --keep complete backups and removes interrupted runs.
-    Restores: docs/runbooks/open-webui.md, docs/runbooks/woodpecker.md, docs/runbooks/mcp-gateway.md.
+    Restores: docs/runbooks/open-webui.md, docs/runbooks/woodpecker.md, docs/runbooks/mcp-gateway.md,
+    docs/runbooks/uptime-kuma.md.
     """
     import argparse
     import json

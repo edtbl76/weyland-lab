@@ -1,4 +1,4 @@
-# B69 — full-instance backup of weyland-postgres (ALL 12 DBs + global roles) via pg_dumpall. The
+# B69 — full-instance backup of weyland-postgres (ALL databases + global roles: 18 on 2026-11-09) via pg_dumpall. The
 # k8s/data-mesh/backup.yaml sibling only dumps nessie+lakefs; this covers the IRREPLACEABLE rest —
 # keycloak (realm/users/clients), superset (dashboards), weyland core (eval_leaderboard / model_catalog /
 # guardrail_verdicts), + the reproducible-but-nice dagster/datahub/feast/mlflow/sonarqube/ranger DBs.
