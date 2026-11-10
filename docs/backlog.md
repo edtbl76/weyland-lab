@@ -5624,7 +5624,7 @@ Linear: EMA-194. Memory: [[aidlc-v2-migration]]. Supersedes [[methodaidlc-user-a
 
 ### B134 — CPU request management: right-size reservations + move more systems on-demand — **HIGH — HELD FOR HARDWARE (↑ Medium→High 2026-09-26 — it now gates two High items; ↓ High→Medium 2026-09-19; reframed → resource right-sizing + state-aware on-demand)**
 
-**The hardware candidate (2026-09-26, not yet bought — likely).** A **Ryzen AI Max+ 395 ("Strix Halo")** box: 16C/32T
+**The hardware (candidate 2026-09-26; BOUGHT, arriving 2026-11-10).** On landing, this item also measures tokens per second for an 8B and a 70B-class model on the box (moved here from B149, which the purchase superseded). A **Ryzen AI Max+ 395 ("Strix Halo")** box: 16C/32T
 Zen 5 + a Radeon 8060S iGPU (40 CU, RDNA 3.5, gfx1151) sharing ONE pool of soldered LPDDR5X (64/96/128 GB; no
 upgrade later). Planned as **Proxmox**, mirroring Weyland's own layout:
 
@@ -5897,7 +5897,9 @@ Relates **B88** (the integration tier this spun off from), B136 (Flink modules).
 
 ---
 
-### B149 — Personal AI lab GPU strategy: cheap local NVIDIA box + burst-rent cloud GPUs (hybrid) — HIGH (↑ Medium→High 2026-11-09 rebalance, held items out of the account; 2026-08-16; backlogged 2026-08-27)
+### B149 — Personal AI lab GPU strategy: cheap local NVIDIA box + burst-rent cloud GPUs (hybrid) — DONE 2026-11-10 — SUPERSEDED, Linear EMA-190 canceled (was HIGH, ↑ Medium→High 2026-11-09 rebalance; 2026-08-16; backlogged 2026-08-27)
+
+**Superseded by the purchase (owner, 2026-11-10).** The question this spike asked, where the lab's GPU compute comes from, was answered by buying the 128 GB Strix Halo box (B134), arriving 2026-11-10: local, not an NVIDIA card, and burst-renting cloud GPUs is not adopted. The one useful remaining check, measured tokens per second for an 8B and a 70B-class model on the new box, moved into B134's acceptance criteria as part of the hardware special case. The research below stays as the record.
 
 **Backlog-entry added 2026-08-27.** This existed only in Linear (EMA-190) from 2026-08-16 — no B-number, no backlog row — so it was invisible to `docs/backlog.md` as the ordered source of truth and to every doc that reads from it. Full research write-up (provider table, price survey, build spec, break-even arithmetic, ASCII topology) lives in the Linear issue; this row is the durable pointer plus the parts that constrain lab decisions.
 

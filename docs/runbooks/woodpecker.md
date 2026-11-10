@@ -373,6 +373,13 @@ re-downloading (build 682s→370s) — ~9 min/run. RWO is correct: single-node s
 caches need anyway. **Apply the PVCs before the run** or step pods hang Pending.
 
 ## Gotchas (hard-won)
+- **Install apt packages through `scripts/ci/apt-install.sh`, never a bare `apt-get install`** (2026-11-10). Nightly
+  #622's `test-ada` failed on `404 Not Found` for `perl-base`: the install ran ~3 min on a slow mirror, and Ubuntu's
+  security pocket replaced the package in between, so the fresh index already pointed at a deleted `.deb`. The helper
+  re-runs `apt-get update` and retries up to 3 times (15 s apart), then fails closed naming the packages; it passes its
+  arguments through to `apt-get install -y`, so a step keeps its own flags. `scripts/tests/apt-install.bats` fails if
+  any step in `.woodpecker.yml` calls `apt-get install` directly. The helper is a fixture trigger path (`ci-langs.yaml`),
+  so changing it re-runs the fixture lanes.
 - **Step `volumes` need repo trust:** the SERVER rejects them with `Insufficient trust level to use volumes` unless
   the repo's `trusted.volumes` is set (`PATCH /api/repos/<id>` `{"trusted":{"volumes":true}}`). **`woodpecker-cli
   lint` does NOT catch this** — trust is a server-side repo setting, so lint passes and the pipeline compiles to

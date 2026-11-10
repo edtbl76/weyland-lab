@@ -378,7 +378,7 @@ steps:
     image: python:3.12-slim
     commands:
       - pip install --quiet pyyaml
-      - apt-get update -qq >/dev/null && apt-get install -y -qq curl >/dev/null
+      - sh scripts/ci/apt-install.sh -qq curl >/dev/null
       - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /usr/local/bin/opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
       - chmod +x /usr/local/bin/opa
       - sh scripts/ci/check-rego-policies.sh
@@ -476,7 +476,7 @@ steps:
       # B189 phase 2b: cargo-nextest (owner-approved 0.9.149) writes JUnit for Trunk. Release binary, checked against
       # GitHub's published sha256 before use, into the IMAGE's cargo bin (not the persistent cache, so no stale version
       # outlives a bump). The slim image has no curl.
-      - apt-get update >/dev/null && apt-get install -y --no-install-recommends curl ca-certificates >/dev/null
+      - sh scripts/ci/apt-install.sh --no-install-recommends curl ca-certificates >/dev/null
       - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/nextest.tgz https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.149/cargo-nextest-0.9.149-x86_64-unknown-linux-gnu.tar.gz
       - echo "32d1d8c0567b7a80bee2bad8bb09125c846da96bc009b2de11ec08557290c770  /tmp/nextest.tgz" | sha256sum -c -
       - tar -xzf /tmp/nextest.tgz -C /usr/local/cargo/bin
@@ -499,7 +499,7 @@ steps:
       # No NuGet cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) — dotnet
       # restores per run. Add the cache as a fast-follow once the lane is green.
       # B189: the logger nupkg is checked against its sha256 (nuget.org's catalog SHA512 matched on 2026-11-07).
-      - apt-get update >/dev/null && apt-get install -y --no-install-recommends unzip >/dev/null
+      - sh scripts/ci/apt-install.sh --no-install-recommends unzip >/dev/null
       - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/junit-logger.nupkg https://www.nuget.org/api/v2/package/JunitXml.TestLogger/8.0.0
       - echo "9ddfe96a19048744ced3c482ae098f4cd0f7c9d4aec8a6e2cae168244b3da30b  /tmp/junit-logger.nupkg" | sha256sum -c -
       - mkdir -p /tmp/junit-logger && unzip -j -o -q /tmp/junit-logger.nupkg 'build/_common/*.dll' -d /tmp/junit-logger
@@ -638,7 +638,7 @@ steps:
     commands:
       # AWS 25.x needs Alire's binary GNAT 14.2.1 (Ubuntu FSF GNAT 13.3 can't compile gnatcoll 25.x); the
       # build shells out to gcc/git/curl/openssl-dev (see the golden path's Dockerfile). CI-confirms the lane.
-      - apt-get update && apt-get install -y --no-install-recommends build-essential libssl-dev git curl ca-certificates unzip
+      - sh scripts/ci/apt-install.sh --no-install-recommends build-essential libssl-dev git curl ca-certificates unzip
       - curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip -o /tmp/alr.zip
       - unzip -q /tmp/alr.zip -d /tmp/alr && install -m755 /tmp/alr/bin/alr /usr/local/bin/alr
       # alr downloads gnat/gprbuild from GitHub INTERNALLY (no curl flag reaches it), and a single 504 on
@@ -719,7 +719,7 @@ steps:
     image: gcc:14   # trixie-based; cmake + git for FetchContent (cpp-httplib + doctest)
     environment: *junit_env
     commands:
-      - apt-get update && apt-get install -y --no-install-recommends cmake git >/dev/null
+      - sh scripts/ci/apt-install.sh --no-install-recommends cmake git >/dev/null
       - bash scripts/run-lang-tests.sh cpp --self-check
       - bash scripts/run-lang-tests.sh cpp
 
@@ -728,7 +728,7 @@ steps:
     image: gcc:14
     environment: *junit_env
     commands:
-      - apt-get update && apt-get install -y --no-install-recommends cmake pkg-config libmicrohttpd-dev >/dev/null
+      - sh scripts/ci/apt-install.sh --no-install-recommends cmake pkg-config libmicrohttpd-dev >/dev/null
       - bash scripts/run-lang-tests.sh c --self-check
       - bash scripts/run-lang-tests.sh c
 
@@ -961,7 +961,7 @@ steps:
           limits:
             memory: 6Gi
     commands:
-      - apt-get update && apt-get install -y --no-install-recommends build-essential libssl-dev git curl ca-certificates unzip
+      - sh scripts/ci/apt-install.sh --no-install-recommends build-essential libssl-dev git curl ca-certificates unzip
       - curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip -o /tmp/alr.zip
       - unzip -q /tmp/alr.zip -d /tmp/alr && install -m755 /tmp/alr/bin/alr /usr/local/bin/alr
       # alr downloads gnat/gprbuild from GitHub INTERNALLY (no curl flag reaches it), and a single 504 on
@@ -1012,14 +1012,14 @@ steps:
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " cpp ")'}]
     image: gcc:14
     commands:
-      - apt-get update && apt-get install -y --no-install-recommends cppcheck >/dev/null
+      - sh scripts/ci/apt-install.sh --no-install-recommends cppcheck >/dev/null
       - bash scripts/run-lang-scan.sh cpp
 
   - name: scan-c
     when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " c ")'}]
     image: gcc:14
     commands:
-      - apt-get update && apt-get install -y --no-install-recommends cppcheck >/dev/null
+      - sh scripts/ci/apt-install.sh --no-install-recommends cppcheck >/dev/null
       - bash scripts/run-lang-scan.sh c
 
   - name: scan-node
