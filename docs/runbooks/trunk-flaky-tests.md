@@ -12,7 +12,7 @@ detects flaky and broken tests, and files them as Linear issues in project **Wey
 | Where results come from | `reports/junit/<source>/` in the shared workspace. Each `<source>` is one Trunk **variant** |
 | Trunk org / collection | `weyland` / `bats` collection, id `ZuFEh5e5` (https://app.trunk.io/weyland/flaky-tests) |
 | Key | Woodpecker secret **`trunk_org_token`** = Trunk's **legacy org token** (the "Legacy Keys" screen in Trunk's settings, beside the v2 API keys). The v2 API keys do not work: the CLI rejects them, and the v2 API has no upload endpoint. The same value is `TRUNK_ORG_TOKEN` in `scripts/.env` for local runs |
-| Linear | Trunk's Linear connection, "Linear (TRUNK)", Configuration: team `emangini`, project **Weyland Auto-Filed**, assignee `ed`, priority **Low**, label **`trunk-flaky`**. Collection `bats` → Ticketing: auto-create for flaky and for broken tests, auto-close for healthy tests, reopen recent tickets (30 days) |
+| Linear | Trunk's Linear connection, "Linear (TRUNK)", Configuration: team `emangini`, project **Weyland Auto-Filed**, assignee `ed`, priority **Low**, label **`trunk-flaky`**. Collections `bats`, `MyBodyGraph` and `grkit` (the last two set 2026-11-10) → Ticketing: auto-create for flaky and for broken tests, auto-close for healthy tests, reopen recent tickets (30 days) |
 | Alert when it breaks | the `trunk-upload` step goes red (and so does the pipeline): see Troubleshooting |
 
 ## Sources (variants)
@@ -83,9 +83,41 @@ cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +
 Expect `<variant>: uploaded` per source and `OK — N variant(s) uploaded`. Rehearsed this way on 2026-11-06 with the
 `python` lane's 20 reports: 1,680 results, exit 0.
 
+## Other repos (B238, 2026-11-10)
+
+Trunk needs CI runs to report from, so only repos with CI can join. Survey of the 8 other active repos in `repos.yaml`:
+
+| Repo | CI | Trunk collection | Sources (variants) |
+|---|---|---|---|
+| **MyBodyGraph** | GitHub Actions `check.yml` (every push) | `Tz9xc0cL` | `vitest` — `vitest.config.ts` adds the `junit` reporter beside `default` (~421 tests) |
+| **grkit** | GitHub Actions `ci.yml` (push to main, PRs) | `8jol5WOk` | `pytest` (`--junitxml`, ~38) and `bats` (the rendered guard's tests, `--report-formatter junit`, ~6), written by `scripts/test.sh` |
+| Algopedia, ServiceTransformation, freejack, emangini-tailwind-nextjs-contentlayer, startme-curator | none | — | **not wired: no CI.** They join when they get a CI lane (`repos.yaml` lane `ci`); freejack's ~3,200 test files would then be the largest source |
+| OJayFloyd | none | — | not wired: no tests yet (2 files) |
+
+How each repo uploads: a final workflow step (`if: !cancelled()`, skipped for Dependabot, which gets no secrets) downloads
+the pinned `trunk-analytics-cli` 0.16.1 and **this repo's `scripts/ci/trunk-upload.sh` at a pinned commit**
+(`45c0b1ca…`, sha256 `09f3887d…`), checks both against their sha256, and runs it on `reports/junit`. So the fail-closed
+logic lives here, once. GitHub secret `TRUNK_ORG_TOKEN` (the same legacy org token) and repo variable
+`TRUNK_COLLECTION_ID` per repo:
+
+[rogueone]
+```
+cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && printf %s "$TRUNK_ORG_TOKEN" | gh secret set TRUNK_ORG_TOKEN -R edtbl76/<repo> && gh variable set TRUNK_COLLECTION_ID -R edtbl76/<repo> --body <collection id>
+```
+
+Collections can be created through Trunk's v2 API with the v2 key (`TRUNK_UPLOAD_TOKEN` in `scripts/.env`):
+`POST https://api.trunk.io/v2/test-collections` with `Authorization: Bearer <key>` and `{"name": …, "description": …}`;
+`GET /v2/test-collections` lists them. **If `trunk-upload.sh` changes**, bump the pinned commit and sha256 in each
+repo's workflow, or that repo keeps running the old version.
+
 ## Budget
 
-Free plan: "1M test spans per committer per month, up to 5M". A span is one test result, and only non-bot committers count,
+**Checked 2026-11-10 (B238):** Settings → Billing shows the **Free** plan as "Free for repos with ≤ 5 committers",
+**Committers 0**, and no span or result meter. So on the plan as Trunk shows it today, the limit is the number of human
+committers, not test results, and adding the owner's other repos costs nothing against it. The span figures below are
+from Trunk's pricing page as read for B189 (2026-11-06); keep them as the fallback if the plan page ever shows a meter.
+
+Free plan (B189 reading): "1M test spans per committer per month, up to 5M". A span is one test result, and only non-bot committers count,
 so for this lab about **1M a month across every repo**. The limit is soft: over it, Trunk shows an upgrade banner and keeps
 accepting uploads. **Check Settings → Billing monthly.** Measured: a **full** weyland-lab run uploads about **3,200**
 results (#597, 28 sources, 2026-11-07), and a lean run nearly as many (python + shell + java, about 3,000: python and
