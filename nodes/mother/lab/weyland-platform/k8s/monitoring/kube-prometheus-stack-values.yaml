@@ -157,6 +157,12 @@ grafana:
   # B1.1 Phase 3 — inject the Keycloak OIDC client secret as GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET.
   # Secret created out-of-band (grafana-oauth, monitoring ns) — never committed. Must exist BEFORE this rolls.
   envFromSecret: grafana-oauth
+  # B240 — the TimescaleDB datasource's password (below), from the sealed Secret grafana-timescaledb (monitoring ns; the
+  # value is timescaledb-secret's POSTGRES_PASSWORD, sealed by the owner). optional: Grafana still starts if the Secret
+  # is missing; only that one datasource then fails its connection test.
+  envValueFrom:
+    TIMESCALEDB_PASSWORD:
+      secretKeyRef: { name: grafana-timescaledb, key: TIMESCALEDB_PASSWORD, optional: true }
   # B1.1 harden — mount the mkcert root CA so Grafana VERIFIES Keycloak's cert (replaces the TLS skip).
   # Reuses the existing weyland-mkcert-ca secret (the same CA Uptime Kuma trusts), copied into the monitoring
   # ns out-of-band — must exist before this rolls.
@@ -246,6 +252,25 @@ grafana:
       uid: pyroscope
       access: proxy
       url: http://pyroscope.monitoring.svc.cluster.local:4040
+    # TimescaleDB `timeseries` (B240) — created by hand in the UI before; it existed only in grafana.db, so a fresh PVC
+    # lost it (found by the B240 rebuild test). Same name, uid and settings as the live one, so Explore queries and any
+    # links keep working. No provisioned dashboard uses it; it serves ad-hoc Explore over the hypertables.
+    - name: timescaledb-datasource
+      type: grafana-postgresql-datasource
+      uid: efqi782s57fnkf
+      access: proxy
+      url: timescaledb.data-mesh.svc.cluster.local:5432
+      user: weyland
+      jsonData:
+        database: timeseries
+        sslmode: disable
+        timescaledb: true
+        maxOpenConns: 100
+        maxIdleConns: 100
+        maxIdleConnsAuto: true
+        connMaxLifetime: 14400
+      secureJsonData:
+        password: $TIMESCALEDB_PASSWORD
 
 prometheus:
   prometheusSpec:

@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: grafana-timescaledb
+  namespace: monitoring
+spec:
+  encryptedData:
+    TIMESCALEDB_PASSWORD: AgCK8XUiIm8K06jdDbulNbnlswG2EBWU6LtRrzGMn5my9+NKMEg3RS5apwqzMwjMJM5INeXOyZsNY0gOEPnaIoMArPX4YGYQPvGv6Hg3/yQ1jECACMwyZ3IbYfb4/9zygIMrPb8RaURpx3OrGF1xaG4NzFeLttcJjk12Q7HGGH+UvWbaph8J4Qt5h7olhibYvO1PCQ1A9PA/gr8ztwWm4peSRMdT35qWPe3Af+KPta170q+BNsXzNW1JXw9PGBMeKBpNJJjRfm+vNoNLkYS7qvUJwrd+Jq4X/7zZr0iS9ZqM6SDHmdK0uaTy2n8vAibaVDYDXAsDbF0fVZsTQ0ab/udsoBgYnJH/YymScaiDDxA1CXGwEmjocszbQ76Vt0xr/9vFTa6xdU2Ju5HYFJnhD7xmSf9YJzD//q0tOY2hNTcgAdHERz8cBviy3/D+RTReXlzW1pLLwchRFzMkOBEXUbrbXBwB85zkJBi8SuKLepCIwIIZrRSUthyyJYDoB3kdA4WbS2o//R45D5KfBNMT70NrTUvhnAvfkKtRUSCRyhrNsuLZv6j3Hrp76+ONYh/0wA2nz1bTZmlJqd2qgehcwA1rqwt1Wc2ly36j5BoR4FEus4t95jLbPHaO/eMwuP/FQ5m63ETrFBmffTLFe/dF7P7QMbs+kicuXtPm3y0U0xoMPLmoQXxmCINSg8KmyextBmqowi4cEO8qFXVngkKcAAix/wVYUg==
+  template:
+    metadata:
+      name: grafana-timescaledb
+      namespace: monitoring

@@ -173,7 +173,7 @@ model {
           glitchtip = component "GlitchTip" "Error tracking -> Port"
           langfuse = component "Langfuse" "LLM observability (B103) — traces/scores/prompts/sessions + online evals (native LLM-as-judge evaluators + git-SSOT Datasets); reuses data-mesh ClickHouse/Valkey/MinIO + weyland-postgres"
           promptfoo = component "Promptfoo" "LLM eval / red-team harness UI (promptfoo.weyland.lab) — prompt/model eval + adversarial red-team suites over the model fleet"
-          kuma = component "Uptime Kuma" "Monitors -> Telegram; API NodePort 30301 (Kuma login, B218)"
+          kuma = component "Uptime Kuma" "Monitors -> Telegram; API NodePort 30301 (Kuma login, B218). State: kuma.db (SQLite) on a local-path PVC, backed up nightly by uptime-kuma-backup (23:58, drilled; B240)"
           kiali = component "Kiali" "Mesh observability UI"
           smCoverage = component "ServiceMonitor coverage" "B148 CronJob (ns monitoring, 02:45 NY, unmeshed, read-only SA). Reconciles every live ServiceMonitor across three planes - intended (.spec.replicas, trustworthy because Argo selfHeal), actual (.status.readyReplicas), observed (Prometheus scrape-pool targets). Exists because data-mesh/trino exported zero metrics for 59 days behind an unlabelled Service and no affirmative check could see it"
           placementCoverage = component "Placement coverage" "B198 CronJob (ns monitoring, 03:40 NY, unmeshed, Prometheus-only). Reconciles placement.yaml — where every workload runs, what it holds, whether it can move, its Strix Halo target — against kube-state-metrics workloads, node-exporter systemd units (rogueone, last 24h) and pve-exporter guests. Byte-identical embedded script + inventory (scripts/embed-placement.sh + placement.bats)"

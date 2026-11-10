@@ -1,4 +1,4 @@
-# Demo — SQLite app-store backups (Open WebUI + Woodpecker + Bifrost) and Woodpecker's lock fix (B182 / B201 / B202)
+# Demo — SQLite app-store backups (Open WebUI + Woodpecker + Bifrost + Uptime Kuma) and Woodpecker's lock fix (B182 / B201 / B202 / B240)
 
 Two apps keep their whole state in one live SQLite file on mother, and neither had a backup: Open WebUI (users, chats,
 settings, presets) and Woodpecker (users, repos, CI secrets, the nightly cron, pipeline history). One tested script,
@@ -73,6 +73,17 @@ restore — a detached pod opens a COPY of the newest backup), RUN 2026-10-08 on
 providers 22, virtual keys 4, MCP clients 10, prompts 280, skills 589 — every count matching the manifest. The
 pre-upgrade backup `20261009T041944Z` (same counts) was the rollback point for the v2.2.6 migration.
 
+**4b. Uptime Kuma (B240, RUN 2026-11-10)** — `uptime-kuma-backup`, the fourth job on the same script, as root with
+every capability dropped (Kuma runs as root and owns `kuma.db`):
+```
+kubectl -n weyland create job --from=cronjob/uptime-kuma-backup uptime-kuma-backup-manual-$(date +%s)
+```
+```
+sqlite-backup OK (kuma.db): /backup/uptime-kuma/20261110T035203Z — counts={'monitor': 55, 'notification': 2, 'user': 1, 'monitor_notification': 78, 'heartbeat': 8894549} files=['kuma.db']
+```
+The non-destructive drill (command in runbooks/uptime-kuma.md § Backup + restore): `integrity ok`; monitor 55,
+notification 2, user 1, monitor_notification 78, all 55 monitors active — matching the manifest and the live database.
+
 **5. The alerts reach Telegram** — a labelled DRILL `WoodpeckerTaskExpired` (command in runbooks/woodpecker.md):
 `alertmanager_notifications_total{integration="telegram"}` 13,476 → **13,477**, failed unchanged at 17.
 
@@ -84,6 +95,8 @@ pre-upgrade backup `20261009T041944Z` (same counts) was the rollback point for t
    schedule `50 23 * * *` America/New_York.
 4. **Argo CD** → app **bifrost**: Synced + Healthy; CronJob `bifrost-backup` schedule `55 23 * * *` America/New_York,
    last run Complete.
+4b. **Argo CD** → app **uptime-kuma**: Synced; CronJob `uptime-kuma-backup` schedule `58 23 * * *` America/New_York and PVC
+   `uptime-kuma-backup` Bound. Owner eyes-on 2026-11-10: app Healthy + Synced to `36c59ce`; the CronJob manifest shows schedule `58 23 * * *`, timeZone America/New_York, lastSuccessfulTime 2026-11-10T03:52:47Z (the first, manual backup); the manual Job healthy.
 5. **Woodpecker** (`https://woodpecker.weyland.lab`) → weyland-lab: #270/#272/#274 green; #271/#273/#275 (cron) killed by
    the operator — expected, they were only the collision.
 

@@ -87,7 +87,8 @@ kubectl -n weyland run kuma-restore-drill --restart=Never --image=python:3.12-al
 ```
 Pass = `integrity ok` and the counts matching the manifest and the live ones (read-only:
 `kubectl -n weyland exec deploy/uptime-kuma -- sqlite3 -readonly /app/data/kuma.db "select count(*) from monitor"`).
-Record the date in `docs/dr.md`.
+Record the date in `docs/dr.md`. **First drill 2026-11-10** on `20261110T035203Z` (the first, manual backup): integrity ok;
+monitor 55, notification 2, user 1, monitor_notification 78, matching the manifest and live.
 
 **Restore (destructive).** Argo selfHeal reverts a scale-down, so pause the app first:
 `argocd app set uptime-kuma --sync-policy none --grpc-web` → `kubectl -n weyland scale deploy/uptime-kuma --replicas=0` →
