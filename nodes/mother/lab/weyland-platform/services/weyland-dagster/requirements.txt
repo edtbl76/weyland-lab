@@ -77,7 +77,7 @@ Events==0.5
 expandvars==1.1.2
 fastapi==0.139.2
 fastavro==1.12.2
-feast==0.64.0
+feast==0.67.0
 filelock==4.2.1
 flatbuffers==25.12.19
 frozenlist==1.8.0
