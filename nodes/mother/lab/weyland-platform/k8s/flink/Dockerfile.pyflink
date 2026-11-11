@@ -3,10 +3,10 @@
 # instead of bloating the shared session cluster (and its running CDC job). Only the Kafka connector + Confluent
 # Avro format are needed here (source = lastfm, sink = upsert-kafka JSON) - NO Iceberg/Nessie/Hadoop, since this
 # job writes Kafka, not the lakehouse. Build on mother + `ctr import` into k3s (single node), like the other images.
-FROM flink:1.20.1-java17
+FROM flink:1.20.4-java17
 
 ARG KAFKA_CONN_VER=3.3.0-1.20
-ARG FLINK_VER=1.20.1
+ARG FLINK_VER=1.20.4
 ARG MAVEN=https://repo1.maven.org/maven2
 
 USER root
@@ -19,7 +19,7 @@ RUN apt-get update && apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends curl python3 python3-pip && \
     ln -sf /usr/bin/python3 /usr/bin/python && rm -rf /var/lib/apt/lists/*
 
-# PyFlink runtime - version pinned to the Flink dist (1.20.1) so the Python API + py4j gateway agree with the Java
+# PyFlink runtime - version pinned to the Flink dist (1.20.4) so the Python API + py4j gateway agree with the Java
 # runtime. The base image's pip predates PEP 668, so no --break-system-packages needed (or supported).
 # 2026-10-16: pinned with all its dependencies (requirements-pyflink.txt). The file must keep apache-flink==FLINK_VER;
 # the build checks that, so bumping the arg without the file fails here instead of shipping a mismatch.

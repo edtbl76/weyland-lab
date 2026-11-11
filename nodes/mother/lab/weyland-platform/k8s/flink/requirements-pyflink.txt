@@ -1,11 +1,11 @@
 # weyland-flink-py image (Dockerfile.pyflink) — the FULL frozen set pip installs on the image's Debian python 3.10.
 # Taken 2026-10-16 with `pip3 freeze --path /usr/local/lib/python3.10/dist-packages` (pip-installed only, not apt's)
 # from the deployed registry.weyland.lab/weyland-flink-py:git-c6ece648, so nothing moved. apache-flink stays at the
-# Flink dist version (1.20.1, the FLINK_VER build arg) so the Python API and py4j gateway agree with the Java
+# Flink dist version (1.20.4, the FLINK_VER build arg; 1.20.1 until 2026-11-11, B244) so the Python API and py4j gateway agree with the Java
 # runtime; its 39 dependencies used to float. Was `pip3 install apache-flink==${FLINK_VER}`.
 apache-beam==2.48.0
-apache-flink==1.20.1
-apache-flink-libraries==1.20.1
+apache-flink==1.20.4
+apache-flink-libraries==1.20.4
 avro-python3==1.10.2
 certifi==2026.10.19
 charset-normalizer==3.5.1
@@ -24,8 +24,8 @@ idna==3.19
 numpy==1.24.4
 objsize==0.6.1
 orjson==3.12.0
-pandas==2.3.3
-pemja==0.4.1
+pandas==2.2.3
+pemja==0.5.6
 proto-plus==1.27.1
 protobuf==4.23.4
 py4j==0.10.9.7

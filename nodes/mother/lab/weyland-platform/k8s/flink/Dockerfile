@@ -20,11 +20,11 @@ COPY health-job/ .
 RUN mvn -q -B -DskipTests package
 
 # Stage 2: the Flink session-cluster image.
-FROM flink:1.20.1-java17
+FROM flink:1.20.4-java17
 
 ARG ICEBERG_VER=1.7.1
 ARG KAFKA_CONN_VER=3.3.0-1.20
-ARG FLINK_VER=1.20.1
+ARG FLINK_VER=1.20.4
 ARG MAVEN=https://repo1.maven.org/maven2
 
 USER root

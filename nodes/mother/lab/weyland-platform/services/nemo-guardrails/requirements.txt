@@ -15,7 +15,7 @@ charset-normalizer==3.5.2
 click==8.5.0
 dataclasses-json==0.6.7
 fastapi==0.142.2
-fastembed==0.8.1
+fastembed==0.9.1
 filelock==4.2.1
 flatbuffers==25.12.19
 frozenlist==1.8.0
@@ -44,7 +44,7 @@ numpy==2.4.6
 onnxruntime==1.30.0
 opentelemetry-api==1.45.1
 packaging==26.3
-pillow==12.3.0
+pillow==13.0.0
 prompt_toolkit==3.0.53
 propcache==0.5.4
 protobuf==7.36.2

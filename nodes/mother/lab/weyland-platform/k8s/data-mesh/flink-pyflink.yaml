@@ -53,7 +53,7 @@ spec:
     # The python driver jar ships in the dist; application mode runs it locally on the app JobManager. PythonDriver
     # compiles music_tier.py into a job graph and submits it. -pyclientexec/-pyexec pin BOTH the graph-compile
     # python (JM) and the per-row worker python (TM) to the image's interpreter.
-    jarURI: local:///opt/flink/opt/flink-python-1.20.1.jar
+    jarURI: local:///opt/flink/opt/flink-python-1.20.4.jar
     entryClass: org.apache.flink.client.python.PythonDriver
     args:
       - "-pyclientexec"
