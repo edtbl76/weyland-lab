@@ -10,7 +10,11 @@ import pytest
 import register_bifrost_vk_mcp as r
 
 CLIENTS = ["weyland_fleet", "Context7", "Hugging_Face", "Linear", "Perplexity", "Playwright", "GitHub_Remote",
-           "Agent_Memory", "Excalidraw", "Malwarebytes"]
+           "Jam", "Agent_Memory", "Excalidraw", "Malwarebytes"]
+
+
+def _names(entries):
+    return [e if isinstance(e, str) else e[0] for e in entries]
 IDS = {n: i + 1 for i, n in enumerate(CLIENTS)}
 
 
@@ -25,7 +29,7 @@ def _vk(vid, name, configs):
 
 def _settled():
     return [
-        _vk("v1", "coding-agents", [_cfg(n) for n in r.SCOPING["coding-agents"]]),
+        _vk("v1", "coding-agents", [_cfg(n, t) for n, t in r.desired("coding-agents").items()]),
         _vk("v2", "operator", [_cfg("Excalidraw"), _cfg("Malwarebytes"), _cfg("Agent_Memory", r.MEMORY_READ)]),
         _vk("v3", "chat-eval", []),
         _vk("v4", "realm-llm", []),
@@ -80,7 +84,7 @@ def test_a_missing_grant_is_put_as_the_full_set_and_read_back():
     assert rc == 0
     ((vid, body),) = fake.puts
     assert vid == "v1"
-    assert [c["mcp_client_name"] for c in body["mcp_configs"]] == r.SCOPING["coding-agents"]   # the full set
+    assert [c["mcp_client_name"] for c in body["mcp_configs"]] == _names(r.SCOPING["coding-agents"])   # the full set
     assert set(body) == {"mcp_configs"}                                                       # nothing else touched
     assert any(ln.startswith("coding-agents") and "updated" in ln for ln in lines)
 
@@ -216,3 +220,26 @@ def test_agents_read_keeps_what_realms_roster_uses():
 # so it holds exactly one read-only tool and nothing else: a leaked copy can list namespaces, no more. ------------------
 def test_ship_txn_holds_exactly_one_read_tool():
     assert r.desired("ship-txn") == {"weyland_fleet": ["k8s_namespaces_list"]}
+
+
+# --- B192 (2026-11-11): Jam (jam.dev bug captures). Its server tells agents to "post one short comment on the Jam with
+# createComment", and its 40 tools include delete/update/feedback, so no key may hold a Jam write or a '*'. The write
+# names below are copied from the live server's tools/list (Jam MCP 1.41.0, 2026-11-11). -----------------------------
+JAM_WRITES = {"createComment", "editComment", "deleteComment", "addReaction", "removeReaction", "updateJam",
+              "addResource", "removeResource", "markRelated", "markUnrelated", "deleteJam", "createFolder",
+              "updateFolder", "deleteFolder", "createRecordingLink", "updateRecordingLink", "deleteRecordingLink",
+              "getRecordingUrlVerifyLink", "submitFeedback"}
+
+
+def test_no_key_holds_a_jam_write_or_wildcard():
+    for vk_name in r.SCOPING:
+        tools = r.desired(vk_name).get("Jam")
+        if tools is None:
+            continue
+        assert tools != ["*"], f"{vk_name} grants Jam '*'"
+        assert not JAM_WRITES & set(tools), f"{vk_name} grants Jam writes: {sorted(JAM_WRITES & set(tools))}"
+
+
+def test_coding_agents_can_read_a_jams_evidence():
+    jam = set(r.desired("coding-agents").get("Jam") or [])
+    assert {"getDetails", "getConsoleLogs", "getNetworkRequests", "getEvents", "getFrames"} <= jam

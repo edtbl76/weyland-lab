@@ -13,10 +13,11 @@ import register_bifrost_client_config as r
 
 BASE_CC = {"drop_excess_requests": True, "disable_content_logging": False, "prometheus_labels": [],
            "mcp_server_auth_mode": "headers", "whitelisted_routes": None, "allowed_origins": None,
-           "enforce_auth_on_inference": False, "skills_external_client_url": ""}
+           "enforce_auth_on_inference": False, "skills_external_client_url": "", "mcp_external_client_url": ""}
 LIVE = {"client_config": BASE_CC, "framework_config": {"pricing_url": "x"}, "auth_config": {"is_enabled": False}}
 DONE = {"whitelisted_routes": ["/metrics"], "allowed_origins": ["https://bifrost.weyland.lab"],
-        "enforce_auth_on_inference": True, "skills_external_client_url": "https://bifrost.weyland.lab"}
+        "enforce_auth_on_inference": True, "skills_external_client_url": "https://bifrost.weyland.lab",
+        "mcp_external_client_url": "https://bifrost.weyland.lab"}
 
 
 class _Resp:
@@ -124,6 +125,15 @@ def test_an_env_reference_is_not_the_owned_value():
     stored = {"value": "env.BIFROST_SKILLS_URL", "type": "env"}
     fake = _Fake([_with(**{**DONE, "skills_external_client_url": stored}), _with(**DONE)])
     assert r.ensure_settings(fake).startswith("updated:")
+
+
+def test_the_mcp_oauth_callback_base_is_the_public_url():
+    # B192 (2026-11-11): unset, Bifrost builds MCP OAuth redirect_uris from the request Host header. The registrar runs
+    # in-cluster, so Jam was registered with http://bifrost.weyland.svc.cluster.local:8080/api/oauth/callback, which no
+    # browser can reach. Stored explicitly, every DCR client gets the public callback.
+    fake = _Fake([_with(**{**DONE, "mcp_external_client_url": ""}), _with(**DONE)])
+    assert r.ensure_settings(fake).startswith("updated:")
+    assert fake.puts[0]["client_config"]["mcp_external_client_url"] == "https://bifrost.weyland.lab"
 
 
 def test_a_different_marketplace_url_is_corrected():

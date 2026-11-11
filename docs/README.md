@@ -52,6 +52,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [glitchtip.md](runbooks/glitchtip.md) — GlitchTip error tracking (B51) — oversized-event drops, allauth SSO link
 - [gpu-inference.md](runbooks/gpu-inference.md) — on-demand GPU inference (vLLM + SGLang) on rogueone — native-engine + KV-cache gotchas
 - [guardrails.md](runbooks/guardrails.md) — the shared `weyland-guard` service (B14 + B70 Part 2)
+- [jam.md](runbooks/jam.md) — Jam UI-bug captures (B192): when to use it, how to capture, agents read it read-only through Bifrost, filing to Linear, privacy
 - [jupyterhub.md](runbooks/jupyterhub.md) — JupyterHub notebook layer (B1.8 L8)
 - [keda.md](runbooks/keda.md) — KEDA — **RETIRED 2026-08-22** (installed 62 days, never used); kept for its single-node replica + cert-timing gotchas
 - [keycloak.md](runbooks/keycloak.md) — Keycloak IdP/SSO (B1.1): the `weyland` realm, native-OIDC vs forward-auth (auth-host mode, one redirect_uri, `/_oauth/logout`), mkcert CA back-channel, adding a gated subdomain

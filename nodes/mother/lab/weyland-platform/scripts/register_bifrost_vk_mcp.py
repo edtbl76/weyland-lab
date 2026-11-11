@@ -30,10 +30,15 @@ GITHUB_READ = ["get_commit", "get_file_contents", "get_label", "get_latest_relea
                "list_repository_collaborators", "list_tags", "pull_request_read", "search_code", "search_commits",
                "search_issues", "search_pull_requests", "search_repositories", "search_users"]
 HUGGING_FACE_READ = ["hub_repo_search", "hub_repo_details", "hf_whoami"]
+# B192 (2026-11-11): Jam (jam.dev UI-bug captures) — READ tools only, listed explicitly. The server's own instructions tell
+# agents to post a comment on the Jam, and its 40 tools include comment/update/delete/feedback, so '*' is never granted.
+JAM_READ = ["getDetails", "getConsoleLogs", "getNetworkRequests", "getUserEvents", "getEvents", "getMetadata",
+            "getScreenshots", "getFrames", "analyzeVideo", "getVideoTranscript", "getVideoChapters", "searchJams",
+            "listJams", "listFolders", "listMembers"]
 # VK name -> the MCP clients (by name) it may use. An entry is a client name (all its tools) or (name, [tools]).
 SCOPING = {
     "coding-agents": ["weyland_fleet", "Context7", "Hugging_Face", "Linear", "Perplexity", "Playwright", "GitHub_Remote",
-                      "Agent_Memory"],
+                      ("Jam", JAM_READ), "Agent_Memory"],
     "operator":      ["Excalidraw", "Malwarebytes", ("Agent_Memory", MEMORY_READ)],
     "chat-eval":     [],   # explicitly toolless
     # B209: UNATTENDED agents (realm-of-agents): no human approves their tool calls, so the key holds no write. No

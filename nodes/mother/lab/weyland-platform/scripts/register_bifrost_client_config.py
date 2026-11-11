@@ -14,6 +14,10 @@ They live only in `config.db`, so this script restores them after a rebuild. Run
 - `skills_external_client_url` is the public base URL (B241, 2026-11-08). Unset, every Skills marketplace route answers
   `503 skills marketplace disabled` (Bifrost never derives it from Host headers), so Claude Code and Codex cannot refresh
   the `bifrost-skills` marketplace. Creating skills and `download.zip` work either way.
+- `mcp_external_client_url` is the same public base URL (B192, 2026-11-11): the base of the `redirect_uri` Bifrost
+  registers with an MCP server's OAuth (dynamic client registration). Unset, Bifrost uses the request Host header, and
+  register_bifrost_mcp_clients.py runs in-cluster, so Jam got a `bifrost.weyland.svc.cluster.local` callback no browser
+  can reach. A DCR client registered under a wrong base needs `POST /api/mcp/client/{id}/reregister` once this is set.
 
 PUT /api/config copies many client_config fields unconditionally (booleans included), so a partial body would reset
 them. This reads the FULL client_config, changes only the owned fields, sends nothing else (framework_config and
@@ -23,9 +27,10 @@ Runbook: docs/runbooks/mcp-gateway.md § Bifrost setup token.
 import os
 
 BASE_ENV = "BIFROST_URL"   # required, passed by the runbook command; no default, so a missing URL fails loudly
-LIST_FIELDS = {"whitelisted_routes": ["/metrics"], "allowed_origins": ["https://bifrost.weyland.lab"]}
+PUBLIC_URL = "https://bifrost.weyland.lab"
+LIST_FIELDS = {"whitelisted_routes": ["/metrics"], "allowed_origins": [PUBLIC_URL]}
 FLAG_FIELDS = {"enforce_auth_on_inference": True}
-VALUE_FIELDS = {"skills_external_client_url": "https://bifrost.weyland.lab"}
+VALUE_FIELDS = {"skills_external_client_url": PUBLIC_URL, "mcp_external_client_url": PUBLIC_URL}
 
 
 def _read(client) -> dict:

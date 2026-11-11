@@ -5,7 +5,7 @@ built out as **B111**). One virtual key gives an agent the whole lab tool surfac
 installable skill marketplace.
 
 - **MCP:** the `coding-agents` VK aggregates the read fleet (via the FastMCP compositor) plus
-  Context7, Linear, GitHub, Perplexity, Playwright, Hugging Face — behind one `/mcp`. Wired into **Claude Code, Codex,
+  Context7, Linear, GitHub, Perplexity, Playwright, Hugging Face, and Jam's read tools (B192, UI-bug captures) — behind one `/mcp`. Wired into **Claude Code, Codex,
   and OpenCode** with the *same* VK (scope-by-use, not per-agent).
 - **Prompt Repository:** hand-authored (skill-aware system prompts + a `skills` orchestration folder) plus
   corpus-derived (`apply-<framework>`, `run-<aidlc-stage>`, industry-lens). Model-agnostic, lane-tagged.

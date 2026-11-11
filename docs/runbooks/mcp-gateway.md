@@ -243,9 +243,13 @@ The MCP clients Bifrost aggregates (`weyland_fleet` = the compositor, plus insta
 (UI/API-added) — a wipe loses them. Codified for GitOps in **`scripts/register_bifrost_mcp_clients.py`** (idempotent) —
 the durable source of truth. By auth type:
 - **HTTP no-auth** — `weyland_fleet`, Context7, Excalidraw, Malwarebytes → reproduce fully (public URLs, no secrets).
-- **HTTP OAuth** — Hugging Face, Linear → the script registers the *shell*; the OAuth grant is interactive, so after a
-  restore **re-authorize each in the Bifrost UI** (they use dynamic client registration, so no app to pre-create — which
-  is exactly why they installed and **GitHub didn't** — GitHub's remote MCP needs a manual `client_id` + Bifrost callback URL).
+- **HTTP OAuth** — Hugging Face, Linear, Jam → the script registers each client with its `oauth_config` (Bifrost v2
+  rejects an OAuth client without one: 400 "OAuth configuration is required when auth_type is 'oauth'"; Linear and
+  Hugging Face had none in git until 2026-11-11, so a restore would have failed for both). The grant is interactive:
+  a create prints an `authorize:` URL — open it, approve, then POST the printed `complete-oauth` path (below). They use
+  dynamic client registration, so no app to pre-create; **GitHub's** remote MCP has none and needs its OAuth app's
+  client id in `GITHUB_MCP_OAUTH_CLIENT_ID` (the script refuses to create it without one). **Jam** (B192, runbook
+  [jam.md](jam.md)) is requested with scope `mcp:read` only. The script exits 1 if any create fails.
 - **stdio** — Perplexity (`@perplexity-ai/mcp-server`), Playwright (`@playwright/mcp`) → run **in the Bifrost pod**.
 
 **In-pod stdio runtime:** Bifrost is a Go binary on **Alpine, non-root, read-only `/usr`** — no node/npx/chromium, and a
@@ -258,7 +262,7 @@ pod env (`bifrost-provider-keys`).
 
 **VK -> client scoping (durable; through the API since B203, 2026-10-09):** a VK only serves the tools of the MCP clients
 *granted* to it. Codified in **`scripts/register_bifrost_vk_mcp.py`** (`SCOPING`: coding-agents -> fleet / Context7 / HF /
-Linear / Perplexity / Playwright / GitHub / Agent_Memory; operator -> Excalidraw / Malwarebytes / Agent_Memory read-only;
+Linear / Perplexity / Playwright / GitHub / Jam **read tools only** (`JAM_READ`, B192) / Agent_Memory; operator -> Excalidraw / Malwarebytes / Agent_Memory read-only;
 chat-eval -> none; **agents-read** (B209) -> fleet / Context7 / Perplexity / GitHub **read tools** / Agent_Memory
 read-only / Hugging Face read: the key for UNATTENDED agents (the Realm), with no Playwright, Linear or any write; any
 other key, e.g. `realm-llm`, is never touched). The interactive harnesses keep `coding-agents`, where a person approves
@@ -280,7 +284,11 @@ attach runtime-registered clients ("failed to get MCP client: not found"). Retir
 2. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_mcp_clients.py`  (create clients)
 3. `kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_vk_mcp.py`  (scope VKs — applies live, no restart since B203)
 4. (no step — the restart the old `attach_bifrost_vk_mcp.py` needed is gone)
-5. re-authorize Hugging_Face + Linear in the UI (OAuth grant is interactive).
+5. authorize each OAuth client (Hugging_Face, Linear, Jam): open the `authorize:` URL step 2 printed, approve, then
+   complete it (the `then POST` path step 2 printed, here `<id>`):
+   `kubectl -n weyland exec -i deploy/weyland-guard -c weyland-guard -- python -c "import os,httpx; c=httpx.Client(base_url='http://bifrost.weyland.svc.cluster.local:8080',headers={'X-Bifrost-Setup-Token':os.environ.get('BIFROST_SETUP_TOKEN','')},timeout=60); r=c.post('/api/mcp/client/<id>/complete-oauth'); print(r.status_code, r.text[:300])"`
+   Expect `200 … "MCP client connected successfully with OAuth"`. Step 1a must have run first (`mcp_external_client_url`),
+   or the callback is the in-cluster address and the sign-in cannot finish.
 6. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts/register_bifrost_prompts.py`  (Prompt Repository; its last line is the count — 2026-10-21: `101 prompts across 12 folders`, all unchanged)
 7. `kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/weyland-dagster/scripts/register_bifrost_skills.py`  (Skills Repository, lab/generic Agent Skills; 2026-11-02: `1 created, 1 updated, 24 unchanged, 0 failed. 26 skills total.` (B86.1 added `select-sdd-framework`); 2026-10-21: `0 created, 0 updated, 25 unchanged, 0 failed. 25 skills total.`)
 8. ~~`python3 scripts/register_aidlc_skills.py | …`~~ — ⛔ **RETIRED (B133, 2026-08-20). Do not run.** It read the
@@ -337,6 +345,7 @@ inference (`/v1`) and `/mcp` are not affected by the lock (they use virtual keys
 | `allowed_origins` | includes `https://bifrost.weyland.lab` | CORS. Empty already means localhost-only; this makes it explicit (the dashboard's "Restrict CORS origins") |
 | `enforce_auth_on_inference` | `true` | every inference call needs a virtual key; dashboard credentials do not count. All callers already send one (LiteLLM `realm-llm`; Claude Code, Codex, OpenCode `x-bf-vk` on `/mcp`; the Realm), checked 2026-10-09 against 30 days of `logs.db` |
 | `skills_external_client_url` | `https://bifrost.weyland.lab` | the Skills marketplace's public base URL (B241). Unset, every marketplace route answers `503 skills marketplace disabled`; Bifrost never derives it from Host headers. Unset from the v2 upgrade (2026-10-09) to 2026-11-08 |
+| `mcp_external_client_url` | `https://bifrost.weyland.lab` | the base of the OAuth `redirect_uri` Bifrost registers with an MCP server (dynamic client registration; B192, 2026-11-11). Unset, Bifrost uses the request Host header, and `register_bifrost_mcp_clients.py` runs in-cluster, so Jam was first registered with a `bifrost.weyland.svc.cluster.local` callback no browser can reach. A DCR client registered under a wrong base needs `POST /api/mcp/client/{id}/reregister` (dashboard: "Reauthorize with a new client") |
 
 It round-trips the FULL `client_config` because `PUT /api/config` resets fields a partial body leaves out, sends
 `enforce_auth_on_inference` explicitly (an omitted key keeps the stored value), then reads it back:
