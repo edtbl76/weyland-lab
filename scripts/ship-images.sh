@@ -904,12 +904,29 @@ else:
 # delete, outside Argo), so a ship deploys nothing to ask. A one-off pod of the SHIPPED tag checks the job's files and
 # connector jars, compiles music_tier.py, and runs a real local PyFlink batch job: the Python-to-JVM bridge is what breaks
 # on a pin change. Observed live 2026-10-25: [2, 4, 6] in 14 s.
+#
+# The driver jar is the one flink-pyflink.yaml's jarURI names (2026-11-11, B244): a hardcoded flink-python-1.20.1.jar
+# failed the Flink 1.20.4 ship although image and manifest were right. Reading it from the manifest checks what matters,
+# that the manifest and the image agree, and survives every Flink bump.
+SHIP_FLINK_PY_MANIFEST="${SHIP_FLINK_PY_MANIFEST:-$(dirname "${BASH_SOURCE[0]}")/../nodes/mother/lab/weyland-platform/k8s/data-mesh/flink-pyflink.yaml}"
+
+flink_py_jar() {
+  local uri
+  uri="$(sed -n 's/^[[:space:]]*jarURI:[[:space:]]*local:\/\/\(\/[^[:space:]]*\.jar\).*/\1/p' "$SHIP_FLINK_PY_MANIFEST" 2>/dev/null | head -1)"
+  if [ -z "$uri" ]; then
+    printf 'no jarURI (local:///….jar) in %s\n' "$SHIP_FLINK_PY_MANIFEST"
+    return 1
+  fi
+  printf '%s\n' "$uri"
+}
+
 txn_flink_py() {
-  local tag="${1:?usage: txn_flink_py <tag>}" p="flink-py-txn-$$"
+  local tag="${1:?usage: txn_flink_py <tag>}" p="flink-py-txn-$$" jar
+  jar="$(flink_py_jar)" || { printf 'TXN_FAIL %s\n' "$jar"; return 0; }
   txn_oneoff data-mesh "$p" "registry.weyland.lab/weyland-flink-py:${tag}" \
     '{"spec": {"automountServiceAccountToken": false, "containers": [{"name": "'"$p"'", "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"memory": "1536Mi"}}}]}}' '
 import glob, os, py_compile
-need = ["/opt/flink/opt/flink-python-1.20.1.jar", "/opt/flink/usrlib/music_tier.py"]
+need = ["'"$jar"'", "/opt/flink/usrlib/music_tier.py"]
 missing = [p for p in need if not os.path.exists(p)]
 missing += [g for g in ("/opt/flink/lib/flink-sql-connector-kafka-*.jar", "/opt/flink/lib/flink-sql-avro-confluent-registry-*.jar")
             if not glob.glob(g)]

@@ -2066,3 +2066,28 @@ argo_stub() { # argo_stub <exit> <stdout> — what `argocd app list --grpc-web -
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
   [[ "$output" == *"nothing to ship"* && "$output" != *"FR-ARGO"* ]] || { echo "$output"; return 1; }
 }
+
+# --- TXN weyland-flink-py: the jar comes from the manifest, never a hardcoded version -------------------------
+# 2026-11-11 (B244): the check hardcoded flink-python-1.20.1.jar, so the Flink 1.20.4 ship (correct image, correct
+# manifest) failed TXN. The jar the job needs is the one flink-pyflink.yaml's jarURI names: reading it from there checks
+# what matters — the manifest and the image agree — and survives every Flink bump.
+
+@test "TXN flink_py_jar reads the jar path from the manifest jarURI" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf "spec:\n  job:\n    jarURI: local:///opt/flink/opt/flink-python-9.9.9.jar\n    entryClass: x\n" > "$BATS_TEST_TMPDIR/m.yaml"
+  SHIP_FLINK_PY_MANIFEST="$BATS_TEST_TMPDIR/m.yaml" run flink_py_jar
+  [ "$status" -eq 0 ] && [ "$output" = "/opt/flink/opt/flink-python-9.9.9.jar" ] || { echo "$output"; return 1; }
+}
+
+@test "TXN flink_py_jar fails with the reason when the manifest has no jarURI" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  printf "spec:\n  job:\n    entryClass: x\n" > "$BATS_TEST_TMPDIR/m.yaml"
+  SHIP_FLINK_PY_MANIFEST="$BATS_TEST_TMPDIR/m.yaml" run flink_py_jar
+  [ "$status" -ne 0 ] && [[ "$output" == *"no jarURI"* ]] || { echo "$output"; return 1; }
+}
+
+@test "TXN flink_py_jar reads the real manifest (the jar it names is the current Flink line)" {
+  SHIP_IMAGES_LIB=1 source "$SHIP"
+  run flink_py_jar
+  [ "$status" -eq 0 ] && [[ "$output" == /opt/flink/opt/flink-python-*.jar ]] || { echo "$output"; return 1; }
+}
