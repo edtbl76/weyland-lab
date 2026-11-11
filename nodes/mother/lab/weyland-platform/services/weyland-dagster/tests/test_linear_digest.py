@@ -197,3 +197,130 @@ def test_an_empty_webhook_url_is_refused_before_any_send(linear_digest):
 
     with pytest.raises(linear_digest.DigestError, match="SLACK_WEBHOOK_LINEAR_UPDATES"):
         linear_digest.post("", {"text": "t"}, send=send)
+
+
+# ── B119.1: the My Work section (owner, 2026-11-11) ────────────────────────────────────────────────────────────────
+# My Work is a to-do list, not an objective: each week the digest lists its projects with their last activity, and a
+# project idle for 6 months (no Linear activity AND no commit) while new work kept arriving elsewhere is flagged
+# "retire or recommit?". Commit times come from GitHub (pushed_at) via the asset; ``pushed=None`` means unknown.
+# Shapes follow linear_tables.py: links are {"initiative": {"id"}, "project": {"id"}}, updates {"project": {"id"}}.
+
+MW_PROJECTS = [{"id": "p-blog", "name": "blog", "updatedAt": ago(days=400)},
+               {"id": "p-algo", "name": "Algopedia", "updatedAt": ago(days=400)},
+               {"id": "p-lab", "name": "Weyland Lab", "updatedAt": ago(days=1)}]
+MW_INITIATIVES = [{"id": "i-mw", "name": "My Work"}, {"id": "i-lab", "name": "Lab and Systems"}]
+
+
+def mw_snap(*issues, updates=()):
+    return {"issues": list(issues), "workflowStates": STATES, "issueLabels": LABELS, "projects": MW_PROJECTS,
+            "initiatives": list(MW_INITIATIVES),
+            "initiativeToProjects": [{"initiative": {"id": "i-mw"}, "project": {"id": "p-blog"}},
+                                     {"initiative": {"id": "i-mw"}, "project": {"id": "p-algo"}},
+                                     {"initiative": {"id": "i-lab"}, "project": {"id": "p-lab"}}],
+            "projectUpdates": list(updates)}
+
+
+def _pushed(blog_days, algo_days):
+    return {"blog": NOW - timedelta(days=blog_days), "Algopedia": NOW - timedelta(days=algo_days)}
+
+
+def test_my_work_lists_every_project_with_its_last_activity(linear_digest):
+    rows = linear_digest.my_work(mw_snap(issue("EMA-9", project="p-blog", updated=ago(days=20))), NOW,
+                                 pushed=_pushed(3, 50))
+    by = {r["project"]: r for r in rows}
+    assert set(by) == {"blog", "Algopedia"}                        # only My Work's projects
+    assert by["blog"]["last_activity"] == (NOW - timedelta(days=3)).date().isoformat()   # the commit is newer
+    assert by["Algopedia"]["idle_days"] == 50 and not by["Algopedia"]["retire"]
+
+
+def test_idle_six_months_while_other_work_arrives_is_flagged_retire(linear_digest):
+    snap_ = mw_snap(issue("EMA-1", project="p-lab", created=ago(days=30)))   # new work elsewhere since blog went idle
+    by = {r["project"]: r for r in linear_digest.my_work(snap_, NOW, pushed=_pushed(200, 10))}
+    assert by["blog"]["retire"] and by["blog"]["idle_days"] == 200
+    assert not by["Algopedia"]["retire"]
+
+
+def test_idle_six_months_with_no_new_work_anywhere_is_not_flagged(linear_digest):
+    snap_ = mw_snap(issue("EMA-1", project="p-lab", created=ago(days=300)))  # nothing created since the blog went idle
+    by = {r["project"]: r for r in linear_digest.my_work(snap_, NOW, pushed=_pushed(200, 10))}
+    assert not by["blog"]["retire"]
+
+
+def test_unknown_commit_data_never_raises_a_retire_flag(linear_digest):
+    # GitHub unreachable: idle by Linear alone is not proof — a repo can be busy with commits and no issues.
+    rows = linear_digest.my_work(mw_snap(issue("EMA-1", project="p-lab", created=ago(days=5))), NOW, pushed=None)
+    assert rows and all(not r["retire"] and r["commits_known"] is False for r in rows)
+
+
+def test_a_project_update_counts_as_activity(linear_digest):
+    snap_ = mw_snap(issue("EMA-1", project="p-lab", created=ago(days=5)),
+                    updates=[{"project": {"id": "p-blog"}, "createdAt": ago(days=4)}])
+    by = {r["project"]: r for r in linear_digest.my_work(snap_, NOW, pushed=_pushed(300, 1))}
+    assert not by["blog"]["retire"] and by["blog"]["idle_days"] == 4
+
+
+def test_an_unknown_initiative_is_refused(linear_digest):
+    snap_ = mw_snap()
+    snap_["initiatives"] = [{"id": "i-lab", "name": "Lab and Systems"}]
+    with pytest.raises(linear_digest.DigestError, match="My Work"):
+        linear_digest.my_work(snap_, NOW, pushed={})
+
+
+def test_the_slack_message_carries_my_work_and_flags_retire(linear_digest):
+    d = linear_digest.build_digest(snap(issue("EMA-1")), NOW)
+    rows = [{"project": "blog", "last_activity": "2026-04-01", "idle_days": 222, "retire": True, "commits_known": True},
+            {"project": "Algopedia", "last_activity": "2026-11-01", "idle_days": 8, "retire": False,
+             "commits_known": True}]
+    payload = linear_digest.format_slack(d, my_work=rows)
+    text = str(payload["blocks"])
+    assert "My Work" in text and "blog" in text and "retire or recommit" in text
+    assert "retire 1" in payload["text"]
+
+
+def test_okr_gaps_lists_active_initiatives_without_an_okr_section(linear_digest):
+    s = {"initiatives": [{"name": "A", "status": "Active", "content": "scope\n\n## OKR (Q4 2026)\n\nObjective: x"},
+                         {"name": "B", "status": "Active", "content": "scope only"},
+                         {"name": "C", "status": "Completed", "content": "old"},
+                         {"name": "D", "status": "Active", "content": None}]}
+    assert linear_digest.okr_gaps(s) == ["B", "D"]
+
+
+def test_the_slack_message_names_initiatives_missing_okrs(linear_digest):
+    d = linear_digest.build_digest(snap(issue("EMA-1")), NOW)
+    payload = linear_digest.format_slack(d, my_work=[], okr_missing=["Learning"])
+    assert "Learning" in str(payload["blocks"]) and "OKR" in str(payload["blocks"])
+    assert "OKR" not in str(linear_digest.format_slack(d, my_work=[], okr_missing=[])["blocks"])
+
+
+REPOS = [{"name": "grkit", "linear_project": "grkit"}, {"name": "Algopedia", "linear_project": "Algopedia"},
+         {"name": "weyland-lab", "linear_project": "Weyland Lab"}, {"name": "midi_real_book"}]
+
+
+def test_pushed_times_maps_projects_to_their_repos_last_push(linear_digest):
+    calls = []
+
+    def get_json(url):
+        calls.append(url)
+        return {"pushed_at": "2026-11-01T12:00:00Z"}
+
+    got = linear_digest.pushed_times(REPOS, {"grkit", "Algopedia"}, get_json)
+    assert got == {"grkit": datetime(2026, 11, 1, 12, tzinfo=timezone.utc),
+                   "Algopedia": datetime(2026, 11, 1, 12, tzinfo=timezone.utc)}
+    assert sorted(calls) == ["https://api.github.com/repos/edtbl76/Algopedia",
+                             "https://api.github.com/repos/edtbl76/grkit"]     # only the projects asked for
+
+
+@pytest.mark.parametrize("bad", [lambda u: (_ for _ in ()).throw(OSError("down")), lambda u: {}, lambda u: None])
+def test_pushed_times_is_unknown_on_any_failure_or_missing_value(linear_digest, bad):
+    assert linear_digest.pushed_times(REPOS, {"grkit"}, bad) is None
+
+
+def test_pushed_times_is_unknown_when_a_project_has_no_repo(linear_digest):
+    assert linear_digest.pushed_times(REPOS, {"grkit", "Service Transformation"}, lambda u: {"pushed_at": "x"}) is None
+
+
+def test_the_slack_message_says_when_commit_data_is_unknown(linear_digest):
+    d = linear_digest.build_digest(snap(issue("EMA-1")), NOW)
+    rows = [{"project": "blog", "last_activity": "2026-04-01", "idle_days": 222, "retire": False,
+             "commits_known": False}]
+    assert "commit activity unknown" in str(linear_digest.format_slack(d, my_work=rows)["blocks"])

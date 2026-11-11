@@ -95,7 +95,7 @@ repos:
     backup_path: ~/IdeaProjects/startme-curator
     lanes: { iac: true, ci: false, scan: true, pr: true, catalog: true, backup: true }
     except:
-      ci: "no pipeline yet — no .woodpecker.yml, not activated in Woodpecker (found 2026-09-24); flip to true on activation"
+      ci: "DONE project (owner, 2026-11-11) — no further work and no CI planned; never propose CI, Trunk or features for it"
 
   - name: freejack
     visibility: private          # PRIVATE — the Port github integration + any public-scoped PAT must be granted access

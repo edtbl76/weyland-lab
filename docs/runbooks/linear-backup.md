@@ -41,6 +41,14 @@ Linear digest", for project **Weyland Lab** over the last 7 days:
 - **Opened**: created in the window, whatever its state now;
 - **High lane**: open, not archived, priority 2 (High), with any `parked:*` hold label shown;
 - **Stale 30+ days**: open, not archived, `updatedAt` older than 30 days: the count plus the oldest 5.
+- **My Work (to-do list)** (B119.1, owner 2026-11-11): every project in the **My Work** initiative with its last
+  activity — the newest of its Linear activity (the project, its issues, its updates) and its repo's last push
+  (`pushed_at` from GitHub's public API; the repo comes from `repos.yaml` on `main`, so no credential). A project idle
+  **182+ days while new issues kept arriving in other projects** is flagged **"retire or recommit?"**. If GitHub or
+  `repos.yaml` cannot be read, the section says commit activity is unknown and flags nothing: Linear alone cannot prove a
+  repo idle.
+- **Initiatives with no OKR section** (B119.1 audit): any Active initiative whose content lacks `## OKR (`. Shown only
+  when there is one.
 
 Each list shows at most 10 lines and then "+N more"; the heading always carries the true count, and a quiet week still
 posts, with zeros ("Nothing closed this week."). The plain-text fallback (what Slack's notification shows) carries the
@@ -49,7 +57,7 @@ counts and the snapshot id.
 | | |
 |---|---|
 | Code | `assets/linear_digest.py` (thin asset, reuses this runbook's snapshot reader) + `assets/datasets_lib/linear_digest.py` (all the logic, dagster-free, tested in `tests/test_linear_digest.py`) |
-| Reads | the newest `snapshots/<ts>/` that has a `manifest.json`; **refuses it if `finished_at` is older than 26 h** (the backup did not run), so stale numbers are never posted as this week's |
+| Reads | the newest `snapshots/<ts>/` that has a `manifest.json`; **refuses it if `finished_at` is older than 26 h** (the backup did not run), so stale numbers are never posted as this week's. B119.1 also reads `repos.yaml` (raw GitHub, `main`) and each My Work repo's `pushed_at` (public API) |
 | Writes | one POST to the `#linear-updates` incoming webhook of the `weyland` Slack app; delivered only if Slack answers HTTP 200 with body `ok` |
 | Key | `SLACK_WEBHOOK_LINEAR_UPDATES` (`scripts/.env`), Secret `weyland/linear-digest-slack` key `webhook`, sealed ([secrets.md](secrets.md) § Slack webhooks). Mounted `optional: true`: a missing Secret fails only this run |
 | Alerts | `dagster-freshness-check`: the run FAILED, or no success within 8 days |

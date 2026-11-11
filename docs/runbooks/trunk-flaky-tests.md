@@ -91,7 +91,8 @@ Trunk needs CI runs to report from, so only repos with CI can join. Survey of th
 |---|---|---|---|
 | **MyBodyGraph** | GitHub Actions `check.yml` (every push) | `Tz9xc0cL` | `vitest` — `vitest.config.ts` adds the `junit` reporter beside `default` (~421 tests) |
 | **grkit** | GitHub Actions `ci.yml` (push to main, PRs) | `8jol5WOk` | `pytest` (`--junitxml`, ~38) and `bats` (the rendered guard's tests, `--report-formatter junit`, ~6), written by `scripts/test.sh` |
-| Algopedia, ServiceTransformation, freejack, emangini-tailwind-nextjs-contentlayer, startme-curator | none | — | **not wired: no CI.** They join when they get a CI lane (`repos.yaml` lane `ci`); freejack's ~3,200 test files would then be the largest source |
+| Algopedia, ServiceTransformation, freejack, emangini-tailwind-nextjs-contentlayer | none | — | **not wired: no CI.** They join when they get a CI lane (`repos.yaml` lane `ci`); freejack's ~3,200 test files would then be the largest source |
+| startme-curator | none | — | **never: a DONE project** (B132, done 2026-08-27; owner 2026-11-11). No CI, no Trunk. |
 | OJayFloyd | none | — | not wired: no tests yet (2 files) |
 
 How each repo uploads: a final workflow step (`if: !cancelled()`, skipped for Dependabot, which gets no secrets) downloads
