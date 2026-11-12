@@ -79,3 +79,51 @@ The `agent-memory` connection (gateway `/mcp-memory`, `system_oauth` = each pers
 leading space pasted into the URL fails the connection with no request sent; Open WebUI's BUILT-IN tools (its own
 `search_notes` for Notes, `search_knowledge_files`, `search_memories`) compete with ours — Lab Recall turns
 **Builtin Tools** off; a custom model with no access grant is private and does not appear in the chat model picker.
+
+## Curated workspace (B116, 2026-11-12)
+
+The workspace settings live in `webui.db`, not in git, so a restore from an older backup or a rebuilt data volume loses
+them without a word. **`scripts/open_webui_curate.py` is their one definition.** Check for drift (read only; exit 1 on
+any drift) — run it after every restore and every upgrade:
+
+[rogueone]
+```
+cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && python3 scripts/open_webui_curate.py --check
+```
+
+Apply the curated state (the same command without `--check`; it applies, then runs the same check). It needs
+`OPEN_WEBUI_API_KEY` in `scripts/.env`: an admin's key, created in **Settings → Account → API keys → API Key**, which
+appears once **Admin Panel → Settings → Authentication → API Keys** is on (0.12 layout).
+
+| Setting | Curated value | Why |
+|---|---|---|
+| OpenAI-style connections | only `nemo-guardrails` (the guarded `weyland-operator` lane) | an enabled `api.openai.com` connection with no key had been left in the database: outbound, and the lab is LAN-only and $0 |
+| Community sharing · Arena model | off · off | sharing would publish chats to openwebui.com; Arena added a noise entry to the picker |
+| Hidden models | `nomic-embed-text`, `gpt-oss:20b-judge`, `qwen2.5:7b-operator`, `qwen3-coder:30b-32k` | an embedder, the eval judge, the operator's own variant, a duplicate — not chat models |
+| Default model · order | **Lab Recall** · `weyland-operator`, Lab Recall, **Lab Status**, then the chat models | |
+| Default context | `num_ctx` **16384** | Ollama's 4096 default cut every chat with tools selected to ~2,050 tokens (Ollama halves an overflowing prompt), so the model saw only part of its tool list and answered "I have no such tools" |
+| Lab Recall | web search, image generation, terminal **off** | nothing is configured behind those buttons |
+| Tool servers | `agent-memory` → `/mcp-memory`; **`lab-fleet` → `/mcp-fleet`**, 13 read-only tools | both `system_oauth`: the signed-in person's own Keycloak token, so the MCP gateway audits every call as them (`path=/mcp-fleet actor=open-webui user=<you>`) |
+| **Lab Status** preset | `qwen3:30b-a3b` + `lab-fleet` on by default, builtin tools off, a read-only system prompt that knows where alerts live | live lab status from chat; answered "only Watchdog is firing" in ~12 s (2026-11-12) |
+
+**Gotchas found doing it (0.12.5):**
+- An API key **cannot send MFA fields**: a `POST /api/v1/auths/admin/config` carrying `ENABLE_MFA` or `MFA_*` gets 403
+  ("A human administrator session is required"), even unchanged. The server applies only the MFA fields a request
+  sends, so leave them out.
+- Hidden base models are workspace-model entries with `meta.hidden: true`, listed by **`/api/v1/models/all`**;
+  `/api/v1/models/list` returns presets only.
+- A tool server's **`function_name_filter_list` matches by suffix** (`endswith`), so a prefix such as `memory_` filters
+  nothing: list the full tool names to allow.
+- **Grafana OnCall is not run here**: the fleet's `grafana_list_alert_groups` answers 404. Firing alerts are
+  `ALERTS{alertstate="firing"}` in Prometheus (datasource uid `prometheus`); `Watchdog` always fires by design.
+- `qwen3:30b-a3b` on rogueone is the **Thinking-2507** build (262k context): it always reasons. `think: false` (and
+  `/no_think`) only stop Ollama separating the reasoning, which then spills into the answer as raw text — leave
+  thinking on and Open WebUI folds it away.
+- The **first account** (`me@emangini.com`, the primary admin) cannot be deleted or demoted through the API or the UI;
+  it stays as the break-glass admin (the password login form is on for when Keycloak is down).
+- A chat request sent with an **API key** does not behave like a browser chat (a preset's tools and prompt were not
+  applied, and it never returned): test chat behaviour in the browser.
+- The browser loads the tool-server list once per page: **reload** after adding a connection.
+
+**Text-to-speech is not configured** (speech-to-text is whisper): a local TTS engine is deferred until the new hardware
+is in service — **B246**.

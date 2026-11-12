@@ -70,7 +70,7 @@ Un-authed → **401**. Runbook: [runbooks/mcp-gateway.md](runbooks/mcp-gateway.m
 | Route | Method | Purpose |
 |---|---|---|
 | `/health` | GET | liveness (no auth) |
-| `/mcp-fleet` | MCP | the read-only fleet compositor (102 tools, incl. 7 read-only `memory_*`) — the B66 operator's tools |
+| `/mcp-fleet` | MCP | the read-only fleet compositor (102 tools, incl. 7 read-only `memory_*`) — the B66 operator's tools; since B116 (2026-11-12) also Open WebUI's `lab-fleet` tool server (`system_oauth`, a 13-tool allowlist), audited as the signed-in person |
 | `/mcp-memory` | MCP | **B182 (2026-10-04):** the memory-ONLY compositor (7 read tools, unprefixed) — Open WebUI's per-user recall (`system_oauth` = each person's Keycloak token); unconfigured → 404. Both compositors admit only this gateway (+ Bifrost for the fleet) — NetworkPolicy |
 | `/mcp` · `/mcp-act` | MCP | authed proxy of the tool-server's read / act MCP mounts; forwards the verified actor → `guardrail_verdicts.actor`, which the enforcing `policy.gate` (weyland-guard ACT hook) keys on. The tool-server **act** endpoints (`/mcp-act`, `/pipeline/trigger`, `/evals/*`) are locked to this gateway's SPIFFE identity by an Istio `AuthorizationPolicy` — a direct/forged act → `403 RBAC` |
 

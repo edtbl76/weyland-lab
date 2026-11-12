@@ -331,6 +331,7 @@ model {
   weyland.mother.ai.weylandGuard -> weyland.mother.ai.llamaGuard "Classify — POST content-safety classification (llama_guard.safety, temp 0)"
   weyland.mother.ai.dagster -> weyland.mother.ai.guardrailsStructure "Structure — eval judge JSON -> validate JudgeScores + re-ask (fail-open)"
   weyland.mother.ai.guardrailsStructure -> rogueone.ollama "re-ask the judge model to repair (litellm)"
+  weyland.mother.ai.openWebui -> weyland.mother.ops.edge.mcpGateway "read lab status as the signed-in PERSON — MCP tool server /mcp-fleet (lab-fleet, 13 read-only tools), auth system_oauth, B116"
   weyland.mother.ai.openWebui -> weyland.mother.ai.nemoGuardrails "guarded weyland-operator model (OpenAI connection)"
   weyland.mother.ai.nemoGuardrails -> rogueone.ollama "rails LLM + main completion (gpt-oss:20b)"
   weyland.mother.ai.litellm -> hostedModels "egress: wl-* routed + fallback"

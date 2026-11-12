@@ -53,6 +53,8 @@ spec:
             # the gateway sets X-Forwarded-User). PersistentConfig: this env applies only while the DB has no
             # tool_server.connections — on the live PVC it already holds [] (2026-10-04), so the connection is added once in
             # Admin → Settings → External Tools (runbooks/shared-agent-memory.md). Kept here so a rebuilt PVC gets it.
+            # B116 (2026-11-12): the live set is agent-memory + lab-fleet (/mcp-fleet), defined with the rest of the
+            # curated workspace by scripts/open_webui_curate.py — run it (--check, then apply) after a rebuild or restore.
             - name: TOOL_SERVER_CONNECTIONS
               value: '[{"url":"http://weyland-mcp-gateway.weyland.svc.cluster.local:8080/mcp-memory","path":"","type":"mcp","auth_type":"system_oauth","key":"","config":{"enable":true},"info":{"id":"agent-memory","name":"Agent memory","description":"Shared agent memory: read-only recall, as you (B182)"}}]'
             # --- Chat: native Ollama integration (CT 102) ---
