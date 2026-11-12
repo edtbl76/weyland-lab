@@ -11,8 +11,8 @@ runs local, pinned.
 | 2 — wired to Pillar 8 | **DONE** |
 | 2b — wrapper refuses where the graph is blind | **DONE** |
 | 3 — shell gap | **DECIDED: scope around it** |
-| 4 — in-lab semantic pass | **DEFERRED** — EMA-208 (Low) |
-| 5 — Neo4j / MCP / git hook | **DEFERRED** — EMA-208 (Low) |
+| 4 — in-lab semantic pass | **NOT BUILT** — B173/EMA-208 closed as won't-do, 2026-11-12; re-open triggers below |
+| 5 — Neo4j / MCP / git hook | **NOT BUILT** — B173/EMA-208 closed as won't-do, 2026-11-12; re-open triggers below |
 
 Shipped: `scripts/graphify.sh` (`install` · `build` · `affected` · `god-nodes` · `verify`), 26 bats
 cases, `docs/definition-of-done.md` § 8. Nothing is written inside the repo; the venv, source copy and
@@ -384,7 +384,7 @@ Apache-2.0 patch and the project is active, but it benefits projects that put de
 shell — and this repo's standing rule is that such a script has outgrown shell. Worth contributing if
 someone feels like it; not a prerequisite for anything here, and not tracked as one. No local fork.
 
-### Stages 4 and 5 — **DEFERRED, tracked as EMA-208 (Low)**
+### Stages 4 and 5 — **NOT BUILT; tracking closed 2026-11-12 (B173 / EMA-208, won't do)**
 
 Stage 4 was written as *"only if Stages 1-2 earn it"*. They did not — nothing consumes these yet, so
 neither is built.
@@ -394,7 +394,7 @@ that a Low item which never rises is a drop candidate. That reasoning was wrong 
 **"no consumer today" is an argument against BUILDING something now, not against TRACKING it.**
 Defining value only by what already exists means never building the thing that creates the use case,
 which is most of what a lab is for. The stale backlog items that argument borrowed from were orphans —
-no recorded why, no recorded when. These have both. **EMA-208** carries them.
+no recorded why, no recorded when. These have both. **EMA-208** carried them until 2026-11-12, when the owner closed it (B173, won't do) in the backlog speed run: three capabilities with no consumer for 2.5 months are not worth an open item. **This section now carries the why and the when**: the triggers below are the record, and a trigger that comes true is a NEW backlog item that cites this section, not a reopened EMA-208.
 
 **Stage 4 (in-lab semantic pass via LiteLLM) — no.** Its two selling points both evaporated:
 - *Path-qualified node IDs*, to fix ambiguous labels. Mitigated more cheaply — the wrapper now lists
@@ -413,7 +413,7 @@ no recorded why, no recorded when. These have both. **EMA-208** carries them.
 - `graphify hook install` adds a **post-commit git hook**. The operator owns all git operations here.
   **Do not install it.**
 
-**Re-open (EMA-208) if any of these become true:** we want doc/concept relationships rather than code
+**File a new item (citing this section) if any of these become true:** we want doc/concept relationships rather than code
 structure; a question wants the code graph beside the data graph in Neo4j; an agent needs code
 structure at runtime; or `affected` starts being wrong in a way path-qualified IDs would fix.
 

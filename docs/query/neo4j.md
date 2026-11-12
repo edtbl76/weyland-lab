@@ -22,7 +22,7 @@ Importable NeoDash dashboard: [Music graph](neo4j-music-dashboard.json) (NeoDash
 > (13,051 nodes: Python, TypeScript, HCL) and graphify can emit it as Cypher with `--neo4j`. It was
 > deliberately not loaded, because no question yet needs the code graph beside the data graph. The
 > obvious candidate is a cross-graph query — *which code produces which dataset* — pairing with the
-> B82 application taxonomy. Tracked as **EMA-208 (Low)**; plan in
+> B82 application taxonomy. Not tracked (B173/EMA-208 closed as won't-do, 2026-11-12); the triggers and plan are in
 > `docs/concepts/graphify-adoption.md`.
 ## Explore
 ```cypher

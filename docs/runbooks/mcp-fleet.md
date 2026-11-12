@@ -22,7 +22,7 @@ Each proven via MCP `tools/list` (+ a real read call, and a write-denial probe w
 > **A seventh server is available but not deployed: the code graph.** `graphify --mcp` is a stdio MCP
 > server exposing this repo's AST graph (`affected`, `god-nodes`, `query`), which would let the operator
 > and the Realm agents ask code-structure questions — something no server in the fleet can answer today.
-> Not built because nothing has needed it. Tracked as **EMA-208 (Low)**; see
+> Not built because nothing has needed it (B173/EMA-208 closed as won't-do, 2026-11-12); the re-open triggers are in
 > `docs/concepts/graphify-adoption.md`.
 
 > **Two MCP planes — the fleet is not the only place MCP lives.** This fleet is the **shared, read-only,
