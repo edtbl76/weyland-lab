@@ -252,6 +252,21 @@ Verified against the live API 2026-08-24. Values are the ones to recreate, not a
 |---|---|---|---|
 | 1 | `edtbl76/stud.io` | true | network `false` · volumes `false` · security `false` |
 | 2 | `edtbl76/weyland-lab` | true | network `false` · volumes `false` · **security `true`** |
+| 3 | `edtbl76/ServiceTransformation` | true | network `false` · volumes `false` · security `false` (B245; `local` backend) |
+| 4 | `edtbl76/emangini-tailwind-nextjs-contentlayer` | true | network `false` · volumes `false` · security `false` (B245; `kubernetes`) |
+| 5 | `edtbl76/Algopedia` | true | network `false` · volumes `false` · security `false` (B245; `kubernetes`) |
+| 6 | `edtbl76/grkit` | true | network `false` · volumes `false` · security `false` (B245; `local`; replaced GitHub Actions) |
+| 7 | `edtbl76/MyBodyGraph` | true | network `false` · volumes `false` · security `false` (B245; `local`; private; its GitHub Actions `deploy.yml` gates on this pipeline's `ci/woodpecker/...` commit status) |
+| 8 | `edtbl76/freejack` | true | network `false` · volumes `false` · security `false` (B245; `local`; private) |
+
+Repos 3–8 were activated 2026-11-11 with `woodpecker-cli repo add <GitHub repo id>` (ids from
+`gh api repos/edtbl76/<repo> --jq .id`). **Org secret** (owner `edtbl76`, every repo inherits it; a repo secret of the same
+name wins, so weyland-lab keeps its own): `trunk_org_token`, events `cron, manual, push`, recreated with:
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && woodpecker-cli org secret add --org edtbl76 --name trunk_org_token --value "$TRUNK_ORG_TOKEN" --event manual --event push --event cron
+```
 
 `weyland-lab`'s `trusted.security: true` is load-bearing: without it Woodpecker **silently drops** `privileged`
 from a step, which is one of the five things that had to be cleared before BuildKit worked (see the buildkitd

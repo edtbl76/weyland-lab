@@ -66,27 +66,21 @@ repos:
     status: active
     linear_project: "Algopedia"
     backup_path: ~/PycharmProjects/Algopedia
-    lanes: { iac: true, ci: false, scan: true, pr: true, catalog: true, backup: true }
-    except:
-      ci: "no pipeline yet — no .woodpecker.yml, not activated in Woodpecker (found 2026-09-24); flip to true on activation"
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: ServiceTransformation
     visibility: public
     status: active
     linear_project: "Service Transformation"
     backup_path: ~/IdeaProjects/ServiceTransformation
-    lanes: { iac: true, ci: false, scan: true, pr: true, catalog: true, backup: true }
-    except:
-      ci: "no pipeline yet — no .woodpecker.yml, not activated in Woodpecker (found 2026-09-24); flip to true on activation"
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: emangini-tailwind-nextjs-contentlayer
     visibility: public
     status: active
     linear_project: "emangini-tailwind-nextjs-contentlayer"
     backup_path: ~/IdeaProjects/emangini-tailwind-nextjs-contentlayer
-    lanes: { iac: true, ci: false, scan: true, pr: true, catalog: true, backup: true }
-    except:
-      ci: "no pipeline yet — no .woodpecker.yml, not activated in Woodpecker (found 2026-09-24); flip to true on activation"
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: startme-curator
     visibility: private          # PRIVATE (confirmed via tofu import 2026-09-15) — Port/scan/CI tokens need access
@@ -104,7 +98,7 @@ repos:
     backup_path: ~/Documents/Education   # checked out under "Education", NOT "freejack" — match by path
     lanes: { iac: true, ci: false, scan: true, pr: true, catalog: true, backup: true }
     except:
-      ci: "no pipeline yet — no .woodpecker.yml, not activated in Woodpecker (found 2026-09-24); flip to true on activation"
+      ci: "activated in Woodpecker (repo 8, B245, 2026-11-11) and running; stays false only because the secret-free coverage guard cannot verify a PRIVATE repo anonymously (it would exit 2). Proof: woodpecker-cli repo ls"
 
   - name: MyBodyGraph
     visibility: private          # PRIVATE since 2026-11-08 on the owner's instruction (public at the 2026-09-15 tofu import) — Port/scan/CI tokens need access
@@ -112,11 +106,11 @@ repos:
     linear_project: "MyBodyGraph"
     backup_path: ~/IdeaProjects/MyBodyGraph
     lanes: { iac: true, ci: false, scan: true, pr: true, catalog: true, backup: true }
+    except:
+      ci: "activated in Woodpecker (repo 7, B245, 2026-11-11) and running; stays false only because the secret-free coverage guard cannot verify a PRIVATE repo anonymously (it would exit 2). Proof: woodpecker-cli repo ls"
     # scan: central scan-suite + sonarqube + an in-repo .coderabbit.yaml only. No .deepsource.toml or .sourcery.yaml
     # (decided 2026-11-08): both tools are free only for public repos, Sourcery is Python-only, and this repo is a
     # private TypeScript app on a $0 budget.
-    except:
-      ci: "no pipeline yet — no .woodpecker.yml, not activated in Woodpecker (found 2026-09-24); flip to true on activation"
 
   - name: OJayFloyd
     visibility: public           # created public via `gh repo create` 2026-09-24
@@ -132,9 +126,7 @@ repos:
     status: active               # reusable guardrails kit; weyland consumes it (B206 slice 2)
     linear_project: "grkit"
     backup_path: ~/IdeaProjects/grkit
-    lanes: { iac: true, ci: false, scan: true, pr: true, catalog: true, backup: true }
-    except:
-      ci: "CI runs on GitHub Actions (.github/workflows/ci.yml) — public OSS, free; not activated in Woodpecker by design (2026-10-13)"
+    lanes: { iac: true, ci: true, scan: true, pr: true, catalog: true, backup: true }
 
   - name: midi_real_book
     visibility: public           # CONFIRM visibility

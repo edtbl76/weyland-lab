@@ -83,33 +83,47 @@ cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +
 Expect `<variant>: uploaded` per source and `OK — N variant(s) uploaded`. Rehearsed this way on 2026-11-06 with the
 `python` lane's 20 reports: 1,680 results, exit 0.
 
-## Other repos (B238, 2026-11-10)
+## Other repos (B238 2026-11-10; B245 2026-11-11)
 
-Trunk needs CI runs to report from, so only repos with CI can join. Survey of the 8 other active repos in `repos.yaml`:
+**CI for every managed repo is the lab's Woodpecker, never GitHub Actions** (owner, 2026-11-11). Trunk needs CI runs
+to report from, so a repo joins when it has a Woodpecker pipeline (`repos.yaml` lane `ci`, which the repo-coverage
+guard checks against Woodpecker activation). A repo with no tests joins when it gets tests.
 
 | Repo | CI | Trunk collection | Sources (variants) |
 |---|---|---|---|
-| **MyBodyGraph** | GitHub Actions `check.yml` (every push) | `Tz9xc0cL` | `vitest` — `vitest.config.ts` adds the `junit` reporter beside `default` (~421 tests) |
-| **grkit** | GitHub Actions `ci.yml` (push to main, PRs) | `8jol5WOk` | `pytest` (`--junitxml`, ~38) and `bats` (the rendered guard's tests, `--report-formatter junit`, ~6), written by `scripts/test.sh` |
-| Algopedia, ServiceTransformation, freejack, emangini-tailwind-nextjs-contentlayer | none | — | **not wired: no CI.** They join when they get a CI lane (`repos.yaml` lane `ci`); freejack's ~3,200 test files would then be the largest source |
+| **Algopedia** | Woodpecker repo 5, `kubernetes` | `bInb6P93` | `pytest` — collects the `unittest` suites under `python/tests` (692 tests; 7 quicksort tests red on `main` since before B245) |
+| **ServiceTransformation** | Woodpecker repo 3, **`local`** (Testcontainers needs Docker) | `l7eE7ZjM` | `gradle` — every service's JUnit 5 results, Gradle run in `eclipse-temurin:17-jdk` with the host Docker socket (58 tests) |
+| **emangini-tailwind-nextjs-contentlayer** (blog) | Woodpecker repo 4, `kubernetes`; pipeline on `main` | `SnnIoRn8` | `node-test` — `node --test scripts/*.test.mjs`, Node's built-in JUnit reporter (76 tests) |
+| **stud.io** | Woodpecker repo 1, `local`; `main` workflow, push/manual on `main` only (the org secret is not given to pull requests) | `ddxR1SoJ` | roadie writes JUnit when `ROADIE_JUNIT=1` (set by the `unit-pbt` step): `jest` and `fast-check` (`jest-junit`), `pytest` and `hypothesis` (`--junitxml`), `go-test` (`gotestsum` in the `go_test` image) — ~2,470 tests. e2e (Playwright) not reported yet |
+| **freejack** | Woodpecker repo 8, `local`, private | `u7IR4NZC` | `pytest` — `tools/tests` only (`vendor/` is third-party), 2,549 tests in three parallel steps at nice 10, ~25 min wall. **Don't run it while stud.io's `perf` runs:** both use rogueone's local agents, and stud.io #30's Lighthouse missed TBT (211 and 218 ms against 200) while freejack #2 ran; #31 alone was green |
+| **MyBodyGraph** | Woodpecker repo 7, `local`, private (moved off GitHub Actions; `deploy.yml` stays a manual GitHub Actions job gated on the `ci/woodpecker/...` commit status) | `Tz9xc0cL` | `vitest` — `npm run check` in `node:22` (460 tests) |
+| **grkit** | Woodpecker repo 6, `local` (moved off GitHub Actions; pull requests no longer get an automatic check) | `8jol5WOk` | `pytest` (38) and `bats` (6), written by `scripts/test.sh` |
 | startme-curator | none | — | **never: a DONE project** (B132, done 2026-08-27; owner 2026-11-11). No CI, no Trunk. |
-| OJayFloyd | none | — | not wired: no tests yet (2 files) |
+| OJayFloyd | none | — | not wired: no tests yet (2 files). Joins when it gets tests. |
 
-How each repo uploads: a final workflow step (`if: !cancelled()`, skipped for Dependabot, which gets no secrets) downloads
-the pinned `trunk-analytics-cli` 0.16.1 and **this repo's `scripts/ci/trunk-upload.sh` at a pinned commit**
-(`45c0b1ca…`, sha256 `09f3887d…`), checks both against their sha256, and runs it on `reports/junit`. So the fail-closed
-logic lives here, once. GitHub secret `TRUNK_ORG_TOKEN` (the same legacy org token) and repo variable
-`TRUNK_COLLECTION_ID` per repo:
+How each repo uploads: a final `trunk-upload` step (`when: status: [success, failure]`, so a red test run still
+reports) downloads the pinned `trunk-analytics-cli` 0.16.1 and **this repo's `scripts/ci/trunk-upload.sh` at a pinned
+commit** (`45c0b1ca…`, sha256 `09f3887d…`), checks both against their sha256, and runs it on `reports/junit`. So the
+fail-closed logic lives here, once. On a `local`-backend pipeline the downloads go under the workspace, not `/tmp`
+(four agents share rogueone). The token is the **org-level** Woodpecker secret `trunk_org_token` (every `edtbl76`
+repo inherits it; its recreate command is in [woodpecker.md](woodpecker.md) § SQLite state); the collection id is
+plain text in each `.woodpecker.yml`. **Fail-closed, proven 2026-11-11:** the pinned uploader pointed at a
+non-existent collection got "Error Encountered" from the CLI with exit **0**, and still exited 1
+(`UPLOAD FAILED … 1 of 1 variant(s) did NOT reach Trunk`).
+
+**Onboard a repo:** create its collection (below), add the two steps on the Algopedia pattern (test step writing
+`reports/junit/<variant>/`, then `trunk-upload`), activate it (`woodpecker-cli repo add <GitHub repo id>`), flip
+`lanes.ci`, add the row above and in `woodpecker.md`'s repo table, then run it once:
 
 [rogueone]
 ```
-cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && printf %s "$TRUNK_ORG_TOKEN" | gh secret set TRUNK_ORG_TOKEN -R edtbl76/<repo> && gh variable set TRUNK_COLLECTION_ID -R edtbl76/<repo> --body <collection id>
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && woodpecker-cli pipeline create edtbl76/<repo> --branch main
 ```
 
 Collections can be created through Trunk's v2 API with the v2 key (`TRUNK_UPLOAD_TOKEN` in `scripts/.env`):
 `POST https://api.trunk.io/v2/test-collections` with `Authorization: Bearer <key>` and `{"name": …, "description": …}`;
 `GET /v2/test-collections` lists them. **If `trunk-upload.sh` changes**, bump the pinned commit and sha256 in each
-repo's workflow, or that repo keeps running the old version.
+repo's `.woodpecker.yml`, or that repo keeps running the old version.
 
 ## Budget
 
@@ -125,6 +139,23 @@ results (#597, 28 sources, 2026-11-07), and a lean run nearly as many (python + 
 shell dominate both). At about 200 pipelines a month that is ~600k, most of the ~1M before any other repo joins. Check the Billing page after a week of real
 traffic before adding repos (phase 4); the levers if it runs hot are fewer full runs, or reporting `shell` (the biggest
 source after python) only on full runs.
+
+**Projection with every managed repo reporting (B245, 2026-11-11).** Results per run × estimated runs a month; the run
+counts are estimates (other repos run only when started by hand), to be replaced with real numbers from Settings →
+Billing after a week:
+
+| Repo | Results per run | Runs a month (est.) | Results a month |
+|---|---|---|---|
+| weyland-lab | ~3,200 | ~200 | ~640k |
+| stud.io | ~2,470 | ~30 | ~74k |
+| freejack | 2,549 | ~15 | ~38k |
+| MyBodyGraph | 460 | ~60 | ~28k |
+| Algopedia | 692 | ~20 | ~14k |
+| blog, ServiceTransformation, grkit | 76 / 58 / 44 | ~20 each | ~4k |
+| **Total** | | | **~800k** |
+
+Under the ~1M span reading, and the plan page today meters committers, not results. If it ever runs hot: weyland's
+levers above first, then upload freejack (the next-largest per run) only from runs started for it.
 
 ## Troubleshooting
 
