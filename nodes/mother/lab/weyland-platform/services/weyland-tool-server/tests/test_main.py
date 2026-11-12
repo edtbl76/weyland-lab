@@ -566,3 +566,65 @@ def test_check_neo4j_errors_when_the_probe_query_fails(monkeypatch):
 
 def test_embed_dim_matches_the_model():
     assert main.EMBED_DIM == 768 and "bge-base" in main.MODEL_NAME
+
+
+# --- B38 Phase 0: graph-aware retrieval, pure scoring ----------------------------------------------------------------
+# A hit is {doc, source, chunk_index, similarity, content}; related maps a doc id to the doc ids it is RELATED_TO
+# (undirected); neighbour_best maps a doc id to its best chunk for this query (a hit-shaped dict).
+
+def _hit(doc, sim, idx=0):
+    return {"doc": doc, "source": doc + ".md", "chunk_index": idx, "similarity": sim, "content": doc}
+
+
+def test_rerank_without_graph_edges_is_plain_vector_order():
+    hits = [_hit("a", 0.9), _hit("b", 0.8), _hit("c", 0.7), _hit("d", 0.6)]
+    out = main.graph_rerank(hits, related={}, neighbour_best={}, limit=3)
+    assert [h["doc"] for h in out] == ["a", "b", "c"]  # the lexical control: nothing changes
+
+
+def test_rerank_lifts_a_hit_the_other_hits_point_to():
+    # d is weakest by similarity but RELATED_TO three other hits; c has no links.
+    hits = [_hit("a", 0.80), _hit("b", 0.79), _hit("c", 0.78), _hit("d", 0.76), _hit("e", 0.70)]
+    related = {"d": {"a", "b", "e"}, "a": {"d"}, "b": {"d"}, "e": {"d"}}
+    out = main.graph_rerank(hits, related=related, neighbour_best={}, limit=3)
+    assert "d" in [h["doc"] for h in out] and "c" not in [h["doc"] for h in out]
+
+
+def test_rerank_same_document_hits_give_no_bonus():
+    hits = [_hit("a", 0.9, 0), _hit("a", 0.8, 1), _hit("b", 0.85)]
+    out = main.graph_rerank(hits, related={}, neighbour_best={}, limit=3)
+    assert [h["similarity"] for h in out] == [0.9, 0.85, 0.8]
+
+
+def test_rerank_can_bring_in_a_related_neighbour_chunk():
+    hits = [_hit("a", 0.80), _hit("b", 0.79), _hit("c", 0.60)]
+    related = {"a": {"n"}, "b": {"n"}, "n": {"a", "b"}}
+    out = main.graph_rerank(hits, related=related, neighbour_best={"n": _hit("n", 0.70)}, limit=3)
+    assert [h["doc"] for h in out][:3].count("n") == 1 and "c" not in [h["doc"] for h in out]
+    assert [h for h in out if h["doc"] == "n"][0]["via"] == "related"
+
+
+def test_rerank_never_returns_more_than_limit_and_reports_similarity_unchanged():
+    hits = [_hit(x, 0.9 - i / 100) for i, x in enumerate("abcdefgh")]
+    out = main.graph_rerank(hits, related={"a": {"b"}, "b": {"a"}}, neighbour_best={}, limit=3)
+    assert len(out) == 3 and out[0]["similarity"] == 0.9  # the graph changes ORDER, not the reported score
+
+
+def test_expand_keeps_the_vector_top_and_appends_one_neighbour_per_hit():
+    hits = [_hit("a", 0.9), _hit("b", 0.8), _hit("c", 0.7), _hit("d", 0.6)]
+    related = {"a": {"n1"}, "b": {"n2", "a"}, "c": set()}
+    nb = {"n1": _hit("n1", 0.5), "n2": _hit("n2", 0.55)}
+    out = main.graph_expand(hits, related=related, neighbour_best=nb, limit=3)
+    assert [h["doc"] for h in out[:3]] == ["a", "b", "c"]
+    assert [h["doc"] for h in out[3:]] == ["n1", "n2"]  # a is already in; c has no neighbour
+    assert all(h["via"] == "related" for h in out[3:])
+
+
+def test_expand_without_edges_is_just_the_vector_top():
+    hits = [_hit("a", 0.9), _hit("b", 0.8), _hit("c", 0.7), _hit("d", 0.6)]
+    assert [h["doc"] for h in main.graph_expand(hits, {}, {}, limit=3)] == ["a", "b", "c"]
+
+
+def test_graph_backends_are_registered():
+    assert {"neo4j_graph_rerank", "neo4j_graph_expand"} <= set(main.SEARCH_FNS) and \
+        {"neo4j_graph_rerank", "neo4j_graph_expand"} <= main.VALID_BACKENDS

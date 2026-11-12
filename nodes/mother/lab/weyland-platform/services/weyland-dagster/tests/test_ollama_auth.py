@@ -53,7 +53,7 @@ def load(monkeypatch):
     monkeypatch.setitem(sys.modules, "dagster", _module(
         "dagster", asset=lambda *a, **k: (a[0] if a and callable(a[0]) and not k else (lambda f: f)),
         RetryPolicy=lambda *a, **k: None, get_dagster_logger=lambda *a, **k: None, Output=_Subscriptable,
-        MetadataValue=type("MV", (), {"__getattr__": lambda s, n: (lambda *a, **k: None)})()))
+        Config=object, MetadataValue=type("MV", (), {"__getattr__": lambda s, n: (lambda *a, **k: None)})()))
     pkg = _module("weyland_pipeline")
     pkg.__path__ = [os.path.join(_ROOT, "weyland_pipeline")]
     monkeypatch.setitem(sys.modules, "weyland_pipeline", pkg)

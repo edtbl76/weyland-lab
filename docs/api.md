@@ -50,7 +50,7 @@ slipped past the exact-path act DENY rule. weyland-guard refuses them the same w
 |---|---|---|
 | `/health` `/ready` `/status` | GET | liveness / readiness / consolidated status (incl. `llm`) |
 | `/metrics` | GET | Prometheus exposition (default process/GC collectors; **B70 Part 2** — guardrail verdicts moved to `weyland-guard`). **B207:** `tool_server_guard_failures_total{hook,cause}`, guard calls that got no usable answer (scraped again; alert `GuardCallsFailing`) |
-| `/context/search?backend=<pgvector\|qdrant\|weaviate\|neo4j>` | POST | vector retrieval (B14 `input` hook → `weyland-guard`, fail-open) |
+| `/context/search?backend=<pgvector\|qdrant\|weaviate\|neo4j\|neo4j_graph_rerank\|neo4j_graph_expand>` | POST | vector retrieval (B14 `input` hook → `weyland-guard`, fail-open); the two `neo4j_graph_*` modes (B38) also follow the AIDLC KB's `RELATED_TO` edges and tag each chunk `via`: `vector` or `related` |
 | `/context/ask` | POST | **RAG** — retrieve → local LLM answer (per-request `model`); B14 `input` + `output` hooks → `weyland-guard` (fail-open). **B100:** emits MLflow Traces (`tool-server-rag`) + the system prompt is fetched live from the MLflow Prompt Registry (`rag_system`, fail-safe) |
 | `/models` | GET | list selectable Ollama models |
 | `/pgvector/health` `/qdrant/health` `/weaviate/health` `/neo4j/health` `/ollama/health` | GET | per-backend health |

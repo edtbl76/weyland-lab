@@ -27,13 +27,11 @@ from dagster import (
     op,
 )
 
-from weyland_pipeline.assets.eval_testset import EVAL_MODELS
+from weyland_pipeline.assets.eval_testset import EVAL_ASK_LIMIT, EVAL_BACKEND, EVAL_MODELS
 from weyland_pipeline.gpu import drain_gpu
 from weyland_pipeline.resources import PostgresResource
 
 TOOL_SERVER_URL = os.environ.get("TOOL_SERVER_URL", "http://weyland-tool-server:8080")
-EVAL_BACKEND = os.environ.get("EVAL_BACKEND", "pgvector")
-EVAL_ASK_LIMIT = int(os.environ.get("EVAL_ASK_LIMIT", "3"))
 # rogueone Ollama (native API root, no /v1) — for draining models between eval models.
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.230:11434")
 
@@ -50,15 +48,20 @@ def _mapping_key(model: str) -> str:
 
 @op(out=DynamicOut(), description="Fan out one branch per eval model (each loads once, run serially).")
 def fan_out_models(eval_testset: dict):
+    # B38: the run's own settings (eval_testset run config); a run from before carries none -> the env defaults.
     run_id = eval_testset["run_id"]
-    for model in EVAL_MODELS:
-        yield DynamicOutput({"run_id": run_id, "model": model}, mapping_key=_mapping_key(model))
+    backend = eval_testset.get("backend", EVAL_BACKEND)
+    ask_limit = eval_testset.get("ask_limit", EVAL_ASK_LIMIT)
+    for model in eval_testset.get("models") or EVAL_MODELS:
+        yield DynamicOutput({"run_id": run_id, "model": model, "backend": backend, "ask_limit": ask_limit},
+                            mapping_key=_mapping_key(model))
 
 
 @op(description="Drain the GPU, then run every question for one model through /context/ask -> eval_results.")
 def run_one_model(spec: dict, postgres: PostgresResource) -> dict:
     log = get_dagster_logger()
     run_id, model = spec["run_id"], spec["model"]
+    backend, ask_limit = spec.get("backend", EVAL_BACKEND), spec.get("ask_limit", EVAL_ASK_LIMIT)
 
     with postgres.get_connection() as conn:
         with conn.cursor() as cur:
@@ -87,7 +90,7 @@ def run_one_model(spec: dict, postgres: PostgresResource) -> dict:
                         # langfuse=False: every traced ask fires up to 9 online LLM-as-judge rules on gpt-oss:20b,
                         # which evicted the model under test twice per question (2026-09-29). The answers are
                         # recorded in eval_results + MLflow already.
-                        json={"query": question, "backend": EVAL_BACKEND, "limit": EVAL_ASK_LIMIT, "model": model,
+                        json={"query": question, "backend": backend, "limit": ask_limit, "model": model,
                               "langfuse": False},
                     )
                     resp.raise_for_status()
@@ -117,7 +120,7 @@ def run_one_model(spec: dict, postgres: PostgresResource) -> dict:
                         "(run_id, question_id, model, backend, answer, contexts, latency_ms, error) "
                         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
                         (
-                            run_id, question_id, model, EVAL_BACKEND, answer,
+                            run_id, question_id, model, backend, answer,
                             json.dumps(contexts) if contexts is not None else None, latency_ms, error,
                         ),
                     )

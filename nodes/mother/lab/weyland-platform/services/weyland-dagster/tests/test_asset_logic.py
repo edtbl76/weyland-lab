@@ -31,7 +31,7 @@ class _Subscriptable:  # dagster's Output is used as Output[dict] in annotations
 
 
 # dagster + the resource/httpx edges these two modules import at module scope (never called by these tests).
-_stub("dagster", asset=lambda *a, **k: (a[0] if a and callable(a[0]) and not k else (lambda f: f)),
+_stub("dagster", asset=lambda *a, **k: (a[0] if a and callable(a[0]) and not k else (lambda f: f)), Config=object,
       RetryPolicy=lambda *a, **k: None, get_dagster_logger=lambda *a, **k: None,
       Output=_Subscriptable, MetadataValue=type("MV", (), {"__getattr__": lambda s, n: (lambda *a, **k: None)})())
 _stub("httpx")

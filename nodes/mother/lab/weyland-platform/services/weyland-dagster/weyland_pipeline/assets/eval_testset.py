@@ -10,8 +10,9 @@ import os
 import re
 
 import httpx
-from dagster import Output, MetadataValue, asset
+from dagster import Config, Output, MetadataValue, asset
 
+from weyland_pipeline.eval_settings import resolve_run_settings
 from weyland_pipeline.ollama_auth import ollama_headers
 from weyland_pipeline.resources import PostgresResource
 
@@ -25,6 +26,18 @@ EVAL_GENERATOR_MODEL = os.environ.get("EVAL_GENERATOR_MODEL", "mistral-small3.2:
 EVAL_TEST_SIZE = int(os.environ.get("EVAL_TEST_SIZE", "10"))
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://192.168.1.230:11434/v1")
 EVAL_METRICS = ["faithfulness", "answer_relevancy", "context_relevancy"]
+# Defaults for the per-run settings (B38): the retrieval backend and context depth each question is asked with.
+EVAL_BACKEND = os.environ.get("EVAL_BACKEND", "pgvector")
+EVAL_ASK_LIMIT = int(os.environ.get("EVAL_ASK_LIMIT", "3"))
+
+
+class EvalRunConfig(Config):
+    """Per-run eval settings (B38, 2026-11-12). Empty = the env default (EVAL_BACKEND / EVAL_MODELS /
+    EVAL_ASK_LIMIT), so a run launched without config behaves as before. Example, one model against the graph
+    rerank backend: {"backend": "neo4j_graph_rerank", "models": ["qwen3:30b-a3b"]}."""
+    backend: str = ""
+    models: list[str] = []
+    ask_limit: int = 0
 
 # B96 — GOLDEN question set. Generating fresh questions every run made the leaderboard non-comparable ACROSS
 # runs: each run was graded on a different exam, so a score delta measured question difficulty, not system
@@ -147,7 +160,9 @@ def _generate_questions(docs: list[dict], n: int) -> list[dict]:
     group_name="eval",
     description="Load the GOLDEN eval question set (or generate one via Ollama) -> eval_questions.",
 )
-def eval_testset(postgres: PostgresResource) -> Output[dict]:
+def eval_testset(config: EvalRunConfig, postgres: PostgresResource) -> Output[dict]:
+    settings = resolve_run_settings(config.backend, config.models, config.ask_limit,
+                                    {"backend": EVAL_BACKEND, "models": EVAL_MODELS, "ask_limit": EVAL_ASK_LIMIT})
     # The corpus check runs in BOTH modes: golden questions are still answered against the live corpus, so an
     # empty corpus makes the run meaningless either way — fail here rather than produce a floor-score leaderboard.
     docs = _load_corpus(postgres)
@@ -160,13 +175,14 @@ def eval_testset(postgres: PostgresResource) -> Output[dict]:
     else:
         questions = _generate_questions(docs, EVAL_TEST_SIZE)
         notes = "questions via direct-prompt (GENERATED — NOT comparable to golden runs)"
+    notes += f" | backend={settings['backend']} ask_limit={settings['ask_limit']}"
 
     with postgres.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO eval_runs (status, models, metrics, question_count, notes) "
                 "VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                ("questions_ready", EVAL_MODELS, EVAL_METRICS, len(questions), notes),
+                ("questions_ready", settings["models"], EVAL_METRICS, len(questions), notes),
             )
             run_id = cur.fetchone()[0]
             for q in questions:
@@ -177,9 +193,11 @@ def eval_testset(postgres: PostgresResource) -> Output[dict]:
                 )
 
     return Output(
-        {"run_id": run_id, "question_count": len(questions)},
+        {"run_id": run_id, "question_count": len(questions), **settings},
         metadata={
             "run_id": MetadataValue.int(run_id),
             "questions": MetadataValue.int(len(questions)),
+            "backend": MetadataValue.text(settings["backend"]),
+            "ask_limit": MetadataValue.int(settings["ask_limit"]),
         },
     )

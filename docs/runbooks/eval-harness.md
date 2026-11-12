@@ -170,6 +170,25 @@ curl -s -X POST http://localhost:30080/pipeline/trigger -H "Content-Type: applic
 Judges: `deepseek-coder-v2:16b` (default, fast) · `mistral-small3.2:24b` (slower, more nuanced).
 `EVAL_TEST_SIZE`, `EVAL_GENERATOR_MODEL`, `EVAL_BACKEND`, `EVAL_ASK_LIMIT` are similarly env-tunable.
 
+**Per-run settings — backend, models, depth (B38, 2026-11-12).** `EVAL_BACKEND`, `EVAL_MODELS` and `EVAL_ASK_LIMIT`
+are only the **defaults** now: `eval_testset` takes them as run config, so comparing retrieval backends needs no
+manifest change or restart. Empty config = the env defaults (a run launched as before behaves as before). Backends:
+`pgvector` `qdrant` `weaviate` `neo4j`, and B38's graph modes `neo4j_graph_rerank` / `neo4j_graph_expand`
+(`weyland_pipeline/eval_settings.py` refuses anything else before the run starts). The run's backend lands in
+`eval_results.backend`, the `eval_runs.notes`, and the MLflow run params (`backend`). Launch `weyland_eval_job` from
+the Dagster UI (**Launchpad**) with, for example:
+
+```yaml
+ops:
+  eval_testset:
+    config:
+      backend: neo4j_graph_rerank
+      models: ["qwen3:30b-a3b"]
+      ask_limit: 3
+```
+
+then run `weyland_eval_score_job` as usual. (The tool-server's `/pipeline/trigger` takes a job name only, no config.)
+
 ## Decision Record — Ragas REJECTED (2026-06-12)
 
 **Decision:** Do **not** use Ragas — neither for test-set generation nor for scoring. Use

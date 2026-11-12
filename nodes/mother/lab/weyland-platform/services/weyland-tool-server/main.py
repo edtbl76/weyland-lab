@@ -135,7 +135,7 @@ def validate_required_secrets() -> None:
 # Fail loudly at import/startup, before the app builds connections.
 validate_required_secrets()
 
-VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j"}
+VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j", "neo4j_graph_rerank", "neo4j_graph_expand"}  # B38: +2 graph modes
 
 embed_model: OnnxBge | None = None
 qdrant_client: QdrantClient | None = None
@@ -509,11 +509,114 @@ def _search_neo4j(query: str, limit: int) -> list[dict]:
         ]
 
 
+# --- B38 Phase 0: graph-aware retrieval over the B37 frontmatter graph ----------------------------------------------
+# Plain `neo4j` is vector-only: it never follows an edge. These two modes use the AIDLC knowledge base's declared
+# (:Document:Entry)-[:RELATED_TO]-(:Document:Entry) links, and are measured against it on the golden set (the lexical
+# half — weyland docs, no RELATED_TO edges — is an exact control: both modes leave it unchanged).
+#   neo4j_graph_rerank — re-order a wider vector candidate pool (plus the best chunk of each hit's neighbours) by
+#                        similarity + GRAPH_BONUS x the share of the pool's documents RELATED_TO the candidate's. Tests
+#                        RANKING PRECISION, which B96 found is the bottleneck. Returns `limit` chunks.
+#   neo4j_graph_expand — keep the vector top `limit`, then append, per hit, the best chunk of its best related
+#                        document. Tests whether neighbours add context the vector search would not rank. Returns up
+#                        to 2 x `limit`; compare it with plain neo4j at that depth, so volume is not mistaken for graph.
+# GRAPH_BONUS and GRAPH_CANDIDATES are fixed up front, NOT tuned on the golden set (that would only fit the exam).
+GRAPH_CANDIDATES = 10
+GRAPH_BONUS = 0.1
+
+
+def _related(related: dict, a: str, b: str) -> bool:
+    return b in related.get(a, ()) or a in related.get(b, ())
+
+
+def graph_rerank(hits: list[dict], related: dict, neighbour_best: dict, limit: int,
+                 bonus: float = GRAPH_BONUS) -> list[dict]:
+    """Pure: `hits` (vector pool, each with `doc`), `related` (doc -> related docs), `neighbour_best` (doc -> its best
+    chunk for this query). Same-document hits give no bonus; only declared RELATED_TO links do. The reported
+    `similarity` is the vector score, unchanged: the graph changes the ORDER only."""
+    if not hits:
+        return []
+    hit_docs = [h["doc"] for h in hits]
+    seen = set(hit_docs)
+    cands = [dict(h, via="vector") for h in hits]
+    for doc, chunk in neighbour_best.items():
+        if doc not in seen and any(_related(related, doc, d) for d in seen):
+            cands.append(dict(chunk, via="related"))
+            seen.add(doc)
+
+    def score(c):
+        support = sum(1 for d in hit_docs if d != c["doc"] and _related(related, c["doc"], d))
+        return c["similarity"] + bonus * support / len(hit_docs)
+
+    return sorted(cands, key=score, reverse=True)[:limit]
+
+
+def graph_expand(hits: list[dict], related: dict, neighbour_best: dict, limit: int) -> list[dict]:
+    """Pure: the vector top `limit`, then per hit the best-scoring related document's chunk not already included."""
+    top = [dict(h, via="vector") for h in hits[:limit]]
+    have = {h["doc"] for h in top}
+    extra = []
+    for h in top:
+        options = [neighbour_best[n] for n in sorted(related.get(h["doc"], ())) if n not in have and n in neighbour_best]
+        if options:
+            best = max(options, key=lambda c: c["similarity"])
+            extra.append(dict(best, via="related"))
+            have.add(best["doc"])
+    return top + extra
+
+
+def _neo4j_graph_inputs(query: str, k: int) -> tuple[list[dict], dict, dict]:
+    """The vector pool, the RELATED_TO map among the pool's documents and their neighbours, and each neighbour's best
+    chunk for the query (cosine, normalised like the index score)."""
+    embedding = embed_model.get_text_embedding(query)
+    with neo4j_driver.session() as session:
+        hits = [{"doc": r["doc"], "source": r["source"] or "", "chunk_index": r["chunk_index"] or 0,
+                 "similarity": float(r["score"]), "content": r["content"] or ""}
+                for r in session.run(
+                    "CALL db.index.vector.queryNodes($index, $k, $embedding) YIELD node, score "
+                    "MATCH (node)-[:BELONGS_TO]->(d:Document) "
+                    "RETURN elementId(d) AS doc, d.source_name AS source, node.chunk_index AS chunk_index, "
+                    "node.content AS content, score",
+                    index=NEO4J_VECTOR_INDEX, k=k, embedding=embedding)]
+        related: dict = {}
+        for r in session.run(
+                "MATCH (d:Document)-[:RELATED_TO]-(n:Document) WHERE elementId(d) IN $ids "
+                "RETURN DISTINCT elementId(d) AS a, elementId(n) AS b", ids=list({h["doc"] for h in hits})):
+            related.setdefault(r["a"], set()).add(r["b"])
+            related.setdefault(r["b"], set()).add(r["a"])
+        neighbour_ids = sorted({n for ns in related.values() for n in ns} - {h["doc"] for h in hits})
+        neighbour_best = {}
+        for r in session.run(
+                "MATCH (c:Chunk)-[:BELONGS_TO]->(n:Document) WHERE elementId(n) IN $ids "
+                "WITH n, c, vector.similarity.cosine(c.embedding, $embedding) AS s ORDER BY s DESC "
+                "WITH n, collect({c: c, s: s})[0] AS best "
+                "RETURN elementId(n) AS doc, n.source_name AS source, best.c.chunk_index AS chunk_index, "
+                "best.c.content AS content, best.s AS score", ids=neighbour_ids, embedding=embedding):
+            neighbour_best[r["doc"]] = {"doc": r["doc"], "source": r["source"] or "", "chunk_index": r["chunk_index"] or 0,
+                                        "similarity": float(r["score"]), "content": r["content"] or ""}
+    return hits, related, neighbour_best
+
+
+def _public(chunks: list[dict]) -> list[dict]:
+    return [{k: c[k] for k in ("source", "chunk_index", "similarity", "content", "via")} for c in chunks]
+
+
+def _search_neo4j_graph_rerank(query: str, limit: int) -> list[dict]:
+    hits, related, nb = _neo4j_graph_inputs(query, max(GRAPH_CANDIDATES, limit))
+    return _public(graph_rerank(hits, related, nb, limit))
+
+
+def _search_neo4j_graph_expand(query: str, limit: int) -> list[dict]:
+    hits, related, nb = _neo4j_graph_inputs(query, limit)
+    return _public(graph_expand(hits, related, nb, limit))
+
+
 SEARCH_FNS = {
     "pgvector": _search_pgvector,
     "qdrant": _search_qdrant,
     "weaviate": _search_weaviate,
     "neo4j": _search_neo4j,
+    "neo4j_graph_rerank": _search_neo4j_graph_rerank,
+    "neo4j_graph_expand": _search_neo4j_graph_expand,
 }
 
 

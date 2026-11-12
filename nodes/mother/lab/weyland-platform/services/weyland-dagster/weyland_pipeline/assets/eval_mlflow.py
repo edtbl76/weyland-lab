@@ -14,14 +14,9 @@ from dagster import MetadataValue, Output, asset
 from weyland_pipeline.resources import PostgresResource
 
 
-@asset(
-    group_name="eval",
-    description="Log per-model eval metrics for the latest scored run to MLflow (experiment runs) -> DataHub.",
-)
-def eval_mlflow_log(context, postgres: PostgresResource, eval_scores: dict) -> Output[dict]:
-    import mlflow
-
-    run_id = eval_scores["run_id"]
+def _read_run(postgres: PostgresResource, run_id: int) -> tuple:
+    """The run's per-model metric averages, per-model latency/question counts, its retrieval backend (B38) and the
+    per-question score table."""
     with postgres.get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -41,6 +36,9 @@ def eval_mlflow_log(context, postgres: PostgresResource, eval_scores: dict) -> O
                 (run_id,),
             )
             meta_rows = cur.fetchall()
+            # B38: which retrieval backend this run asked (one per run; eval_results records it per cell).
+            cur.execute("SELECT string_agg(DISTINCT backend, ',') FROM eval_results WHERE run_id = %s", (run_id,))
+            backend = cur.fetchone()[0]
             cur.execute(
                 "SELECT er.question_id, er.model, "
                 "AVG(es.score) FILTER (WHERE es.metric='faithfulness') AS faithfulness, "
@@ -51,6 +49,18 @@ def eval_mlflow_log(context, postgres: PostgresResource, eval_scores: dict) -> O
                 (run_id,),
             )
             table_rows = cur.fetchall()
+    return score_rows, meta_rows, backend or "unknown", table_rows
+
+
+@asset(
+    group_name="eval",
+    description="Log per-model eval metrics for the latest scored run to MLflow (experiment runs) -> DataHub.",
+)
+def eval_mlflow_log(context, postgres: PostgresResource, eval_scores: dict) -> Output[dict]:
+    import mlflow
+
+    run_id = eval_scores["run_id"]
+    score_rows, meta_rows, backend, table_rows = _read_run(postgres, run_id)
 
     by_model = defaultdict(dict)
     for model, metric, avg in score_rows:
@@ -69,7 +79,8 @@ def eval_mlflow_log(context, postgres: PostgresResource, eval_scores: dict) -> O
     for model, metrics in by_model.items():
         latency, n_questions = model_meta.get(model, (None, 0))
         with mlflow.start_run(run_name=f"run{run_id}-{model}"):
-            mlflow.log_params({"model": model, "eval_run_id": run_id, "num_questions": n_questions})
+            mlflow.log_params({"model": model, "eval_run_id": run_id, "num_questions": n_questions,
+                               "backend": backend})
             mlflow.log_metrics(metrics)
             if latency is not None:
                 mlflow.log_metric("latency_ms", latency)
