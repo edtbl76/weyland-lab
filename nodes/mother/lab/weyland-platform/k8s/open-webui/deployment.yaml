@@ -26,19 +26,20 @@ spec:
       # B1.1 — combined CA bundle (system + mkcert root) so the OIDC back-channel verifies Keycloak's cert.
       initContainers:
         - name: ca-bundle
-          image: ghcr.io/open-webui/open-webui@sha256:9591b13f13843c7721c2b8eaf7382846c81b3ffe126526d1888d1fed50c6a33f   # same pin as the app container
+          image: ghcr.io/open-webui/open-webui@sha256:03443b8de6b617da9d900edd09b4bf1cb0ddbfdcba6afb42c548336a0b821ded   # same pin as the app container
           command: ["sh", "-c", "cat /etc/ssl/certs/ca-certificates.crt /mkcert/rootCA.pem > /cabundle/ca-bundle.crt"]
           volumeMounts:
             - { name: mkcert-ca, mountPath: /mkcert, readOnly: true }
             - { name: ca-bundle, mountPath: /cabundle }
       containers:
         - name: open-webui
-          # PINNED by digest to the v0.11.4 RELEASE (index digest; `docker buildx imagetools inspect
-          # ghcr.io/open-webui/open-webui:v0.11.4`). Upgraded 2026-10-04 from a `:main` build reporting 0.10.2
-          # (sha256:a26effeb…, pinned earlier the same day) after the open-webui-backup run 20261005T031438Z + a passing
-          # restore drill; 0.11.x carries security fixes and 0.11.3 fixed the 0.11.0-0.11.2 migration failure. Migrations
-          # run on start and only go forward — upgrade/rollback: docs/runbooks/open-webui.md § Upgrade.
-          image: ghcr.io/open-webui/open-webui@sha256:9591b13f13843c7721c2b8eaf7382846c81b3ffe126526d1888d1fed50c6a33f  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
+          # PINNED by digest to the v0.12.5 RELEASE (index digest; `docker buildx imagetools inspect
+          # ghcr.io/open-webui/open-webui:v0.12.5`). Upgraded 2026-11-12 from v0.11.4 (sha256:9591b13f…) after the
+          # open-webui-backup run 20261112T140131Z + a passing restore drill (B116). v0.12.5 released 2026-10-29 (14-day rule);
+          # v0.12.2 carries a schema migration; 0.12.x fixes tool servers that forward the signed-in user's token after it
+          # renews (our agent-memory connection). Earlier: v0.11.4 on 2026-10-04 (from a :main build reporting 0.10.2).
+          # Migrations run on start and only go forward — upgrade/rollback: docs/runbooks/open-webui.md § Upgrade.
+          image: ghcr.io/open-webui/open-webui@sha256:03443b8de6b617da9d900edd09b4bf1cb0ddbfdcba6afb42c548336a0b821ded  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
           # B47 hardening: drop priv-esc + seccomp (see arch)
           securityContext:
             allowPrivilegeEscalation: false

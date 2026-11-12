@@ -24,9 +24,12 @@ by `scripts/embed-sqlite-backup.sh`; tests `scripts/tests/test_sqlite_backup.py`
 
 Run one now (before an upgrade, or to test):
 ```
-kubectl -n weyland create job --from=cronjob/open-webui-backup open-webui-backup-manual-$(date +%s) && kubectl -n weyland wait --for=condition=complete --timeout=180s job -l app=open-webui-backup --field-selector status.successful=1 ; kubectl -n weyland logs -l app=open-webui-backup --tail=3
+J=open-webui-backup-manual-$(date +%s) && kubectl -n weyland create job --from=cronjob/open-webui-backup $J && kubectl -n weyland wait --for=condition=complete --timeout=180s job/$J && kubectl -n weyland logs job/$J --tail=3
 ```
-Expect `sqlite-backup OK (webui.db): /backup/open-webui/<ts> — counts={'user': N, 'chat': N} files=[...]`.
+Expect `sqlite-backup OK (webui.db): /backup/open-webui/<ts> — counts={'user': N, 'chat': N} files=[...]` with **today's**
+timestamp. It waits on the job it created, by name: until 2026-11-12 this command waited on `-l app=open-webui-backup
+--field-selector status.successful=1`, which matched the nightly jobs that had already completed, returned at once and
+printed THEIR logs while the new job was still starting — a success report for a backup not yet taken.
 
 ## Restore drill (non-destructive — run after the first backup, and after any change to the backup)
 
