@@ -58,7 +58,7 @@ topic **`rag.chunks`** → **5 always-on `rag-index-*` consumers** → the backe
 | **pgvector** | `TRUNCATE rag_chunks; ALTER TABLE rag_chunks ALTER COLUMN embedding TYPE vector(768);` then **REINDEX** | the ALTER rebuilds the ivfflat index on **empty** data → poor recall → **must REINDEX after re-populating** |
 | **qdrant** | delete the `weyland_chunks` collection (recreated at `DIMS` by the next produce) | `DIMS` in `qdrant_write.py` |
 | **weaviate** | delete the `WeylandChunk` class | `Vectorizer.none()` infers dim from the first insert — nothing to set |
-| **neo4j** | nothing | stores embeddings as a list property, **no dim check** — happily writes mixed dims (a footgun; see scars) |
+| **neo4j** | **rebuild the vector index at the new size:** set `vector.dimensions` in `scripts/neo4j-vector-index-bootstrap.cypher` and run it (drops + recreates; repopulates from the stored vectors) — `runbooks/neo4j.md` § Vector index | stores embeddings as a list property, **no dim check** — happily writes mixed dims (a footgun; see scars). **The INDEX does check:** a 384-dim index holds none of the 768-dim chunks and every query fails (`Index query vector has 768 dimensions, but indexed vectors have 384`). B74 missed this row (it said "nothing"), so the `neo4j` backend was broken from 2026-07-28 to 2026-11-12 (found by B38); the tool-server `/neo4j/health` now compares the index size to `EMBED_DIM` and runs a real query |
 
 ## Ordered procedure
 

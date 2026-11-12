@@ -33,6 +33,8 @@ sentry_sdk.init(
 )
 
 MODEL_NAME = "BAAI/bge-base-en-v1.5"   # B74: 768-dim — MUST match the ingest embedder (query & index dims must agree)
+EMBED_DIM = 768                        # bge-base output size; the Neo4j vector index must be built at this size
+NEO4J_VECTOR_INDEX = "weyland_chunk_embedding"   # created by scripts/neo4j-vector-index-bootstrap.cypher
 MODEL_DIR = os.environ.get("BGE_ONNX_DIR", "/app/bge_onnx")   # ONNX export baked at build time (see Dockerfile)
 
 
@@ -487,11 +489,12 @@ def _search_neo4j(query: str, limit: int) -> list[dict]:
     with neo4j_driver.session() as session:
         result = session.run(
             """
-            CALL db.index.vector.queryNodes('weyland_chunk_embedding', $limit, $embedding)
+            CALL db.index.vector.queryNodes($index, $limit, $embedding)
             YIELD node, score
             MATCH (node)-[:BELONGS_TO]->(d:Document)
             RETURN node.content AS content, node.chunk_index AS chunk_index, d.source_name AS source_name, score
             """,
+            index=NEO4J_VECTOR_INDEX,
             limit=limit,
             embedding=embedding,
         )
@@ -552,10 +555,27 @@ def _check_weaviate() -> dict:
 
 
 def _check_neo4j() -> dict:
+    """Probe the VECTOR INDEX, not just the connection (B38 gap, 2026-11-12). `RETURN 1` said ok for months while
+    every neo4j search failed: the index was still 384-dim after B74 moved the embedder (and every chunk) to 768.
+    So: the index must exist, its dimensions must equal the embedder's, and one real vector query must succeed."""
     try:
         with neo4j_driver.session() as session:
-            session.run("RETURN 1").consume()
-        return {"status": "ok"}
+            rec = session.run(
+                "SHOW INDEXES YIELD name, options WHERE name = $n "
+                "RETURN options.indexConfig['vector.dimensions'] AS dims",
+                n=NEO4J_VECTOR_INDEX,
+            ).single()
+            if rec is None:
+                return {"status": "error", "detail": f"vector index {NEO4J_VECTOR_INDEX} does not exist"}
+            if rec["dims"] != EMBED_DIM:
+                return {"status": "error",
+                        "detail": f"vector index {NEO4J_VECTOR_INDEX} has {rec['dims']} dimensions, the embedder "
+                                  f"({MODEL_NAME}) produces {EMBED_DIM}: every search fails until it is rebuilt "
+                                  f"(scripts/neo4j-vector-index-bootstrap.cypher)"}
+            probe = [1.0] + [0.0] * (EMBED_DIM - 1)   # a real query vector of the right size (cosine: non-zero)
+            session.run("CALL db.index.vector.queryNodes($n, 1, $v) YIELD node RETURN count(node) AS hits",
+                        n=NEO4J_VECTOR_INDEX, v=probe).consume()
+        return {"status": "ok", "index_dims": EMBED_DIM}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
 

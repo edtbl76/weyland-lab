@@ -139,7 +139,9 @@ a value would *overwrite* an orthogonal fact, it is a facet (label), not a state
 but it is left out of every tier count, High list and rebalance: rebalance the workable issues as if the held ones were
 not there, and list the held ones separately. When the blocker clears (for the B134 hardware: the day it arrives), stop
 and address the held items as a special case, then fold them back into the account. `parked:deferred` is a decision,
-not a blocker, so a deferred issue still counts.
+not a blocker, so a deferred issue still counts. **A deferred issue is Low (owner, 2026-11-12):** deferral is
+legitimate, but it goes with Low priority — an issue deferred at Medium or High is a contradiction; lower it when
+deferring, and raise it again only when it is un-deferred.
 
 Each issue kept its priority label and its `Backlog` state (verified in the `save_issue` response) — the
 orthogonality proof. The specific *why* still lives in the `docs/backlog.md` entry; the label is the queryable

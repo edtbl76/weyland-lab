@@ -99,7 +99,7 @@ infra mirror.
 - **`Document`** node: `source_path`, `source_name`, `name`, `ingested_at` (+ `domain` for the AIDLC corpus).
 - **`Chunk`** node: `source_path`, `chunk_index`, `chunk_title`, `content`, `embedding` (array) (+ `domain`).
 - **Relationships:** `(Chunk)-[:BELONGS_TO]->(Document)`; `(Chunk)-[:NEXT]->(Chunk)` (sequential chain).
-- Vector index on `Chunk.embedding` (bootstrap: `scripts/neo4j-vector-index-bootstrap.cypher`).
+- Vector index `weyland_chunk_embedding` on `Chunk.embedding`, **768 dimensions** (bge-base, B74), cosine — (re)created by `nodes/mother/lab/weyland-platform/scripts/neo4j-vector-index-bootstrap.cypher`; it was left at 384 from B74 to 2026-11-12, which broke every Neo4j vector query (B38).
 
 ### 4a. AIDLC frontmatter graph (B37) *(live-validated 2026-06-19: 510 `:Entry`, 2311 `RELATED_TO`)*
 - Each AIDLC KB `Document` is also labeled **`:Entry`** with `entry_id`, `complexity`, `vertical` (from frontmatter).

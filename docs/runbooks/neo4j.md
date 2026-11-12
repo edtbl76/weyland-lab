@@ -42,7 +42,29 @@ Expected (2026-11-08): music (`User` 287,083, `Artist` 173,992, `Track` 109,727,
 `Stage` 10), finance (`Company`, `Filing`, `SIC`, `Vertical`). A label that drops to 0 means its loader's last run
 replaced it with nothing; check that loader's run ([dagster.md](dagster.md)).
 
-From outside the cluster, the tool-server's view: `curl -s http://192.168.1.243:30080/neo4j/health`.
+From outside the cluster, the tool-server's view: `curl -s http://192.168.1.243:30080/neo4j/health`. Since 2026-11-12
+(B38) it checks the **vector index**, not just the connection: `{"status":"ok","index_dims":768}` means the index exists,
+matches the embedder (bge-base, 768) and answered a real query. `"status":"error"` names what is wrong.
+
+### Vector index (`weyland_chunk_embedding`)
+
+The RAG `neo4j` backend (the tool-server's and the agent's) searches `Chunk.embedding` through this index. Its size must
+equal the embedder's output (768 since B74). **Check it** (read-only):
+
+```bash
+kubectl -n weyland exec deploy/neo4j -- sh -c 'cypher-shell -u neo4j -p "${NEO4J_AUTH#neo4j/}" --format plain "SHOW INDEXES YIELD name, state, populationPercent, options WHERE name = \"weyland_chunk_embedding\" RETURN name, state, populationPercent, options.indexConfig[\"vector.dimensions\"] AS dims;"'
+```
+
+Expected: `ONLINE`, `100.0`, `768`. **Rebuild it** (after an embedding-model swap, or if the size is wrong; it drops and
+recreates, then repopulates from the stored vectors, no re-embedding):
+
+```bash
+cd /home/edwardmangini/IdeaProjects/weyland && kubectl -n weyland exec -i deploy/neo4j -- sh -c 'cypher-shell -u neo4j -p "${NEO4J_AUTH#neo4j/}"' < nodes/mother/lab/weyland-platform/scripts/neo4j-vector-index-bootstrap.cypher
+```
+
+Then re-run the check until it shows `ONLINE` and `100.0`. It stayed at 384 from B74 (2026-07-28) to 2026-11-12, and every
+Neo4j vector query failed with `Index query vector has 768 dimensions, but indexed vectors have 384` while the old health
+check (`RETURN 1`) said ok.
 
 ## What broke? Symptom to cause
 

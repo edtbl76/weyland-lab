@@ -491,3 +491,78 @@ def test_context_ask_with_langfuse_false_creates_no_observation(client, monkeypa
     assert r.status_code == 200
     assert r.json()["answer"] == "an answer"   # the answer is unaffected — only the Langfuse trace is skipped
     assert lf.observations == []
+
+
+# --- Neo4j health: probe the VECTOR INDEX, never just the connection (B38 gap, 2026-11-12) ---------------------------
+# The index was 384-dim while every chunk (and the embedder) was 768 after B74: every neo4j search failed with
+# "Index query vector has 768 dimensions, but indexed vectors have 384" for months, and the old check (RETURN 1)
+# said ok the whole time.
+
+class _FakeResult:
+    def __init__(self, rec=None, exc=None):
+        self._rec, self._exc = rec, exc
+
+    def single(self):
+        if self._exc:
+            raise self._exc
+        return self._rec
+
+    def consume(self):
+        if self._exc:
+            raise self._exc
+
+
+class _FakeSession:
+    def __init__(self, dims=768, missing=False, query_exc=None):
+        self.dims, self.missing, self.query_exc, self.calls = dims, missing, query_exc, []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def run(self, query, **params):
+        self.calls.append(query)
+        if "SHOW INDEXES" in query:
+            return _FakeResult(None if self.missing else {"dims": self.dims})
+        if "queryNodes" in query:
+            assert len(params["v"]) == main.EMBED_DIM  # the probe is a real query vector of the embedder's size
+            return _FakeResult(exc=self.query_exc)
+        raise AssertionError(f"unexpected query: {query}")
+
+
+def _neo4j_with(monkeypatch, session):
+    monkeypatch.setattr(main, "neo4j_driver", type("D", (), {"session": lambda self: session})())
+
+
+def test_check_neo4j_ok_when_the_index_matches_the_embedder(monkeypatch):
+    s = _FakeSession(dims=main.EMBED_DIM)
+    _neo4j_with(monkeypatch, s)
+    out = main._check_neo4j()
+    assert out["status"] == "ok" and out["index_dims"] == main.EMBED_DIM
+    assert any("queryNodes" in q for q in s.calls)  # it ran a real vector query, not just RETURN 1
+
+
+def test_check_neo4j_errors_on_a_dimension_mismatch_without_querying(monkeypatch):
+    s = _FakeSession(dims=384)
+    _neo4j_with(monkeypatch, s)
+    out = main._check_neo4j()
+    assert out["status"] == "error"
+    assert "384" in out["detail"] and str(main.EMBED_DIM) in out["detail"]
+
+
+def test_check_neo4j_errors_when_the_vector_index_is_missing(monkeypatch):
+    _neo4j_with(monkeypatch, _FakeSession(missing=True))
+    out = main._check_neo4j()
+    assert out["status"] == "error" and main.NEO4J_VECTOR_INDEX in out["detail"]
+
+
+def test_check_neo4j_errors_when_the_probe_query_fails(monkeypatch):
+    _neo4j_with(monkeypatch, _FakeSession(query_exc=RuntimeError("index offline")))
+    out = main._check_neo4j()
+    assert out["status"] == "error" and "index offline" in out["detail"]
+
+
+def test_embed_dim_matches_the_model():
+    assert main.EMBED_DIM == 768 and "bge-base" in main.MODEL_NAME
