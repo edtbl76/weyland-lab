@@ -1391,7 +1391,8 @@ affected_apps() {
 # go-template is the only machine-readable format, and the payload is a SLICE
 # (`[]*woodpecker.Pipeline`) even for a single pipeline — `{{.Number}}` alone fails with
 # "can't evaluate field Number in type []*woodpecker.Pipeline". Hence the range.
-WP_FIELDS='go-template={{range .}}{{.Number}} {{.Status}}{{"\n"}}{{end}}'
+# Field 3 is the commit the pipeline checked out: FR1.3 compares it with HEAD (2026-11-13, see below).
+WP_FIELDS='go-template={{range .}}{{.Number}} {{.Status}} {{.Commit}}{{"\n"}}{{end}}'
 
 # pipeline_create_vars — the extra `pipeline create` arguments for RUN_FIXTURES (2026-09-26).
 # The loop creates its own pipeline, so the woodpecker runbook's "trigger ad-hoc runs LEAN" advice had no way
@@ -1720,10 +1721,13 @@ main() {
     abort
   fi
   errfile="$(mktemp)"
+  local create_out built
   # shellcheck disable=SC2086  # $extra is `--var SHIP_RUN=1 [--var RUN_FIXTURES=<0|1>]` — split on purpose
-  num="$(woodpecker-cli pipeline create "$REPO" --branch "$BASE" $extra --output "$WP_FIELDS" 2>"$errfile" | wp_field 1)" && create_rc=0 || create_rc=$?
+  create_out="$(woodpecker-cli pipeline create "$REPO" --branch "$BASE" $extra --output "$WP_FIELDS" 2>"$errfile")" && create_rc=0 || create_rc=$?
   create_err="$(cat "$errfile")"
   rm -f "$errfile"
+  num="$(printf '%s\n' "$create_out" | wp_field 1)"
+  built="$(printf '%s\n' "$create_out" | wp_field 3)"
   # A number, or nothing. `--output json` is accepted and silently ignored by woodpecker-cli v3, so
   # a successful call can still print the human table whose first field is the word "NUMBER".
   # Polling that would wait out the full timeout on a pipeline that does not exist.
@@ -1742,6 +1746,23 @@ main() {
   # From here on a branch may exist that no merge will claim. FR4.2 tracks it.
   ORPHAN_BRANCH="ci/image-bump-${short_sha}"
   printf '  pipeline #%s\n' "$num"
+
+  # The pipeline must build THIS commit. `--branch main` is resolved by the forge's API, and on 2026-11-13 a push that
+  # GitHub answered with a 500 left that API reporting the previous head (6a8e0a66) while the git ref was ef002d77:
+  # the pipeline built the stale commit, FR1.3 reported success, and only FR1.4 noticed — blaming a missing bump PR.
+  # A green build of the wrong commit is not evidence. No commit at all is not a match either (fail closed).
+  local head_sha
+  head_sha="$(git rev-parse HEAD)"
+  if [ -z "$built" ]; then
+    FAILED_GATE="FR1.3"
+    FAILED_REASON="pipeline #${num} to report the commit it builds — woodpecker-cli returned no commit (output: ${create_out}). Without it a build of the wrong commit is indistinguishable from this one."
+    abort
+  fi
+  if [ "$built" != "$head_sha" ]; then
+    FAILED_GATE="FR1.3"
+    FAILED_REASON="pipeline #${num} to build HEAD ${head_sha}, but it checked out ${built}. The forge's API still reports an older ${BASE} head (check: gh api repos/${REPO}/branches/${BASE} --jq .commit.sha); wait for it to report ${head_sha}, or push again, then re-run. Pipeline #${num} is building the old commit and opens no PR for this one."
+    abort
+  fi
 
   gate FR1.3 "pipeline #${num} completed successfully" poll_pipeline "$num" || abort
 

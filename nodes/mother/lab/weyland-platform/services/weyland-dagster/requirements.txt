@@ -253,7 +253,7 @@ six==1.17.0
 smmap==5.0.3
 snowplow-tracker==1.1.0
 soundfile==0.14.0
-soupsieve==2.9     # beautifulsoup4's CSS-selector engine (transitive; pinned for the offline build). 2026-10-26: 2.6 -> 2.9 for GHSA-836r-79rf-4m37, GHSA-2wc2-fm75-p42x, GHSA-gjv8-xp57-g29c, GHSA-j934-xhv5-fg8f
+soupsieve==4.0.1     # beautifulsoup4's CSS-selector engine (transitive; pinned for the offline build). 2026-10-26: 2.6 -> 2.9 for GHSA-836r-79rf-4m37, GHSA-2wc2-fm75-p42x, GHSA-gjv8-xp57-g29c, GHSA-j934-xhv5-fg8f. 2026-11-13: 2.9 -> 4.0.1 (owner-approved early adoption, 9 days old) for GHSA-mmhr-3c5m-f64f, GHSA-4j63-6c4x-wfg4
 soxr==1.1.0
 spinners==0.0.24
 SQLAlchemy==2.0.51

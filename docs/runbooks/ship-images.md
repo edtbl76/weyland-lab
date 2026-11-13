@@ -183,7 +183,7 @@ what the health check above uses; the loop no longer depends on your having done
 | — | *idempotence:* tag already live **and** no bump PR open → stop, "already deployed" | cluster + GitHub |
 | `DETECT` | change detection **succeeded**, so an empty plan means "nothing changed" and not "the detector broke" | `scripts/ci/detect-changes.sh` |
 | `FR-ARGO` | the `argocd` CLI session is **live**: `argocd app list --grpc-web -o name` exits 0 **and** lists at least one `<project>/<app>`. Checked before the trigger, so an expired session stops the run in seconds with the login command, not after a 2-hour build ending in an unsynced merge. A quiet day (nothing to ship) skips it. Added 2026-10-16: on the `git-ce787810` ship all 8 syncs failed into warnings, as they had in most ships that day | argocd CLI |
-| `FR1.3` | the pipeline reached `success` | Woodpecker API |
+| `FR1.3` | the pipeline checked out HEAD, then reached `success` | Woodpecker API |
 | `FR1.4` | the cluster is not already running this tag for the bumped image | live pods |
 | `FR2.1` | the PR originates from the **base repo, not a fork** | GitHub API |
 | `FR2.1` | every commit carries the `weyland-ci` git author name | GitHub API |
@@ -300,6 +300,14 @@ triggered; there is nothing to clean up.
 **`FR1.3`** — the build failed. The failing step's log is printed inline, not just a status. Common
 causes: `unpigz invalid deflate` = an oversized image layer (CUDA torch — use the CPU wheel);
 buildkitd unreachable = check `k8s/woodpecker/buildkitd.yaml`.
+
+**`FR1.3` "to build HEAD <sha>, but it checked out <other>"** — the pipeline was created for the wrong commit, and the
+ship stops before polling it. `--branch main` is resolved by GitHub's REST API, which can lag the git ref. On
+2026-11-13 a push that GitHub answered with `remote: Internal Server Error` landed (`git ls-remote` showed it), but the
+API kept reporting the previous head. Check what the API reports with
+`gh api repos/edtbl76/weyland-lab/branches/main --jq .commit.sha`. Wait until it reports HEAD, or push again, then
+re-run. The stray pipeline builds the old commit and opens no PR for this one. "returned no commit" means the CLI's
+output had no commit field: the check fails closed rather than trusting the build.
 
 **`FR1.4` "pipeline succeeded but opened no image-bump PR"** — this is C9 caught from the outside.
 Either `deploy-handoff` genuinely failed (check its step log) or nothing needed rebuilding. The

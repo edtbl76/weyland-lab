@@ -148,7 +148,7 @@ stub_git_pushed() {
 @test "FR1.3 surfaces the failing step's log rather than a bare status" {
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 failure'
   stub_case woodpecker-cli 'log' 0 'buildctl: failed to solve: unpigz invalid deflate'
   stub_dispatch kubectl
@@ -215,7 +215,7 @@ PY
 @test "RUN_FIXTURES=0 reaches the real pipeline create call" {
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 failure'
   stub_case woodpecker-cli 'log' 0 'stop here'
   stub_dispatch kubectl
@@ -227,7 +227,7 @@ PY
 @test "RUN_FIXTURES invalid aborts at FR1.3 BEFORE any pipeline is created" {
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 failure'   # terminal, so a missing guard fails fast in the Red run
   stub_case woodpecker-cli 'log' 0 'stop here'
   stub_dispatch kubectl
@@ -289,7 +289,7 @@ PY
 @test "FR-DRAIN: an in-flight run stops the loop BEFORE the merge" {
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
@@ -305,6 +305,42 @@ PY
   not_called_with gh 'pr merge'
 }
 
+@test "FR1.3 aborts when the pipeline built a different commit than HEAD, before polling" {
+  # 2026-11-13: a push that GitHub answered with a 500 left its REST API reporting the previous main head
+  # (6a8e0a66) while the git ref was ef002d77. `pipeline create --branch main` built the stale commit,
+  # FR1.3 reported "completed successfully", and only FR1.4 noticed, blaming a missing bump PR.
+  stub_git_pushed
+  stub_dispatch gh
+  stub_dispatch argocd
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending 6a8e0a66216f208eb4d2a28e436f16c7f7c8f29f'
+  stub_case woodpecker-cli 'pipeline show' 0 '42 success 6a8e0a66216f208eb4d2a28e436f16c7f7c8f29f'
+  SHIP_POLL_INTERVAL=0 run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"FR1.3"* ]]
+  [[ "$output" == *"6a8e0a66216f208eb4d2a28e436f16c7f7c8f29f"* && "$output" == *"aaaaaaaabbbbbbbbccccccccdddddddd"* ]]
+  [[ "$output" != *"completed successfully"*"✓ FR1.3"* ]]
+  ! called_with woodpecker-cli 'pipeline show'
+  not_called_with gh 'pr merge'
+}
+
+@test "FR1.3 fails closed when the created pipeline reports no commit" {
+  stub_git_pushed
+  stub_dispatch gh
+  stub_dispatch argocd
+  stub_dispatch kubectl
+  stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline show' 0 '42 success'
+  SHIP_POLL_INTERVAL=0 run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"FR1.3"* && "$output" == *"no commit"* ]]
+  ! called_with woodpecker-cli 'pipeline show'
+}
+
 @test "FR1.3 polls until the pipeline reaches a terminal state" {
   stub_git_pushed
   stub_dispatch kubectl
@@ -314,7 +350,7 @@ PY
   stub_dispatch gh
   stub_dispatch argocd
   stub_seq woodpecker-cli
-  stub_seq_add woodpecker-cli 0 '42 pending'
+  stub_seq_add woodpecker-cli 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_seq_add woodpecker-cli 0 '42 running'
   stub_seq_add woodpecker-cli 0 '42 running'
   stub_seq_add woodpecker-cli 0 '42 success'
@@ -326,7 +362,7 @@ PY
 @test "FR2.2 refuses to merge a PR that is not CI-authored, and says which condition failed" {
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	edtbl76'
@@ -345,7 +381,7 @@ PY
 @test "FR2.2 refuses to merge when the diff carries more than image-tag lines" {
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
@@ -362,7 +398,7 @@ PY
 @test "FR2.3 closes a superseded older bump before merging the newer one" {
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   # Two open bumps. #12 is the older one; merging it after #13 rolls images BACKWARDS.
@@ -382,7 +418,7 @@ PY
 @test "FR4.2/FR4.3 deletes the orphan branch on abort and still reports the gate, not the cleanup" {
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 failure'
   stub_case woodpecker-cli 'log' 0 'step build failed'
   # gh MUST be stubbed: cleanup now asks GitHub whether the branch backs an open PR, and an
@@ -411,7 +447,7 @@ PY
   # where this run died.
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 failure'
   stub_case woodpecker-cli 'log' 0 'step build failed'
   stub_dispatch gh
@@ -434,7 +470,7 @@ PY
   # to prevent — an unanswerable query read as a negative answer.
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 failure'
   stub_case woodpecker-cli 'log' 0 'step build failed'
   # gh cannot answer at all.
@@ -452,7 +488,7 @@ PY
 @test "FR1.5/NFR4 syncs only the affected app and verifies against the live resource" {
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
@@ -505,7 +541,7 @@ PY
   # pushed WITHOUT a PR. A branch with an open PR is not an orphan.
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	edtbl76'
@@ -973,7 +1009,7 @@ smoke_rows() {
   stub_dispatch gh
   stub_dispatch kubectl
   stub_case kubectl 'get' 0 'registry.weyland.lab/scan-suite:git-2c73c898'
-  printf '#!/usr/bin/env bash\ncase "$*" in\n  *"pipeline create"*) echo "41 pending"; exit 0 ;;\n  *) echo "Error: connection refused" >&2; exit 1 ;;\nesac\n' \
+  printf '#!/usr/bin/env bash\ncase "$*" in\n  *"pipeline create"*) echo "41 pending aaaaaaaabbbbbbbbccccccccdddddddd"; exit 0 ;;\n  *) echo "Error: connection refused" >&2; exit 1 ;;\nesac\n' \
     > "$STUB_DIR/woodpecker-cli"
   chmod +x "$STUB_DIR/woodpecker-cli"
   SHIP_POLL_INTERVAL=1 SHIP_POLL_TIMEOUT=3 WOODPECKER_TOKEN=t SHIP_ENV_FILE=/nonexistent run bash "$SHIP"
@@ -1591,7 +1627,7 @@ flink_stub() { # flink_stub <cdc state> <cdc ack ms> <jars line>
   # before giving up, not check once. Checking once would satisfy a naive "it eventually failed" test.
   stub_git_pushed
   stub_dispatch woodpecker-cli
-  stub_case woodpecker-cli 'pipeline create' 0 '42 pending'
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
   stub_case woodpecker-cli 'pipeline show' 0 '42 success'
   stub_dispatch gh
   stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
