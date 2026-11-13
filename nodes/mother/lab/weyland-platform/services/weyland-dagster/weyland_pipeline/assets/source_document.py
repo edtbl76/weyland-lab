@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -21,6 +22,10 @@ _EXCLUDE_SUBSTRINGS = ("encryption-key", "secret")
 _EXCLUDE_DIR_COMPONENTS = {"node_modules", "__pycache__", ".git"}
 # Path prefixes (repo-relative, posix) that exclude the whole subtree.
 _EXCLUDE_PREFIXES = ("nodes/openclaw/lab/",)
+# Test code is not knowledge, and a test that quotes an eval question verbatim gets retrieved as that question's
+# "relevant context" (B247, 2026-11-13). Any `tests/` directory, and test modules by their pytest/Go naming.
+_EXCLUDE_TEST_DIRS = {"tests"}
+_TEST_FILE = re.compile(r"^(?:test_.+\.py|.+_test\.(?:py|go)|conftest\.py)$")
 
 
 def _is_excluded(rel_posix: str) -> bool:
@@ -34,7 +39,8 @@ def _is_excluded(rel_posix: str) -> bool:
         return True
     if any(rel_posix.startswith(prefix) for prefix in _EXCLUDE_PREFIXES):
         return True
-    return False
+    path = PurePosixPath(rel_posix)
+    return bool(set(path.parts[:-1]) & _EXCLUDE_TEST_DIRS) or bool(_TEST_FILE.match(path.name))
 
 
 def _has_shebang(abs_path: str) -> bool:

@@ -19,6 +19,29 @@ Written by B239 (2026-11-08), which found no runbook for operating it.
 
 Each consumer has its own consumer group (`rag-index-<store>`), so the five stores advance independently.
 
+## What goes into the corpus
+
+The producer clones `main` and keeps (`weyland_pipeline/assets/source_document.py`):
+
+- `docs/**/*.md`, as markdown;
+- under `nodes/`: `.md`, plus code (`.py` `.yaml` `.yml` `.sql` `.cypher` `.sh` `.service` `.template`,
+  `Dockerfile`, and shebang scripts in a `bin/`).
+
+It skips, anywhere in the path:
+
+- secrets and binaries (`.key` `.pem` `.env` `.lock`, images, PDFs, anything named `secret` or `encryption-key`);
+- vendored and cache directories (`node_modules`, `__pycache__`, `.git`);
+- `nodes/openclaw/lab/`;
+- **test code** (B247, 2026-11-13): any `tests/` directory, `test_*.py`, `*_test.py`/`*_test.go`, `conftest.py`.
+
+Why test code is skipped: a tool-server test quoted an eval question verbatim, and retrieval served that file as the
+question's "relevant context" (Kafka vs Spark, context relevancy 0.87 → 0.33). The audit
+`test_no_eval_question_appears_verbatim_in_the_rag_corpus` (weyland-dagster `tests/test_asset_logic.py`, run by CI) walks
+the repo exactly as the producer does. It fails if any question from a pinned exam (`eval_sets/*.json`) appears word for
+word in a document that would be indexed. The prompt-regression gate set `regression.json` is exempt, because it
+mirrors `promptfoo.yaml` and the demo docs by design. A path that stops matching is removed from the stores by the
+producer's next run (manifest pruning, delete tombstones).
+
 ## Is it healthy?
 
 All five consumers running:

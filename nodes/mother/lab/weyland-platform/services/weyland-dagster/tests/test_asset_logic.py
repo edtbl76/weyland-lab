@@ -71,6 +71,45 @@ def test_is_excluded_false_for_normal_source(sd, path):
     assert sd._is_excluded(path) is False
 
 
+# B247 closing gap (2026-11-13): test code is not knowledge. A test that quotes an eval question verbatim was retrieved
+# as "relevant context" for that question (Kafka vs Spark, ctx 0.87 -> 0.33), so tests stay out of the RAG corpus.
+@pytest.mark.parametrize("path", [
+    "nodes/x/svc/tests/test_main.py", "nodes/x/svc/tests/conftest.py", "nodes/x/svc/tests/fixtures/sample.yaml",
+    "nodes/x/svc/test_app.py", "nodes/x/svc/app_test.py", "nodes/x/svc/conftest.py",
+])
+def test_is_excluded_true_for_test_code(sd, path):
+    assert sd._is_excluded(path) is True
+
+
+@pytest.mark.parametrize("path", ["nodes/x/svc/testset.py", "nodes/x/svc/contest.py", "docs/runbooks/testing.md",
+                                  "nodes/x/svc/eval_testset.py"])
+def test_is_excluded_false_for_names_that_only_look_like_tests(sd, path):
+    assert sd._is_excluded(path) is False
+
+
+def test_no_eval_question_appears_verbatim_in_the_rag_corpus(sd):
+    """Audit: walk the real repo exactly as the producer does and fail if any pinned eval question is in a document
+    the corpus would index. An exam answered from a copy of itself measures nothing."""
+    import json
+    repo = os.path.abspath(os.path.join(_ROOT, "..", "..", "..", "..", "..", ".."))
+    assert os.path.isdir(os.path.join(repo, "docs")) and os.path.isdir(os.path.join(repo, "nodes")), repo
+    sets_dir = os.path.join(_ROOT, "weyland_pipeline", "eval_sets")
+    # Every exam is audited, so a new set is covered by default. The one exemption: `regression` is the prompt-
+    # regression GATE, which by design mirrors promptfoo.yaml and the demo docs' questions; it does not measure retrieval.
+    audited = sorted(n for n in os.listdir(sets_dir) if n.endswith(".json") and n != "regression.json")
+    assert {"golden.json", "multi_entity.json"} <= set(audited)
+    questions = sorted({q["q"].strip() for name in audited
+                        for q in json.load(open(os.path.join(sets_dir, name)))["questions"]})
+    assert len(questions) >= 20, "no eval questions found: the audit would pass vacuously"
+
+    class _Log:
+        def warning(self, *a): pass
+    docs = sd._walk_documents(repo, _Log())
+    assert len(docs) > 100, "the walk found almost nothing: the audit would pass vacuously"
+    leaks = sorted({(d["source_path"], q[:60]) for d in docs for q in questions if q in d["content"]})
+    assert not leaks, f"eval questions found verbatim in the RAG corpus: {leaks}"
+
+
 # ── source_document: shebang + classification ────────────────────────────────────────────────────────
 def test_has_shebang(sd, tmp_path):
     yes = tmp_path / "run"; yes.write_bytes(b"#!/bin/sh\necho hi")

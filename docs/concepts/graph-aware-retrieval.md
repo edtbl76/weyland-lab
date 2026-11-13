@@ -88,6 +88,8 @@ hurt ordinary questions?). Baselines: `neo4j` k=3 (run 40, golden 36) and k=6 (r
 | contextual sub-queries (47 / 49) | per entity, "<entity> — <whole question>" | 6/10 | 0.972 | lost: unlinked ctx 0.517 |
 | **adaptive depth** (48 / 50) | the pattern only DETECTS a comparison; those get 2 x k | **8/10** | 0.937 | **adopted** |
 
+**Confirmed on `pgvector`** (the default backend) after adoption, same exam, live before/after (runs 51 → 52): both entities 5/10 → 7/10 (RACI and Git workflow recovered; Service Blueprinting still missed), linked context relevancy flat (0.769), linked faithfulness 0.831 → 0.861. Unlinked answer scores fell on two questions: feature store (the corpus gap — more chunks, still no right one) and Kafka vs Spark, where the extra slot went to the stale `test_main.py` chunk holding the exam's wording (the corpus still had it at run time; see learning 5).
+
 Adaptive depth also had the best linked faithfulness (0.914) and the best golden lexical context relevancy (0.838), at no
 extra latency or model call. The other two misses (feature store vs RAG retrieval; Tech Radar vs Wardley Map) are a
 corpus gap: no entry covers the second entity.
@@ -104,5 +106,6 @@ corpus gap: no entry covers the second entity.
 4. **A small local model is the wrong tool on the retrieval path.** It was slower than the answer model's generation
    and its entity lists hurt ordinary questions.
 5. **Eval contamination:** the RAG corpus indexes this repository, and the tool-server's test file held the exam's
-   exact questions, so it was retrieved as "relevant context" (Kafka vs Spark, ctx 0.87 → 0.33). The tests now use
-   paraphrases.
+   exact questions, so it was retrieved as "relevant context" (Kafka vs Spark, ctx 0.87 → 0.33). Fixed at the root:
+   test code no longer enters the corpus, and a CI audit fails if any pinned-exam question appears verbatim in an
+   indexed document (`docs/runbooks/rag-stream.md` § What goes into the corpus).
