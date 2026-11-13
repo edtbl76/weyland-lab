@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
         - name: feast-server
-          image: registry.weyland.lab/feast-server:git-38bf1035
+          image: registry.weyland.lab/feast-server:git-c04080e6
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 6566, name: http }
