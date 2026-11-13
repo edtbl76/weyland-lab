@@ -628,3 +628,82 @@ def test_expand_without_edges_is_just_the_vector_top():
 def test_graph_backends_are_registered():
     assert {"neo4j_graph_rerank", "neo4j_graph_expand"} <= set(main.SEARCH_FNS) and \
         {"neo4j_graph_rerank", "neo4j_graph_expand"} <= main.VALID_BACKENDS
+
+
+# --- B247: query decomposition for two-entity questions --------------------------------------------------------------
+MULTI = {
+    "How do Event Storming and Service Blueprinting differ in what they map, and when would you use each?":
+        ["Event Storming", "Service Blueprinting"],
+    "How can stakeholder mapping and a RACI matrix be used together when planning a change?":
+        ["stakeholder mapping", "RACI matrix"],
+    "What is the difference between MoSCoW prioritization and RICE scoring?": ["MoSCoW prioritization", "RICE scoring"],
+    "How do Jobs-to-be-Done research and the Kano model complement each other in product discovery?":
+        ["Jobs-to-be-Done research", "Kano model"],
+    "How does a Tech Radar differ from a Wardley Map as a tool for technology strategy?": ["Tech Radar", "Wardley Map"],
+    "What is the difference between concept drift and data drift in a machine learning system?":
+        ["concept drift", "data drift"],
+    "When would you use Kafka versus Spark in a data platform?": ["Kafka", "Spark"],
+    "How do LLM caching and the choice between online and batch inference each affect serving cost and latency?":
+        ["LLM caching", "choice between online and batch inference"],
+    "How do a Git workflow and automated code formatting and linting work together to keep a codebase consistent?":
+        ["Git workflow", "automated code formatting and linting"],
+    "How does a feature store differ from the retrieval layer of a retrieval-augmented generation system?":
+        ["feature store", "retrieval layer of a retrieval-augmented generation system"],
+}
+SINGLE = [
+    "What are the five building blocks of successful change adoption in the ADKAR model?",
+    "When should affinity mapping be used in a project workflow?",
+    "How does affinity mapping facilitate conversion from raw research data to structured insights?",
+    "Which Traefik setting had to be changed to stop large image pushes to the registry failing at 60 seconds?",
+    "What port does the Redpanda Kafka API listen on?",
+    "What role do direct managers play in the success of individual change according to ADKAR?",
+]
+
+
+@pytest.mark.parametrize("question,expected", sorted(MULTI.items()))
+def test_rule_splits_every_two_entity_question(question, expected):
+    assert main.decompose_rule(question) == expected
+
+
+@pytest.mark.parametrize("question", SINGLE)
+def test_rule_leaves_single_concept_questions_whole(question):
+    assert main.decompose_rule(question) == [question]
+
+
+def test_rule_splits_the_golden_comparison_question():
+    q = "How does the ADKAR model differ from Kotter's 8-step change management framework?"
+    assert main.decompose_rule(q) == ["ADKAR model", "Kotter's 8-step change management framework"]
+
+
+def test_parse_entities_accepts_two_or_three():
+    assert main.parse_entities('{"entities": ["Kafka", "Spark"]}', "q") == ["Kafka", "Spark"]
+    assert main.parse_entities('{"entities": ["a", "b", "c", "d"]}', "q") == ["a", "b", "c"]  # capped
+
+
+@pytest.mark.parametrize("raw", ['not json', '{"entities": []}', '{"entities": ["only"]}', '{"x": 1}',
+                                 '{"entities": [1, 2]}', '["a", "b"]'])
+def test_parse_entities_falls_back_to_the_whole_question(raw):
+    assert main.parse_entities(raw, "the question") == ["the question"]
+
+
+def test_merge_interleaves_dedupes_and_caps():
+    a = [_hit("a1", .9), _hit("a2", .8), _hit("x", .7)]
+    b = [_hit("b1", .85), _hit("x", .75), _hit("b2", .6)]
+    out = main.merge_per_entity([a, b], cap=6)
+    assert [h["doc"] for h in out] == ["a1", "b1", "a2", "x", "b2"]  # x once (its first appearance), round-robin
+    assert len(main.merge_per_entity([a, b], cap=3)) == 3
+
+
+def test_merge_of_one_list_is_that_list():
+    a = [_hit("a1", .9), _hit("a2", .8)]
+    assert [h["doc"] for h in main.merge_per_entity([a], cap=3)] == ["a1", "a2"]
+
+
+def test_decompose_backends_are_registered():
+    assert {"neo4j_decompose_rule", "neo4j_decompose_llm"} <= set(main.SEARCH_FNS) <= main.VALID_BACKENDS | set(main.SEARCH_FNS)
+    assert {"neo4j_decompose_rule", "neo4j_decompose_llm"} <= main.VALID_BACKENDS
+
+
+def test_rule_leaves_an_overlong_question_whole_without_matching():
+    q = "How do " + "a and b " * 200 + "differ?"   # > DECOMPOSE_MAX_CHARS: never reaches the backtracking patterns
+    assert len(q) > main.DECOMPOSE_MAX_CHARS and main.decompose_rule(q) == [q]

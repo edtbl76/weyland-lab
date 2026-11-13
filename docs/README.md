@@ -23,6 +23,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [model-serving-hardware.md](concepts/model-serving-hardware.md) — MS-A2 sizing, model throughput, context windows
 - [agent-platform-design.md](concepts/agent-platform-design.md) — Hermes agent design, MCP seam, A2A
 - [data-schema.md](concepts/data-schema.md) — RAG (4 backends) + eval store schemas, ground-truth-validated
+- [graph-aware-retrieval.md](concepts/graph-aware-retrieval.md) — B38 verdict: traversing the declared KB graph does not beat vector search (measured)
 - [multi-harness.md](concepts/multi-harness.md) — the harness layer (Claude Code, Codex, OpenCode, Pi, Open WebUI, operator), what they share, shared memory (B182, TBD)
 - [spec-driven-frameworks.md](concepts/spec-driven-frameworks.md) — the measured SDD bake-off (B86): no framework beat plain Claude Code; OpenSpec where an area keeps changing
 - [software-factory.md](concepts/software-factory.md) — the agent conveyor decision: Emdash ADOPTED (B179); Warp Factories, OpenHands and Delta (B210, 2026-10-29) DON'T ADOPT, with the trial runs and re-open triggers

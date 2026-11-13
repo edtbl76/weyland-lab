@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import urllib.request
 import uuid
@@ -135,7 +136,8 @@ def validate_required_secrets() -> None:
 # Fail loudly at import/startup, before the app builds connections.
 validate_required_secrets()
 
-VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j", "neo4j_graph_rerank", "neo4j_graph_expand"}  # B38: +2 graph modes
+VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j", "neo4j_graph_rerank", "neo4j_graph_expand",  # B38: graph modes
+                  "neo4j_decompose_rule", "neo4j_decompose_llm"}  # B247: query decomposition
 
 embed_model: OnnxBge | None = None
 qdrant_client: QdrantClient | None = None
@@ -610,6 +612,107 @@ def _search_neo4j_graph_expand(query: str, limit: int) -> list[dict]:
     return _public(graph_expand(hits, related, nb, limit))
 
 
+# --- B247: query decomposition for two-entity questions --------------------------------------------------------------
+# B38 found plain vector search retrieves only ONE of two named entities in 5 of 10 two-entity questions: the stronger
+# term dominates the query embedding. Decomposition retrieves once per named entity and merges the results. Two ways
+# to find the entities, measured against each other: a pattern rule (free, instant, misses unusual phrasing) and a
+# small local model (llama3.2:3b, pinned to CPU so it never evicts the answer model from the GPU). A question that does
+# not decompose is retrieved exactly as plain `neo4j` does.
+DECOMPOSE_MODEL = os.getenv("DECOMPOSE_MODEL", "llama3.2:3b")
+DECOMPOSE_TIMEOUT = float(os.getenv("DECOMPOSE_TIMEOUT", "20"))
+MAX_ENTITIES = 3
+# The patterns backtrack polynomially on long input (Sonar S5852): they only make sense on a short question, so a
+# longer one is retrieved whole and never matched.
+DECOMPOSE_MAX_CHARS = 300
+_ARTICLE = re.compile(r"^(?:a|an|the)\s+", re.IGNORECASE)
+_DECOMPOSE_PATTERNS = [
+    re.compile(r"\bdifference between (?P<a>.+?) and (?P<b>.+?)(?: in (?:a|an|the) .*)?$", re.IGNORECASE),
+    re.compile(r"^how (?:does|do) (?P<a>.+?) differ from (?P<b>.+?)(?: (?:as|in) (?:a|an|the) .*)?$", re.IGNORECASE),
+    re.compile(r"\buse (?P<a>.+?) (?:vs\.?|versus) (?P<b>.+?)(?: in (?:a|an|the) .*)?$", re.IGNORECASE),
+    re.compile(r"^(?P<a>.+?) (?:vs\.?|versus) (?P<b>.+)$", re.IGNORECASE),
+    re.compile(r"^how (?:do|does|can) (?P<a>.+?) and (?P<b>.+?) "
+               r"(?:differ|relate|complement|compare|work|be used|each)\b", re.IGNORECASE),
+]
+
+
+def _entity(text: str) -> str:
+    return _ARTICLE.sub("", text.strip().strip(",")).strip()
+
+
+def decompose_rule(question: str) -> list[str]:
+    """The two entities a comparison question names, or [question] when it names fewer (single-concept questions are
+    left whole). Pure."""
+    q = question.strip().rstrip("?").strip()
+    if len(q) > DECOMPOSE_MAX_CHARS:
+        return [question]
+    for pattern in _DECOMPOSE_PATTERNS:
+        m = pattern.search(q)
+        if m:
+            a, b = _entity(m.group("a")), _entity(m.group("b"))
+            if a and b and a.lower() != b.lower():
+                return [a, b]
+    return [question]
+
+
+def parse_entities(raw: str, question: str) -> list[str]:
+    """Strict parse of the extractor's JSON ({"entities": [...]}): 2-3 non-empty strings, else [question]. Pure."""
+    try:
+        data = json.loads(raw)
+    except (TypeError, ValueError):
+        return [question]
+    items = data.get("entities") if isinstance(data, dict) else None
+    if not isinstance(items, list) or not all(isinstance(x, str) for x in items):
+        return [question]
+    entities = [x.strip() for x in items if x.strip()][:MAX_ENTITIES]
+    return entities if len(entities) >= 2 else [question]
+
+
+def merge_per_entity(results: list[list[dict]], cap: int) -> list[dict]:
+    """Round-robin across the per-entity result lists, keeping each chunk's first appearance, up to `cap`. Pure."""
+    out, seen = [], set()
+    for rank in range(max((len(r) for r in results), default=0)):
+        for r in results:
+            if rank < len(r):
+                key = (r[rank].get("doc") or r[rank].get("source"), r[rank].get("chunk_index"))
+                if key not in seen:
+                    seen.add(key)
+                    out.append(r[rank])
+    return out[:cap]
+
+
+def decompose_llm(question: str) -> list[str]:
+    """Ask a small local model for the entities (Ollama native API, JSON, temperature 0, CPU only). Any failure —
+    unreachable, timeout, junk — falls back to the whole question: never an empty retrieval."""
+    prompt = ("List the distinct things this question asks about, as short noun phrases, in JSON "
+              '{"entities": ["...", "..."]}. If it asks about only one thing, return just that one.\nQuestion: '
+              + question)
+    try:
+        resp = httpx.post(
+            f"{OLLAMA_BASE_URL.removesuffix('/v1')}/api/chat",
+            json={"model": DECOMPOSE_MODEL, "messages": [{"role": "user", "content": prompt}], "stream": False,
+                  "format": "json", "options": {"num_gpu": 0, "temperature": 0}},
+            timeout=DECOMPOSE_TIMEOUT, headers=_ollama_headers())
+        resp.raise_for_status()
+        return parse_entities(resp.json()["message"]["content"], question)
+    except (httpx.HTTPError, KeyError, ValueError):
+        return [question]
+
+
+def _search_decomposed(question: str, limit: int, entities: list[str]) -> list[dict]:
+    if len(entities) < 2:
+        return [dict(c, via="whole") for c in _search_neo4j(question, limit)]
+    merged = merge_per_entity([_search_neo4j(e, limit) for e in entities], cap=limit * len(entities))
+    return [dict(c, via="decomposed") for c in merged]
+
+
+def _search_neo4j_decompose_rule(query: str, limit: int) -> list[dict]:
+    return _search_decomposed(query, limit, decompose_rule(query))
+
+
+def _search_neo4j_decompose_llm(query: str, limit: int) -> list[dict]:
+    return _search_decomposed(query, limit, decompose_llm(query))
+
+
 SEARCH_FNS = {
     "pgvector": _search_pgvector,
     "qdrant": _search_qdrant,
@@ -617,6 +720,8 @@ SEARCH_FNS = {
     "neo4j": _search_neo4j,
     "neo4j_graph_rerank": _search_neo4j_graph_rerank,
     "neo4j_graph_expand": _search_neo4j_graph_expand,
+    "neo4j_decompose_rule": _search_neo4j_decompose_rule,
+    "neo4j_decompose_llm": _search_neo4j_decompose_llm,
 }
 
 
