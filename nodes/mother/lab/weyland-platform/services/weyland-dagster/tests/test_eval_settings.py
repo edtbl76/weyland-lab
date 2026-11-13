@@ -25,8 +25,8 @@ def test_empty_config_keeps_the_env_defaults():
 
 
 def test_given_values_win():
-    out = es.resolve_run_settings("neo4j_graph_rerank", ["qwen3:30b-a3b"], 6, DEFAULTS)
-    assert out == {"backend": "neo4j_graph_rerank", "models": ["qwen3:30b-a3b"], "ask_limit": 6}
+    out = es.resolve_run_settings("neo4j", ["qwen3:30b-a3b"], 6, DEFAULTS)
+    assert out == {"backend": "neo4j", "models": ["qwen3:30b-a3b"], "ask_limit": 6}
 
 
 def test_models_are_trimmed_and_blank_entries_dropped():
@@ -54,8 +54,14 @@ def test_a_negative_depth_fails():
         es.resolve_run_settings(None, None, -1, DEFAULTS)
 
 
-def test_valid_backends_include_both_graph_modes():
-    assert {"neo4j", "neo4j_graph_rerank", "neo4j_graph_expand"} <= es.VALID_BACKENDS
+def test_valid_backends_are_the_four_stores():
+    # B247 (2026-11-13): the measured experimental retrieval modes are retired; the tool server serves the four stores.
+    assert es.VALID_BACKENDS == {"pgvector", "qdrant", "weaviate", "neo4j"}
+
+
+def test_a_retired_mode_fails_before_the_run():
+    with pytest.raises(ValueError, match="unknown eval backend"):
+        es.resolve_run_settings("neo4j_graph_rerank", None, None, DEFAULTS)
 
 
 # --- question_set: which pinned exam a run takes (B38 Phase 0 follow-up) -------------------------------------------

@@ -5,7 +5,6 @@ the Verdict the guard returns, the fail-open error dict a backend check returns 
 Backends (pg/qdrant/weaviate/neo4j/ollama/dagster) are stubbed per-test to a fixture value, and we assert how the
 handler SHAPES that into its response. The live store/LLM round-trips are validated in the running system.
 """
-import io
 import json
 
 import httpx
@@ -568,163 +567,77 @@ def test_embed_dim_matches_the_model():
     assert main.EMBED_DIM == 768 and "bge-base" in main.MODEL_NAME
 
 
-# --- B38 Phase 0: graph-aware retrieval, pure scoring ----------------------------------------------------------------
-# A hit is {doc, source, chunk_index, similarity, content}; related maps a doc id to the doc ids it is RELATED_TO
-# (undirected); neighbour_best maps a doc id to its best chunk for this query (a hit-shaped dict).
-
-def _hit(doc, sim, idx=0):
-    return {"doc": doc, "source": doc + ".md", "chunk_index": idx, "similarity": sim, "content": doc}
-
-
-def test_rerank_without_graph_edges_is_plain_vector_order():
-    hits = [_hit("a", 0.9), _hit("b", 0.8), _hit("c", 0.7), _hit("d", 0.6)]
-    out = main.graph_rerank(hits, related={}, neighbour_best={}, limit=3)
-    assert [h["doc"] for h in out] == ["a", "b", "c"]  # the lexical control: nothing changes
-
-
-def test_rerank_lifts_a_hit_the_other_hits_point_to():
-    # d is weakest by similarity but RELATED_TO three other hits; c has no links.
-    hits = [_hit("a", 0.80), _hit("b", 0.79), _hit("c", 0.78), _hit("d", 0.76), _hit("e", 0.70)]
-    related = {"d": {"a", "b", "e"}, "a": {"d"}, "b": {"d"}, "e": {"d"}}
-    out = main.graph_rerank(hits, related=related, neighbour_best={}, limit=3)
-    assert "d" in [h["doc"] for h in out] and "c" not in [h["doc"] for h in out]
-
-
-def test_rerank_same_document_hits_give_no_bonus():
-    hits = [_hit("a", 0.9, 0), _hit("a", 0.8, 1), _hit("b", 0.85)]
-    out = main.graph_rerank(hits, related={}, neighbour_best={}, limit=3)
-    assert [h["similarity"] for h in out] == [0.9, 0.85, 0.8]
-
-
-def test_rerank_can_bring_in_a_related_neighbour_chunk():
-    hits = [_hit("a", 0.80), _hit("b", 0.79), _hit("c", 0.60)]
-    related = {"a": {"n"}, "b": {"n"}, "n": {"a", "b"}}
-    out = main.graph_rerank(hits, related=related, neighbour_best={"n": _hit("n", 0.70)}, limit=3)
-    assert [h["doc"] for h in out][:3].count("n") == 1 and "c" not in [h["doc"] for h in out]
-    assert [h for h in out if h["doc"] == "n"][0]["via"] == "related"
-
-
-def test_rerank_never_returns_more_than_limit_and_reports_similarity_unchanged():
-    hits = [_hit(x, 0.9 - i / 100) for i, x in enumerate("abcdefgh")]
-    out = main.graph_rerank(hits, related={"a": {"b"}, "b": {"a"}}, neighbour_best={}, limit=3)
-    assert len(out) == 3 and out[0]["similarity"] == 0.9  # the graph changes ORDER, not the reported score
-
-
-def test_expand_keeps_the_vector_top_and_appends_one_neighbour_per_hit():
-    hits = [_hit("a", 0.9), _hit("b", 0.8), _hit("c", 0.7), _hit("d", 0.6)]
-    related = {"a": {"n1"}, "b": {"n2", "a"}, "c": set()}
-    nb = {"n1": _hit("n1", 0.5), "n2": _hit("n2", 0.55)}
-    out = main.graph_expand(hits, related=related, neighbour_best=nb, limit=3)
-    assert [h["doc"] for h in out[:3]] == ["a", "b", "c"]
-    assert [h["doc"] for h in out[3:]] == ["n1", "n2"]  # a is already in; c has no neighbour
-    assert all(h["via"] == "related" for h in out[3:])
-
-
-def test_expand_without_edges_is_just_the_vector_top():
-    hits = [_hit("a", 0.9), _hit("b", 0.8), _hit("c", 0.7), _hit("d", 0.6)]
-    assert [h["doc"] for h in main.graph_expand(hits, {}, {}, limit=3)] == ["a", "b", "c"]
-
-
-def test_graph_backends_are_registered():
-    assert {"neo4j_graph_rerank", "neo4j_graph_expand"} <= set(main.SEARCH_FNS) and \
-        {"neo4j_graph_rerank", "neo4j_graph_expand"} <= main.VALID_BACKENDS
-
-
-# --- B247: query decomposition for two-entity questions --------------------------------------------------------------
-MULTI = {
-    "How do Event Storming and Service Blueprinting differ in what they map, and when would you use each?":
-        ["Event Storming", "Service Blueprinting"],
-    "How can stakeholder mapping and a RACI matrix be used together when planning a change?":
-        ["stakeholder mapping", "RACI matrix"],
-    "What is the difference between MoSCoW prioritization and RICE scoring?": ["MoSCoW prioritization", "RICE scoring"],
-    "How do Jobs-to-be-Done research and the Kano model complement each other in product discovery?":
-        ["Jobs-to-be-Done research", "Kano model"],
-    "How does a Tech Radar differ from a Wardley Map as a tool for technology strategy?": ["Tech Radar", "Wardley Map"],
-    "What is the difference between concept drift and data drift in a machine learning system?":
-        ["concept drift", "data drift"],
-    "When would you use Kafka versus Spark in a data platform?": ["Kafka", "Spark"],
-    "How do LLM caching and the choice between online and batch inference each affect serving cost and latency?":
-        ["LLM caching", "choice between online and batch inference"],
-    "How do a Git workflow and automated code formatting and linting work together to keep a codebase consistent?":
-        ["Git workflow", "automated code formatting and linting"],
-    "How does a feature store differ from the retrieval layer of a retrieval-augmented generation system?":
-        ["feature store", "retrieval layer of a retrieval-augmented generation system"],
-}
-SINGLE = [
-    "What are the five building blocks of successful change adoption in the ADKAR model?",
-    "When should affinity mapping be used in a project workflow?",
-    "How does affinity mapping facilitate conversion from raw research data to structured insights?",
-    "Which Traefik setting had to be changed to stop large image pushes to the registry failing at 60 seconds?",
+# --- B247: adaptive retrieval depth for comparison questions --------------------------------------------------------
+# Fixtures paraphrase the eval's two-entity questions on purpose: the RAG corpus indexes this repo, and a test file
+# holding the exam's exact wording is retrieved as "relevant context" for it (run 47/48, Kafka question).
+COMPARISONS = [
+    "Explain the difference between event sourcing and CQRS",
+    "How does a data lake differ from a data warehouse?",
+    "When should a team use REST versus gRPC in its services?",
+    "Postgres vs. MySQL",
+    "How do feature flags and trunk-based development work together?",
+    "How can user interviews and surveys complement each other?",
+]
+NOT_COMPARISONS = [
+    "What are the five building blocks of the ADKAR model?",
+    "Which Traefik setting stops large registry pushes failing at 60 seconds?",
     "What port does the Redpanda Kafka API listen on?",
-    "What role do direct managers play in the success of individual change according to ADKAR?",
+    "How do I restore the Linear backup?",
 ]
 
 
-@pytest.mark.parametrize("question,expected", sorted(MULTI.items()))
-def test_rule_splits_every_two_entity_question(question, expected):
-    assert main.decompose_rule(question) == expected
+@pytest.mark.parametrize("question", COMPARISONS)
+def test_a_comparison_question_is_detected(question):
+    assert main.is_comparison(question)
 
 
-@pytest.mark.parametrize("question", SINGLE)
-def test_rule_leaves_single_concept_questions_whole(question):
-    assert main.decompose_rule(question) == [question]
+@pytest.mark.parametrize("question", NOT_COMPARISONS)
+def test_a_single_concept_question_is_not_a_comparison(question):
+    assert not main.is_comparison(question)
 
 
-def test_rule_splits_the_golden_comparison_question():
-    q = "How does the ADKAR model differ from Kotter's 8-step change management framework?"
-    assert main.decompose_rule(q) == ["ADKAR model", "Kotter's 8-step change management framework"]
+def test_the_same_thing_twice_is_not_a_comparison():
+    assert not main.is_comparison("What is the difference between Kafka and kafka?")
 
 
-def test_parse_entities_accepts_two_or_three():
-    assert main.parse_entities('{"entities": ["Kafka", "Spark"]}', "q") == ["Kafka", "Spark"]
-    assert main.parse_entities('{"entities": ["a", "b", "c", "d"]}', "q") == ["a", "b", "c"]  # capped
+def test_an_overlong_question_is_never_matched():
+    q = "How does " + "x " * 200 + "differ from y?"
+    assert len(q) > main.COMPARISON_MAX_CHARS and not main.is_comparison(q)
 
 
-@pytest.mark.parametrize("raw", ['not json', '{"entities": []}', '{"entities": ["only"]}', '{"x": 1}',
-                                 '{"entities": [1, 2]}', '["a", "b"]'])
-def test_parse_entities_falls_back_to_the_whole_question(raw):
-    assert main.parse_entities(raw, "the question") == ["the question"]
-
-
-def test_merge_interleaves_dedupes_and_caps():
-    a = [_hit("a1", .9), _hit("a2", .8), _hit("x", .7)]
-    b = [_hit("b1", .85), _hit("x", .75), _hit("b2", .6)]
-    out = main.merge_per_entity([a, b], cap=6)
-    assert [h["doc"] for h in out] == ["a1", "b1", "a2", "x", "b2"]  # x once (its first appearance), round-robin
-    assert len(main.merge_per_entity([a, b], cap=3)) == 3
-
-
-def test_merge_of_one_list_is_that_list():
-    a = [_hit("a1", .9), _hit("a2", .8)]
-    assert [h["doc"] for h in main.merge_per_entity([a], cap=3)] == ["a1", "a2"]
-
-
-def test_decompose_backends_are_registered():
-    assert {"neo4j_decompose_rule", "neo4j_decompose_llm"} <= set(main.SEARCH_FNS) <= main.VALID_BACKENDS | set(main.SEARCH_FNS)
-    assert {"neo4j_decompose_rule", "neo4j_decompose_llm"} <= main.VALID_BACKENDS
-
-
-def test_rule_leaves_an_overlong_question_whole_without_matching():
-    q = "How do " + "a and b " * 200 + "differ?"   # > DECOMPOSE_MAX_CHARS: never reaches the backtracking patterns
-    assert len(q) > main.DECOMPOSE_MAX_CHARS and main.decompose_rule(q) == [q]
-
-
-# --- B247 iteration 2: contextual sub-queries, and adaptive k ----------------------------------------------------------
-def test_contextual_subqueries_keep_the_question():
-    q = "How can stakeholder mapping and a RACI matrix be used together when planning a change?"
-    assert main.contextual_subqueries(["stakeholder mapping", "RACI matrix"], q) == [
-        "stakeholder mapping — " + q, "RACI matrix — " + q]
-
-
-def test_contextual_subqueries_of_an_undecomposed_question_is_the_question():
-    assert main.contextual_subqueries(["just the question"], "just the question") == ["just the question"]
-
-
-def test_adaptive_limit_doubles_only_for_comparison_questions():
-    assert main.adaptive_limit("When would you use Kafka versus Spark in a data platform?", 3) == 6
+def test_adaptive_limit_doubles_only_for_a_comparison():
+    assert main.adaptive_limit("When should a team use REST versus gRPC?", 3) == 6
     assert main.adaptive_limit("What port does the Redpanda Kafka API listen on?", 3) == 3
 
 
-def test_iteration_two_backends_are_registered():
-    assert {"neo4j_decompose_ctx", "neo4j_adaptive_k"} <= set(main.SEARCH_FNS)
-    assert {"neo4j_decompose_ctx", "neo4j_adaptive_k"} <= main.VALID_BACKENDS
+@pytest.mark.parametrize("backend", ["pgvector", "qdrant", "weaviate", "neo4j"])
+def test_retrieve_asks_every_backend_for_double_depth_on_a_comparison(monkeypatch, backend):
+    seen = {}
+    monkeypatch.setitem(main.SEARCH_FNS, backend, lambda q, k: seen.setdefault("k", k) and [])
+    main.retrieve(backend, "How does a data lake differ from a data warehouse?", 3)
+    assert seen["k"] == 6
+
+
+def test_retrieve_keeps_the_requested_depth_otherwise(monkeypatch):
+    seen = {}
+    monkeypatch.setitem(main.SEARCH_FNS, "pgvector", lambda q, k: seen.setdefault("k", k) and [])
+    main.retrieve("pgvector", "What port does the Redpanda Kafka API listen on?", 3)
+    assert seen["k"] == 3
+
+
+def test_context_search_uses_adaptive_depth(client, monkeypatch):
+    monkeypatch.setattr(main, "_guard", lambda *a, **k: None)
+    monkeypatch.setitem(main.SEARCH_FNS, "neo4j", lambda q, k: [{"source": "s", "chunk_index": i} for i in range(k)])
+    r = client.post("/context/search?backend=neo4j", json={"query": "Postgres vs. MySQL", "limit": 3})
+    assert r.status_code == 200 and len(r.json()["results"]) == 6
+
+
+@pytest.mark.parametrize("retired", ["neo4j_graph_rerank", "neo4j_graph_expand", "neo4j_decompose_rule",
+                                     "neo4j_decompose_llm", "neo4j_decompose_ctx", "neo4j_adaptive_k"])
+def test_the_measured_experimental_modes_are_gone(client, retired):
+    assert retired not in main.VALID_BACKENDS and retired not in main.SEARCH_FNS
+    assert client.post(f"/context/search?backend={retired}", json={"query": "q"}).status_code == 400
+
+
+def test_the_backends_are_exactly_the_four_stores():
+    assert main.VALID_BACKENDS == set(main.SEARCH_FNS) == {"pgvector", "qdrant", "weaviate", "neo4j"}

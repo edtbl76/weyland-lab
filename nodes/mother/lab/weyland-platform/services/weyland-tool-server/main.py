@@ -136,9 +136,7 @@ def validate_required_secrets() -> None:
 # Fail loudly at import/startup, before the app builds connections.
 validate_required_secrets()
 
-VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j", "neo4j_graph_rerank", "neo4j_graph_expand",  # B38: graph modes
-                  "neo4j_decompose_rule", "neo4j_decompose_llm",  # B247: query decomposition
-                  "neo4j_decompose_ctx", "neo4j_adaptive_k"}  # B247 iteration 2
+VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j"}
 
 embed_model: OnnxBge | None = None
 qdrant_client: QdrantClient | None = None
@@ -512,121 +510,26 @@ def _search_neo4j(query: str, limit: int) -> list[dict]:
         ]
 
 
-# --- B38 Phase 0: graph-aware retrieval over the B37 frontmatter graph ----------------------------------------------
-# Plain `neo4j` is vector-only: it never follows an edge. These two modes use the AIDLC knowledge base's declared
-# (:Document:Entry)-[:RELATED_TO]-(:Document:Entry) links, and are measured against it on the golden set (the lexical
-# half — weyland docs, no RELATED_TO edges — is an exact control: both modes leave it unchanged).
-#   neo4j_graph_rerank — re-order a wider vector candidate pool (plus the best chunk of each hit's neighbours) by
-#                        similarity + GRAPH_BONUS x the share of the pool's documents RELATED_TO the candidate's. Tests
-#                        RANKING PRECISION, which B96 found is the bottleneck. Returns `limit` chunks.
-#   neo4j_graph_expand — keep the vector top `limit`, then append, per hit, the best chunk of its best related
-#                        document. Tests whether neighbours add context the vector search would not rank. Returns up
-#                        to 2 x `limit`; compare it with plain neo4j at that depth, so volume is not mistaken for graph.
-# GRAPH_BONUS and GRAPH_CANDIDATES are fixed up front, NOT tuned on the golden set (that would only fit the exam).
-GRAPH_CANDIDATES = 10
-GRAPH_BONUS = 0.1
+SEARCH_FNS = {
+    "pgvector": _search_pgvector,
+    "qdrant": _search_qdrant,
+    "weaviate": _search_weaviate,
+    "neo4j": _search_neo4j,
+}
 
 
-def _related(related: dict, a: str, b: str) -> bool:
-    return b in related.get(a, ()) or a in related.get(b, ())
-
-
-def graph_rerank(hits: list[dict], related: dict, neighbour_best: dict, limit: int,
-                 bonus: float = GRAPH_BONUS) -> list[dict]:
-    """Pure: `hits` (vector pool, each with `doc`), `related` (doc -> related docs), `neighbour_best` (doc -> its best
-    chunk for this query). Same-document hits give no bonus; only declared RELATED_TO links do. The reported
-    `similarity` is the vector score, unchanged: the graph changes the ORDER only."""
-    if not hits:
-        return []
-    hit_docs = [h["doc"] for h in hits]
-    seen = set(hit_docs)
-    cands = [dict(h, via="vector") for h in hits]
-    for doc, chunk in neighbour_best.items():
-        if doc not in seen and any(_related(related, doc, d) for d in seen):
-            cands.append(dict(chunk, via="related"))
-            seen.add(doc)
-
-    def score(c):
-        support = sum(1 for d in hit_docs if d != c["doc"] and _related(related, c["doc"], d))
-        return c["similarity"] + bonus * support / len(hit_docs)
-
-    return sorted(cands, key=score, reverse=True)[:limit]
-
-
-def graph_expand(hits: list[dict], related: dict, neighbour_best: dict, limit: int) -> list[dict]:
-    """Pure: the vector top `limit`, then per hit the best-scoring related document's chunk not already included."""
-    top = [dict(h, via="vector") for h in hits[:limit]]
-    have = {h["doc"] for h in top}
-    extra = []
-    for h in top:
-        options = [neighbour_best[n] for n in sorted(related.get(h["doc"], ())) if n not in have and n in neighbour_best]
-        if options:
-            best = max(options, key=lambda c: c["similarity"])
-            extra.append(dict(best, via="related"))
-            have.add(best["doc"])
-    return top + extra
-
-
-def _neo4j_graph_inputs(query: str, k: int) -> tuple[list[dict], dict, dict]:
-    """The vector pool, the RELATED_TO map among the pool's documents and their neighbours, and each neighbour's best
-    chunk for the query (cosine, normalised like the index score)."""
-    embedding = embed_model.get_text_embedding(query)
-    with neo4j_driver.session() as session:
-        hits = [{"doc": r["doc"], "source": r["source"] or "", "chunk_index": r["chunk_index"] or 0,
-                 "similarity": float(r["score"]), "content": r["content"] or ""}
-                for r in session.run(
-                    "CALL db.index.vector.queryNodes($index, $k, $embedding) YIELD node, score "
-                    "MATCH (node)-[:BELONGS_TO]->(d:Document) "
-                    "RETURN elementId(d) AS doc, d.source_name AS source, node.chunk_index AS chunk_index, "
-                    "node.content AS content, score",
-                    index=NEO4J_VECTOR_INDEX, k=k, embedding=embedding)]
-        related: dict = {}
-        for r in session.run(
-                "MATCH (d:Document)-[:RELATED_TO]-(n:Document) WHERE elementId(d) IN $ids "
-                "RETURN DISTINCT elementId(d) AS a, elementId(n) AS b", ids=list({h["doc"] for h in hits})):
-            related.setdefault(r["a"], set()).add(r["b"])
-            related.setdefault(r["b"], set()).add(r["a"])
-        neighbour_ids = sorted({n for ns in related.values() for n in ns} - {h["doc"] for h in hits})
-        neighbour_best = {}
-        for r in session.run(
-                "MATCH (c:Chunk)-[:BELONGS_TO]->(n:Document) WHERE elementId(n) IN $ids "
-                "WITH n, c, vector.similarity.cosine(c.embedding, $embedding) AS s ORDER BY s DESC "
-                "WITH n, collect({c: c, s: s})[0] AS best "
-                "RETURN elementId(n) AS doc, n.source_name AS source, best.c.chunk_index AS chunk_index, "
-                "best.c.content AS content, best.s AS score", ids=neighbour_ids, embedding=embedding):
-            neighbour_best[r["doc"]] = {"doc": r["doc"], "source": r["source"] or "", "chunk_index": r["chunk_index"] or 0,
-                                        "similarity": float(r["score"]), "content": r["content"] or ""}
-    return hits, related, neighbour_best
-
-
-def _public(chunks: list[dict]) -> list[dict]:
-    return [{k: c[k] for k in ("source", "chunk_index", "similarity", "content", "via")} for c in chunks]
-
-
-def _search_neo4j_graph_rerank(query: str, limit: int) -> list[dict]:
-    hits, related, nb = _neo4j_graph_inputs(query, max(GRAPH_CANDIDATES, limit))
-    return _public(graph_rerank(hits, related, nb, limit))
-
-
-def _search_neo4j_graph_expand(query: str, limit: int) -> list[dict]:
-    hits, related, nb = _neo4j_graph_inputs(query, limit)
-    return _public(graph_expand(hits, related, nb, limit))
-
-
-# --- B247: query decomposition for two-entity questions --------------------------------------------------------------
-# B38 found plain vector search retrieves only ONE of two named entities in 5 of 10 two-entity questions: the stronger
-# term dominates the query embedding. Decomposition retrieves once per named entity and merges the results. Two ways
-# to find the entities, measured against each other: a pattern rule (free, instant, misses unusual phrasing) and a
-# small local model (llama3.2:3b, pinned to CPU so it never evicts the answer model from the GPU). A question that does
-# not decompose is retrieved exactly as plain `neo4j` does.
-DECOMPOSE_MODEL = os.getenv("DECOMPOSE_MODEL", "llama3.2:3b")
-DECOMPOSE_TIMEOUT = float(os.getenv("DECOMPOSE_TIMEOUT", "20"))
-MAX_ENTITIES = 3
-# The patterns backtrack polynomially on long input (Sonar S5852): they only make sense on a short question, so a
-# longer one is retrieved whole and never matched.
-DECOMPOSE_MAX_CHARS = 300
+# --- B247: adaptive retrieval depth for comparison questions ---------------------------------------------------------
+# A question that names two things ("difference between X and Y", "X versus Y") is under-served at the usual depth: the
+# stronger term dominates the query embedding and the top results cover only it. Measured on the multi_entity set (B38
+# and B247, 2026-11-13): k=3 retrieved both entities in 5/10 questions, k=6 in 8/10. So a comparison question is
+# searched at 2 x limit; every other question is unchanged. Splitting the question into per-entity searches (by rule, by
+# a small LLM, or with the question as context) and graph rerank/expand were all measured and lost — the verdicts are
+# in docs/concepts/graph-aware-retrieval.md.
+# The patterns backtrack polynomially on long input (Sonar S5852): they only make sense on a short question, so a longer
+# one is never matched.
+COMPARISON_MAX_CHARS = 300
 _ARTICLE = re.compile(r"^(?:a|an|the)\s+", re.IGNORECASE)
-_DECOMPOSE_PATTERNS = [
+_COMPARISON_PATTERNS = [
     re.compile(r"\bdifference between (?P<a>.+?) and (?P<b>.+?)(?: in (?:a|an|the) .*)?$", re.IGNORECASE),
     re.compile(r"^how (?:does|do) (?P<a>.+?) differ from (?P<b>.+?)(?: (?:as|in) (?:a|an|the) .*)?$", re.IGNORECASE),
     re.compile(r"\buse (?P<a>.+?) (?:vs\.?|versus) (?P<b>.+?)(?: in (?:a|an|the) .*)?$", re.IGNORECASE),
@@ -640,124 +543,28 @@ def _entity(text: str) -> str:
     return _ARTICLE.sub("", text.strip().strip(",")).strip()
 
 
-def decompose_rule(question: str) -> list[str]:
-    """The two entities a comparison question names, or [question] when it names fewer (single-concept questions are
-    left whole). Pure."""
+def is_comparison(question: str) -> bool:
+    """True when the question names two different things to compare or combine. Pure."""
     q = question.strip().rstrip("?").strip()
-    if len(q) > DECOMPOSE_MAX_CHARS:
-        return [question]
-    for pattern in _DECOMPOSE_PATTERNS:
+    if len(q) > COMPARISON_MAX_CHARS:
+        return False
+    for pattern in _COMPARISON_PATTERNS:
         m = pattern.search(q)
         if m:
             a, b = _entity(m.group("a")), _entity(m.group("b"))
             if a and b and a.lower() != b.lower():
-                return [a, b]
-    return [question]
-
-
-def parse_entities(raw: str, question: str) -> list[str]:
-    """Strict parse of the extractor's JSON ({"entities": [...]}): 2-3 non-empty strings, else [question]. Pure."""
-    try:
-        data = json.loads(raw)
-    except (TypeError, ValueError):
-        return [question]
-    items = data.get("entities") if isinstance(data, dict) else None
-    if not isinstance(items, list) or not all(isinstance(x, str) for x in items):
-        return [question]
-    entities = [x.strip() for x in items if x.strip()][:MAX_ENTITIES]
-    return entities if len(entities) >= 2 else [question]
-
-
-def merge_per_entity(results: list[list[dict]], cap: int) -> list[dict]:
-    """Round-robin across the per-entity result lists, keeping each chunk's first appearance, up to `cap`. Pure."""
-    out, seen = [], set()
-    for rank in range(max((len(r) for r in results), default=0)):
-        for r in results:
-            if rank < len(r):
-                key = (r[rank].get("doc") or r[rank].get("source"), r[rank].get("chunk_index"))
-                if key not in seen:
-                    seen.add(key)
-                    out.append(r[rank])
-    return out[:cap]
-
-
-def decompose_llm(question: str) -> list[str]:
-    """Ask a small local model for the entities (Ollama native API, JSON, temperature 0, CPU only). Any failure —
-    unreachable, timeout, junk — falls back to the whole question: never an empty retrieval."""
-    prompt = ("List the distinct things this question asks about, as short noun phrases, in JSON "
-              '{"entities": ["...", "..."]}. If it asks about only one thing, return just that one.\nQuestion: '
-              + question)
-    try:
-        resp = httpx.post(
-            f"{OLLAMA_BASE_URL.removesuffix('/v1')}/api/chat",
-            json={"model": DECOMPOSE_MODEL, "messages": [{"role": "user", "content": prompt}], "stream": False,
-                  "format": "json", "options": {"num_gpu": 0, "temperature": 0}},
-            timeout=DECOMPOSE_TIMEOUT, headers=_ollama_headers())
-        resp.raise_for_status()
-        return parse_entities(resp.json()["message"]["content"], question)
-    except (httpx.HTTPError, KeyError, ValueError):
-        return [question]
-
-
-def _search_decomposed(question: str, limit: int, entities: list[str]) -> list[dict]:
-    if len(entities) < 2:
-        return [dict(c, via="whole") for c in _search_neo4j(question, limit)]
-    merged = merge_per_entity([_search_neo4j(e, limit) for e in entities], cap=limit * len(entities))
-    return [dict(c, via="decomposed") for c in merged]
-
-
-def _search_neo4j_decompose_rule(query: str, limit: int) -> list[dict]:
-    return _search_decomposed(query, limit, decompose_rule(query))
-
-
-def _search_neo4j_decompose_llm(query: str, limit: int) -> list[dict]:
-    return _search_decomposed(query, limit, decompose_llm(query))
-
-
-# Iteration 2 (B247, from the first run's evidence): a BARE entity name is a bad query for opaque names. "RACI matrix",
-# "Kano model", "MoSCoW prioritization", "ADKAR model" alone retrieved junk (anthropic-model-watch.yaml,
-# revenue-management.md): the embedder does not know the acronym and keys on generic words like "model". The question's
-# other words were what found them. Two designs that keep that context:
-#   neo4j_decompose_ctx — one search per entity, each sub-query "<entity> — <the whole question>".
-#   neo4j_adaptive_k    — the rule only DETECTS a comparison question; those get 2 x limit from plain neo4j (k=6 found
-#                         both entities in 8/10 two-entity questions in run 42), every other question is plain neo4j.
-def contextual_subqueries(entities: list[str], question: str) -> list[str]:
-    """Each entity prefixed to the whole question; an undecomposed question stays itself. Pure."""
-    if len(entities) < 2:
-        return [question]
-    return [f"{e} — {question}" for e in entities]
+                return True
+    return False
 
 
 def adaptive_limit(question: str, limit: int) -> int:
-    """2 x limit for a question the rule splits into two or more entities, else limit. Pure."""
-    return limit * 2 if len(decompose_rule(question)) >= 2 else limit
+    """2 x limit for a comparison question, else limit. Pure."""
+    return limit * 2 if is_comparison(question) else limit
 
 
-def _search_neo4j_decompose_ctx(query: str, limit: int) -> list[dict]:
-    subqueries = contextual_subqueries(decompose_rule(query), query)
-    if len(subqueries) < 2:
-        return [dict(c, via="whole") for c in _search_neo4j(query, limit)]
-    merged = merge_per_entity([_search_neo4j(q, limit) for q in subqueries], cap=limit * len(subqueries))
-    return [dict(c, via="decomposed") for c in merged]
-
-
-def _search_neo4j_adaptive_k(query: str, limit: int) -> list[dict]:
-    k = adaptive_limit(query, limit)
-    return [dict(c, via="adaptive" if k > limit else "whole") for c in _search_neo4j(query, k)]
-
-
-SEARCH_FNS = {
-    "pgvector": _search_pgvector,
-    "qdrant": _search_qdrant,
-    "weaviate": _search_weaviate,
-    "neo4j": _search_neo4j,
-    "neo4j_graph_rerank": _search_neo4j_graph_rerank,
-    "neo4j_graph_expand": _search_neo4j_graph_expand,
-    "neo4j_decompose_rule": _search_neo4j_decompose_rule,
-    "neo4j_decompose_llm": _search_neo4j_decompose_llm,
-    "neo4j_decompose_ctx": _search_neo4j_decompose_ctx,
-    "neo4j_adaptive_k": _search_neo4j_adaptive_k,
-}
+def retrieve(backend: str, query: str, limit: int) -> list[dict]:
+    """The one retrieval path for /context/search and /context/ask: the backend's search at the adaptive depth."""
+    return SEARCH_FNS[backend](query, adaptive_limit(query, limit))
 
 
 # --- Backend health helpers (shared by the per-backend endpoints and /status) ---
@@ -944,7 +751,7 @@ def context_search(request: ContextSearchRequest, backend: str = Query(default="
     blocked = _guard(Hook.INPUT, request_id, {"query": request.query}, actor)
     if blocked is not None:
         raise HTTPException(status_code=403, detail=f"blocked by {blocked.validator}: {blocked.reason}")
-    results = SEARCH_FNS[backend](request.query, request.limit)
+    results = retrieve(backend, request.query, request.limit)
     return {"query": request.query, "results": results}
 
 
@@ -975,7 +782,7 @@ def context_ask(request: AskRequest, actor: str | None = Depends(_actor)):
         if parent is not None:
             parent.set_inputs({"query": request.query, "backend": request.backend, "model": model, "limit": request.limit})
         with _span("retrieve", span_type="RETRIEVER") as rspan:
-            chunks = SEARCH_FNS[request.backend](request.query, request.limit)
+            chunks = retrieve(request.backend, request.query, request.limit)
             if rspan is not None:
                 rspan.set_outputs({"num_chunks": len(chunks)})
         system_prompt = load_prompt("rag_system", RAG_SYSTEM_PROMPT)   # B100 P2 — live from the Prompt Registry (fail-safe)

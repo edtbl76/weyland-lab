@@ -173,8 +173,10 @@ Judges: `deepseek-coder-v2:16b` (default, fast) · `mistral-small3.2:24b` (slowe
 **Per-run settings — backend, models, depth (B38, 2026-11-12).** `EVAL_BACKEND`, `EVAL_MODELS` and `EVAL_ASK_LIMIT`
 are only the **defaults** now: `eval_testset` takes them as run config, so comparing retrieval backends needs no
 manifest change or restart. Empty config = the env defaults (a run launched as before behaves as before). Backends:
-`pgvector` `qdrant` `weaviate` `neo4j`, B38's graph modes `neo4j_graph_rerank` / `neo4j_graph_expand`, and B247's decomposition modes `neo4j_decompose_rule` / `neo4j_decompose_llm` / `neo4j_decompose_ctx` / `neo4j_adaptive_k`
-(`weyland_pipeline/eval_settings.py` refuses anything else before the run starts). The run's backend lands in
+`pgvector` `qdrant` `weaviate` `neo4j` (`weyland_pipeline/eval_settings.py` refuses anything else before the run
+starts; the B38/B247 experimental modes are retired, verdicts in `docs/concepts/graph-aware-retrieval.md`). Every
+backend uses **adaptive depth** (B247, 2026-11-13): a comparison question is retrieved at 2 x `ask_limit`, so runs
+before 2026-11-13 and after differ on comparison questions only. The run's backend lands in
 `eval_results.backend`, the `eval_runs.notes`, and the MLflow run params (`backend`). Launch `weyland_eval_job` from
 the Dagster UI (**Launchpad**) with, for example:
 
@@ -182,7 +184,7 @@ the Dagster UI (**Launchpad**) with, for example:
 ops:
   eval_testset:
     config:
-      backend: neo4j_graph_rerank
+      backend: neo4j
       models: ["qwen3:30b-a3b"]
       ask_limit: 3
       question_set: golden      # eval_sets/<name>.json; empty = golden. multi_entity = B38's two-entity questions

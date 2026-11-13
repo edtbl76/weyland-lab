@@ -1,6 +1,6 @@
 {
   "name": "multi_entity",
-  "description": "B38 Phase 0 follow-up: 10 questions that each need TWO AIDLC knowledge-base entries. Tests where graph-aware retrieval (neo4j_graph_rerank) might beat plain vector search; split by whether the pair is declared RELATED_TO in the B37 graph.",
+  "description": "B38 Phase 0 follow-up: 10 questions that each need TWO AIDLC knowledge-base entries. Measures whether retrieval finds BOTH entities (B38 graph modes, B247 decomposition and adaptive depth); split by whether the pair is declared RELATED_TO in the B37 graph.",
   "_comment": [
     "B38 (2026-11-12). The golden set's conceptual half is 9 single-concept lookups and 1 comparison question; on it,",
     "graph rerank LOST on average (context relevancy 0.948 -> 0.860) but WON on the one comparison question",

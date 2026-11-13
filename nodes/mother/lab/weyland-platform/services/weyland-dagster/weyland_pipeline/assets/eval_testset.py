@@ -33,8 +33,8 @@ EVAL_ASK_LIMIT = int(os.environ.get("EVAL_ASK_LIMIT", "3"))
 
 class EvalRunConfig(Config):
     """Per-run eval settings (B38, 2026-11-12). Empty = the env default (EVAL_BACKEND / EVAL_MODELS /
-    EVAL_ASK_LIMIT), so a run launched without config behaves as before. Example, one model against the graph
-    rerank backend: {"backend": "neo4j_graph_rerank", "models": ["qwen3:30b-a3b"]}."""
+    EVAL_ASK_LIMIT), so a run launched without config behaves as before. Example, one model against Neo4j:
+    {"backend": "neo4j", "models": ["qwen3:30b-a3b"]}."""
     backend: str = ""
     models: list[str] = []
     ask_limit: int = 0
