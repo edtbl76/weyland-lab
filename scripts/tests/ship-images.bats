@@ -519,6 +519,60 @@ PY
   called_with kubectl 'get'
 }
 
+# --- FR2.1 merge: a failed `gh pr merge` is checked against the PR's real state (2026-11-13) -------------------------
+# PR #358: `gh pr merge` exited non-zero, the merge HAD landed (e7645971), and the script aborted before syncing or
+# verifying anything, having discarded gh's error text. A failed call is not evidence the merge failed; the PR's state is.
+# merge_stubs <merge-exit> <merge-output> <state-exit> <state-output>
+merge_stubs() {
+  stub_git_pushed
+  stub_dispatch woodpecker-cli
+  stub_case woodpecker-cli 'pipeline create' 0 '42 pending aaaaaaaabbbbbbbbccccccccdddddddd'
+  stub_case woodpecker-cli 'pipeline show' 0 '42 success'
+  stub_dispatch gh
+  stub_case gh 'pr list' 0 '13	ci/image-bump-9a4996c6	weyland-ci'
+  stub_case gh 'isCrossRepository' 0 'false'
+  stub_case gh 'pr merge' "$1" "$2"
+  stub_case gh '--json state' "$3" "$4"
+  stub_case gh 'pr view' 0 'weyland-ci'
+  stub_case gh 'pr diff' 0 "$(cat "$FIXTURES/tags-only.diff")"
+  stub_dispatch argocd
+  stub_when_seen kubectl 'pr merge' \
+    'registry.weyland.lab/scan-suite:git-2c73c898 registry.weyland.lab/weyland-flink:git-2c73c898' \
+    'registry.weyland.lab/scan-suite:git-9a4996c6 registry.weyland.lab/weyland-flink:git-9a4996c6'
+  mv "$STUB_DIR/kubectl" "$STUB_DIR/kubectl.inner"
+  printf '== cdc-demo-live 4416\n{"state":"RUNNING"}\n{"latest":{"completed":{"latest_ack_timestamp":99999999999999}}}\nJARS 200 200 200\n' \
+    > "$STUB_DIR/flink-rest.out"
+  printf '#!/usr/bin/env bash\ncase "$*" in *" logs "*) printf "kubectl %%s\\n" "$*" >> "%s"; echo "TXN_OK 21 scan tools on PATH; scan.py imports" ;; *"get flinksessionjob"*) echo "cdc-demo-live 4416" ;; *"component=jobmanager"*) echo "weyland-flink-jm" ;; *" exec -i "*) cat "%s" ;; *) exec "%s" "$@" ;; esac\n' \
+    "$STUB_LOG" "$STUB_DIR/flink-rest.out" "$STUB_DIR/kubectl.inner" > "$STUB_DIR/kubectl"
+  chmod +x "$STUB_DIR/kubectl"
+}
+
+@test "FR2.1 a merge call that fails but whose PR is MERGED continues the ship, and says so" {
+  merge_stubs 1 'GraphQL: Something went wrong while executing your query.' 0 'MERGED'
+  run bash "$SHIP"
+  [ "$status" -eq 0 ] || { echo "$output" | tail -20; return 1; }
+  [[ "$output" == *"reported a failure"* && "$output" == *"MERGED"* ]]
+  [[ "$output" == *"Something went wrong"* ]]
+  called_with argocd 'app sync'
+  [[ "$output" == *"✓ shipped"* ]]
+}
+
+@test "FR2.1 a merge call that fails on a PR still OPEN aborts with gh's own error text" {
+  merge_stubs 1 'GraphQL: Pull request is not mergeable: the base branch policy prohibits the merge.' 0 'OPEN'
+  run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"FR2.1"* && "$output" == *"base branch policy prohibits the merge"* && "$output" == *"OPEN"* ]]
+  not_called_with argocd 'app sync'
+}
+
+@test "FR2.1 a merge call that fails when the PR state cannot be read aborts (fail closed)" {
+  merge_stubs 1 'GraphQL: Something went wrong while executing your query.' 1 'HTTP 502: Bad Gateway'
+  run bash "$SHIP"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"FR2.1"* && "$output" == *"could not read"* ]]
+  not_called_with argocd 'app sync'
+}
+
 @test "NFR3 a re-run after a successful ship is a no-op that reports already deployed" {
   stub_git_pushed
   stub_dispatch woodpecker-cli

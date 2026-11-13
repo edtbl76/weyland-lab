@@ -317,6 +317,18 @@ command distinguishes them: if the tag is already live it exits 0 with "nothing 
 PR is left open for you. Read the diff: something other than a tag moved, and that is exactly the
 case automated merge must not handle.
 
+**`FR2.1` "gh pr merge failed"** — the script now asks the PR's real state before deciding, because GitHub
+sometimes answers a merge that landed with an error (PR #358, 2026-11-13).
+- **MERGED:** the script prints `⚠ gh pr merge reported a failure (…), but PR #N is MERGED — continuing`, then syncs
+  and verifies as normal. Nothing for you to do.
+- **"the PR is OPEN" (or another state):** the merge really failed. The message carries gh's own error text (a
+  branch-protection rule, a conflict). Fix that and re-run.
+- **"could not read back":** the merge call failed AND the state could not be read. The script will not guess. Check
+  `gh pr view <N> --repo edtbl76/weyland-lab --json state`. If it is MERGED, do **not** expect a re-run to finish the
+  job: it reports "nothing to ship" (no build context changed since the bumped tag) and exits without syncing or
+  verifying. Argo's own poll deploys the merge within about 3 minutes. Confirm with `argocd app get <app> --grpc-web`
+  (synced to the merge commit) and the pods' images (`kubectl get pods -A -o wide`, the `git-<sha>` tag).
+
 **`FR1.5`** — merged and synced, but no pod carries the tag within 5 minutes. Check whether the Argo
 app actually synced (`argocd app get <app>`), then whether the pod can pull the image
 (`kubectl -n weyland describe pod <pod>` — `ImagePullBackOff` means the registry push half failed).

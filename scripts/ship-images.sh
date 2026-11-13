@@ -1855,11 +1855,23 @@ main() {
   fi
 
   printf '→ merging PR #%s\n' "$pr_num"
-  gh pr merge "$pr_num" --repo "$REPO" --squash --delete-branch >/dev/null 2>&1 || {
-    FAILED_GATE="FR2.1"
-    FAILED_REASON="gh pr merge failed for #${pr_num}"
-    abort
-  }
+  # A failed merge CALL is not evidence the merge failed: on 2026-11-13 (PR #358) gh exited non-zero, the merge had
+  # landed, and this aborted before syncing or verifying anything — having thrown gh's error text away. Keep the text,
+  # and let the PR's own state decide. A state that cannot be read is not a merge (fail closed).
+  local merge_out merge_state
+  if ! merge_out="$(gh pr merge "$pr_num" --repo "$REPO" --squash --delete-branch 2>&1)"; then
+    if ! merge_state="$(gh pr view "$pr_num" --repo "$REPO" --json state --jq .state 2>&1)"; then
+      FAILED_GATE="FR2.1"
+      FAILED_REASON="gh pr merge failed for #${pr_num} (${merge_out}), and the PR's state could not read back to confirm either way (${merge_state}). Check it by hand before re-running: gh pr view ${pr_num} --repo ${REPO} --json state"
+      abort
+    fi
+    if [ "$merge_state" != "MERGED" ]; then
+      FAILED_GATE="FR2.1"
+      FAILED_REASON="gh pr merge failed for #${pr_num} and the PR is ${merge_state:-in an unknown state}: ${merge_out}"
+      abort
+    fi
+    printf '  ⚠ gh pr merge reported a failure (%s), but PR #%s is MERGED — continuing\n' "$merge_out" "$pr_num" >&2
+  fi
   # Merged: the branch is claimed, so it is no longer this run's orphan to clean up.
   ORPHAN_BRANCH=""
 
