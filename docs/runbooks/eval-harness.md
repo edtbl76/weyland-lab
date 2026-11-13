@@ -173,7 +173,7 @@ Judges: `deepseek-coder-v2:16b` (default, fast) · `mistral-small3.2:24b` (slowe
 **Per-run settings — backend, models, depth (B38, 2026-11-12).** `EVAL_BACKEND`, `EVAL_MODELS` and `EVAL_ASK_LIMIT`
 are only the **defaults** now: `eval_testset` takes them as run config, so comparing retrieval backends needs no
 manifest change or restart. Empty config = the env defaults (a run launched as before behaves as before). Backends:
-`pgvector` `qdrant` `weaviate` `neo4j`, B38's graph modes `neo4j_graph_rerank` / `neo4j_graph_expand`, and B247's decomposition modes `neo4j_decompose_rule` / `neo4j_decompose_llm`
+`pgvector` `qdrant` `weaviate` `neo4j`, B38's graph modes `neo4j_graph_rerank` / `neo4j_graph_expand`, and B247's decomposition modes `neo4j_decompose_rule` / `neo4j_decompose_llm` / `neo4j_decompose_ctx` / `neo4j_adaptive_k`
 (`weyland_pipeline/eval_settings.py` refuses anything else before the run starts). The run's backend lands in
 `eval_results.backend`, the `eval_runs.notes`, and the MLflow run params (`backend`). Launch `weyland_eval_job` from
 the Dagster UI (**Launchpad**) with, for example:

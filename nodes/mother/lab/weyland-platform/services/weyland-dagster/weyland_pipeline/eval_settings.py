@@ -11,7 +11,8 @@ import re
 # The tool-server's search backends (weyland-tool-server main.py SEARCH_FNS). The two neo4j_graph_* modes are B38
 # Phase 0: graph-aware retrieval over the B37 frontmatter graph, measured against plain `neo4j`.
 VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j", "neo4j_graph_rerank", "neo4j_graph_expand",
-                  "neo4j_decompose_rule", "neo4j_decompose_llm"}  # B247: query decomposition
+                  "neo4j_decompose_rule", "neo4j_decompose_llm",  # B247: query decomposition
+                  "neo4j_decompose_ctx", "neo4j_adaptive_k"}  # B247 iteration 2
 
 
 def resolve_run_settings(backend, models, ask_limit, defaults: dict) -> dict:

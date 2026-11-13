@@ -707,3 +707,24 @@ def test_decompose_backends_are_registered():
 def test_rule_leaves_an_overlong_question_whole_without_matching():
     q = "How do " + "a and b " * 200 + "differ?"   # > DECOMPOSE_MAX_CHARS: never reaches the backtracking patterns
     assert len(q) > main.DECOMPOSE_MAX_CHARS and main.decompose_rule(q) == [q]
+
+
+# --- B247 iteration 2: contextual sub-queries, and adaptive k ----------------------------------------------------------
+def test_contextual_subqueries_keep_the_question():
+    q = "How can stakeholder mapping and a RACI matrix be used together when planning a change?"
+    assert main.contextual_subqueries(["stakeholder mapping", "RACI matrix"], q) == [
+        "stakeholder mapping — " + q, "RACI matrix — " + q]
+
+
+def test_contextual_subqueries_of_an_undecomposed_question_is_the_question():
+    assert main.contextual_subqueries(["just the question"], "just the question") == ["just the question"]
+
+
+def test_adaptive_limit_doubles_only_for_comparison_questions():
+    assert main.adaptive_limit("When would you use Kafka versus Spark in a data platform?", 3) == 6
+    assert main.adaptive_limit("What port does the Redpanda Kafka API listen on?", 3) == 3
+
+
+def test_iteration_two_backends_are_registered():
+    assert {"neo4j_decompose_ctx", "neo4j_adaptive_k"} <= set(main.SEARCH_FNS)
+    assert {"neo4j_decompose_ctx", "neo4j_adaptive_k"} <= main.VALID_BACKENDS

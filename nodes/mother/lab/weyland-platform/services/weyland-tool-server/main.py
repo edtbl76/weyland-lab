@@ -137,7 +137,8 @@ def validate_required_secrets() -> None:
 validate_required_secrets()
 
 VALID_BACKENDS = {"pgvector", "qdrant", "weaviate", "neo4j", "neo4j_graph_rerank", "neo4j_graph_expand",  # B38: graph modes
-                  "neo4j_decompose_rule", "neo4j_decompose_llm"}  # B247: query decomposition
+                  "neo4j_decompose_rule", "neo4j_decompose_llm",  # B247: query decomposition
+                  "neo4j_decompose_ctx", "neo4j_adaptive_k"}  # B247 iteration 2
 
 embed_model: OnnxBge | None = None
 qdrant_client: QdrantClient | None = None
@@ -713,6 +714,38 @@ def _search_neo4j_decompose_llm(query: str, limit: int) -> list[dict]:
     return _search_decomposed(query, limit, decompose_llm(query))
 
 
+# Iteration 2 (B247, from the first run's evidence): a BARE entity name is a bad query for opaque names. "RACI matrix",
+# "Kano model", "MoSCoW prioritization", "ADKAR model" alone retrieved junk (anthropic-model-watch.yaml,
+# revenue-management.md): the embedder does not know the acronym and keys on generic words like "model". The question's
+# other words were what found them. Two designs that keep that context:
+#   neo4j_decompose_ctx — one search per entity, each sub-query "<entity> — <the whole question>".
+#   neo4j_adaptive_k    — the rule only DETECTS a comparison question; those get 2 x limit from plain neo4j (k=6 found
+#                         both entities in 8/10 two-entity questions in run 42), every other question is plain neo4j.
+def contextual_subqueries(entities: list[str], question: str) -> list[str]:
+    """Each entity prefixed to the whole question; an undecomposed question stays itself. Pure."""
+    if len(entities) < 2:
+        return [question]
+    return [f"{e} — {question}" for e in entities]
+
+
+def adaptive_limit(question: str, limit: int) -> int:
+    """2 x limit for a question the rule splits into two or more entities, else limit. Pure."""
+    return limit * 2 if len(decompose_rule(question)) >= 2 else limit
+
+
+def _search_neo4j_decompose_ctx(query: str, limit: int) -> list[dict]:
+    subqueries = contextual_subqueries(decompose_rule(query), query)
+    if len(subqueries) < 2:
+        return [dict(c, via="whole") for c in _search_neo4j(query, limit)]
+    merged = merge_per_entity([_search_neo4j(q, limit) for q in subqueries], cap=limit * len(subqueries))
+    return [dict(c, via="decomposed") for c in merged]
+
+
+def _search_neo4j_adaptive_k(query: str, limit: int) -> list[dict]:
+    k = adaptive_limit(query, limit)
+    return [dict(c, via="adaptive" if k > limit else "whole") for c in _search_neo4j(query, k)]
+
+
 SEARCH_FNS = {
     "pgvector": _search_pgvector,
     "qdrant": _search_qdrant,
@@ -722,6 +755,8 @@ SEARCH_FNS = {
     "neo4j_graph_expand": _search_neo4j_graph_expand,
     "neo4j_decompose_rule": _search_neo4j_decompose_rule,
     "neo4j_decompose_llm": _search_neo4j_decompose_llm,
+    "neo4j_decompose_ctx": _search_neo4j_decompose_ctx,
+    "neo4j_adaptive_k": _search_neo4j_adaptive_k,
 }
 
 
