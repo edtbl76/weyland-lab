@@ -202,7 +202,7 @@ version = "1.25.0"
 ecosystem = "PyPI"
 vulnerability.ignore = true
 effectiveUntil = 2027-01-22
-reason = "scan-suite only (GHSA-xcq7-p3pf-p88h, MODERATE: unbounded tracestate parsing; fixed 1.45.1). Held at 1.25 by semgrep 1.90, which pins opentelemetry 1.25 (the same hold as protobuf 4.25.9 above: every semgrep new enough to lift it pins a vulnerable mcp). The scanner is a batch job that parses repo files; it receives no inbound trace context, so no untrusted tracestate reaches the parser. Every other lockfile moved to 1.45.1. Accepted 2026-10-22."
+reason = "scan-suite only (GHSA-xcq7-p3pf-p88h, MODERATE: unbounded tracestate parsing; fixed 1.45.1). Held at 1.25 by semgrep 1.90, which pins opentelemetry 1.25 (the same hold as protobuf 4.25.9 above: every semgrep new enough to lift it pins a vulnerable mcp). The scanner is a batch job that parses repo files; it receives no inbound trace context, so no untrusted tracestate reaches the parser. Every other lockfile moved to 1.45.1. Accepted 2026-10-22. Also GHSA-mf5v-w3w3-f6cg (2026-11-13, MODERATE: quadratic-time traceparent parsing; fixed 1.45.2): same reasoning, no inbound traceparent either, and even the newest semgrep (1.185) pins opentelemetry ~=1.37, still inside the vulnerable range. Every other lockfile moved to 1.45.2."
 
 [[PackageOverrides]]
 name = "pillow"
