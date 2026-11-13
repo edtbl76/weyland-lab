@@ -185,9 +185,12 @@ ops:
       backend: neo4j_graph_rerank
       models: ["qwen3:30b-a3b"]
       ask_limit: 3
+      question_set: golden      # eval_sets/<name>.json; empty = golden. multi_entity = B38's two-entity questions
 ```
 
-then run `weyland_eval_score_job` as usual. (The tool-server's `/pipeline/trigger` takes a job name only, no config.)
+then run `weyland_eval_score_job` as usual. `question_set` picks the pinned exam: `golden` (the B96 benchmark),
+`multi_entity` (B38: 10 questions that each need two knowledge-base entries, half of them RELATED_TO-linked), or any
+other `eval_sets/*.json`; a name that is not a file there fails before the run. (The tool-server's `/pipeline/trigger` takes a job name only, no config.)
 
 ## Decision Record — Ragas REJECTED (2026-06-12)
 

@@ -12,7 +12,7 @@ import re
 import httpx
 from dagster import Config, Output, MetadataValue, asset
 
-from weyland_pipeline.eval_settings import resolve_run_settings
+from weyland_pipeline.eval_settings import question_set_path, resolve_run_settings
 from weyland_pipeline.ollama_auth import ollama_headers
 from weyland_pipeline.resources import PostgresResource
 
@@ -38,6 +38,7 @@ class EvalRunConfig(Config):
     backend: str = ""
     models: list[str] = []
     ask_limit: int = 0
+    question_set: str = ""   # eval_sets/<name>.json; empty = golden. B38 adds multi_entity (2-entity questions).
 
 # B96 — GOLDEN question set. Generating fresh questions every run made the leaderboard non-comparable ACROSS
 # runs: each run was graded on a different exam, so a score delta measured question difficulty, not system
@@ -52,10 +53,11 @@ class EvalRunConfig(Config):
 # The file lives INSIDE weyland_pipeline/ so the existing `COPY weyland_pipeline/` in the Dockerfile picks it
 # up — no image-build change needed to add or edit questions.
 EVAL_QUESTION_SOURCE = os.environ.get("EVAL_QUESTION_SOURCE", "golden")
-GOLDEN_QUESTIONS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "eval_sets", "golden.json")  # B103 — moved into the eval_sets/ SSOT catalog (was golden_questions.json)
+EVAL_SETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "eval_sets")
+GOLDEN_QUESTIONS_PATH = os.path.join(EVAL_SETS_DIR, "golden.json")  # B103 — moved into the eval_sets/ SSOT catalog (was golden_questions.json)
 
 
-def _load_golden_questions() -> list[dict]:
+def _load_golden_questions(path: str = GOLDEN_QUESTIONS_PATH) -> list[dict]:
     """Read the pinned question set. Fails LOUDLY rather than silently falling back to generation — a silent
     fallback would produce a run that LOOKS golden but isn't comparable, which is the exact bug B96 fixes.
 
@@ -64,7 +66,7 @@ def _load_golden_questions() -> list[dict]:
 
     Each entry carries a `type` (`conceptual` | `lexical`) stored as `question_type`, so the leaderboard can be
     sliced by half — the whole point of the mixed set (see the file's own _comment)."""
-    with open(GOLDEN_QUESTIONS_PATH) as fh:
+    with open(path) as fh:
         data = json.load(fh)
     out = []
     for q in data.get("questions", []):
@@ -76,7 +78,7 @@ def _load_golden_questions() -> list[dict]:
             out.append({"question": text, "question_type": qtype,
                         "reference_answer": None, "reference_contexts": None})
     if not out:
-        raise Exception(f"golden set {GOLDEN_QUESTIONS_PATH} has no questions")
+        raise ValueError(f"question set {path} has no questions")
     return out
 
 
@@ -170,8 +172,9 @@ def eval_testset(config: EvalRunConfig, postgres: PostgresResource) -> Output[di
         raise Exception("No corpus in rag_chunks — run ingestion before generating an eval set.")
 
     if EVAL_QUESTION_SOURCE == "golden":
-        questions = _load_golden_questions()
-        notes = f"golden question set ({len(questions)}q) — cross-run comparable"
+        qset = (config.question_set or "").strip() or "golden"
+        questions = _load_golden_questions(question_set_path(qset, EVAL_SETS_DIR))
+        notes = f"{qset} question set ({len(questions)}q) — cross-run comparable"
     else:
         questions = _generate_questions(docs, EVAL_TEST_SIZE)
         notes = "questions via direct-prompt (GENERATED — NOT comparable to golden runs)"

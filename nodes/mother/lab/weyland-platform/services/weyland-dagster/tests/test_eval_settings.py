@@ -56,3 +56,27 @@ def test_a_negative_depth_fails():
 
 def test_valid_backends_include_both_graph_modes():
     assert {"neo4j", "neo4j_graph_rerank", "neo4j_graph_expand"} <= es.VALID_BACKENDS
+
+
+# --- question_set: which pinned exam a run takes (B38 Phase 0 follow-up) -------------------------------------------
+
+def test_question_set_defaults_to_golden(tmp_path):
+    (tmp_path / "golden.json").write_text("{}")
+    assert es.question_set_path("", str(tmp_path)) == str(tmp_path / "golden.json")
+    assert es.question_set_path(None, str(tmp_path)) == str(tmp_path / "golden.json")
+
+
+def test_question_set_named_file(tmp_path):
+    (tmp_path / "multi_entity.json").write_text("{}")
+    assert es.question_set_path("multi_entity", str(tmp_path)) == str(tmp_path / "multi_entity.json")
+
+
+def test_question_set_missing_file_fails(tmp_path):
+    with pytest.raises(ValueError, match="no question set"):
+        es.question_set_path("nope", str(tmp_path))
+
+
+@pytest.mark.parametrize("name", ["../secrets", "a/b", "x.json", "UPPER", "with space"])
+def test_question_set_name_must_be_a_plain_name(tmp_path, name):
+    with pytest.raises(ValueError, match="question set name"):
+        es.question_set_path(name, str(tmp_path))

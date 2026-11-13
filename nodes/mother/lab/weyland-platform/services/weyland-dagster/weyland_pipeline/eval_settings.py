@@ -5,6 +5,8 @@ The retrieval backend, the answer models and the context depth (`ask_limit`) use
 run. eval_testset now takes them as run config; an empty value keeps the env default, so a run launched with no
 config behaves exactly as before. A run that could not measure anything fails here, before it starts.
 """
+import os
+import re
 
 # The tool-server's search backends (weyland-tool-server main.py SEARCH_FNS). The two neo4j_graph_* modes are B38
 # Phase 0: graph-aware retrieval over the B37 frontmatter graph, measured against plain `neo4j`.
@@ -27,3 +29,18 @@ def resolve_run_settings(backend, models, ask_limit, defaults: dict) -> dict:
         raise ValueError(f"ask_limit must be >= 1 (0 = default), got {ask_limit}")
     out_limit = ask_limit or defaults["ask_limit"]
     return {"backend": out_backend, "models": out_models, "ask_limit": out_limit}
+
+
+_SET_NAME = re.compile(r"^[a-z0-9_-]+$")
+
+
+def question_set_path(name, sets_dir: str) -> str:
+    """The pinned exam a run takes: eval_sets/<name>.json, default "golden". A plain lowercase name only (no path,
+    no extension), and the file must exist — a typo fails before the run instead of silently using another exam."""
+    name = (name or "").strip() or "golden"
+    if not _SET_NAME.match(name):
+        raise ValueError(f"question set name must be a plain lowercase name (eval_sets/<name>.json), got {name!r}")
+    path = os.path.join(sets_dir, f"{name}.json")
+    if not os.path.isfile(path):
+        raise ValueError(f"no question set {name!r}: {path} does not exist")
+    return path
