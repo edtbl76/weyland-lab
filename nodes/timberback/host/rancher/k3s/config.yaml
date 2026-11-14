@@ -1,0 +1,18 @@
+# timberback k3s AGENT config — mirrors /etc/rancher/k3s/config.yaml on the host (ADR-0012: a bare-metal GPU worker).
+# Apply:  sudo install -m 0644 this /etc/rancher/k3s/config.yaml  &&  sudo systemctl restart k3s-agent
+# The join itself (server URL, token) is passed at install time, never stored in git.
+node-label:
+  - "weyland.lab/host=timberback"
+  - "weyland.lab/gpu=nvidia-rtx-5070-ti"
+  - "nvidia.com/gpu.present=true"
+node-taint:
+  # ONBOARDING: nothing schedules here until it is removed deliberately (DaemonSets that tolerate everything still
+  # land). Joining must not silently move mother's workloads: the stateful-pinning pass (B134) comes first.
+  - "weyland.lab/onboarding=true:NoSchedule"
+kubelet-arg:
+  - "max-pods=250"
+  # Same guardrails as mother (nodes/mother/host/rancher/k3s/config.yaml, B98/B99): evict pods before the OS
+  # network stack starves. Scaled for 96 GB: a little more reserved for the system and the GPU driver.
+  - "system-reserved=memory=3Gi"
+  - "kube-reserved=memory=1Gi"
+  - "eviction-hard=memory.available<2Gi"

@@ -638,3 +638,32 @@ spec:
     automated: { selfHeal: true, prune: true }
     syncOptions:
       - ServerSideApply=true
+---
+# NVIDIA k8s-device-plugin (ADR-0012): advertises timberback's RTX 5070 Ti as `nvidia.com/gpu`. Runs only on nodes labelled
+# `nvidia.com/gpu.present=true` (timberback). Values + the three things a GPU pod needs: k8s/nvidia-device-plugin/values.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nvidia-device-plugin
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://nvidia.github.io/k8s-device-plugin
+      chart: nvidia-device-plugin
+      targetRevision: 0.20.1
+      helm:
+        releaseName: nvidia-device-plugin
+        valueFiles:
+          - $values/nodes/mother/lab/weyland-platform/k8s/nvidia-device-plugin/values.yaml
+    - repoURL: https://github.com/edtbl76/weyland-lab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nvidia-device-plugin
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true

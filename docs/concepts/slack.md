@@ -27,7 +27,7 @@ settled by installing it: it does.
 |---|---|---|---|---|
 | Alertmanager 0.32.2 | `slack_configs`, webhook via `api_url_file` | 0 | **adopt** → `#alerts` | the alert feed; the secret stays out of config |
 | Uptime Kuma 1.x | Slack notification type (webhook) | 0 | **adopt** → `#alerts` | up/down beside the Prometheus alerts |
-| Argo CD 3.4.4 | built-in notifications, generic `webhook` service | 0 | **adopt** → `#deploys` | sync failures and degraded health. Not `on-deployed`: every push re-syncs ~83 apps |
+| Argo CD 3.4.4 | built-in notifications, generic `webhook` service | 0 | **adopt** → `#deploys` | sync failures and degraded health. Not `on-deployed`: every push re-syncs ~84 apps |
 | Woodpecker 3.18 | none built in; our own `curl` step | 0 | **adopt** → `#deploys` | failed pipelines; no third-party plugin needed |
 | GlitchTip 6.2 | alert recipient "Webhook" (Slack-compatible) | 0 | **adopt** → `#errors` | new-error alerts per project |
 | Linear | Linear Slack app | 1 | **adopt** → `#linear-updates` | completed/canceled, triage, project + initiative updates |

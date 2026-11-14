@@ -1,0 +1,8 @@
+mirrors:
+  registry.weyland.lab:
+    endpoint:
+      - "https://registry.weyland.lab"
+configs:
+  registry.weyland.lab:
+    tls:
+      insecure_skip_verify: true

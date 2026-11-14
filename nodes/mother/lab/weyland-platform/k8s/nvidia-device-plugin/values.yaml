@@ -1,0 +1,31 @@
+# NVIDIA k8s-device-plugin (chart nvidia-device-plugin v0.20.1) — advertises timberback's RTX 5070 Ti to Kubernetes as
+# `nvidia.com/gpu: 1` (ADR-0012: timberback is a bare-metal GPU worker; driver 595.99 open + container toolkit 1.20.1,
+# both held on the host). Argo app: k8s/argocd/applications/helm-apps.yaml (`nvidia-device-plugin`).
+#
+# Targeting: the chart's default affinity already requires `nvidia.com/gpu.present=true`, which only timberback carries
+# (nodes/timberback/host/rancher/k3s/config.yaml), so mother never runs it.
+#
+# A GPU pod needs three things: `resources.limits: {nvidia.com/gpu: 1}`, `runtimeClassName: nvidia` (k3s ships the
+# RuntimeClass and registers the containerd runtime when the toolkit is present), and — while timberback is still in
+# onboarding — a toleration for `weyland.lab/onboarding`.
+#
+# No sharing yet: one pod at a time gets the whole card. Time-slicing is a later `config:` change.
+
+# Run the plugin itself through the NVIDIA runtime, so it sees the GPU and its libraries.
+runtimeClassName: nvidia
+
+tolerations:
+  # The chart's own defaults, kept.
+  - key: CriticalAddonsOnly
+    operator: Exists
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+  # timberback's onboarding taint: the plugin must run there before any workload is allowed in.
+  - key: weyland.lab/onboarding
+    operator: Exists
+    effect: NoSchedule
+
+# GPU feature discovery (extra node labels) is not needed for one card; off, as by default.
+gfd:
+  enabled: false
