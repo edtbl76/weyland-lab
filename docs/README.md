@@ -96,6 +96,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [storage-minio.md](runbooks/storage-minio.md) — MinIO object storage
 - [streaming.md](runbooks/streaming.md) — streaming tier — Redpanda + Avro producer + Debezium CDC
 - [superset.md](runbooks/superset.md) — Superset (B65 Tier-2 #3): ad-hoc BI/SQL over Trino, Keycloak OIDC
+- [timberback.md](runbooks/timberback.md) — the k3s GPU worker (ADR-0012): btrfs snapshots + rollback, NVIDIA driver/kernel changes, GPU pods, the onboarding taint, rebuild
 - [timescaledb.md](runbooks/timescaledb.md) — TimescaleDB time-series store (B65 Tier-2)
 - [transcription-whisper.md](runbooks/transcription-whisper.md) — whisper.cpp STT (CT 103) + OpenAI shim
 - [trino.md](runbooks/trino.md) — Trino federation query engine (native-Nessie iceberg + postgresql catalogs)
