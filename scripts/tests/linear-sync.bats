@@ -427,6 +427,50 @@ MD
   [ "$status" -eq 0 ]
 }
 
+# --- Phase 2 (owner, 2026-11-13): parked:phase-2 items are UNRANKED, in Linear and in the backlog ---------------------
+
+@test "phase 2: an unranked parked:phase-2 issue with no backlog tier passes" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B200 — thing — **PHASE 2 (unranked; 2026-11-13)** was Low once
+Linear: EMA-200.
+MD
+  printf '{"EMA-200":{"stateType":"backlog","state":"Backlog","project":"Weyland Lab","priority":0,"labels":["parked:phase-2"],"title":"B200 — thing"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "phase 2: a parked:phase-2 issue that carries a Linear priority FAILS" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B200 — thing — **PHASE 2 (unranked; 2026-11-13)**
+Linear: EMA-200.
+MD
+  printf '{"EMA-200":{"stateType":"backlog","state":"Backlog","project":"Weyland Lab","priority":4,"labels":["parked:phase-2"],"title":"B200 — thing"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"PHASE 2 RANKED"* && "$output" == *"B200"* ]]
+}
+
+@test "phase 2: a backlog tier on a parked:phase-2 item FAILS even when Linear has no priority" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B200 — thing — **LOW (2026-11-13)**
+Linear: EMA-200.
+MD
+  printf '{"EMA-200":{"stateType":"backlog","state":"Backlog","project":"Weyland Lab","priority":0,"labels":["parked:phase-2"],"title":"B200 — thing"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"PHASE 2 RANKED"* && "$output" == *"B200"* ]]
+}
+
+@test "phase 2: a DONE parked:phase-2 item is not held to it" {
+  cat > "$STUB_DIR/b.md" <<'MD'
+### B200 — thing — **DONE (2026-11-13)** was LOW once
+Linear: EMA-200.
+MD
+  printf '{"EMA-200":{"stateType":"completed","state":"Done","project":"Weyland Lab","priority":4,"labels":["parked:phase-2"],"title":"B200 — thing","closedAt":"2026-11-13T00:00:00Z"}}' > "$STUB_DIR/s.json"
+  BACKLOG_FILE="$STUB_DIR/b.md" LINEAR_SNAPSHOT_JSON="$STUB_DIR/s.json" run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
 # --- full coverage: missing-from-Linear + orphan-in-Linear ---------------------------------------
 
 @test "coverage: a backlog item with NO Linear issue at all FAILS (the B128/B151 class)" {

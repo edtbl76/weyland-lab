@@ -338,7 +338,7 @@ import json, os, re, sys, urllib.error, urllib.request
 
 QUERY = ("query($team: String!, $after: String) { team(id: $team) { issues(first: 250, after: $after, "
          "includeArchived: true) { pageInfo { hasNextPage endCursor } nodes { identifier title priority "
-         "state { type name } project { name } completedAt canceledAt description } } } }")
+         "state { type name } project { name } labels { nodes { name } } completedAt canceledAt description } } } }")
 files = [f for f in os.environ.get("LINEAR_PAGE_FILES", "").split(",") if f]
 BOX_OPEN = re.compile(r"^\s*[-*]\s+\[ \]")
 # A section opens at a `## Heading` or at a bold-only paragraph (`**Acceptance criteria (pass/fail).**`, as EMA-287
@@ -400,6 +400,7 @@ while True:
             "title":     n.get("title"),      # to derive the B/U/SEC item-number for full-coverage matching
             "closedAt":  n.get("completedAt") or n.get("canceledAt"),   # checks I (24 h grace) and J (cutoff)
             "unticked":  unticked(n.get("description")),                # check J; the text itself is not kept
+            "labels":    [lb["name"] for lb in ((n.get("labels") or {}).get("nodes") or [])],   # check K (Phase 2)
         }
     info = issues.get("pageInfo") or {}
     if not info.get("hasNextPage"):
@@ -708,7 +709,7 @@ backlog_nums = set(by_num)
 # a weyland issue whose Linear title carries no number) legitimate, so the unnumbered check below does
 # not flag an issue the backlog already references by id.
 referenced = {r for rec in by_num.values() for r in rec["refs"]}
-drift, missing, orphan, tierdrift, nolinear, orphan_num, unnumbered = [], [], [], [], [], [], []
+drift, missing, orphan, tierdrift, nolinear, orphan_num, unnumbered, phase2 = [], [], [], [], [], [], [], []
 reverse, boxes, boxes_before = [], [], []
 for bnum, rec in by_num.items():
     status, tier, brefs = rec["status"], rec["tier"], rec["refs"]
@@ -747,6 +748,11 @@ for bnum, rec in by_num.items():
     # a backlog tier — so an item with no stated tier, or at Urgent/None, is never falsely flagged.
     if status != "done" and tier and lin_tier and lin_tier != tier and st not in TERMINAL:
         tierdrift.append((bnum, ema, tier, lin_tier))
+    # CHECK K — Phase 2 (owner, 2026-11-13). A `parked:phase-2` issue is a future project, UNRANKED until Phase 2
+    # decomposes it: neither a Linear priority nor a backlog HIGH/MEDIUM/LOW tier may rank it. Open items only.
+    if status != "done" and st not in TERMINAL and "parked:phase-2" in (row.get("labels") or []):
+        if row.get("priority") or tier:
+            phase2.append((bnum, ema, row.get("priority") or 0, tier or "-"))
 
 for ema, row in sorted(snap.items()):
     stt = row.get("stateType") or ""
@@ -861,6 +867,15 @@ if tierdrift:
     for b, e, bt, lt in tierdrift:
         print(f"  {b:8s} {e:9s} backlog={bt}  linear={lt}", file=sys.stderr)
     print("  Align both (backlog HIGH/MEDIUM/LOW tag + Linear priority) — a rebalance must move each.", file=sys.stderr)
+    fail = True
+if phase2:
+    print("", file=sys.stderr)
+    print("PHASE 2 RANKED — a parked:phase-2 item is a future project, unranked until Phase 2 decomposes it:", file=sys.stderr)
+    for b, e, lp, bt in phase2:
+        print(f"  {b:8s} {e:9s} linear priority={lp}  backlog tier={bt}", file=sys.stderr)
+    print("  Clear the Linear priority (No priority) and drop the backlog HIGH/MEDIUM/LOW tag — or, if it is ranked work",
+          file=sys.stderr)
+    print("  now, remove the parked:phase-2 label.", file=sys.stderr)
     fail = True
 if orphan:
     print("", file=sys.stderr)

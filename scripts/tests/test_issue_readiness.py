@@ -165,6 +165,23 @@ def test_no_priority_is_named():
     assert ir.check(issue(priority=0)).missing == ["Priority (the issue's priority field)"]
 
 
+# Phase 2 (owner, 2026-11-13): `parked:phase-2` marks a future project for weyland's Phase 2. It is UNRANKED on purpose —
+# ranking happens when Phase 2 decomposes it — so no priority is correct and a set priority is the defect.
+def test_a_phase_2_item_with_no_priority_is_ready():
+    r = ir.check(issue(priority=0, labels=["parked:phase-2"]))
+    assert r.ready and r.missing == []
+
+
+def test_a_phase_2_item_that_carries_a_priority_is_not_ready():
+    r = ir.check(issue(priority=4, labels=["parked:phase-2"]))
+    assert not r.ready and r.missing == [ir.PHASE2_ITEM]
+
+
+def test_the_other_parked_labels_still_need_a_priority():
+    for lb in ("parked:held", "parked:deferred"):
+        assert ir.check(issue(priority=0, labels=[lb])).missing == ["Priority (the issue's priority field)"]
+
+
 # ── output ──────────────────────────────────────────────────────────────────
 
 

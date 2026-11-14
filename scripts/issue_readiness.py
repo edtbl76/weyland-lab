@@ -34,6 +34,10 @@ LEGACY_MARKERS = ("**Issue readiness (weyland scorer)**",)   # the dropped 0-100
 SWEEP_PROJECT = "Weyland Lab"
 LINEAR_URL = os.environ.get("ISSUE_READINESS_LINEAR_URL", "https://api.linear.app/graphql")   # override: tests
 PRIORITY_ITEM = "Priority (the issue's priority field)"
+# Phase 2 (owner, 2026-11-13): `parked:phase-2` marks a future project for weyland's Phase 2 — unranked on purpose until
+# Phase 2 decomposes it, so for these "no priority" is the standard and a priority is what is missing-the-mark.
+PHASE2_LABEL = "parked:phase-2"
+PHASE2_ITEM = "No priority (a parked:phase-2 item is unranked until Phase 2 decomposes and ranks it)"
 PREAMBLE = "(opening paragraph)"        # text before the first heading — EMA-240 / EMA-243 state their problem there
 
 # The standard, per issue kind: the content sections of the Linear template of that kind (Backlog item / Bug / Spike /
@@ -231,7 +235,10 @@ def check(issue):
         good = _has_criterion if (name, aliases) == AC else _meaningful
         if not any(good(b) for b in bodies):
             missing.append(name)
-    if not issue.priority:
+    if PHASE2_LABEL in issue.labels:
+        if issue.priority:
+            missing.append(PHASE2_ITEM)
+    elif not issue.priority:
         missing.append(PRIORITY_ITEM)
     return Result(issue.identifier, kind, missing)
 

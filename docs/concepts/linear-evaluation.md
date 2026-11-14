@@ -143,6 +143,22 @@ not a blocker, so a deferred issue still counts. **A deferred issue is Low (owne
 legitimate, but it goes with Low priority — an issue deferred at Medium or High is a contradiction; lower it when
 deferring, and raise it again only when it is un-deferred.
 
+**`parked:phase-2` — future projects, unranked and temporary (owner, 2026-11-13).** A third label in the same family
+(team label, `#78828F`). It marks a future project for weyland's **Phase 2**: the platform/application split and what
+sits on top of it. Phase 2 is a matter of what an item is about, not its size: a small, already-designed item is still
+Phase 2 if that is where it belongs (owner on B165: "Even if it's small it's still phase2, and unranked"). Unlike the
+other two, it **removes** the priority:
+- **Unranked.** A Phase 2 item carries **no** Linear priority and no backlog HIGH/MEDIUM/LOW tag. Most are epics that
+  still need decomposing, and ranking happens to the pieces. Two guards enforce this: `check-linear-sync.sh` check K
+  ("PHASE 2 RANKED") and `issue-readiness.sh` (no priority is READY; a priority is the missing item).
+- **Out of the tier account,** like `parked:held`: it has no tier to count.
+- **Temporary.** When the ranked backlog is done, Phase 2 becomes the backlog: each item is decomposed and ranked, and
+  the label is retired.
+
+First members: **B9 / EMA-20** (the split itself, moved from `parked:held`), **B165 / EMA-222** (the Kindle library
+finder) **B193 / EMA-252** (sharing work outward, moved from `parked:deferred`: a platform capability for the apps
+that run on top) and **B159 / EMA-216** (onboarding as real services, the application half of the split; moved from `parked:held`).
+
 Each issue kept its priority label and its `Backlog` state (verified in the `save_issue` response) — the
 orthogonality proof. The specific *why* still lives in the `docs/backlog.md` entry; the label is the queryable
 facet, the backlog is the prose. Terminal mappings are unchanged: WON'T-DO / MOOT → `Canceled`, DONE → `Done`.
