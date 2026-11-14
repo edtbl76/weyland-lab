@@ -32,8 +32,11 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
   Recurring agent workflows live in the **loop library** (`knowledge-repos/loop-library/`, B175): before running a
   repeatable workflow (CI watch, DoD gate, soak check, …) use its loop, and every new loop needs a checkable terminal
   condition (`scripts/check-loop-library.sh`).
-- **Decisions already made** live in `docs/backlog.md`, `docs/concepts/*` verdict tables and the runbooks. **Check them
-  before proposing anything** — re-proposing a rejected option (e.g. KEDA, Cyrus) wastes the owner's time.
+- **Decisions already made** are indexed in the **ADR log, `docs/adr/`** (one MADR file per decision; each links the
+  design record, concept verdict or runbook it came from), with `docs/backlog.md` and `docs/concepts/*` verdict tables
+  holding the detail. **Check them before proposing anything** — re-proposing a rejected option (e.g. KEDA, Cyrus)
+  wastes the owner's time. A new decision gets an ADR (`docs/runbooks/adr.md`; `/adr:new` in Claude Code, the template
+  by hand elsewhere); `scripts/check-adr.sh` (CI) checks every one.
 
 ## Operational just-dos (do these without asking; don't improvise a substitute)
 - **Every operational task has ONE canonical command — it lives in a `docs/runbooks/*.md`.** Find it and use it

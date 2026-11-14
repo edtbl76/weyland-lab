@@ -11,6 +11,7 @@ LAN-only. This `docs/` tree is the canonical, version-controlled source of truth
 - [api.md](api.md) — live endpoint registry
 - [schedules.md](schedules.md) — master timetable: all Dagster + DataHub cron jobs, TZ-normalized
 - [definition-of-done.md](definition-of-done.md) — **the DoD**: the 9-pillar gate every body of work passes (docs · diagrams · demos · cleanup · close-out · operational-completeness · security-scan · cascading-changes · disaster recovery)
+- [adr/](adr/README.md) — **the decision log**: one ADR per standing decision (rejections included), each linking its source. Check it before proposing anything (B248)
 - [dr.md](dr.md) — **disaster recovery**: every backup, where its copy physically lives, what it can lose, and when a restore was last tested (DoD Pillar 9)
 
 ## query/ — copy-paste queries, one file per store
@@ -30,6 +31,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 
 ## runbooks/ — the *how* (per service)
 
+- [adr.md](runbooks/adr.md) — add, list, supersede, search and validate ADRs (`/adr:*` plugin in Claude Code, the template by hand elsewhere; B248)
 - [agent-hermes.md](runbooks/agent-hermes.md) — Hermes agent (CT 104) setup, config, gotchas, **Kanban (B27)**
 - [agentic-rag.md](runbooks/agentic-rag.md) — agentic RAG — the `weyland-agent` service (B70 Part 3)
 - [aidlc-kb-ingest.md](runbooks/aidlc-kb-ingest.md) — AIDLC knowledge-base ingest (B37): MinIO source + brand scrub, on-demand Dagster job, Neo4j `:Entry` graph + GDS, NeoDash viz
