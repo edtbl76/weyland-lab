@@ -399,6 +399,9 @@ hosts:
     - name: gstreamer1.0-packagekit
       kind: apt
       status: system
+    - name: gstreamer1.0-plugins-bad
+      kind: apt
+      status: system
     - name: gstreamer1.0-plugins-base-apps
       kind: apt
       status: system
@@ -1093,6 +1096,18 @@ hosts:
     - name: aquasec/trivy
       kind: image
       status: system
+    - name: b244-flink
+      kind: image
+      status: system
+    - name: b244-flinkpy
+      kind: image
+      status: system
+    - name: b244-mlflow
+      kind: image
+      status: system
+    - name: b244-nemo
+      kind: image
+      status: system
     - name: bats/bats
       kind: image
       status: system
@@ -1102,7 +1117,13 @@ hosts:
     - name: cljkondo/clj-kondo
       kind: image
       status: system
+    - name: clojure
+      kind: image
+      status: system
     - name: codescene/codescene-mcp
+      kind: image
+      status: system
+    - name: composer
       kind: image
       status: system
     - name: contiker/contiki-ng
@@ -1112,6 +1133,9 @@ hosts:
       kind: image
       status: system
     - name: cytopia/yamllint
+      kind: image
+      status: system
+    - name: dart
       kind: image
       status: system
     - name: debian
@@ -1135,10 +1159,25 @@ hosts:
     - name: eclipse-temurin
       kind: image
       status: system
+    - name: elixir
+      kind: image
+      status: system
+    - name: erlang
+      kind: image
+      status: system
+    - name: flink
+      kind: image
+      status: system
+    - name: gcc
+      kind: image
+      status: system
     - name: gcr.io/projectsigstore/cosign
       kind: image
       status: system
     - name: ghcr.io/astral-sh/ruff
+      kind: image
+      status: system
+    - name: ghcr.io/cirruslabs/flutter
       kind: image
       status: system
     - name: ghcr.io/containers/kubernetes-mcp-server
@@ -1154,6 +1193,9 @@ hosts:
       kind: image
       status: system
     - name: ghcr.io/mlflow/mlflow
+      kind: image
+      status: system
+    - name: ghcr.io/opentofu/opentofu
       kind: image
       status: system
     - name: ghcr.io/sourcebot-dev/sourcebot
@@ -1181,6 +1223,9 @@ hosts:
       kind: image
       status: system
     - name: golden-lua-openresty
+      kind: image
+      status: system
+    - name: gradle
       kind: image
       status: system
     - name: grafana/k6
@@ -1216,6 +1261,9 @@ hosts:
     - name: mcp/sonarqube
       kind: image
       status: system
+    - name: mcr.microsoft.com/dotnet/sdk
+      kind: image
+      status: system
     - name: minio/mc
       kind: image
       status: system
@@ -1225,7 +1273,13 @@ hosts:
     - name: moby/buildkit
       kind: image
       status: system
+    - name: mongo
+      kind: image
+      status: system
     - name: mr3project/ranger
+      kind: image
+      status: system
+    - name: mysql
       kind: image
       status: system
     - name: nginx
@@ -1270,7 +1324,13 @@ hosts:
     - name: pytorch/pytorch
       kind: image
       status: system
+    - name: quay.io/argoproj/argocd
+      kind: image
+      status: system
     - name: quay.io/jupyter/scipy-notebook
+      kind: image
+      status: system
+    - name: quay.io/prometheus/alertmanager
       kind: image
       status: system
     - name: rancher/kubectl
@@ -1282,10 +1342,76 @@ hosts:
     - name: redis
       kind: image
       status: system
+    - name: registry-push.weyland.lab/a2a-inspector
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/finance-trainer
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/genre-trainer
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/mcp-server-datahub
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/ranger
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/ray-head
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/weyland-agent
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/weyland-jupyter
+      kind: image
+      status: system
+    - name: registry-push.weyland.lab/weyland-superset
+      kind: image
+      status: system
+    - name: registry.weyland.lab/a2a-inspector
+      kind: image
+      status: system
+    - name: registry.weyland.lab/finance-trainer
+      kind: image
+      status: system
+    - name: registry.weyland.lab/genre-trainer
+      kind: image
+      status: system
+    - name: registry.weyland.lab/mcp-server-datahub
+      kind: image
+      status: system
+    - name: registry.weyland.lab/ranger
+      kind: image
+      status: system
+    - name: registry.weyland.lab/ray-head
+      kind: image
+      status: system
+    - name: registry.weyland.lab/store-scaler
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-agent
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-dagster-user-code
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-jupyter
+      kind: image
+      status: system
+    - name: registry.weyland.lab/weyland-superset
+      kind: image
+      status: system
+    - name: rocker/r-ver
+      kind: image
+      status: system
     - name: ruby
       kind: image
       status: system
     - name: rust
+      kind: image
+      status: system
+    - name: sbtscala/scala-sbt
       kind: image
       status: system
     - name: semgrep/semgrep
@@ -1304,9 +1430,6 @@ hosts:
       kind: image
       status: system
     - name: studio-controlroom_backend
-      kind: image
-      status: system
-    - name: studio-controlroom_backend_test
       kind: image
       status: system
     - name: studio-frontend
@@ -2590,6 +2713,10 @@ hosts:
       kind: snap
       status: keep
       rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
+    - name: gnome-core26
+      kind: snap
+      status: unreviewed
+      rationale: ''
     - name: go
       kind: snap
       status: keep
@@ -2622,6 +2749,10 @@ hosts:
       kind: snap
       status: keep
       rationale: snap platform/runtime (dependency of kept snaps); EMA-188 audit 2026-08-15
+    - name: mesa-2604
+      kind: snap
+      status: unreviewed
+      rationale: ''
     - name: musescore
       kind: snap
       status: keep
