@@ -138,7 +138,7 @@ version = "2.8.0"
 ecosystem = "PyPI"
 vulnerability.ignore = true
 effectiveUntil = 2027-01-27
-reason = "k8s/flink/requirements-pyflink.txt only. GHSA-45c3-73f7-pv4m / CVE-2026-114605 (dns.name.from_wire_parser() excessive CPU on a crafted DNS message, fixed 2.9.0). 2.9.0 requires Python >=3.11 and weyland-flink-py runs the Flink base image's system Python 3.10. dnspython is there only as pymongo's dependency (via apache-beam), and the PyFlink job (music_tier.py) uses no Mongo and no dnspython lookups. Re-check when the image moves to Python 3.11+. Accepted 2026-10-27."
+reason = "k8s/flink/requirements-pyflink.txt only. GHSA-45c3-73f7-pv4m / CVE-2026-114605 (dns.name.from_wire_parser() excessive CPU on a crafted DNS message, fixed 2.9.0). 2.9.0 requires Python >=3.11 and weyland-flink-py runs the Flink base image's system Python 3.10. dnspython is there only as pymongo's dependency (via apache-beam), and the PyFlink job (music_tier.py) uses no Mongo and no dnspython lookups. Re-check when the image moves to Python 3.11+. Accepted 2026-10-27. Also GHSA-vvf4-9x63-8xvv (2026-11-13, HIGH: a crafted WKS record in zone-file TEXT parsed by from_text() exhausts memory/CPU; fixed 2.9.2, also Python >=3.11): the job parses no zone files at all, so the input never exists. Every other manifest moved to 2.9.2."
 
 [[PackageOverrides]]
 name = "setuptools"
