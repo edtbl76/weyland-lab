@@ -21,6 +21,7 @@ checks every ADR's sections and status, the numbering, and this index.
 | [0009](./0009-graph-traversal-does-not-beat-vector-search.md) | Graph-aware retrieval does not beat vector search on this corpus | accepted | 2026-11-12 |
 | [0010](./0010-adaptive-retrieval-depth-for-comparisons.md) | Search comparison questions at twice the depth; retire the experimental retrieval modes | accepted | 2026-11-13 |
 | [0011](./0011-dont-adopt-sentry-saas.md) | Don't adopt Sentry SaaS | accepted | 2026-11-13 |
+| [0012](./0012-timberback-bare-metal-ubuntu-on-btrfs.md) | Run timberback as a bare-metal Ubuntu k3s worker on btrfs, not under Proxmox | accepted | 2026-11-14 |
 
 ## Status Legend
 
