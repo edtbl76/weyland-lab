@@ -27,7 +27,7 @@ One btrfs filesystem on `nvme0n1p2`, with root in its own subvolume so it can be
 | `.snapshots` (inside `@`) | `/.snapshots` | — | snapper's snapshots of `/` |
 
 `/etc/fstab` and GRUB both name the root as **`subvol=@`**. That is why rollback swaps `@` (below) instead of using
-`snapper rollback`, which assumes root is the default subvolume (the openSUSE layout).
+`snapper rollback`, which assumes root is the default subvolume (the openSUSE layout) and would be ignored at boot here. The swap method is drilled (see Roll back).
 
 ## Snapshots
 
@@ -58,8 +58,12 @@ sudo snapper -c root status <older>..<newer>
 
 ## Roll back
 
-> **UNTESTED on timberback.** The method follows the layout above, but no rollback drill has been run yet. Run the
-> drill (a harmless change, roll it back, confirm it is gone) before relying on it, and record the date here.
+> **Drilled 2026-11-14, passed** — using exactly the commands below. Snapshot 15 was taken, then marker files were
+> written to `/etc` (inside `@`) and `/var/log` (in `@var_log`). After the swap to snapshot 15 and a reboot (about
+> 40 s): the `/etc` marker was gone, the `/var/log` marker was kept (outside the snapshots, as designed), root was the
+> new `@` (subvolume 277, made from snapshot 15), snapper still listed every snapshot, the GPU answered
+> (`nvidia-smi`), `k3s-agent` came back, and the node advertised `nvidia.com/gpu: 1` after uncordon. The rolled-back
+> copy was then deleted with step 5. Re-drill after any change to the layout, `fstab` or GRUB.
 
 The idea: rename the broken `@` aside, make a new `@` from the snapshot you want, move `.snapshots` into it, reboot.
 GRUB and `fstab` load whatever is called `@`, so nothing else changes. The k3s state (`@rancher`), logs and home are
