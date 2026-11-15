@@ -144,6 +144,12 @@ metadata:
     app: whisper
 spec:
   type: ClusterIP
+  # Pinned (its first-assigned value, 2026-11-14): Uptime Kuma's monitor #16 calls http://10.43.142.42:9000/health.
+  # Kuma's pod uses the LAN DNS only (dnsPolicy None, to resolve *.weyland.lab), so it cannot resolve
+  # whisper.weyland.svc; and the whisper-lan NodePort is on timberback with externalTrafficPolicy Local, where a call
+  # from a mother pod arrives NATed to mother's IP and the NetworkPolicy refuses it. Pinning keeps the address if the
+  # Service is ever deleted and recreated.
+  clusterIP: 10.43.142.42
   selector:
     app: whisper
   ports:

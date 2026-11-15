@@ -23,6 +23,10 @@ then.
   `externalTrafficPolicy: Local` (keeps rogueone's IP for the NetworkPolicy), so it answers on timberback's address.
 - **Who may call it:** NetworkPolicy `whisper-callers-only` admits Open WebUI, Uptime Kuma and rogueone (`192.168.1.230/32`).
 - **Alert:** `WhisperDown` (warning) when the Deployment has no ready replica for 10 minutes.
+- **Uptime Kuma:** monitor #16 `whisper` checks `http://10.43.142.42:9000/health`, the Service's ClusterIP, pinned in
+  `whisper.yaml`. Kuma's pod resolves only LAN names (dnsPolicy None, search `weyland.lab`), so a `*.svc` name gets
+  `.weyland.lab` appended and hits the wildcard; the NodePort is refused (it arrives NATed to mother's IP).
+- **Cutover done 2026-11-14:** Open WebUI's STT points here (owner voice test: "it worked. WOW that is fast").
 
 ### The image (`registry.weyland.lab/whisper-cuda:<whisper.cpp version>`)
 
