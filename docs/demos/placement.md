@@ -1,7 +1,7 @@
 # Demo — placement inventory (B198)
 
-Where every workload in the lab runs, what state it holds, whether it can move, and where it goes when the Strix
-Halo box lands (B134) — and the two checks that keep that answer true. Sequence diagram:
+Where every workload in the lab runs, what state it holds, whether it can move, and where it goes now that
+timberback is the second k3s node (B134, ADR-0012) — and the two checks that keep that answer true. Sequence diagram:
 [../diagrams/flow-placement.md](../diagrams/flow-placement.md). Runbook:
 [../runbooks/observability.md](../runbooks/observability.md#placement-inventory--placementyaml-and-its-checks-b198-2026-09-27).
 
@@ -35,7 +35,7 @@ bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-placement.sh
 ```
 Expect `OK — placement.yaml: <N> rows, repo check clean.`
 
-The Strix Halo migration table:
+The second-node (timberback) migration table:
 
 [rogueone]
 ```

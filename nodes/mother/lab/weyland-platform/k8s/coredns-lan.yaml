@@ -83,6 +83,10 @@ spec:
       labels:
         app: weyland-lan-dns
     spec:
+      # Pinned to mother (B134 pinning pass, 2026-11-14): LAN clients resolve *.weyland.lab at mother's IP (.243)
+      # on hostPort 53; on another node LAN name resolution would break.
+      nodeSelector:
+        kubernetes.io/hostname: mother
       containers:
         - name: coredns
           image: coredns/coredns:1.11.3

@@ -255,7 +255,7 @@ Live baseline 2026-09-05: **111/111 mesh tables catalogued, 0 drift** (exit 0).
 ### Placement inventory — placement.yaml and its checks (B198, 2026-09-27)
 
 [`placement.yaml`](../../placement.yaml) records where every workload runs, what state it holds, whether it can move,
-and its Strix Halo target (B134). Three checks keep it honest (`scripts/placement_check.py`; exit 1 = drift named,
+and its second-node target (`target`, B134: where it goes now that timberback is the second k3s node). Three checks keep it honest (`scripts/placement_check.py`; exit 1 = drift named,
 2 = a source could not be read):
 
 | Check | Where | What fails it |
@@ -306,7 +306,7 @@ header (for example `weyland-image-prune.timer`, moved to Sun 00:15 NY on 2026-0
 correct one, copy it into the repo. **A hand-installed unit with no row:** add a row (scope `unknown` when the owner
 is not confirmed), or add an OS/package unit to `host_os_units`.
 
-**The Strix Halo migration table** (rows whose target is k3s-worker / inference-lxc / tbd, plus counts):
+**The second-node migration table** (rows whose target is k3s-worker / tbd, plus counts):
 ```
 bash /home/edwardmangini/IdeaProjects/weyland/scripts/check-placement.sh --migration
 ```

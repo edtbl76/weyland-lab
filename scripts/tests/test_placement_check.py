@@ -47,16 +47,16 @@ def _doc(rows=None, os_units=None, hosts=None):
         "host_os_units": {"rogueone": os_units if os_units is not None else ["ssh.service"]},
         "workloads": rows if rows is not None else [
             {"id": "k8s:weyland/Deployment/tool-server", "host": "mother", "state": "stateless", "move": "movable",
-             "strix": "any", "managed": "argo"},
+             "target": "any", "managed": "argo"},
             {"id": "k8s:weyland/StatefulSet/qdrant", "host": "mother", "state": "pvc:local-path",
-             "move": "pinned: local-path PV on mother", "strix": "stays", "managed": "argo"},
+             "move": "pinned: local-path PV on mother", "target": "stays", "managed": "argo"},
             {"id": "systemd:rogueone/ollama.service", "host": "rogueone", "state": "none",
-             "move": "hardware-bound: CUDA", "strix": "stays", "managed": "systemd", "likec4": "ollama"},
+             "move": "hardware-bound: CUDA", "target": "stays", "managed": "systemd", "likec4": "ollama"},
             {"id": "systemd:rogueone/rag-embed.service", "host": "rogueone", "state": "stateless", "move": "movable",
-             "strix": "k3s-worker", "managed": "systemd", "likec4": "ragEmbed", "why": "always-on node"},
-            {"id": "pve:qemu/101", "host": "weyland", "state": "none", "move": "pinned: k3s server", "strix": "stays",
+             "target": "k3s-worker", "managed": "systemd", "likec4": "ragEmbed", "why": "always-on node"},
+            {"id": "pve:qemu/101", "host": "weyland", "state": "none", "move": "pinned: k3s server", "target": "stays",
              "managed": "pve", "likec4": "mother"},
-            {"id": "pve:lxc/103", "host": "weyland", "state": "none", "move": "movable", "strix": "tbd",
+            {"id": "pve:lxc/103", "host": "weyland", "state": "none", "move": "movable", "target": "tbd",
              "managed": "pve", "likec4": "whisper", "why": "owner decision"},
         ],
     }
@@ -70,7 +70,7 @@ def test_a_well_formed_inventory_has_no_schema_findings():
 
 @pytest.mark.parametrize("field,value,expect", [
     ("host", "atlantis", "unknown host 'atlantis'"),
-    ("strix", "moon", "strix 'moon'"),
+    ("target", "moon", "target 'moon'"),
     ("move", "wherever", "move 'wherever'"),
     ("scope", "hobby", "scope 'hobby'"),
 ])
@@ -97,15 +97,30 @@ def test_a_stateful_row_marked_movable_is_a_finding():
     # Every local-path PV is bound to one node: a pvc row that claims it can move is a lie the migration would find.
     doc = _doc()
     doc["workloads"][1]["move"] = "movable"
-    doc["workloads"][1]["strix"] = "any"
+    doc["workloads"][1]["target"] = "any"
     assert any("qdrant" in f and "pvc" in f for f in pc.validate_schema(doc))
 
 
-@pytest.mark.parametrize("strix", ["k3s-worker", "inference-lxc", "tbd"])
-def test_a_deliberate_placement_needs_a_why(strix):
+@pytest.mark.parametrize("target", ["k3s-worker", "tbd"])
+def test_a_deliberate_placement_needs_a_why(target):
     doc = _doc()
-    doc["workloads"][0]["strix"] = strix
+    doc["workloads"][0]["target"] = target
     assert any("why" in f and "tool-server" in f for f in pc.validate_schema(doc))
+
+
+# 2026-11-14: the Strix Halo box was never bought; the second node is timberback (ADR-0012), a bare-metal k3s worker
+# with no LXC. The field is `target` (where a row goes now that there are two nodes) and `inference-lxc` is gone.
+def test_the_inference_lxc_target_is_gone():
+    doc = _doc()
+    doc["workloads"][0]["target"] = "inference-lxc"
+    doc["workloads"][0]["why"] = "x"
+    assert any("target 'inference-lxc'" in f and "tool-server" in f for f in pc.validate_schema(doc))
+
+
+def test_a_row_still_using_the_old_strix_key_is_a_finding():
+    doc = _doc()
+    doc["workloads"][0]["strix"] = doc["workloads"][0].pop("target")
+    assert any("strix" in f and "renamed" in f and "target" in f and "tool-server" in f for f in pc.validate_schema(doc))
 
 
 def test_pinned_needs_a_reason():
@@ -195,7 +210,7 @@ def test_user_systemd_rows_are_declared_only():
     # can be declared but not live-checked — it must never read as "not running".
     doc = _doc()
     doc["workloads"].append({"id": "user-systemd:rogueone/restic-backup.timer", "host": "rogueone", "state": "none",
-                             "move": "pinned: backs up rogueone's own home", "strix": "stays", "managed": "systemd"})
+                             "move": "pinned: backs up rogueone's own home", "target": "stays", "managed": "systemd"})
     assert pc.validate_schema(doc) == []
     assert pc.check_live(doc, K8S, UNITS, PVE) == []
 
@@ -203,7 +218,7 @@ def test_user_systemd_rows_are_declared_only():
 def test_tool_rows_are_declared_only():
     doc = _doc()
     doc["workloads"].append({"id": "tool:rogueone/editors", "host": "rogueone", "state": "none",
-                             "move": "pinned: the workstation", "strix": "stays", "managed": "desktop"})
+                             "move": "pinned: the workstation", "target": "stays", "managed": "desktop"})
     assert pc.check_live(doc, K8S, UNITS, PVE) == []
 
 
@@ -384,7 +399,7 @@ def test_a_source_that_does_not_exist_is_a_finding(tmp_path):
 def test_a_unit_row_source_is_checked_too(tmp_path):
     doc = _doc()
     doc["workloads"].append({"id": "systemd:mother/weyland-image-prune.timer", "host": "mother", "state": "none",
-                             "move": "pinned: prunes mother's images", "strix": "stays", "managed": "systemd",
+                             "move": "pinned: prunes mother's images", "target": "stays", "managed": "systemd",
                              "source": "nodes/mother/host/systemd/weyland-image-prune.timer",
                              "path": "/etc/systemd/system/weyland-image-prune.timer"})
     assert any("weyland-image-prune.timer" in f for f in pc.check_sources(doc, str(tmp_path)))
@@ -430,7 +445,7 @@ def test_compare_installed_reports_missing_drift_and_comment_only():
 def test_every_hand_installed_unit_must_be_inventoried():
     doc = _doc()
     doc["workloads"].append({"id": "systemd:mother/weyland-image-prune.timer", "host": "mother", "state": "none",
-                             "move": "pinned: x", "strix": "stays", "managed": "systemd"})
+                             "move": "pinned: x", "target": "stays", "managed": "systemd"})
     installed = {"mother": {"weyland-image-prune.timer", "mystery.service"}}
     findings = pc.check_installed_units(doc, installed)
     assert any("mystery.service" in f and "not in the inventory" in f for f in findings)
@@ -471,7 +486,7 @@ def _host_doc():
     doc = _doc()
     doc["hosts"]["mother"]["access"] = "ssh emangini@mother"
     doc["workloads"].append({"id": "systemd:mother/weyland-image-prune.timer", "host": "mother", "state": "none",
-                             "move": "pinned: x", "strix": "stays", "managed": "systemd", "every": "7d",
+                             "move": "pinned: x", "target": "stays", "managed": "systemd", "every": "7d",
                              "source": "t.timer", "path": "/etc/systemd/system/weyland-image-prune.timer"})
     doc["host_config"] = [{"id": "file:mother/etc/a.conf", "host": "mother", "path": "/etc/a.conf", "source": "a.conf"}]
     return doc

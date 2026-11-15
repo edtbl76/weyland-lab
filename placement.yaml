@@ -1,6 +1,7 @@
 # Placement inventory (B198) — where every workload in the lab runs, what state it holds, whether it can move, and
-# where it goes when the Strix Halo box lands (B134). The migration plan for that purchase IS this file: every row whose
-# `strix` is not `stays` / `any` / `every-node`.
+# where it goes now that the cluster has a second node: timberback, a bare-metal k3s GPU worker (ADR-0012, joined
+# 2026-11-14; the Strix Halo box B134 once planned around was never bought). The migration plan IS this file: every row
+# whose `target` is not `stays` / `any` / `every-node`.
 #
 # HELD HONEST BY scripts/check-placement.sh:
 #   repo mode (repo-guards, every push): schema + enums, every host known, every LikeC4 component on a non-cluster node
@@ -16,15 +17,16 @@
 #   host      a key under `hosts`
 #   state     stateless | pvc:local-path | host-path: <path> | model-library: <path> | none
 #   move      movable | every-node | pinned: <reason> | hardware-bound: <reason>
-#   strix     any (the scheduler may place it on either node) | k3s-worker (deliberately moved) | inference-lxc |
-#             stays | every-node | tbd (an owner decision, with `why`)
+#   target    any (the scheduler may place it on either node) | k3s-worker (deliberately moved to timberback) |
+#             stays (must stay where it is — pinned by a PV, a node selector, or the hardware) | every-node |
+#             tbd (an owner decision, with `why`)
 #   managed   how it is deployed: argo | k3s | operator (<Kind>) | istioctl / helm (deliberate exceptions, runbooks/argocd.md)
 #             | systemd | pve. "not argo" with no recorded decision is a GitOps gap — fix it, do not record it.
 #   scope     lab (default) | stud.io (a separate product — recorded, not planned here) | personal (the owner's own
 #             tools, confirmed by the owner) | unused (a removal candidate) | unknown (owner not confirmed — never guess)
 #   likec4    the element id in docs/architecture/weyland.likec4, when the model has one
 #   on_demand true = normally NOT running (benches, trainers); the live check does not treat "not running" as drift
-#   why       the reason, required for k3s-worker / inference-lxc / tbd / unused
+#   why       the reason, required for k3s-worker / tbd / unused
 #
 # Every local-path PV is bound to node `mother` (47/47 on 2026-09-27), so every pvc row is pinned: moving one means
 # moving its data, which is B134's call per store (docs/dr.md holds the blast radius).
@@ -38,7 +40,6 @@ hosts:
   whisper:    {access: "ssh root@weyland pct exec 103", kind: lxc, runs_on: weyland, pve_id: "lxc/103", always_on: true, note: "whisper.cpp CPU STT (.246)"}
   rogueone:   {access: "local", kind: laptop, always_on: false, node_exporter: "192.168.1.230:9100", note: "RTX 5000 Ada 16 GB, 128 GB RAM (.230); sleeps — not always on; systemd-only node-exporter (B198)"}
   timberback: {access: "ssh emangini@timberback", kind: bare-metal, always_on: true, note: "Ryzen 9 9950X, 96 GB, RTX 5070 Ti 16 GB (.233); bare-metal Ubuntu on btrfs, k3s GPU WORKER (ADR-0012), joined 2026-11-14 with the weyland.lab/onboarding taint"}
-  strix-halo: {kind: planned, always_on: true, note: "NEVER PURCHASED (owner, 2026-11-14) — the real new hardware is timberback; the strix_target plan is pending correction"}
 
 # OS / desktop units on a watched host that are not workloads. Exact unit names — never a pattern, so a new lab
 # service cannot hide behind one.
@@ -81,245 +82,245 @@ host_os_units:
 
 workloads:
   # ---- mother (k3s) — seeded from the live cluster 2026-09-27 ----
-  - {id: "k8s:argocd/Deployment/argocd-applicationset-controller", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
-  - {id: "k8s:argocd/Deployment/argocd-notifications-controller", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md); B184, sync failures → Slack #deploys"}
-  - {id: "k8s:argocd/Deployment/argocd-redis", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
-  - {id: "k8s:argocd/Deployment/argocd-repo-server", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
-  - {id: "k8s:argocd/Deployment/argocd-server", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
-  - {id: "k8s:argocd/StatefulSet/argocd-application-controller", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
-  - {id: "k8s:data-mesh/CronJob/lancedb-sync", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:data-mesh/CronJob/pg-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/clickhouse", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/cockroachdb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
-  - {id: "k8s:data-mesh/Deployment/cube", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/datahub-acryl-datahub-actions", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/datahub-datahub-frontend", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/datahub-datahub-gms", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/feast-server", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/feast-ui", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/flink-history", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/flink-jars", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/flink-kubernetes-operator", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/gizmosql", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/kafka-connect", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/lakefs", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/lancedb-viewer", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/lightdash-backend", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/mongodb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
-  - {id: "k8s:data-mesh/Deployment/musicbrainz-postgres", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/mysql", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/nessie", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/rag-index-opensearch", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/rag-index-qdrant", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/rag-index-weaviate", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/ranger-admin", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/redpanda-console", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/store-scaler", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/superset", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/superset-worker", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
-  - {id: "k8s:data-mesh/Deployment/timescaledb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/trino", host: "mother", state: "stateless", move: "movable", strix: "k3s-worker", managed: "argo", why: "largest stateless memory request (5.5Gi); OOM-killed at node pressure 2026-09-27"}
-  - {id: "k8s:data-mesh/Deployment/valkey", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/weyland-flink", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "operator (FlinkDeployment)"}
-  - {id: "k8s:data-mesh/StatefulSet/cassandra", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
-  - {id: "k8s:data-mesh/StatefulSet/opensearch-cluster-master", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:data-mesh/StatefulSet/redpanda", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:gatekeeper-system/Deployment/gatekeeper-audit", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:gatekeeper-system/Deployment/gatekeeper-controller-manager", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:gatekeeper-system/Deployment/gatekeeper-policy-manager", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:headlamp/Deployment/headlamp", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:istio-system/Deployment/istiod", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "istioctl (deliberate — IstioOperator in git, runbooks/argocd.md)"}
-  - {id: "k8s:istio-system/Deployment/kiali", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:jupyterhub/Deployment/hub", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:jupyterhub/Deployment/proxy", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:jupyterhub/StatefulSet/user-placeholder", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:kube-system/DaemonSet/svclb-traefik-c1f91a3f", host: "mother", state: "stateless", move: "every-node", strix: "every-node", managed: "k3s"}
-  - {id: "k8s:kube-system/Deployment/coredns", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "k3s"}
-  - {id: "k8s:kube-system/Deployment/local-path-provisioner", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "k3s"}
-  - {id: "k8s:kube-system/Deployment/metrics-server", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "k3s"}
-  - {id: "k8s:kube-system/Deployment/sealed-secrets-controller", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:kube-system/Deployment/traefik", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "k3s"}
-  - {id: "k8s:minio/CronJob/minio-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:minio/Deployment/filestash", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:minio/Deployment/minio", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:monitoring/CronJob/alert-coverage", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:monitoring/CronJob/api-drift", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:monitoring/CronJob/dashboard-coverage", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:monitoring/CronJob/image-provenance", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:monitoring/CronJob/servicemonitor-coverage", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:monitoring/DaemonSet/alloy", host: "mother", state: "stateless", move: "every-node", strix: "every-node", managed: "argo"}
-  - {id: "k8s:nvidia-device-plugin/DaemonSet/nvidia-device-plugin", host: "timberback", state: "stateless", move: "hardware-bound: advertises timberback's RTX 5070 Ti", strix: "stays", managed: "argo", why: "ADR-0012 — runs only where nvidia.com/gpu.present=true (timberback)"}
-  - {id: "k8s:nvidia-device-plugin/DaemonSet/nvidia-device-plugin-mps-control-daemon", host: "timberback", state: "stateless", move: "hardware-bound: MPS GPU sharing", strix: "stays", managed: "argo", why: "the chart's MPS daemon; schedules on no node until a node is labelled for MPS sharing (none today)"}
-  - {id: "k8s:monitoring/DaemonSet/monitoring-prometheus-node-exporter", host: "mother", state: "stateless", move: "every-node", strix: "every-node", managed: "argo"}
-  - {id: "k8s:monitoring/CronJob/placement-coverage", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:monitoring/Deployment/blackbox-exporter", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:monitoring/Deployment/monitoring-grafana", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:monitoring/Deployment/monitoring-kube-prometheus-operator", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:monitoring/Deployment/monitoring-kube-state-metrics", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:monitoring/Deployment/pve-exporter", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:monitoring/Deployment/pyroscope", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:monitoring/StatefulSet/alertmanager-monitoring-kube-prometheus-alertmanager", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:monitoring/StatefulSet/loki", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:monitoring/StatefulSet/prometheus-monitoring-kube-prometheus-prometheus", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:monitoring/StatefulSet/tempo", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:n8n/Deployment/n8n", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:opencost/Deployment/opencost", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:opensearch/Deployment/opensearch-dashboards", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:opensearch/StatefulSet/opensearch-cluster-master", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:port-agent/Deployment/port-agent", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:port-k8s-exporter/Deployment/weyland-cluster-port-k8s-exporter", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/datahub-ingestion-watchdog", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/code-scan-suite", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/cron-freshness-check", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/dagster-freshness-check", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/datahub-coverage", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/docs-site-rebuild", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/port-pr-reconcile", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/postgres-backup", host: "mother", state: "host-path: /mnt/minio/backups", move: "pinned: host path on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/open-webui-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/pr-lifecycle-reconcile", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/pr-staleness-check", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/sonar-scan", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/sonar-scan-gradle", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/sonar-scan-repos", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/zoekt-index", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/a2a-inspector", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/bifrost", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/dagster-daemon", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/dagster-user-code", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/dagster-webserver", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/datahub-mcp", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/dbt-docs", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/docs-site", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/ge-docs", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/glitchtip-valkey", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/glitchtip-web", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/glitchtip-worker", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/grafana-mcp", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/guardrails-structure", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/k8s-mcp", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/keycloak", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/kokoro", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/lancedb-exporter", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/langfuse-web", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/langfuse-worker", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/likec4", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/litellm", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/llama-guard", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/mlflow", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/nemo-guardrails", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/neo4j", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/neo4j-mcp", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/neodash", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/open-webui", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/postgres-mcp", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/promptfoo", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/qdrant", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/rag-index-neo4j", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/rag-index-pgvector", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/ray-head", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/realm-of-agents", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/registry", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/registry-ui", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/sonarqube", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/sourcebot", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/traefik-forward-auth", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/trino-mcp", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/unleash", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/uptime-kuma", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weaviate", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weyland-agent", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weyland-apisix", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weyland-apisix-dashboard", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weyland-guard", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weyland-lan-dns", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weyland-mcp-compositor", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weyland-mcp-compositor-memory", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weyland-mcp-gateway", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weyland-operator", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weyland-postgres", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/weyland-tool-server", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/Deployment/zoekt-webserver", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/StatefulSet/weyland-apisix-etcd", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:woodpecker/CronJob/woodpecker-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/bifrost-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/uptime-kuma-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/bifrost-mcp-watchdog", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:weyland/CronJob/anthropic-model-watch", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:woodpecker/Deployment/buildkitd", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
-  - {id: "k8s:woodpecker/StatefulSet/woodpecker-agent", host: "mother", state: "stateless", move: "movable", strix: "any", managed: "argo"}
-  - {id: "k8s:woodpecker/StatefulSet/woodpecker-server", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", strix: "stays", managed: "argo"}
+  - {id: "k8s:argocd/Deployment/argocd-applicationset-controller", host: "mother", state: "stateless", move: "movable", target: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
+  - {id: "k8s:argocd/Deployment/argocd-notifications-controller", host: "mother", state: "stateless", move: "movable", target: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md); B184, sync failures → Slack #deploys"}
+  - {id: "k8s:argocd/Deployment/argocd-redis", host: "mother", state: "stateless", move: "movable", target: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
+  - {id: "k8s:argocd/Deployment/argocd-repo-server", host: "mother", state: "stateless", move: "movable", target: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
+  - {id: "k8s:argocd/Deployment/argocd-server", host: "mother", state: "stateless", move: "movable", target: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
+  - {id: "k8s:argocd/StatefulSet/argocd-application-controller", host: "mother", state: "stateless", move: "movable", target: "any", managed: "helm (Argo CD itself — deliberate, runbooks/argocd.md)"}
+  - {id: "k8s:data-mesh/CronJob/lancedb-sync", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/CronJob/pg-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/clickhouse", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/cockroachdb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
+  - {id: "k8s:data-mesh/Deployment/cube", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/datahub-acryl-datahub-actions", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/datahub-datahub-frontend", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/datahub-datahub-gms", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/feast-server", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/feast-ui", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/flink-history", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/flink-jars", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/flink-kubernetes-operator", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/gizmosql", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/kafka-connect", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/lakefs", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/lancedb-viewer", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/lightdash-backend", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/mongodb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
+  - {id: "k8s:data-mesh/Deployment/musicbrainz-postgres", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/mysql", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/nessie", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/rag-index-opensearch", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/rag-index-qdrant", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/rag-index-weaviate", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/ranger-admin", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/redpanda-console", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/store-scaler", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/superset", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/superset-worker", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
+  - {id: "k8s:data-mesh/Deployment/timescaledb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/trino", host: "mother", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "largest stateless memory request (5.5Gi); OOM-killed at node pressure 2026-09-27"}
+  - {id: "k8s:data-mesh/Deployment/valkey", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/weyland-flink", host: "mother", state: "stateless", move: "movable", target: "any", managed: "operator (FlinkDeployment)"}
+  - {id: "k8s:data-mesh/StatefulSet/cassandra", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
+  - {id: "k8s:data-mesh/StatefulSet/opensearch-cluster-master", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:data-mesh/StatefulSet/redpanda", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:gatekeeper-system/Deployment/gatekeeper-audit", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:gatekeeper-system/Deployment/gatekeeper-controller-manager", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:gatekeeper-system/Deployment/gatekeeper-policy-manager", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:headlamp/Deployment/headlamp", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:istio-system/Deployment/istiod", host: "mother", state: "stateless", move: "movable", target: "any", managed: "istioctl (deliberate — IstioOperator in git, runbooks/argocd.md)"}
+  - {id: "k8s:istio-system/Deployment/kiali", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:jupyterhub/Deployment/hub", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:jupyterhub/Deployment/proxy", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:jupyterhub/StatefulSet/user-placeholder", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:kube-system/DaemonSet/svclb-traefik-c1f91a3f", host: "mother", state: "stateless", move: "every-node", target: "every-node", managed: "k3s"}
+  - {id: "k8s:kube-system/Deployment/coredns", host: "mother", state: "stateless", move: "movable", target: "any", managed: "k3s"}
+  - {id: "k8s:kube-system/Deployment/local-path-provisioner", host: "mother", state: "stateless", move: "movable", target: "any", managed: "k3s"}
+  - {id: "k8s:kube-system/Deployment/metrics-server", host: "mother", state: "stateless", move: "movable", target: "any", managed: "k3s"}
+  - {id: "k8s:kube-system/Deployment/sealed-secrets-controller", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:kube-system/Deployment/traefik", host: "mother", state: "stateless", move: "movable", target: "any", managed: "k3s"}
+  - {id: "k8s:minio/CronJob/minio-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:minio/Deployment/filestash", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:minio/Deployment/minio", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:monitoring/CronJob/alert-coverage", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:monitoring/CronJob/api-drift", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:monitoring/CronJob/dashboard-coverage", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:monitoring/CronJob/image-provenance", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:monitoring/CronJob/servicemonitor-coverage", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:monitoring/DaemonSet/alloy", host: "mother", state: "stateless", move: "every-node", target: "every-node", managed: "argo"}
+  - {id: "k8s:nvidia-device-plugin/DaemonSet/nvidia-device-plugin", host: "timberback", state: "stateless", move: "hardware-bound: advertises timberback's RTX 5070 Ti", target: "stays", managed: "argo", why: "ADR-0012 — runs only where nvidia.com/gpu.present=true (timberback)"}
+  - {id: "k8s:nvidia-device-plugin/DaemonSet/nvidia-device-plugin-mps-control-daemon", host: "timberback", state: "stateless", move: "hardware-bound: MPS GPU sharing", target: "stays", managed: "argo", why: "the chart's MPS daemon; schedules on no node until a node is labelled for MPS sharing (none today)"}
+  - {id: "k8s:monitoring/DaemonSet/monitoring-prometheus-node-exporter", host: "mother", state: "stateless", move: "every-node", target: "every-node", managed: "argo"}
+  - {id: "k8s:monitoring/CronJob/placement-coverage", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:monitoring/Deployment/blackbox-exporter", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:monitoring/Deployment/monitoring-grafana", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:monitoring/Deployment/monitoring-kube-prometheus-operator", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:monitoring/Deployment/monitoring-kube-state-metrics", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:monitoring/Deployment/pve-exporter", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:monitoring/Deployment/pyroscope", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:monitoring/StatefulSet/alertmanager-monitoring-kube-prometheus-alertmanager", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:monitoring/StatefulSet/loki", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:monitoring/StatefulSet/prometheus-monitoring-kube-prometheus-prometheus", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:monitoring/StatefulSet/tempo", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:n8n/Deployment/n8n", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:opencost/Deployment/opencost", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:opensearch/Deployment/opensearch-dashboards", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:opensearch/StatefulSet/opensearch-cluster-master", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:port-agent/Deployment/port-agent", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:port-k8s-exporter/Deployment/weyland-cluster-port-k8s-exporter", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/datahub-ingestion-watchdog", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/code-scan-suite", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/cron-freshness-check", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/dagster-freshness-check", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/datahub-coverage", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/docs-site-rebuild", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/port-pr-reconcile", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/postgres-backup", host: "mother", state: "host-path: /mnt/minio/backups", move: "pinned: host path on mother", target: "stays", managed: "argo", why: "B134 pinning pass 2026-11-14: nodeSelector mother (was unpinned)"}
+  - {id: "k8s:weyland/CronJob/open-webui-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/pr-lifecycle-reconcile", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/pr-staleness-check", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/sonar-scan", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/sonar-scan-gradle", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/sonar-scan-repos", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/zoekt-index", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/a2a-inspector", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/bifrost", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/dagster-daemon", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/dagster-user-code", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/dagster-webserver", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/datahub-mcp", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/dbt-docs", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/docs-site", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/ge-docs", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/glitchtip-valkey", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/glitchtip-web", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/glitchtip-worker", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/grafana-mcp", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/guardrails-structure", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/k8s-mcp", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/keycloak", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/kokoro", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/lancedb-exporter", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/langfuse-web", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/langfuse-worker", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/likec4", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/litellm", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/llama-guard", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/mlflow", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/nemo-guardrails", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/neo4j", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/neo4j-mcp", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/neodash", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/open-webui", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/postgres-mcp", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/promptfoo", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/qdrant", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/rag-index-neo4j", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/rag-index-pgvector", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/ray-head", host: "mother", state: "stateless", move: "pinned: hostNetwork — the rogueone workers reach the head at mother's IP", target: "stays", managed: "argo", why: "B134 pinning pass 2026-11-14: nodeSelector mother"}
+  - {id: "k8s:weyland/Deployment/realm-of-agents", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/registry", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/registry-ui", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/sonarqube", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/sourcebot", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/traefik-forward-auth", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/trino-mcp", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/unleash", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/uptime-kuma", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weaviate", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weyland-agent", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weyland-apisix", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weyland-apisix-dashboard", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weyland-guard", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weyland-lan-dns", host: "mother", state: "stateless", move: "pinned: hostPort 53 — LAN clients resolve at mother's IP", target: "stays", managed: "argo", why: "B134 pinning pass 2026-11-14: nodeSelector mother"}
+  - {id: "k8s:weyland/Deployment/weyland-mcp-compositor", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weyland-mcp-compositor-memory", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weyland-mcp-gateway", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weyland-operator", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weyland-postgres", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/weyland-tool-server", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/Deployment/zoekt-webserver", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/StatefulSet/weyland-apisix-etcd", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:woodpecker/CronJob/woodpecker-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/bifrost-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/uptime-kuma-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/bifrost-mcp-watchdog", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:weyland/CronJob/anthropic-model-watch", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:woodpecker/Deployment/buildkitd", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+  - {id: "k8s:woodpecker/StatefulSet/woodpecker-agent", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:woodpecker/StatefulSet/woodpecker-server", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
 
   # ---- rogueone (host-native) ----
-  - {id: "systemd:rogueone/ollama.service", host: "rogueone", state: "model-library: /usr/share/ollama/.ollama/models (104G)", move: "hardware-bound: CUDA (RTX 5000 Ada)", strix: "stays", managed: "systemd", likec4: "ollama", why: "CUDA serving stays primary (B134); the Strix box adds its own Vulkan Ollama in the inference LXC as a second provider"}
-  - {id: "systemd:rogueone/ollama-proxy.service", host: "rogueone", state: "stateless (the token map lives in /etc/ollama-proxy-secret, rebuilt from scripts/.env)", move: "pinned: fronts the Ollama on this host", strix: "stays", managed: "systemd", source: "nodes/rogueone/systemd/ollama-proxy.service", path: "/etc/systemd/system/ollama-proxy.service", owner: "B211", likec4: "ollama", why: "the Ollama front door: bearer token for remote callers, no remote model management (Ollama binds 127.0.0.1)"}
-  - {id: "systemd:rogueone/rag-embed.service", host: "rogueone", state: "stateless", move: "movable", strix: "k3s-worker", managed: "systemd", likec4: "ragEmbed", why: "CPU-only since 2026-09-27; on a laptop the nightly indexer needs the laptop awake — as a Deployment on an always-on node it does not", source: "nodes/mother/lab/weyland-platform/services/rag-embed/rag-embed.service", path: "/etc/systemd/system/rag-embed.service"}
-  - {id: "systemd:rogueone/ray-worker.service", host: "rogueone", state: "stateless", move: "hardware-bound: CUDA (RTX 5000 Ada)", strix: "stays", managed: "systemd", likec4: "rayWorker", source: "nodes/mother/lab/weyland-platform/services/ray-head/ray-worker.service", path: "/etc/systemd/system/ray-worker.service"}
-  - {id: "systemd:rogueone/snap.dcgm.dcgm-exporter.service", host: "rogueone", state: "stateless", move: "hardware-bound: NVIDIA GPU telemetry", strix: "stays", managed: "systemd", likec4: "dcgmExporter"}
-  - {id: "systemd:rogueone/snap.dcgm.nv-hostengine.service", host: "rogueone", state: "stateless", move: "hardware-bound: NVIDIA GPU telemetry", strix: "stays", managed: "systemd", likec4: "dcgmExporter"}
-  - {id: "systemd:rogueone/offline-failing-cores.service", host: "rogueone", state: "none", move: "hardware-bound: rogueone's failing P-cores (B150)", strix: "stays", managed: "systemd", source: "nodes/rogueone/systemd/offline-failing-cores.service", path: "/etc/systemd/system/offline-failing-cores.service", owner: "B150"}
-  - {id: "systemd:rogueone/docker.service", host: "rogueone", state: "host-path: /var/lib/docker", move: "pinned: container runtime for the B111 benches + STUD.io CI", strix: "stays", managed: "systemd"}
-  - {id: "systemd:rogueone/containerd.service", host: "rogueone", state: "host-path: /var/lib/containerd", move: "pinned: docker's runtime", strix: "stays", managed: "systemd"}
-  - {id: "systemd:rogueone/mosquitto.service", host: "rogueone", state: "host-path: /var/lib/mosquitto", move: "movable", strix: "stays", managed: "systemd", scope: "unknown", why: "installed 2026-09-24 in a bulk apt install; localhost only, no clients seen — owner not confirmed"}
-  - {id: "systemd:rogueone/tor.service", host: "rogueone", state: "none", move: "movable", strix: "stays", managed: "systemd", scope: "unknown", why: "installed 2026-09-24 in a bulk apt install; client only on 127.0.0.1:9050 — owner not confirmed"}
-  - {id: "systemd:rogueone/tor@default.service", host: "rogueone", state: "host-path: /var/lib/tor", move: "movable", strix: "stays", managed: "systemd", scope: "unknown", why: "installed 2026-09-24 in a bulk apt install; client only on 127.0.0.1:9050 — owner not confirmed"}
-  - {id: "systemd:rogueone/prometheus-node-exporter.service", host: "rogueone", state: "stateless", move: "hardware-bound: reports rogueone's own units", strix: "stays", managed: "systemd", why: "B198 — systemd-only exporter feeding the placement-coverage check"}
-  - {id: "systemd:rogueone/openvpn.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", strix: "stays", managed: "systemd", scope: "personal"}
-  - {id: "user-systemd:rogueone/synergy.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", strix: "stays", managed: "systemd", scope: "personal"}
-  - {id: "systemd:rogueone/tailscaled.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", strix: "stays", managed: "systemd", scope: "unknown", why: "owner not confirmed"}
-  - {id: "systemd:rogueone/woodpecker-agent-1.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", strix: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}
-  - {id: "systemd:rogueone/woodpecker-agent-2.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", strix: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}
-  - {id: "systemd:rogueone/woodpecker-agent-3.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", strix: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}
-  - {id: "systemd:rogueone/woodpecker-agent-4.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", strix: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}
-  - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom-2.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io GitHub Actions runner", strix: "stays", managed: "systemd", scope: "stud.io"}
-  - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom-3.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io GitHub Actions runner", strix: "stays", managed: "systemd", scope: "stud.io"}
-  - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom-4.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io GitHub Actions runner", strix: "stays", managed: "systemd", scope: "stud.io"}
-  - {id: "systemd:rogueone/studio-masterdb-backup.timer", host: "rogueone", state: "none", move: "pinned: STUD.io backup timer", strix: "stays", managed: "systemd", scope: "stud.io", path: "/etc/systemd/system/studio-masterdb-backup.timer", every: "1d"}
-  - {id: "systemd:rogueone/studio-masterdb-backup.service", host: "rogueone", state: "none", move: "pinned: STUD.io backup (run by its timer)", strix: "stays", managed: "systemd", scope: "stud.io", path: "/etc/systemd/system/studio-masterdb-backup.service", on_demand: true}
-  - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom.service", host: "rogueone", state: "none", move: "pinned: STUD.io GitHub Actions runner (disabled)", strix: "stays", managed: "systemd", scope: "stud.io", path: "/etc/systemd/system/actions.runner.edtbl76-stud.io.controlroom.service", on_demand: true}
-  - {id: "systemd:rogueone/woodpecker-weyland-pilot.service", host: "rogueone", state: "none", move: "pinned: disabled Woodpecker agent pilot", strix: "stays", managed: "systemd", scope: "unknown", why: "disabled; binary under ~/Documents/Studio/woodpecker-weyland-pilot — owner not confirmed", path: "/etc/systemd/system/woodpecker-weyland-pilot.service", on_demand: true}
-  - {id: "user-systemd:rogueone/restic-backup.timer", host: "rogueone", state: "none", move: "pinned: backs up rogueone's own home to MinIO (B130)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/restic-backup.timer", path: "/home/edwardmangini/.config/systemd/user/restic-backup.timer", owner: "B130", every: "1d", likec4: "resticBackup"}
-  - {id: "user-systemd:rogueone/ai-session-producer.timer", host: "rogueone", state: "none", move: "pinned: mirrors rogueone's Claude sessions to MinIO (B62)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/ai-session-producer.timer", path: "/home/edwardmangini/.config/systemd/user/ai-session-producer.timer", every: "4h", likec4: "aiSessionProducer"}
-  - {id: "user-systemd:rogueone/basic-memory.service", host: "rogueone", state: "host-path: ~/agent-memory/weyland (the shared agent memory notes — restic-backed)", move: "pinned: serves the notes where the coding agents run (B182 decision 2026-10-03)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/basic-memory.service", path: "/home/edwardmangini/.config/systemd/user/basic-memory.service", owner: "B182", likec4: "sharedMemory", why: "Basic Memory on :8765 (MCP, streamable HTTP); ufw admits only mother (Bifrost)"}
-  - {id: "user-systemd:rogueone/agent-memory-watch.timer", host: "rogueone", state: "none", move: "pinned: watches the rogueone memory store", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/agent-memory-watch.timer", path: "/home/edwardmangini/.config/systemd/user/agent-memory-watch.timer", owner: "B182", every: "15m", likec4: "sharedMemory"}
-  - {id: "user-systemd:rogueone/agent-memory-watch.service", host: "rogueone", state: "none", move: "pinned: watches the rogueone memory store", strix: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/agent-memory-watch.service", path: "/home/edwardmangini/.config/systemd/user/agent-memory-watch.service", owner: "B182"}
-  - {id: "user-systemd:rogueone/lan-nodeport-watch.timer", host: "rogueone", state: "none", move: "pinned: probes the NodePorts FROM rogueone — the only source the rogueone-only ports admit", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/lan-nodeport-watch.timer", path: "/home/edwardmangini/.config/systemd/user/lan-nodeport-watch.timer", owner: "B219", every: "15m", likec4: "lanNodeportWatch"}
-  - {id: "user-systemd:rogueone/lan-nodeport-watch.service", host: "rogueone", state: "none", move: "pinned: probes the NodePorts FROM rogueone — the only source the rogueone-only ports admit", strix: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/lan-nodeport-watch.service", path: "/home/edwardmangini/.config/systemd/user/lan-nodeport-watch.service", owner: "B219"}
-  - {id: "user-systemd:rogueone/gpu-driver-drift.timer", host: "rogueone", state: "none", move: "pinned: checks rogueone's own NVIDIA driver", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/gpu-driver-drift.timer", path: "/home/edwardmangini/.config/systemd/user/gpu-driver-drift.timer", owner: "B226", every: "1h", likec4: "gpuDriverDrift"}
-  - {id: "user-systemd:rogueone/gpu-driver-drift.service", host: "rogueone", state: "none", move: "pinned: checks rogueone's own NVIDIA driver", strix: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/gpu-driver-drift.service", path: "/home/edwardmangini/.config/systemd/user/gpu-driver-drift.service", owner: "B226"}
-  - {id: "user-systemd:rogueone/emdash-worktree-sweep.timer", host: "rogueone", state: "none", move: "pinned: sweeps the Emdash worktrees on rogueone", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/emdash-worktree-sweep.timer", path: "/home/edwardmangini/.config/systemd/user/emdash-worktree-sweep.timer", owner: "B179", every: "1d"}
-  - {id: "user-systemd:rogueone/emdash-worktree-sweep.service", host: "rogueone", state: "none", move: "pinned: sweeps the Emdash worktrees on rogueone", strix: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/emdash-worktree-sweep.service", path: "/home/edwardmangini/.config/systemd/user/emdash-worktree-sweep.service", owner: "B179"}
-  - {id: "user-systemd:rogueone/emdash-conveyor-watch.timer", host: "rogueone", state: "none", move: "pinned: watches the Emdash app on rogueone", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/emdash-conveyor-watch.timer", path: "/home/edwardmangini/.config/systemd/user/emdash-conveyor-watch.timer", owner: "B179", every: "1d"}
-  - {id: "user-systemd:rogueone/emdash-conveyor-watch.service", host: "rogueone", state: "none", move: "pinned: watches the Emdash app on rogueone", strix: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/emdash-conveyor-watch.service", path: "/home/edwardmangini/.config/systemd/user/emdash-conveyor-watch.service", owner: "B179"}
-  - {id: "user-systemd:rogueone/machine-inv-drift.timer", host: "rogueone", state: "none", move: "pinned: inventories rogueone's own packages (B129)", strix: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/machine-inv-drift.timer", path: "/home/edwardmangini/.config/systemd/user/machine-inv-drift.timer", owner: "B170", every: "1d", likec4: "machineInvDrift"}
+  - {id: "systemd:rogueone/ollama.service", host: "rogueone", state: "model-library: /usr/share/ollama/.ollama/models (104G)", move: "hardware-bound: CUDA (RTX 5000 Ada)", target: "stays", managed: "systemd", likec4: "ollama", why: "CUDA serving on rogueone stays as it is (B134); timberback's RTX 5070 Ti (CUDA, in k8s via the device plugin) can add a second inference provider — an owner decision, not planned here"}
+  - {id: "systemd:rogueone/ollama-proxy.service", host: "rogueone", state: "stateless (the token map lives in /etc/ollama-proxy-secret, rebuilt from scripts/.env)", move: "pinned: fronts the Ollama on this host", target: "stays", managed: "systemd", source: "nodes/rogueone/systemd/ollama-proxy.service", path: "/etc/systemd/system/ollama-proxy.service", owner: "B211", likec4: "ollama", why: "the Ollama front door: bearer token for remote callers, no remote model management (Ollama binds 127.0.0.1)"}
+  - {id: "systemd:rogueone/rag-embed.service", host: "rogueone", state: "stateless", move: "movable", target: "k3s-worker", managed: "systemd", likec4: "ragEmbed", why: "CPU-only since 2026-09-27; on a laptop the nightly indexer needs the laptop awake — as a Deployment on an always-on node it does not", source: "nodes/mother/lab/weyland-platform/services/rag-embed/rag-embed.service", path: "/etc/systemd/system/rag-embed.service"}
+  - {id: "systemd:rogueone/ray-worker.service", host: "rogueone", state: "stateless", move: "hardware-bound: CUDA (RTX 5000 Ada)", target: "stays", managed: "systemd", likec4: "rayWorker", source: "nodes/mother/lab/weyland-platform/services/ray-head/ray-worker.service", path: "/etc/systemd/system/ray-worker.service"}
+  - {id: "systemd:rogueone/snap.dcgm.dcgm-exporter.service", host: "rogueone", state: "stateless", move: "hardware-bound: NVIDIA GPU telemetry", target: "stays", managed: "systemd", likec4: "dcgmExporter"}
+  - {id: "systemd:rogueone/snap.dcgm.nv-hostengine.service", host: "rogueone", state: "stateless", move: "hardware-bound: NVIDIA GPU telemetry", target: "stays", managed: "systemd", likec4: "dcgmExporter"}
+  - {id: "systemd:rogueone/offline-failing-cores.service", host: "rogueone", state: "none", move: "hardware-bound: rogueone's failing P-cores (B150)", target: "stays", managed: "systemd", source: "nodes/rogueone/systemd/offline-failing-cores.service", path: "/etc/systemd/system/offline-failing-cores.service", owner: "B150"}
+  - {id: "systemd:rogueone/docker.service", host: "rogueone", state: "host-path: /var/lib/docker", move: "pinned: container runtime for the B111 benches + STUD.io CI", target: "stays", managed: "systemd"}
+  - {id: "systemd:rogueone/containerd.service", host: "rogueone", state: "host-path: /var/lib/containerd", move: "pinned: docker's runtime", target: "stays", managed: "systemd"}
+  - {id: "systemd:rogueone/mosquitto.service", host: "rogueone", state: "host-path: /var/lib/mosquitto", move: "movable", target: "stays", managed: "systemd", scope: "unknown", why: "installed 2026-09-24 in a bulk apt install; localhost only, no clients seen — owner not confirmed"}
+  - {id: "systemd:rogueone/tor.service", host: "rogueone", state: "none", move: "movable", target: "stays", managed: "systemd", scope: "unknown", why: "installed 2026-09-24 in a bulk apt install; client only on 127.0.0.1:9050 — owner not confirmed"}
+  - {id: "systemd:rogueone/tor@default.service", host: "rogueone", state: "host-path: /var/lib/tor", move: "movable", target: "stays", managed: "systemd", scope: "unknown", why: "installed 2026-09-24 in a bulk apt install; client only on 127.0.0.1:9050 — owner not confirmed"}
+  - {id: "systemd:rogueone/prometheus-node-exporter.service", host: "rogueone", state: "stateless", move: "hardware-bound: reports rogueone's own units", target: "stays", managed: "systemd", why: "B198 — systemd-only exporter feeding the placement-coverage check"}
+  - {id: "systemd:rogueone/openvpn.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", target: "stays", managed: "systemd", scope: "personal"}
+  - {id: "user-systemd:rogueone/synergy.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", target: "stays", managed: "systemd", scope: "personal"}
+  - {id: "systemd:rogueone/tailscaled.service", host: "rogueone", state: "none", move: "pinned: the owner's laptop", target: "stays", managed: "systemd", scope: "unknown", why: "owner not confirmed"}
+  - {id: "systemd:rogueone/woodpecker-agent-1.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", target: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}
+  - {id: "systemd:rogueone/woodpecker-agent-2.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", target: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}
+  - {id: "systemd:rogueone/woodpecker-agent-3.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", target: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}
+  - {id: "systemd:rogueone/woodpecker-agent-4.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io CI local backend (host docker)", target: "stays", managed: "systemd", scope: "stud.io", likec4: "studioAgents"}
+  - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom-2.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io GitHub Actions runner", target: "stays", managed: "systemd", scope: "stud.io"}
+  - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom-3.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io GitHub Actions runner", target: "stays", managed: "systemd", scope: "stud.io"}
+  - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom-4.service", host: "rogueone", state: "stateless", move: "pinned: STUD.io GitHub Actions runner", target: "stays", managed: "systemd", scope: "stud.io"}
+  - {id: "systemd:rogueone/studio-masterdb-backup.timer", host: "rogueone", state: "none", move: "pinned: STUD.io backup timer", target: "stays", managed: "systemd", scope: "stud.io", path: "/etc/systemd/system/studio-masterdb-backup.timer", every: "1d"}
+  - {id: "systemd:rogueone/studio-masterdb-backup.service", host: "rogueone", state: "none", move: "pinned: STUD.io backup (run by its timer)", target: "stays", managed: "systemd", scope: "stud.io", path: "/etc/systemd/system/studio-masterdb-backup.service", on_demand: true}
+  - {id: "systemd:rogueone/actions.runner.edtbl76-stud.io.controlroom.service", host: "rogueone", state: "none", move: "pinned: STUD.io GitHub Actions runner (disabled)", target: "stays", managed: "systemd", scope: "stud.io", path: "/etc/systemd/system/actions.runner.edtbl76-stud.io.controlroom.service", on_demand: true}
+  - {id: "systemd:rogueone/woodpecker-weyland-pilot.service", host: "rogueone", state: "none", move: "pinned: disabled Woodpecker agent pilot", target: "stays", managed: "systemd", scope: "unknown", why: "disabled; binary under ~/Documents/Studio/woodpecker-weyland-pilot — owner not confirmed", path: "/etc/systemd/system/woodpecker-weyland-pilot.service", on_demand: true}
+  - {id: "user-systemd:rogueone/restic-backup.timer", host: "rogueone", state: "none", move: "pinned: backs up rogueone's own home to MinIO (B130)", target: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/restic-backup.timer", path: "/home/edwardmangini/.config/systemd/user/restic-backup.timer", owner: "B130", every: "1d", likec4: "resticBackup"}
+  - {id: "user-systemd:rogueone/ai-session-producer.timer", host: "rogueone", state: "none", move: "pinned: mirrors rogueone's Claude sessions to MinIO (B62)", target: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/ai-session-producer.timer", path: "/home/edwardmangini/.config/systemd/user/ai-session-producer.timer", every: "4h", likec4: "aiSessionProducer"}
+  - {id: "user-systemd:rogueone/basic-memory.service", host: "rogueone", state: "host-path: ~/agent-memory/weyland (the shared agent memory notes — restic-backed)", move: "pinned: serves the notes where the coding agents run (B182 decision 2026-10-03)", target: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/basic-memory.service", path: "/home/edwardmangini/.config/systemd/user/basic-memory.service", owner: "B182", likec4: "sharedMemory", why: "Basic Memory on :8765 (MCP, streamable HTTP); ufw admits only mother (Bifrost)"}
+  - {id: "user-systemd:rogueone/agent-memory-watch.timer", host: "rogueone", state: "none", move: "pinned: watches the rogueone memory store", target: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/agent-memory-watch.timer", path: "/home/edwardmangini/.config/systemd/user/agent-memory-watch.timer", owner: "B182", every: "15m", likec4: "sharedMemory"}
+  - {id: "user-systemd:rogueone/agent-memory-watch.service", host: "rogueone", state: "none", move: "pinned: watches the rogueone memory store", target: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/agent-memory-watch.service", path: "/home/edwardmangini/.config/systemd/user/agent-memory-watch.service", owner: "B182"}
+  - {id: "user-systemd:rogueone/lan-nodeport-watch.timer", host: "rogueone", state: "none", move: "pinned: probes the NodePorts FROM rogueone — the only source the rogueone-only ports admit", target: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/lan-nodeport-watch.timer", path: "/home/edwardmangini/.config/systemd/user/lan-nodeport-watch.timer", owner: "B219", every: "15m", likec4: "lanNodeportWatch"}
+  - {id: "user-systemd:rogueone/lan-nodeport-watch.service", host: "rogueone", state: "none", move: "pinned: probes the NodePorts FROM rogueone — the only source the rogueone-only ports admit", target: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/lan-nodeport-watch.service", path: "/home/edwardmangini/.config/systemd/user/lan-nodeport-watch.service", owner: "B219"}
+  - {id: "user-systemd:rogueone/gpu-driver-drift.timer", host: "rogueone", state: "none", move: "pinned: checks rogueone's own NVIDIA driver", target: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/gpu-driver-drift.timer", path: "/home/edwardmangini/.config/systemd/user/gpu-driver-drift.timer", owner: "B226", every: "1h", likec4: "gpuDriverDrift"}
+  - {id: "user-systemd:rogueone/gpu-driver-drift.service", host: "rogueone", state: "none", move: "pinned: checks rogueone's own NVIDIA driver", target: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/gpu-driver-drift.service", path: "/home/edwardmangini/.config/systemd/user/gpu-driver-drift.service", owner: "B226"}
+  - {id: "user-systemd:rogueone/emdash-worktree-sweep.timer", host: "rogueone", state: "none", move: "pinned: sweeps the Emdash worktrees on rogueone", target: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/emdash-worktree-sweep.timer", path: "/home/edwardmangini/.config/systemd/user/emdash-worktree-sweep.timer", owner: "B179", every: "1d"}
+  - {id: "user-systemd:rogueone/emdash-worktree-sweep.service", host: "rogueone", state: "none", move: "pinned: sweeps the Emdash worktrees on rogueone", target: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/emdash-worktree-sweep.service", path: "/home/edwardmangini/.config/systemd/user/emdash-worktree-sweep.service", owner: "B179"}
+  - {id: "user-systemd:rogueone/emdash-conveyor-watch.timer", host: "rogueone", state: "none", move: "pinned: watches the Emdash app on rogueone", target: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/emdash-conveyor-watch.timer", path: "/home/edwardmangini/.config/systemd/user/emdash-conveyor-watch.timer", owner: "B179", every: "1d"}
+  - {id: "user-systemd:rogueone/emdash-conveyor-watch.service", host: "rogueone", state: "none", move: "pinned: watches the Emdash app on rogueone", target: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/emdash-conveyor-watch.service", path: "/home/edwardmangini/.config/systemd/user/emdash-conveyor-watch.service", owner: "B179"}
+  - {id: "user-systemd:rogueone/machine-inv-drift.timer", host: "rogueone", state: "none", move: "pinned: inventories rogueone's own packages (B129)", target: "stays", managed: "systemd --user", source: "nodes/rogueone/systemd/machine-inv-drift.timer", path: "/home/edwardmangini/.config/systemd/user/machine-inv-drift.timer", owner: "B170", every: "1d", likec4: "machineInvDrift"}
   # ---- rogueone (on-demand / tools: declared, not live-checked) ----
-  - {id: "tool:rogueone/vllm", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B111)", strix: "stays", managed: "docker", likec4: "vllm", on_demand: true}
-  - {id: "tool:rogueone/sglang", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B111)", strix: "stays", managed: "docker", likec4: "sglang", on_demand: true}
-  - {id: "tool:rogueone/clef-flash", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B174)", strix: "stays", managed: "docker", likec4: "clefFlash", on_demand: true, owner: "B174", why: "Jev-compatible decision model for the operator's shadow; ~8.5 GB, so it cannot sit beside the operator's qwen"}
-  - {id: "tool:rogueone/genre-trainer", host: "rogueone", state: "stateless", move: "hardware-bound: CUDA training", strix: "stays", managed: "ray job", likec4: "genreTrainer", on_demand: true}
-  - {id: "tool:rogueone/finance-trainer", host: "rogueone", state: "stateless", move: "hardware-bound: CUDA training", strix: "stays", managed: "ray job", likec4: "financeTrainer", on_demand: true}
-  - {id: "tool:rogueone/editors", host: "rogueone", state: "none", move: "pinned: the dev workstation", strix: "stays", managed: "desktop", likec4: "editors"}
-  - {id: "tool:rogueone/claude-code", host: "rogueone", state: "none", move: "pinned: the dev workstation", strix: "stays", managed: "desktop", likec4: "claudeCode"}
-  - {id: "tool:rogueone/codex", host: "rogueone", state: "none", move: "pinned: the dev workstation", strix: "stays", managed: "desktop", likec4: "codex"}
-  - {id: "tool:rogueone/coding-agents", host: "rogueone", state: "none", move: "pinned: the dev workstation", strix: "stays", managed: "desktop", likec4: "codingAgents"}
-  - {id: "tool:rogueone/emdash", host: "rogueone", state: "~/.config/emdash (automation definition + run history; restic-backed)", move: "pinned: the dev workstation (its automations need the app running here)", strix: "stays", managed: "desktop", likec4: "emdash"}
+  - {id: "tool:rogueone/vllm", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B111)", target: "stays", managed: "docker", likec4: "vllm", on_demand: true}
+  - {id: "tool:rogueone/sglang", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B111)", target: "stays", managed: "docker", likec4: "sglang", on_demand: true}
+  - {id: "tool:rogueone/clef-flash", host: "rogueone", state: "model-library: HF cache", move: "hardware-bound: CUDA (B174)", target: "stays", managed: "docker", likec4: "clefFlash", on_demand: true, owner: "B174", why: "Jev-compatible decision model for the operator's shadow; ~8.5 GB, so it cannot sit beside the operator's qwen"}
+  - {id: "tool:rogueone/genre-trainer", host: "rogueone", state: "stateless", move: "hardware-bound: CUDA training", target: "stays", managed: "ray job", likec4: "genreTrainer", on_demand: true}
+  - {id: "tool:rogueone/finance-trainer", host: "rogueone", state: "stateless", move: "hardware-bound: CUDA training", target: "stays", managed: "ray job", likec4: "financeTrainer", on_demand: true}
+  - {id: "tool:rogueone/editors", host: "rogueone", state: "none", move: "pinned: the dev workstation", target: "stays", managed: "desktop", likec4: "editors"}
+  - {id: "tool:rogueone/claude-code", host: "rogueone", state: "none", move: "pinned: the dev workstation", target: "stays", managed: "desktop", likec4: "claudeCode"}
+  - {id: "tool:rogueone/codex", host: "rogueone", state: "none", move: "pinned: the dev workstation", target: "stays", managed: "desktop", likec4: "codex"}
+  - {id: "tool:rogueone/coding-agents", host: "rogueone", state: "none", move: "pinned: the dev workstation", target: "stays", managed: "desktop", likec4: "codingAgents"}
+  - {id: "tool:rogueone/emdash", host: "rogueone", state: "~/.config/emdash (automation definition + run history; restic-backed)", move: "pinned: the dev workstation (its automations need the app running here)", target: "stays", managed: "desktop", likec4: "emdash"}
   # ---- mother (host units; B180) ----
-  - {id: "systemd:mother/k3s.service", host: "mother", state: "host-path: /var/lib/rancher/k3s", move: "pinned: the k3s server — the cluster itself", strix: "stays", managed: "k3s installer", path: "/etc/systemd/system/k3s.service"}
-  - {id: "systemd:mother/weyland-image-prune.timer", host: "mother", state: "none", move: "pinned: prunes mother's containerd image store", strix: "stays", managed: "systemd", source: "nodes/mother/host/systemd/weyland-image-prune.timer", path: "/etc/systemd/system/weyland-image-prune.timer", every: "7d"}
-  - {id: "systemd:mother/weyland-image-prune.service", host: "mother", state: "none", move: "pinned: prunes mother's containerd image store", strix: "stays", managed: "systemd", on_demand: true, source: "nodes/mother/host/systemd/weyland-image-prune.service", path: "/etc/systemd/system/weyland-image-prune.service"}
-  - {id: "systemd:mother/weyland-docker-prune.timer", host: "mother", state: "none", move: "pinned: prunes mother's Docker image store", strix: "stays", managed: "systemd", source: "nodes/mother/host/systemd/weyland-docker-prune.timer", path: "/etc/systemd/system/weyland-docker-prune.timer", every: "7d"}
-  - {id: "systemd:mother/weyland-docker-prune.service", host: "mother", state: "none", move: "pinned: prunes mother's Docker image store", strix: "stays", managed: "systemd", on_demand: true, source: "nodes/mother/host/systemd/weyland-docker-prune.service", path: "/etc/systemd/system/weyland-docker-prune.service"}
+  - {id: "systemd:mother/k3s.service", host: "mother", state: "host-path: /var/lib/rancher/k3s", move: "pinned: the k3s server — the cluster itself", target: "stays", managed: "k3s installer", path: "/etc/systemd/system/k3s.service"}
+  - {id: "systemd:mother/weyland-image-prune.timer", host: "mother", state: "none", move: "pinned: prunes mother's containerd image store", target: "stays", managed: "systemd", source: "nodes/mother/host/systemd/weyland-image-prune.timer", path: "/etc/systemd/system/weyland-image-prune.timer", every: "7d"}
+  - {id: "systemd:mother/weyland-image-prune.service", host: "mother", state: "none", move: "pinned: prunes mother's containerd image store", target: "stays", managed: "systemd", on_demand: true, source: "nodes/mother/host/systemd/weyland-image-prune.service", path: "/etc/systemd/system/weyland-image-prune.service"}
+  - {id: "systemd:mother/weyland-docker-prune.timer", host: "mother", state: "none", move: "pinned: prunes mother's Docker image store", target: "stays", managed: "systemd", source: "nodes/mother/host/systemd/weyland-docker-prune.timer", path: "/etc/systemd/system/weyland-docker-prune.timer", every: "7d"}
+  - {id: "systemd:mother/weyland-docker-prune.service", host: "mother", state: "none", move: "pinned: prunes mother's Docker image store", target: "stays", managed: "systemd", on_demand: true, source: "nodes/mother/host/systemd/weyland-docker-prune.service", path: "/etc/systemd/system/weyland-docker-prune.service"}
   # ---- whisper (CT 103 on weyland; B180) ----
-  - {id: "systemd:whisper/whisper-server.service", host: "whisper", state: "model-library: whisper.cpp models", move: "movable", strix: "tbd", managed: "systemd", source: "nodes/weyland/whisper/whisper-server.service", path: "/etc/systemd/system/whisper-server.service", why: "rides with the whisper LXC (pve:lxc/103) — owner decision"}
-  - {id: "systemd:whisper/whisper-shim.service", host: "whisper", state: "stateless", move: "movable", strix: "tbd", managed: "systemd", source: "nodes/weyland/whisper/whisper-shim.service", path: "/etc/systemd/system/whisper-shim.service", why: "rides with the whisper LXC (pve:lxc/103) — owner decision"}
+  - {id: "systemd:whisper/whisper-server.service", host: "whisper", state: "model-library: whisper.cpp models", move: "movable", target: "tbd", managed: "systemd", source: "nodes/weyland/whisper/whisper-server.service", path: "/etc/systemd/system/whisper-server.service", why: "rides with the whisper LXC (pve:lxc/103) — owner decision"}
+  - {id: "systemd:whisper/whisper-shim.service", host: "whisper", state: "stateless", move: "movable", target: "tbd", managed: "systemd", source: "nodes/weyland/whisper/whisper-shim.service", path: "/etc/systemd/system/whisper-shim.service", why: "rides with the whisper LXC (pve:lxc/103) — owner decision"}
   # ---- rogueone (the timers' services, run only when their timer fires; B180) ----
-  - {id: "user-systemd:rogueone/restic-backup.service", host: "rogueone", state: "none", move: "pinned: backs up rogueone's own home", strix: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/restic-backup.service", path: "/home/edwardmangini/.config/systemd/user/restic-backup.service", owner: "B130"}
-  - {id: "user-systemd:rogueone/ai-session-producer.service", host: "rogueone", state: "none", move: "pinned: mirrors rogueone's Claude sessions, then pushes time per issue to Port (B185)", strix: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/ai-session-producer.service", path: "/home/edwardmangini/.config/systemd/user/ai-session-producer.service"}
-  - {id: "user-systemd:rogueone/machine-inv-drift.service", host: "rogueone", state: "none", move: "pinned: inventories each host from rogueone", strix: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/machine-inv-drift.service", path: "/home/edwardmangini/.config/systemd/user/machine-inv-drift.service", owner: "B170"}
-  - {id: "user-systemd:rogueone/disable-scroll-lock.service", host: "rogueone", state: "none", move: "pinned: the owner's desktop session", strix: "stays", managed: "systemd --user", scope: "unknown", why: "keyboard Scroll Lock LED tweak for the X session; no repo copy — owner not confirmed", path: "/home/edwardmangini/.config/systemd/user/disable-scroll-lock.service"}
+  - {id: "user-systemd:rogueone/restic-backup.service", host: "rogueone", state: "none", move: "pinned: backs up rogueone's own home", target: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/restic-backup.service", path: "/home/edwardmangini/.config/systemd/user/restic-backup.service", owner: "B130"}
+  - {id: "user-systemd:rogueone/ai-session-producer.service", host: "rogueone", state: "none", move: "pinned: mirrors rogueone's Claude sessions, then pushes time per issue to Port (B185)", target: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/ai-session-producer.service", path: "/home/edwardmangini/.config/systemd/user/ai-session-producer.service"}
+  - {id: "user-systemd:rogueone/machine-inv-drift.service", host: "rogueone", state: "none", move: "pinned: inventories each host from rogueone", target: "stays", managed: "systemd --user", on_demand: true, source: "nodes/rogueone/systemd/machine-inv-drift.service", path: "/home/edwardmangini/.config/systemd/user/machine-inv-drift.service", owner: "B170"}
+  - {id: "user-systemd:rogueone/disable-scroll-lock.service", host: "rogueone", state: "none", move: "pinned: the owner's desktop session", target: "stays", managed: "systemd --user", scope: "unknown", why: "keyboard Scroll Lock LED tweak for the X session; no repo copy — owner not confirmed", path: "/home/edwardmangini/.config/systemd/user/disable-scroll-lock.service"}
   # ---- weyland (Proxmox guests) ----
-  - {id: "pve:qemu/101", host: "weyland", state: "host-path: local-lvm disk", move: "pinned: the k3s server + every local-path PV", strix: "stays", managed: "pve", likec4: "mother"}
-  - {id: "pve:lxc/103", host: "weyland", state: "none", move: "movable", strix: "tbd", managed: "pve", likec4: "whisper", why: "whisper.cpp on Vulkan could move to the Strix inference LXC and free weyland's CPU — owner decision"}
+  - {id: "pve:qemu/101", host: "weyland", state: "host-path: local-lvm disk", move: "pinned: the k3s server + every local-path PV", target: "stays", managed: "pve", likec4: "mother"}
+  - {id: "pve:lxc/103", host: "weyland", state: "none", move: "movable", target: "tbd", managed: "pve", likec4: "whisper", why: "whisper.cpp could move to timberback as a k8s workload (its CPU, or CUDA on the RTX 5070 Ti) and free weyland's CPU — owner decision"}
 
 # Host files that are not units (drop-ins, /etc configs, apparmor, an installed script) — B180. `path` is where the file
 # is installed; `source` its repo copy. The nightly host check (machine-inv-drift) reads `path` on each host and compares

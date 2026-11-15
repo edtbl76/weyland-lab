@@ -42,6 +42,10 @@ spec:
           labels:
             sidecar.istio.io/inject: "true" # reach STRICT-mTLS weyland-postgres
         spec:
+          # Pinned to mother (timberback joined 2026-11-14): the dump lands in mother's /mnt/minio/backups host path.
+          # On another node it would silently write to that node's disk and split the backups (B134 pinning pass).
+          nodeSelector:
+            kubernetes.io/hostname: mother
           restartPolicy: Never
           containers:
             - name: pgdumpall

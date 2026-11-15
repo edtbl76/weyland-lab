@@ -174,6 +174,12 @@ sudo apt-mark hold $(dpkg-query -W -f '${Package}\n' 'linux-generic-hwe-24.04' '
 
 If the GPU is broken after the change, roll back to the snapshot from step 1 (see Roll back).
 
+**No driver-drift check (decided 2026-11-14, owner: "Agreed").** rogueone needs one because unattended upgrades moved
+its NVIDIA userspace without a reboot. Here the holds remove that cause: unattended upgrades respect `apt-mark hold`,
+and this procedure re-holds at the end. When a workload first depends on the GPU, add one alert on what matters
+instead — timberback's allocatable `nvidia.com/gpu` dropping to 0, or the device plugin not running — which catches
+drift and every other way of losing the GPU.
+
 **CUDA versions do not need any of this:** CUDA lives in the container image. A newer driver runs older CUDA, so try
 CUDA versions per pod freely.
 
@@ -207,8 +213,16 @@ kubectl get node timberback -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"
 ## The onboarding taint
 
 timberback joined with `weyland.lab/onboarding=true:NoSchedule`, so **nothing moves to it** until the taint is
-removed (DaemonSets that tolerate everything still run there). Remove it only after B134's pass that pins stateful
-workloads (local-path PVCs, host-path backups) to mother:
+removed (DaemonSets that tolerate everything still run there).
+
+**The pinning pass is done (2026-11-14):** every workload marked `stays` in `placement.yaml` was checked live. 44 are
+held on mother by local-path volumes bound to it; `postgres-backup` (host path `/mnt/minio/backups`), `ray-head`
+(hostNetwork) and `weyland-lan-dns` (hostPort 53) now carry `nodeSelector: kubernetes.io/hostname: mother`. Before
+removing the taint, re-run that check if workloads were added since. **One caveat stays:** the default `local-path`
+storage class (`WaitForFirstConsumer`) creates a NEW volume on whichever node its pod lands on, so a new stateful
+workload needs a deliberate placement (a node selector for mother, or a decision that its data lives on timberback).
+
+To remove the taint:
 
 [rogueone]
 ```

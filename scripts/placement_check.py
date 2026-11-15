@@ -1,7 +1,8 @@
 """Placement inventory guard (B198) — placement.yaml against the architecture model and the live estate.
 
-WHY THIS EXISTS: before the Strix Halo box (B134) lands, every workload needs one answer — where it runs, what state it
-holds, whether it can move, where it goes. Kubernetes placement was already guarded (applications.yaml ->
+WHY THIS EXISTS: with a second k3s node (timberback, a bare-metal GPU worker since 2026-11-14 — ADR-0012; the Strix Halo
+box B134 once planned around was never bought), every workload needs one answer — where it runs, what state it holds,
+whether it can move, where it goes (`target`). Kubernetes placement was already guarded (applications.yaml ->
 check-onboarding-completeness -> LikeC4), but host-native services were hand-listed and had drifted: a 2026-09-27 spot
 check of rogueone found three STUD.io runners, mosquitto and dcgm-exporter running with no model entry, and nothing read
 what rogueone ran at all. With one k8s node "which node does this need?" was never asked; with two it must be.
@@ -11,7 +12,7 @@ MODES
                row, every row's likec4 exists, a pvc/host-path row is never movable.
   --live       (nightly CronJob)          k8s objects from kube-state-metrics, active systemd units per watched host
                from node-exporter (last 24h — a laptop sleeps), Proxmox guests from pve-exporter; each must match rows.
-  --migration  print the Strix Halo migration table (markdown) for B134.
+  --migration  print the second-node migration table (markdown) for B134: rows deliberately moved to timberback.
 
 EXIT CODES (the coverage-guard contract): 0 clean · 1 drift, named · 2 a source could not be read — never a pass.
 """
@@ -34,8 +35,8 @@ SYSTEMD = "systemd:"
 USER_SYSTEMD = "user-systemd:"
 ID_PREFIXES = ("k8s:", SYSTEMD, "pve:", "tool:", USER_SYSTEMD)
 DECLARED_ONLY = ("tool:", USER_SYSTEMD)  # not visible to Prometheus: declared, never live-checked
-STRIX = {"any", "k3s-worker", "inference-lxc", "stays", "every-node", "tbd"}
-NEEDS_WHY = {"k3s-worker", "inference-lxc", "tbd"}
+TARGET = {"any", "k3s-worker", "stays", "every-node", "tbd"}
+NEEDS_WHY = {"k3s-worker", "tbd"}
 SCOPES = {"lab", "stud.io", "personal", "unused", "unknown"}
 MOVE_FIXED = {"movable", "every-node"}
 MOVE_REASONED = ("pinned:", "hardware-bound:")
@@ -80,11 +81,12 @@ def _identity_findings(rid, r, hosts):
 
 
 def _decision_findings(rid, r):
-    """strix and scope: an enum each, and the deliberate values need a `why`."""
-    strix, scope, has_why = r.get("strix"), r.get("scope", "lab"), bool(r.get("why"))
+    """target and scope: an enum each, and the deliberate values need a `why`."""
+    target, scope, has_why = r.get("target"), r.get("scope", "lab"), bool(r.get("why"))
     checks = [
-        (strix not in STRIX, f"strix '{strix}' is not one of {sorted(STRIX)}"),
-        (strix in NEEDS_WHY and not has_why, f"strix '{strix}' is a decision and needs a `why`"),
+        ("strix" in r, "the `strix` field was renamed to `target` (2026-11-14: the Strix Halo box was never bought)"),
+        (target not in TARGET, f"target '{target}' is not one of {sorted(TARGET)}"),
+        (target in NEEDS_WHY and not has_why, f"target '{target}' is a decision and needs a `why`"),
         (scope not in SCOPES, f"scope '{scope}' is not one of {sorted(SCOPES)}"),
         (scope == "unused" and not has_why, "scope 'unused' needs a `why`"),
     ]
@@ -498,7 +500,7 @@ def pve_guests(query):
 
 
 def suggest_row(rid, host="mother"):
-    return (f'  - {{id: "{rid}", host: "{host}", state: "stateless", move: "movable", strix: "any", '
+    return (f'  - {{id: "{rid}", host: "{host}", state: "stateless", move: "movable", target: "any", '
             f'managed: "argo"}}   # check state/move before committing')
 
 
@@ -540,13 +542,13 @@ def check_live(doc, k8s, units, pve):
 
 def migration_table(doc):
     rows = doc.get("workloads") or []
-    moves = [r for r in rows if r.get("strix") in NEEDS_WHY]
+    moves = [r for r in rows if r.get("target") in NEEDS_WHY]
     lines = ["| Workload | Now on | State | Target | Why |", "|---|---|---|---|---|"]
-    lines += [f"| `{r['id']}` | {r['host']} | {r.get('state', '')} | {r['strix']} | {r.get('why', '')} |"
-              for r in sorted(moves, key=lambda r: (r["strix"], r["id"]))]
+    lines += [f"| `{r['id']}` | {r['host']} | {r.get('state', '')} | {r['target']} | {r.get('why', '')} |"
+              for r in sorted(moves, key=lambda r: (r["target"], r["id"]))]
     counts = {}
     for r in rows:
-        counts[r.get("strix")] = counts.get(r.get("strix"), 0) + 1
+        counts[r.get("target")] = counts.get(r.get("target"), 0) + 1
     summary = ", ".join(f"{k}: {counts[k]}" for k in sorted(counts))
     return "\n".join(lines) + f"\n\n## Summary\n\n{len(rows)} rows — {summary}\n"
 
@@ -611,7 +613,7 @@ def main(argv=None):
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--repo", action="store_true", help="schema + LikeC4 checks (default)")
     mode.add_argument("--live", action="store_true", help="reconcile against Prometheus")
-    mode.add_argument("--migration", action="store_true", help="print the Strix Halo migration table")
+    mode.add_argument("--migration", action="store_true", help="print the second-node (timberback) migration table")
     mode.add_argument("--hosts", action="store_true",
                       help="B180: gather each host over its `access` and compare installed units/files with git")
     ap.add_argument("--file", default=os.path.join(root, "placement.yaml"))

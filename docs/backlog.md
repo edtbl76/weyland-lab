@@ -3718,7 +3718,7 @@ for a CI run killed by task expiry.
 **Acceptance.** Every listed stall attributed and written into `runbooks/node-capacity.md`; 7 consecutive nights with
 no scrape gap, no `NodeNotReady`, no `task expired`; a full CI run started at 01:00 NY completes (or full CI is
 enforced daytime-only, with the reason); the MemAvailable rule proven by a promtool unit test and reaching Telegram.
-Out of scope: moving workloads to the Strix Halo (B134). Relates B180, B134, B123.
+Out of scope: moving workloads to the second node (B134; planned as a Strix Halo box that was never bought — the second node is timberback). Relates B180, B134, B123.
 
 **Progress 2026-10-01/02 (In Progress — the 7-night clock is running).** Attribution done (above, and
 `runbooks/node-capacity.md` § The overnight stalls): page-cache thrash from chronic overcommit, triggers incidental.
@@ -3792,7 +3792,7 @@ Side finding, FIXED: the ServiceMonitor-coverage rationale claimed the apps with
 and `istio-config` (Kiali) do. The last three manual apps (`coredns-custom`, `coredns-lan`, `istio-config`) now run
 selfHeal with `prune: false` (all Synced with no diff when switched), so the premise holds for all 82 apps.
 
-**Closing Gaps prework for B134** (the Strix Halo purchase). Blocks EMA-195.
+**Closing Gaps prework for B134** (the second node; written for a Strix Halo purchase that never happened — the real second node is timberback, ADR-0012). Blocks EMA-195.
 
 **Why.** When the Strix Halo box lands, workloads move: a second k3s node, an inference LXC, a MinIO copy. Moving
 things safely needs one answer per workload — where does it run now, what does it hold, can it move, where should it
@@ -3808,7 +3808,7 @@ does this pod need?" has never been asked; with two it must be, or pods land whe
 1. **`placement.yaml`** (repo root, beside `machine-inventory.yaml`): one row per workload — k8s workloads (by Argo
    app / owner), host-native systemd services, LXC/VM guests, Docker-native services. Fields: `host` (mother, rogueone,
    weyland-host, ct-102, …), `kind`, `state` (stateless | pvc:local-path | host-path | external), `resources`
-   (cpu/mem/gpu need), `movability` (movable | pinned: reason | hardware-bound: reason), `strix_target` (k3s-worker |
+   (cpu/mem/gpu need), `movability` (movable | pinned: reason | hardware-bound: reason), `target` (renamed from `strix_target` 2026-11-14; k3s-worker |
    inference-lxc | stays | tbd), `scope` (lab | stud.io | personal) so out-of-scope units are decided, not ignored.
 2. **Host-side signal:** node-exporter with the systemd collector on rogueone (and the Proxmox host), scraped by
    Prometheus — which also gives rogueone host metrics it lacks today.
@@ -3816,7 +3816,7 @@ does this pod need?" has never been asked; with two it must be, or pods land whe
    LikeC4 node component has a row; every row names a known host); live side as a nightly coverage CronJob in the
    servicemonitor-coverage family (a running pod or enabled systemd service with no row, or a row with nothing
    running, fails by name). Exit 1 = drift, 2 = cannot read.
-4. **The Strix Halo migration plan** = the rows with `strix_target != stays`, rendered as a section in B134.
+4. **The second-node migration plan** = the rows with `target` not `stays` / `any` / `every-node`, rendered as a section in B134.
 5. Docs: `docs/hosts.md` points at the file; runbook section; DoD Pillar 1 documentation sweep gains "placement row".
 
 **Technical context.** `machine-inventory.yaml` + `scripts/machine_inventory.py` (B129 — packages, not services; the
@@ -5782,7 +5782,9 @@ Linear: EMA-194. Memory: [[aidlc-v2-migration]]. Supersedes [[methodaidlc-user-a
 
 ### B134 — CPU request management: right-size reservations + move more systems on-demand — **HIGH — HELD FOR HARDWARE (↑ Medium→High 2026-09-26 — it now gates two High items; ↓ High→Medium 2026-09-19; reframed → resource right-sizing + state-aware on-demand)**
 
-**The hardware (candidate 2026-09-26; BOUGHT, arriving 2026-11-10).** On landing, this item also measures tokens per second for an 8B and a 70B-class model on the box (moved here from B149, which the purchase superseded). A **Ryzen AI Max+ 395 ("Strix Halo")** box: 16C/32T
+**CORRECTION 2026-11-14 — the Strix Halo box below was NEVER PURCHASED** (owner: "That was never purchased, and I explicitly told you I was never purchasing that"). The plan below is kept only as the record of what was considered. **What actually landed is timberback** (`docs/hosts.md`, `docs/runbooks/timberback.md`, [ADR-0012](adr/0012-timberback-bare-metal-ubuntu-on-btrfs.md)): AMD Ryzen 9 9950X (16C/32T), 96 GB, NVIDIA RTX 5070 Ti 16 GB, 4 TB NVMe — bare-metal Ubuntu 24.04.5 on btrfs (NOT Proxmox: no VM, no inference LXC; the GPU is in Kubernetes through the NVIDIA device plugin, `nvidia.com/gpu: 1`), joined to the cluster 2026-11-14 as a k3s worker tainted `weyland.lab/onboarding=true:NoSchedule`. **Pinning pass done 2026-11-14 (the "what moves" prerequisite):** every workload marked `stays` was checked live — 44 are held on mother by local-path PVs bound to it, 1 already had a node selector; the gaps were `weyland/postgres-backup` (host path `/mnt/minio/backups`, unpinned), `weyland/ray-head` (hostNetwork — the rogueone workers reach it at mother's IP) and `weyland/weyland-lan-dns` (hostPort 53 — LAN clients resolve at mother's IP), all three now `nodeSelector: kubernetes.io/hostname: mother` (the last two were wrongly `movable` in placement.yaml; corrected). Remaining caveat before removing the taint: the default `local-path` storage class (`WaitForFirstConsumer`) puts a NEW volume on whichever node its pod lands on, so a new stateful workload needs a deliberate placement. `placement.yaml`'s `strix` field was renamed `target` and `inference-lxc` dropped. The hold's reason (the hardware) is gone — lifting `parked:held` is the owner's call.
+
+**The hardware as originally planned (candidate 2026-09-26; NOT bought).** On landing, this item also measures tokens per second for an 8B and a 70B-class model on the box (moved here from B149, which the purchase superseded). A **Ryzen AI Max+ 395 ("Strix Halo")** box: 16C/32T
 Zen 5 + a Radeon 8060S iGPU (40 CU, RDNA 3.5, gfx1151) sharing ONE pool of soldered LPDDR5X (64/96/128 GB; no
 upgrade later). Planned as **Proxmox**, mirroring Weyland's own layout:
 
@@ -6057,7 +6059,7 @@ Relates **B88** (the integration tier this spun off from), B136 (Flink modules).
 
 ### B149 — Personal AI lab GPU strategy: cheap local NVIDIA box + burst-rent cloud GPUs (hybrid) — DONE 2026-11-10 — SUPERSEDED, Linear EMA-190 canceled (was HIGH, ↑ Medium→High 2026-11-09 rebalance; 2026-08-16; backlogged 2026-08-27)
 
-**Superseded by the purchase (owner, 2026-11-10).** The question this spike asked, where the lab's GPU compute comes from, was answered by buying the 128 GB Strix Halo box (B134), arriving 2026-11-10: local, not an NVIDIA card, and burst-renting cloud GPUs is not adopted. The one useful remaining check, measured tokens per second for an 8B and a 70B-class model on the new box, moved into B134's acceptance criteria as part of the hardware special case. The research below stays as the record.
+**Superseded — CORRECTED 2026-11-14.** This entry said the question was answered by buying a 128 GB Strix Halo box (B134) and attributed that to the owner; **that purchase never happened** (owner, 2026-11-14: "That was never purchased, and I explicitly told you I was never purchasing that"). The question this spike asked, where the lab's GPU compute comes from, WAS answered — by **timberback**: a local NVIDIA RTX 5070 Ti 16 GB in a bare-metal k3s GPU worker (ADR-0012, joined 2026-11-14). Burst-renting cloud GPUs stays not adopted. The one useful remaining check, measured tokens per second for an 8B and a 70B-class model on the new box, moved into B134's acceptance criteria as part of the hardware special case. The research below stays as the record.
 
 **Backlog-entry added 2026-08-27.** This existed only in Linear (EMA-190) from 2026-08-16 — no B-number, no backlog row — so it was invisible to `docs/backlog.md` as the ordered source of truth and to every doc that reads from it. Full research write-up (provider table, price survey, build spec, break-even arithmetic, ASCII topology) lives in the Linear issue; this row is the durable pointer plus the parts that constrain lab decisions.
 

@@ -23,7 +23,7 @@ capability is **NOT done** until ALL nine pillars hold. "Ran once" ≠ done.
   matrix/tradeoffs, and diagrams. Not a one-line entry — `arch.md` is a deliverable.
 - **api.md + hosts.md** — updated for EVERY endpoint / host / IP / DNS / subdomain change.
 - **placement.yaml — a row for every new workload** (B198): a Deployment/StatefulSet/DaemonSet/CronJob, a host systemd
-  service or timer, a Proxmox guest — with its `state`, `move` and `strix` target. GUARDED, not hand-ticked: the
+  service or timer, a Proxmox guest — with its `state`, `move` and `target` (where it goes on the two-node cluster). GUARDED, not hand-ticked: the
   nightly `placement-coverage` CronJob fails naming anything running with no row (and prints the row to add); run
   `scripts/embed-placement.sh` after editing the file so the CronJob reads the same inventory.
   **Host units and host config files** (B180) also carry `source` (the repo copy) and `path` (where it is installed),

@@ -1489,7 +1489,8 @@ DR catalog: [dr.md](dr.md).
 
 ### 10d. Placement inventory — where every workload runs, and whether it can move (B198, 2026-09-27)
 
-**The problem.** Buying a second machine (the Strix Halo box, B134) turns a question the lab never had to ask — *which
+**The problem.** A second machine (planned in 2026-09 as a Strix Halo box that was never bought; the real second node is
+timberback, a bare-metal k3s GPU worker since 2026-11-14 — [ADR-0012](adr/0012-timberback-bare-metal-ubuntu-on-btrfs.md)) turns a question the lab never had to ask — *which
 node does this need?* — into one it must answer for ~200 workloads. Kubernetes placement was already guarded
 (`applications.yaml` → `check-onboarding-completeness.sh` → a LikeC4 element), but host-native services were
 hand-listed and had drifted: rogueone ran three STUD.io runners, a GPU exporter and several stock-installed services
@@ -1497,7 +1498,7 @@ with no model entry, `rag-embed` was described as a GPU service two months after
 nothing read what rogueone actually ran.
 
 **The design.** One file, [`placement.yaml`](../placement.yaml), one row per workload: `host`, `state`, `move`,
-`strix` target, `managed`, `scope`. The migration plan for B134 is a *query* over it (`check-placement.sh
+`target`, `managed`, `scope`. The migration plan for B134 is a *query* over it (`check-placement.sh
 --migration`), not a separate document that could drift from it. Two checks hold it honest — repo mode on every push,
 live mode nightly — with the coverage family's exit contract (1 = drift named, 2 = could not read).
 
