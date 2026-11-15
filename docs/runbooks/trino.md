@@ -19,9 +19,9 @@ Since B233 (2026-10-23) Trino authenticates: every caller logs in with its own p
 **only over HTTPS on 8443** (a cert from the lab's mkcert CA). See § Authentication.
 - **CLI:** `kubectl -n data-mesh exec -it deploy/trino -- trino` → `trino>` prompt (inside the coordinator; the CLI
   talks to its own loopback HTTP port, so it is not a remote caller).
-- **IntelliJ (Database tool):** a **Trino** data source at the `trino-lan` NodePort over TLS (the cert names
-  `192.168.1.243`), login `emangini` (`TRINO_PW_EMANGINI` in `scripts/.env`):
-  `jdbc:trino://192.168.1.243:30843?SSL=true&SSLVerification=FULL&SSLTrustStorePath=/home/edwardmangini/.local/share/mkcert/rootCA.pem`.
+- **IntelliJ (Database tool):** a **Trino** data source at the `trino-lan` NodePort over TLS (the cert names both node IPs,
+  `192.168.1.243` and `192.168.1.233`; Trino runs on timberback since 2026-11-15, B134, and trino-lan answers there), login `emangini` (`TRINO_PW_EMANGINI` in `scripts/.env`):
+  `jdbc:trino://192.168.1.233:30843?SSL=true&SSLVerification=FULL&SSLTrustStorePath=/home/edwardmangini/.local/share/mkcert/rootCA.pem`.
   The `SSLTrustStorePath` is required: IntelliJ runs its own bundled Java, which does NOT read rogueone's system trust
   store (`mkcert -install`), so without it the first query fails "unable to find valid certification path"
   (2026-10-23). The live data source (`.idea/dataSources.xml`, gitignored) is authentication **No auth** with

@@ -102,7 +102,8 @@ EOF
   if grep -q '^$' "$OUT/password.db"; then echo "blank line in password.db"; return 1; fi
   grep -q 'BEGIN PRIVATE KEY' "$OUT/tls.pem"
   grep -q 'BEGIN CERTIFICATE' "$OUT/tls.pem"
-  for n in trino.data-mesh.svc.cluster.local trino.data-mesh.svc trino.data-mesh trino 192.168.1.243; do
+  # Both nodes: trino-lan is externalTrafficPolicy Local, so it answers on the node running Trino (B134, 2026-11-15).
+  for n in trino.data-mesh.svc.cluster.local trino.data-mesh.svc trino.data-mesh trino 192.168.1.243 192.168.1.233; do
     grep -qE "^mkcert .* $n( |\$)" "$CALLS" || { echo "cert lacks $n"; cat "$CALLS"; return 1; }
   done
   [ "$(stat -c %a "$OUT")" = 700 ]

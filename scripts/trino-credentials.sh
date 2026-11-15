@@ -43,8 +43,10 @@ IDENTITIES=(
   "ranger|-"                                             # Ranger Admin's resource lookup (ranger_setup.py)
 )
 TRINO_SECRET="data-mesh/trino-auth"
-# Every name a client reaches Trino by: the Service's DNS forms, and mother's IP for the trino-lan NodePort.
-CERT_NAMES=(trino.data-mesh.svc.cluster.local trino.data-mesh.svc trino.data-mesh trino 192.168.1.243)
+# Every name a client reaches Trino by: the Service's DNS forms, and BOTH nodes' IPs for the trino-lan NodePort. It is
+# externalTrafficPolicy Local, so it answers only on the node running Trino: mother (.243) until B134 moved Trino to
+# timberback (.233) on 2026-11-15. Both stay, so a reschedule either way keeps TLS verification working.
+CERT_NAMES=(trino.data-mesh.svc.cluster.local trino.data-mesh.svc trino.data-mesh trino 192.168.1.243 192.168.1.233)
 
 usage() { echo "usage: $0 generate [--rotate <identity>] | build <dir> | apply <dir> | seal" >&2; exit 2; }
 

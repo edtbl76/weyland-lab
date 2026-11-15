@@ -95,7 +95,7 @@ workloads:
   - {id: "k8s:data-mesh/Deployment/cube", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/datahub-acryl-datahub-actions", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/datahub-datahub-frontend", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/datahub-datahub-gms", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+  - {id: "k8s:data-mesh/Deployment/datahub-datahub-gms", host: "timberback", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "B134 plan step 3 (2026-11-15): stateless 1Gi off mother; datahub-gms-lan (Local) now answers on .233:30818"}
   - {id: "k8s:data-mesh/Deployment/feast-server", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/feast-ui", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/flink-history", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
@@ -119,7 +119,7 @@ workloads:
   - {id: "k8s:data-mesh/Deployment/superset", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/superset-worker", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}
   - {id: "k8s:data-mesh/Deployment/timescaledb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
-  - {id: "k8s:data-mesh/Deployment/trino", host: "mother", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "largest stateless memory request (5.5Gi); OOM-killed at node pressure 2026-09-27"}
+  - {id: "k8s:data-mesh/Deployment/trino", host: "timberback", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "largest stateless memory request (5.5Gi); OOM-killed at node pressure 2026-09-27. Moved 2026-11-15 (B134 plan step 3); trino-lan (Local) now .233:30843, cert names both node IPs"}
   - {id: "k8s:data-mesh/Deployment/valkey", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
   - {id: "k8s:data-mesh/Deployment/weyland-flink", host: "mother", state: "stateless", move: "movable", target: "any", managed: "operator (FlinkDeployment)"}
   - {id: "k8s:data-mesh/StatefulSet/cassandra", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo", on_demand: true, why: "parked by default (replicas: 0) — B199 2026-10-01; undo with B134 (EMA-195)"}

@@ -11,7 +11,7 @@ dbt marts (`iceberg.dbt.*`) see **[[dbt-marts]]** — don't duplicate them here.
 - **CLI (in-pod):** `kubectl -n data-mesh exec -it deploy/trino -- trino` → `trino>` prompt (the coordinator's own
   loopback, not a remote caller).
 - **IntelliJ / DataGrip:** a **Trino** data source at the `trino-lan` NodePort over TLS,
-  `jdbc:trino://192.168.1.243:30843?SSL=true&SSLVerification=FULL`, user `emangini`, password `TRINO_PW_EMANGINI` from
+  `jdbc:trino://192.168.1.233:30843?SSL=true&SSLVerification=FULL`, user `emangini`, password `TRINO_PW_EMANGINI` from
   `scripts/.env` — admitted for rogueone only (the lab never port-forwards). Since B233 (2026-10-23) every caller logs
   in, over HTTPS only; in-cluster the svc is `trino.data-mesh.svc.cluster.local:8443`
   ([runbooks/trino.md § Authentication](../runbooks/trino.md#authentication-b233-2026-10-23)).

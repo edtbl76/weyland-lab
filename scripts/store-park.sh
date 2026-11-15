@@ -57,7 +57,7 @@ datahub() {
   local token
   token="$(kubectl -n weyland get secret datahub-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null)"
   [ -n "$token" ] || { echo "DataHub: cannot read the token from Secret weyland/datahub-token" >&2; return 2; }
-  DATAHUB_GMS_URL="${DATAHUB_GMS_URL:-http://192.168.1.243:30818}" DATAHUB_GMS_TOKEN="$token" \
+  DATAHUB_GMS_URL="${DATAHUB_GMS_URL:-http://192.168.1.233:30818}" DATAHUB_GMS_TOKEN="$token" \
     python3 "$REPO_ROOT/scripts/datahub_schedule.py" "$@"
 }
 

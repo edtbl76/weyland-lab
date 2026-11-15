@@ -24,10 +24,10 @@ B233 — commands updated for B233 (2026-10-23), not yet re-run) and `datahub-gm
 TOKEN=$(kubectl -n weyland get secret datahub-token -o jsonpath='{.data.token}' | base64 -d)
 
 set -a && . scripts/.env && set +a   # TRINO_PW_DATAHUB_COVERAGE (B233)
-export TRINO_HTTP=https://192.168.1.243:30843 TRINO_PASSWORD="$TRINO_PW_DATAHUB_COVERAGE" TRINO_CA="$(mkcert -CAROOT)/rootCA.pem"
-DATAHUB_GMS_URL=http://192.168.1.243:30818 DATAHUB_GMS_TOKEN="$TOKEN" \
+export TRINO_HTTP=https://192.168.1.233:30843 TRINO_PASSWORD="$TRINO_PW_DATAHUB_COVERAGE" TRINO_CA="$(mkcert -CAROOT)/rootCA.pem"
+DATAHUB_GMS_URL=http://192.168.1.233:30818 DATAHUB_GMS_TOKEN="$TOKEN" \
   bash scripts/check-datahub-coverage.sh --list   # every mesh table + cataloged/UNCATALOGED
-DATAHUB_GMS_URL=http://192.168.1.243:30818 DATAHUB_GMS_TOKEN="$TOKEN" \
+DATAHUB_GMS_URL=http://192.168.1.233:30818 DATAHUB_GMS_TOKEN="$TOKEN" \
   bash scripts/check-datahub-coverage.sh           # the gate
 ```
 

@@ -100,6 +100,16 @@ spec:
       annotations:
         proxy.istio.io/config: '{"accessLogFile": "/dev/stdout"}'   # sidecar access logs (debug + ops visibility)
     spec:
+      # On timberback (B134 plan step 3, 2026-11-15): the largest stateless memory reservation off mother. Stateless
+      # (scratch in an emptyDir); stores stay on mother and are reached over the mesh. trino-lan is
+      # externalTrafficPolicy Local, so its LAN address moved with it to 192.168.1.233:30843 (the TLS cert names
+      # both node IPs, scripts/trino-credentials.sh). The toleration goes when timberback's onboarding taint does.
+      nodeSelector:
+        kubernetes.io/hostname: timberback
+      tolerations:
+        - key: weyland.lab/onboarding
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: trino
           image: trinodb/trino:468  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root

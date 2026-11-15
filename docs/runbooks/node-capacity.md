@@ -176,7 +176,7 @@ The manual steps stay for an agent's hand-off or a partial run: `wake` / `park` 
 `wait` blocks until the cluster matches git (exit 0 / 1 / 2 as above).
 
 `up`/`down` and `wake`/`park` also **resume / pause the store's DataHub ingestion schedule** in the same command (via
-`scripts/datahub_schedule.py`: GMS through the `datahub-gms-lan` NodePort `192.168.1.243:30818` and the token from the cluster Secret
+`scripts/datahub_schedule.py`: GMS through the `datahub-gms-lan` NodePort `192.168.1.233:30818` and the token from the cluster Secret
 `weyland/datahub-token`, never printed; every change is read back, and `status` prints a config fingerprint so you can
 see the recipe came through untouched). `status` shows every store's git setting next to
 what is running; `all` works in place of a store name. Stores: `cassandra`, `mongodb`, `cockroachdb`,

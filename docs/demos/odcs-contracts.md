@@ -16,7 +16,7 @@ failed on a malformed one. Now every data product has one `*.odcs.yaml`, and CI 
 
 ```
 set -a && . scripts/.env && set +a   # B233: Trino takes a login over HTTPS (updated 2026-10-23, not yet re-run)
-TRINO_HTTP=https://192.168.1.243:30843 TRINO_USER=emangini TRINO_PASSWORD="$TRINO_PW_EMANGINI" \
+TRINO_HTTP=https://192.168.1.233:30843 TRINO_USER=emangini TRINO_PASSWORD="$TRINO_PW_EMANGINI" \
   TRINO_CA="$(mkcert -CAROOT)/rootCA.pem" python3 scripts/gen_odcs_contract.py \
   --domain music --product "Genre Taxonomy" --table iceberg.dbt.mart_fma_genre_tree \
   --id weyland-music-genre-taxonomy --out nodes/.../contracts/music/genre_taxonomy.odcs.yaml

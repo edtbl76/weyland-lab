@@ -245,7 +245,7 @@ Expect `OK — all N mesh table(s) in Trino are catalogued in DataHub.` A pass c
 Job keeps `ScheduledJobFailed` / `KubeJobFailed` firing until its 72 h TTL; once its cause is recorded, delete it:
 `kubectl -n weyland delete job <failed-job>`. The per-table verdicts (`--list`, every mesh table + cataloged /
 UNCATALOGED) are the first part of the same Job's log: `kubectl -n weyland logs job/"$J"`. The Job is the canonical
-run. From rogueone the guard also runs against the `trino-lan` (`192.168.1.243:30843`, HTTPS + the `datahub-coverage` login
+run. From rogueone the guard also runs against the `trino-lan` (`192.168.1.233:30843`, HTTPS + the `datahub-coverage` login
 since B233; admitted for rogueone only) and
 `datahub-gms-lan` (`:30818`) NodePorts — the walkthrough is in [demos/datahub-coverage.md](../demos/datahub-coverage.md);
 the lab never port-forwards.

@@ -2,12 +2,13 @@
 # (2026-10-17). The lab never port-forwards: NodePorts ONLY (AGENTS.md). Same `-lan` pattern as tier2-lan.yaml /
 # minio-s3-lan / lakefs-lan / mlflow-lan.
 #
-#   DataHub GMS          192.168.1.243:30818 -> :8080  (REST/GraphQL; DATAHUB_GMS_TOKEN required) — store-park.sh
-#   Trino                192.168.1.243:30843 -> :8443  (B233: JDBC/REST over HTTPS + a login; IntelliJ) — rogueone only
+#   DataHub GMS          192.168.1.233:30818 -> :8080  (REST/GraphQL; DATAHUB_GMS_TOKEN required) — store-park.sh
+#   Trino                192.168.1.233:30843 -> :8443  (B233: JDBC/REST over HTTPS + a login; IntelliJ) — rogueone only
 #   Valkey               192.168.1.243:30379 -> :6379  (RESP; DataGrip "Redis") — admitted for rogueone only
 #   musicbrainz-postgres 192.168.1.243:30544 -> :5432  (pg-wire; its own password)
 #
-# externalTrafficPolicy: Local keeps the client's source IP (single node, so no hop is lost). That is what lets a
+# externalTrafficPolicy: Local keeps the client's source IP, and so answers ONLY on the node running the pod: GMS and
+# Trino moved to timberback (.233) on 2026-11-15 (B134); Valkey and musicbrainz-postgres stay on mother (.243). That is what lets a
 # NetworkPolicy ipBlock tell rogueone (192.168.1.230) from the rest of the LAN — the same mechanism as mlflow-lan.
 # Trino (authenticated since B233, the policy is defence in depth) and Valkey (no auth) are B211 front-door services, so
 # their policies (netpol-trino.yaml, netpol-valkey.yaml) admit 192.168.1.230/32 and nothing else from outside the

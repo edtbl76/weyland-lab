@@ -67,6 +67,15 @@ global:
 
 # GMS — core backend. Lean CPU (node CPU requests run hot).
 datahub-gms:
+  # On timberback (B134 plan step 3, 2026-11-15): stateless (its state is in MySQL/OpenSearch/Kafka, which stay on
+  # mother). datahub-gms-lan is externalTrafficPolicy Local, so its LAN address moved to 192.168.1.233:30818. The
+  # toleration goes when timberback's onboarding taint does.
+  nodeSelector:
+    kubernetes.io/hostname: timberback
+  tolerations:
+    - key: weyland.lab/onboarding
+      operator: Exists
+      effect: NoSchedule
   # In-cluster only — default LoadBalancer stays <pending> on k3s, which pins Argo's sync op to "waiting for
   # healthy state of Service" forever (perpetual Progressing, blocked syncs). ClusterIP is instantly healthy.
   service:
