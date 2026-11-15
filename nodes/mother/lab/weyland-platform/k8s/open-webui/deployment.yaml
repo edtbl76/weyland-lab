@@ -1,6 +1,6 @@
 # Open WebUI (B13) — browser voice/chat front door to the lab's local models.
 #   chat  <- Ollama  (native API, CT 102, auto-lists the 6 models)
-#   voice <- whisper shim (B11, CT 103) via the OpenAI-compatible STT engine
+#   voice <- whisper shim (k8s app whisper on timberback's GPU, B134 2026-11-14) via the OpenAI-compatible STT engine
 # Additive: independent consumer of shared endpoints — zero impact on OpenClaw/Telegram.
 apiVersion: apps/v1
 kind: Deployment
@@ -68,11 +68,13 @@ spec:
               value: http://nemo-guardrails.weyland.svc.cluster.local:8080/v1
             - name: OPENAI_API_KEY             # dummy — the nemo svc ignores it; present to satisfy the client
               value: nemo-guardrails
-            # --- Voice input (STT) -> whisper shim (CT 103, B11), OpenAI-compatible ---
+            # --- Voice input (STT) -> whisper shim (k8s app whisper, timberback GPU), OpenAI-compatible ---
+            # These env vars only SEED a fresh data volume: Open WebUI keeps the live values in its database
+            # (audio.stt.*). scripts/open_webui_curate.py owns them and --check reports drift.
             - name: AUDIO_STT_ENGINE
               value: openai
             - name: AUDIO_STT_OPENAI_API_BASE_URL
-              value: http://192.168.1.246:9000/v1
+              value: http://whisper.weyland.svc.cluster.local:9000/v1
             - name: AUDIO_STT_OPENAI_API_KEY
               value: sk-local-whisper           # shim ignores it; present to satisfy the client
             - name: AUDIO_STT_MODEL

@@ -106,3 +106,35 @@ def test_drift_lists_each_differing_setting():
     assert oc.drift(want, {"a": 1, "b": [1, 2], "c": {"d": 1}, "extra": 9}) == []
     assert oc.drift(want, {"a": 2, "b": [1], "c": {"d": 1}}) == ["a", "b"]
     assert oc.drift(want, {"a": 1, "b": [1, 2]}) == ["c"]
+
+
+# ---- speech-to-text (B134 plan step 2, 2026-11-14: whisper moved from CT 103 to timberback) -------------------------
+# The STT URL lives in Open WebUI's database (audio.stt.openai.api_base_url), so the deployment's env var only seeds a
+# fresh volume: on the live app it pointed at CT 103 after the env var would have changed. The curated state owns it.
+
+def _audio(stt_url="http://192.168.1.246:9000/v1", engine="openai"):
+    return {"tts": {"ENGINE": "", "MODEL": "tts-1", "VOICE": "alloy", "OPENAI_API_BASE_URL": "https://api.openai.com/v1"},
+            "stt": {"ENGINE": engine, "MODEL": "whisper-1", "OPENAI_API_BASE_URL": stt_url,
+                    "OPENAI_API_KEY": "sk-local-whisper", "OPENAI_API_REQUEST_FORMAT": "multipart",
+                    "ALLOWED_EXTENSIONS": ["wav", "webm"], "WHISPER_MODEL": "base"},
+            "realtime": {"enabled": False}}
+
+
+def test_audio_points_stt_at_the_in_cluster_whisper_service():
+    out = oc.desired_audio(_audio())
+    assert out["stt"]["OPENAI_API_BASE_URL"] == "http://whisper.weyland.svc.cluster.local:9000/v1"
+    assert out["stt"]["ENGINE"] == "openai" and out["stt"]["MODEL"] == "whisper-1"
+
+
+def test_audio_keeps_every_other_stt_and_tts_field_and_drops_realtime():
+    cur = _audio()
+    out = oc.desired_audio(cur)
+    assert out["tts"] == cur["tts"]                     # TTS untouched (B246's job)
+    assert out["stt"]["ALLOWED_EXTENSIONS"] == ["wav", "webm"] and out["stt"]["WHISPER_MODEL"] == "base"
+    assert set(out) == {"tts", "stt"}                   # realtime is optional in the update form; never resent
+
+
+def test_audio_check_flags_the_old_ct_url_and_passes_the_new_one():
+    assert oc.audio_ok(_audio()) is False
+    assert oc.audio_ok(_audio(stt_url=oc.WHISPER_URL)) is True
+    assert oc.audio_ok(_audio(stt_url=oc.WHISPER_URL, engine="")) is False   # local in-app whisper is not the lab's

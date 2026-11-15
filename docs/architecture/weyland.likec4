@@ -61,6 +61,11 @@ model {
     aiSessionProducer = component "ai-session producer" "B62 + B185 user timer (every 4 h at :07) — ai_session_feeder.py summarises the Claude Code session logs (metrics + per-issue attribution, never prompt text) and mirrors them to MinIO ai-sessions; then owner_time.py adds the owner's own time per issue (Clockify, B185 lane 2; ActivityWatch retired 2026-10-23 after failing its memory trial), and scripts/issue-time.sh --port joins the B194 Linear snapshot and writes Port issue_time entities (read back) + the Time per Issue dashboard (defined in git)"
   }
 
+  timberback = node "timberback" "Bare-metal k3s GPU worker (.233), joined 2026-11-14 (ADR-0012): Ryzen 9 9950X, 96 GB, RTX 5070 Ti 16 GB, Ubuntu 24.04 on btrfs (snapper). Tainted weyland.lab/onboarding until B134 lifts it; workloads land only by node selector + toleration." {
+    whisper = component "whisper" "Speech-to-text (B134 plan step 2, 2026-11-14): whisper.cpp v1.9.5 CUDA (ggml-large-v3, ~4 GB VRAM, one of 4 GPU time-slices) + the OpenAI shim :9000/v1 and native :8080/inference. In-cluster whisper.weyland.svc; rogueone via the whisper-lan NodePort .233:30901 (NetworkPolicy: Open WebUI, Kuma, rogueone only). Replaces CT 103."
+    gpuPlugin = component "NVIDIA device plugin" "nvidia-device-plugin 0.20.1 (Argo): advertises the RTX 5070 Ti time-sliced into 4 (nvidia.com/gpu: 4). Time-slicing shares compute, not VRAM: budget in runbooks/timberback.md."
+  }
+
   weyland = system "weyland" "Home AI lab on a Minisforum MS-A2 (Proxmox, .232). LAN-only." {
 
     mother = node "mother VM" "k3s (vm-101, .243) — 64GB/12vCPU. Istio-meshed. The shared platform." {
@@ -216,7 +221,7 @@ model {
     }
 
     // hermes CT (CT 104) RETIRED 2026-07-23 — destroyed; operator role → weyland.mother.ai.operator
-    whisper = node "whisper CT" "whisper.cpp (CT 103, .246) — CPU STT"
+    whisper = node "whisper CT" "whisper.cpp (CT 103, .246) — CPU STT. BEING RETIRED (B134, 2026-11-14): replaced by timberback.whisper; stopped after the cutover, destroyed about a week later"
   }
 
   // ================= Relationships =================
@@ -338,7 +343,7 @@ model {
   weyland.mother.ai.litellm -> weyland.mother.ai.pg "virtual keys + spend logs (B234) — the litellm DB; meshed, STRICT mTLS; DR via the core pg_dumpall"
   weyland.mother.ai.litellm -> rogueone.ollama "local lanes (local-first) + private lanes wl-private-* (no fallback, fail closed, B234)"
   weyland.mother.ai.openWebui -> rogueone.ollama "chat /v1"
-  weyland.mother.ai.openWebui -> weyland.whisper "STT /v1/audio/transcriptions"
+  weyland.mother.ai.openWebui -> timberback.whisper "STT /v1/audio/transcriptions (whisper.weyland.svc:9000, cross-node)"
   weyland.mother.ai.neodash -> weyland.mother.ai.neo "Bolt (browser-side)"
   weyland.mother.ai.toolServer -> weyland.mother.ops.obs.glitchtip "error push (Sentry SDK)"
   weyland.mother.ai.litellm -> weyland.mother.ops.obs.langfuse "LLM traces (langfuse callback, B103)"

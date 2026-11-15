@@ -219,8 +219,8 @@ So every GPU workload has a VRAM budget here, and a new one is checked against t
 
 | Workload | Slice | VRAM budget | Source |
 |---|---|---|---|
-| whisper (ggml-large-v3, `k8s/whisper/`) | 1 | ~4 GB | B134 plan step 2 |
-| (free) | 3 | ~12 GB | |
+| whisper (ggml-large-v3, `k8s/whisper/`) | 1 | 4.0 GB (measured 2026-11-14: 4,024 MiB) | B134 plan step 2 |
+| (free) | 3 | ~11.9 GB of 15.9 GB | |
 
 Measure the real figure once a workload is running and update its row (check `nvidia-smi` on timberback, which lists
 each process's memory):

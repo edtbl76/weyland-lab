@@ -54,8 +54,10 @@ Tags are `<whisper.cpp version>[-<rebuild>]`: `1.9.5` was the first push, `1.9.5
 curl -s http://192.168.1.233:30901/v1/audio/transcriptions -F file=@/home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/whisper-cuda/jfk.wav -F model=whisper-1 -F response_format=json
 ```
 
-Expect exactly what CT 103 returned for the same clip on 2026-11-14 (in about 12 s on CPU):
-`{"text":"And so my fellow Americans,\n ask not what your country can do for you,\n ask what you can do for your country."}`.
+Expect (measured 2026-11-14 on timberback, 0.18-0.31 s for the 11 s clip; CT 103 took about 12 s on CPU):
+`{"text":"And so my fellow Americans, ask not what your country can do for you, ask what you can do for your country."}`.
+The words match CT 103 exactly. CT 103 returned the same text split into three segments, so its plain text has
+`\n` line breaks; the GPU decodes the clip as one segment. Compare words, not bytes.
 
 # Legacy: CT 103 on the weyland host (until retired)
 
@@ -152,7 +154,8 @@ Expect strict `{"text":" And so my fellow Americans, ask not what your country c
 ### Open WebUI (recommended) — B13
 The robust consumer: a browser voice/chat UI that uses **Ollama for chat** and **this shim for
 voice-in** via Open WebUI's OpenAI-compatible Audio→STT setting (base URL
-`http://192.168.1.246:9000/v1` + any dummy key). Stable, documented config that **fails open**
+`http://whisper.weyland.svc.cluster.local:9000/v1` since 2026-11-14, `http://192.168.1.246:9000/v1` before + any dummy key).
+The value lives in Open WebUI's database; `scripts/open_webui_curate.py` owns it (`--check` reports drift). Stable, documented config that **fails open**
 (breaks one panel, not a whole agent). ✅ **Live & validated 2026-06-12** at
 `https://chat.weyland.lab` (mic → shim `POST /v1/audio/transcriptions` confirmed). Manifests:
 `nodes/mother/lab/weyland-platform/k8s/open-webui/`. See backlog B13.

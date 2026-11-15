@@ -74,7 +74,7 @@ this page) links to the live tool.
 | **OpenWebUI (Chat)** | <https://chat.weyland.lab> | LLM chat front end |
 | **LiteLLM** | <https://litellm.weyland.lab> | Model gateway (unified LLM API) |
 | **Ollama** | <https://ollama.weyland.lab> | Local model serving API |
-| **Whisper** | <https://whisper.weyland.lab> | Speech-to-text transcription API |
+| **Whisper** | rogueone: `http://192.168.1.233:30901/v1` (in-cluster `whisper.weyland.svc:9000`) | Speech-to-text transcription API (timberback GPU; no web UI) |
 | **Claude Code** | local CLI (rogueone) — [concept](concepts/multi-harness.md) | Primary harness — MCP client of the tool-server, Bifrost and Linear |
 | **Codex** | local CLI + ChatGPT desktop — [runbook](runbooks/coding-agents.md) | Peer harness on the ChatGPT sub — MCP client of Bifrost + Linear; Linear "Work on issue" launcher |
 | **Editors — IntelliJ / VS Code** | local IDEs — [concept](concepts/multi-harness.md) | Hosts for the harnesses: IntelliJ's ACP agent registry + Claude Code/Codex plugins; VS Code's Codex (and Claude Code) extensions |

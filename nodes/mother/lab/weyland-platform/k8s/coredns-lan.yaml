@@ -28,16 +28,9 @@ data:
             rcode NOERROR
         }
     }
-    whisper.weyland.lab:53 {
-        errors
-        log
-        template IN A {
-            answer "{{ .Name }} 60 IN A 192.168.1.246"
-        }
-        template IN AAAA {
-            rcode NOERROR
-        }
-    }
+    # whisper.weyland.lab (-> CT 103, .246) REMOVED 2026-11-14 (B134 plan step 2): whisper moved to timberback's GPU as
+    # the k8s app `whisper`, reached in-cluster at whisper.weyland.svc and from rogueone at the whisper-lan NodePort
+    # (.233:30901). The name now falls through to the wildcard below.
     # timberback: bare-metal k3s GPU worker (ADR-0012), its own LAN IP. Without this block the wildcard below
     # answered timberback.weyland.lab with mother's address (2026-11-14).
     timberback.weyland.lab:53 {

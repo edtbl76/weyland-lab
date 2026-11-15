@@ -467,7 +467,7 @@ data:
       # ---- OpenAI-shape gateways / model serving ----
       - {id: litellm-gateway, owner: litellm, kind: openai-compat, status: published, version: "1.0", base: "http://mother:30400/v1", consumers: [weyland-operator, realm-of-agents, weyland-tool-server]}
       - {id: ollama, owner: ollama, kind: openai-compat, status: published, version: "1.0", base: "http://ollama.weyland.lab:11434/v1", consumers: [litellm, weyland-tool-server, weyland-agent]}
-      - {id: whisper, owner: whisper, kind: openai-compat, status: published, version: "1.0", base: "http://whisper.weyland.lab:9000/v1", consumers: []}
+      - {id: whisper, owner: whisper, kind: openai-compat, status: published, version: "1.0", base: "http://whisper.weyland.svc.cluster.local:9000/v1", consumers: [open-webui]}
   requirements.txt: |
     # api-drift CronJob (k8s/monitoring/api-drift.yaml) — its one dependency, PINNED (B227 follow-on, 2026-10-24). Embedded
     # into the api-drift-logic ConfigMap by scripts/embed-api-drift.sh and installed with `pip install -r`. Same pin as

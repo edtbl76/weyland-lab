@@ -48,4 +48,4 @@ apis:
   # ---- OpenAI-shape gateways / model serving ----
   - {id: litellm-gateway, owner: litellm, kind: openai-compat, status: published, version: "1.0", base: "http://mother:30400/v1", consumers: [weyland-operator, realm-of-agents, weyland-tool-server]}
   - {id: ollama, owner: ollama, kind: openai-compat, status: published, version: "1.0", base: "http://ollama.weyland.lab:11434/v1", consumers: [litellm, weyland-tool-server, weyland-agent]}
-  - {id: whisper, owner: whisper, kind: openai-compat, status: published, version: "1.0", base: "http://whisper.weyland.lab:9000/v1", consumers: []}
+  - {id: whisper, owner: whisper, kind: openai-compat, status: published, version: "1.0", base: "http://whisper.weyland.svc.cluster.local:9000/v1", consumers: [open-webui]}

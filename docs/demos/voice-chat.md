@@ -27,9 +27,9 @@ sequenceDiagram
 
 ## Prerequisites
 
-- **whisper** (CT 103 on the weyland host, `192.168.1.246` / `whisper.weyland.lab`) — `whisper-server`
-  (native `/inference` @ `:8080`) + `whisper-shim` (OpenAI `/v1` @ `:9000`), both systemd services.
-  Model `ggml-large-v3`.
+- **whisper** (k8s app `whisper` on timberback's GPU since 2026-11-14, B134; it ran on CT 103 before) — `whisper-server`
+  (native `/inference` @ `:8080`) + the OpenAI shim (`/v1` @ `:9000`), two containers in one pod, in-cluster at
+  `whisper.weyland.svc`. Model `ggml-large-v3` on CUDA.
 - **rogueone** (`192.168.1.230`) — Ollama at `ollama.weyland.lab:11434` for chat.
 - **mother** (`192.168.1.243`) — Open WebUI on k3s (manifests `k8s/open-webui/`), fronted by Traefik.
 - A browser that can reach `chat.weyland.lab` with a working microphone.
@@ -38,7 +38,8 @@ sequenceDiagram
 
 1. Open **`https://chat.weyland.lab`** (Keycloak SSO / OIDC — log in as `emangini`).
 2. Confirm STT is wired: **Settings → Audio → Speech-to-Text (STT)** set to an OpenAI-compatible
-   endpoint with base URL **`http://192.168.1.246:9000/v1`** + any dummy API key (per the runbook).
+   endpoint with base URL **`http://whisper.weyland.svc.cluster.local:9000/v1`** + any dummy API key
+   (`scripts/open_webui_curate.py --check` reports it as curated).
 3. In a chat, pick an Ollama model, click the **microphone**, speak a prompt, and stop recording.
    Open WebUI POSTs the audio to the shim's `/v1/audio/transcriptions`; the transcript fills the
    composer.
