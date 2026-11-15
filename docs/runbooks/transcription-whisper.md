@@ -37,15 +37,15 @@ reuse one):
 
 [rogueone]
 ```
-docker build -t registry.weyland.lab/whisper-cuda:1.9.5-2 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/whisper-cuda
+docker build -t registry.weyland.lab/whisper-cuda:1.9.5-3 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/whisper-cuda
 ```
 
 [rogueone]
 ```
-/home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/whisper-cuda:1.9.5-2
+/home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/whisper-cuda:1.9.5-3
 ```
 
-Tags are `<whisper.cpp version>[-<rebuild>]`: `1.9.5` was the first push, `1.9.5-2` the rebuild after the shim's Sonar fixes (the live tag). A tag is never reused: the node caches by tag (`IfNotPresent`). A new build gets the next free tag and a manifest bump in `k8s/whisper/whisper.yaml` (three image lines).
+Tags are `<whisper.cpp version>[-<rebuild>]`: `1.9.5` was the first push, `1.9.5-2` the rebuild after the shim's Sonar fixes, `1.9.5-3` (the live tag) added `libgomp1`: `1.9.5-2` crash-looped with `libgomp.so.1: cannot open shared object file`, and the build now runs `ldd` and fails on any missing library except the driver's `libcuda.so.1`. A tag is never reused: the node caches by tag (`IfNotPresent`). A new build gets the next free tag and a manifest bump in `k8s/whisper/whisper.yaml` (three image lines).
 
 ### Test it
 

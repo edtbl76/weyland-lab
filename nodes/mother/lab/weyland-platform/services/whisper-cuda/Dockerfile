@@ -27,9 +27,13 @@ RUN cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=120 -DCMAKE_BUILD_T
 
 FROM ${CUDA_RUNTIME}
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 python3-venv curl ca-certificates \
+ && apt-get install -y --no-install-recommends libgomp1 python3 python3-venv curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/build/bin/whisper-server /usr/local/bin/whisper-server
+# Fail the build if any shared library the binary needs is missing (libcuda.so.1 comes from the driver at runtime).
+RUN out="$(ldd /usr/local/bin/whisper-server)" || { echo "ldd failed"; exit 1; }; \
+    missing="$(printf '%s\n' "$out" | grep "not found" | grep -v libcuda.so || true)"; \
+    if [ -n "$missing" ]; then echo "missing shared libraries:"; echo "$missing"; exit 1; fi
 # The shim's dependencies, fully locked (requirements.in -> requirements.txt via `uv pip compile --exclude-newer`).
 COPY requirements.txt /app/requirements.txt
 RUN python3 -m venv /app/venv \
