@@ -96,7 +96,8 @@ supersedes the cancelled B12 (a static registry without the lifecycle).
 - **One flat LAN** (`192.168.1.0/24`). All hosts/CTs are first-class on it (CTs bridge `vmbr0`).
 - **CoreDNS** (on mother `:53`) is authoritative for **`weyland.lab`**: a wildcard maps `*.weyland.lab`
   -> mother (Traefik), with specific zones overriding it for the standalone CTs
-  (`ollama.weyland.lab` -> .230 (rogueone, B79), `whisper.weyland.lab` -> .246). Everything else forwards to 1.1.1.1/9.9.9.9.
+  (`ollama.weyland.lab` -> .230 (rogueone, B79), `whisper.weyland.lab` -> .246, `timberback.weyland.lab` -> .233).
+  Everything else forwards to 1.1.1.1/9.9.9.9.
 - **Traefik** (k3s ingress) terminates **TLS** for the `*.weyland.lab` UIs using an mkcert wildcard cert.
 - **rogueone** also keeps `/etc/hosts` entries for `*.weyland.lab` (it isn't pointed at CoreDNS).
 - **DHCP reservations** pin whisper CT (`.246`) + rogueone (`.230`) so endpoint URLs stay stable.

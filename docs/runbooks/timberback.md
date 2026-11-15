@@ -258,6 +258,10 @@ sudo needrestart -r l -u NeedRestart::UI::stdio 2>&1 | grep -iE "Services to be 
 
 `registry.weyland.lab` resolves through `/etc/hosts` (`192.168.1.243`); the router does not serve `*.weyland.lab`.
 
+LAN name: `timberback.weyland.lab` -> `192.168.1.233` has its own zone in the LAN DNS on mother
+(`nodes/mother/lab/weyland-platform/k8s/coredns-lan.yaml`), which overrides the `*.weyland.lab` -> mother wildcard. Check:
+`dig +short @mother timberback.weyland.lab` prints `192.168.1.233`.
+
 ## Rebuild from scratch
 
 timberback is a replaceable worker; its state lives on mother. To rebuild it:
