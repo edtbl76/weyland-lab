@@ -321,6 +321,7 @@ workloads:
   # ---- weyland (Proxmox guests) ----
   - {id: "pve:qemu/101", host: "weyland", state: "host-path: local-lvm disk", move: "pinned: the k3s server + every local-path PV", target: "stays", managed: "pve", likec4: "mother"}
   - {id: "pve:lxc/103", host: "weyland", state: "none", move: "movable", target: "tbd", managed: "pve", likec4: "whisper", why: "whisper.cpp could move to timberback as a k8s workload (its CPU, or CUDA on the RTX 5070 Ti) and free weyland's CPU — owner decision"}
+  - {id: "k8s:weyland/Deployment/whisper", host: "timberback", state: "pvc:local-path (whisper-models, the 3.1 GB ggml-large-v3; re-downloadable)", move: "hardware-bound: one time-slice of timberback's RTX 5070 Ti; PVC bound to timberback", target: "stays", managed: "argo", likec4: "whisper", why: "B134 plan step 2 (2026-11-14): whisper.cpp v1.9.5 CUDA + the OpenAI shim, replacing CPU-only CT 103 on the weyland host"}
 
 # Host files that are not units (drop-ins, /etc configs, apparmor, an installed script) — B180. `path` is where the file
 # is installed; `source` its repo copy. The nightly host check (machine-inv-drift) reads `path` on each host and compares

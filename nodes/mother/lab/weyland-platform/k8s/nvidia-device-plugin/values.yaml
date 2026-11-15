@@ -9,10 +9,27 @@
 # RuntimeClass and registers the containerd runtime when the toolkit is present), and — while timberback is still in
 # onboarding — a toleration for `weyland.lab/onboarding`.
 #
-# No sharing yet: one pod at a time gets the whole card. Time-slicing is a later `config:` change.
+# Sharing: TIME-SLICED into 4 (owner, 2026-11-14, B134 plan step 2), so the node advertises `nvidia.com/gpu: 4` and
+# whisper, llama-guard and kokoro can each hold one slice. Time-slicing shares compute but does NOT isolate memory:
+# every pod sees all 16 GB of VRAM, and if their combined use goes over, one of them fails with CUDA out-of-memory.
+# Budget VRAM per workload before adding one (docs/runbooks/timberback.md § GPU sharing and the VRAM budget).
+# failRequestsGreaterThanOne: a pod asking for 2+ slices is rejected, since extra slices buy no extra memory or speed.
 
 # Run the plugin itself through the NVIDIA runtime, so it sees the GPU and its libraries.
 runtimeClassName: nvidia
+
+config:
+  default: time-slicing
+  map:
+    time-slicing: |-
+      version: v1
+      sharing:
+        timeSlicing:
+          renameByDefault: false
+          failRequestsGreaterThanOne: true
+          resources:
+            - name: nvidia.com/gpu
+              replicas: 4
 
 tolerations:
   # The chart's own defaults, kept.

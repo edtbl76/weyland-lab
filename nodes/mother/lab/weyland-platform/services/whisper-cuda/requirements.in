@@ -1,0 +1,5 @@
+# Pinned direct dependencies of the whisper OpenAI shim (shim.py). Lock: requirements.txt.
+fastapi==0.162.0
+uvicorn==0.54.0
+httpx==0.28.1
+python-multipart==0.0.32

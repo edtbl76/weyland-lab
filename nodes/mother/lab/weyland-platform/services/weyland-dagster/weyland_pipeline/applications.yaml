@@ -9,7 +9,7 @@
 #
 # COMPLETENESS: every deployed Argo CD Application + the non-k8s services (whisper/ollama CTs) + data-mesh
 # sub-components appears here — as an `applications:` entry (a component) or `excluded:` (store/plumbing).
-# scripts/check-app-registry.sh enforces it (84 Argo apps, all accounted). As of 2026-08-22 that guard
+# scripts/check-app-registry.sh enforces it (85 Argo apps, all accounted). As of 2026-08-22 that guard
 # DOES run in CI — the `repo-guards` step in .woodpecker/ci.yml, blocking — so "enforces" now means what it
 # says. (It previously did not, and this comment said so.)
 #
@@ -95,7 +95,7 @@ applications:
 
   # ============ PURE-COMPUTE COMPONENTS (datahub_application: false) ============
 
-  - {key: whisper, runbook: "transcription-whisper.md", deployed: true, writes: false, metrics: false, ingress: true, name: Whisper STT, group: serving, datahub_application: false, owns: [], capabilities: ["speech-to-text"], port_component: whisper, description: "CPU speech-to-text (whisper.cpp, CT)."}
+  - {key: whisper, runbook: "transcription-whisper.md", deployed: true, writes: false, metrics: false, ingress: true, name: Whisper STT, group: serving, datahub_application: false, owns: [], capabilities: ["speech-to-text"], port_component: whisper, description: "GPU speech-to-text (whisper.cpp v1.9.5 CUDA + OpenAI shim on timberback, k8s app whisper; CPU CT 103 being retired, B134)."}
   - {key: ollama, runbook: "model-serving-ollama.md", deployed: true, writes: true, front_door: "rogueone ollama-proxy (B211, 2026-10-22): Ollama binds 127.0.0.1; the proxy on :11434 asks every remote caller for the ollama-proxy-token bearer token and refuses model management (/api/pull, /api/delete, ...) to them; ufw admits only mother and docker0", metrics: false, ingress: true, name: Ollama, group: serving, datahub_application: false, owns: [], capabilities: ["llm-serving"], port_component: ollama, description: "Local GPU LLM serving on rogueone."}
   - {key: kokoro, runbook: "kokoro.md",deployed: true, writes: false, metrics: false, ingress: true, name: Kokoro, group: serving, datahub_application: false, owns: [], capabilities: ["text-to-speech"], port_component: kokoro, description: "Self-hosted TTS."}
   - {key: llama-guard, runbook: "guardrails.md", deployed: true, writes: false, metrics: false, ingress: false, name: Llama Guard, group: serving, datahub_application: false, owns: [], capabilities: ["guardrails", "llm-serving"], port_component: llama-guard, description: "Content-safety classifier (llama.cpp) — the Classify tier."}

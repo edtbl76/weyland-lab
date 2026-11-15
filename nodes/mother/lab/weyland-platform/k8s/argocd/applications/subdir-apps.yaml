@@ -628,6 +628,25 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
+# B134 plan step 2 (2026-11-14) — whisper speech-to-text on timberback's GPU (whisper.cpp v1.9.5 CUDA + the OpenAI
+# shim), replacing CPU-only CT 103 on the weyland host. Pinned to timberback; one GPU time-slice.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: whisper
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/whisper
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weyland
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
 # B115 — llama-guard: Classify layer of the guardrails platform, TIER 1. Llama-Guard-3-1B on CPU, always-on,
 # served by llama.cpp (OpenAI-compatible). The default content-safety classifier weyland-guard calls. UNMESHED
 # (sidecar.istio.io/inject:false) so the on-boot HuggingFace GGUF pull stays off the mesh proxy-startup ordering.

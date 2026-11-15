@@ -1,0 +1,191 @@
+# whisper — speech-to-text on timberback's GPU (B134 plan step 2, 2026-11-14). Replaces CT 103 on the weyland host,
+# which ran the same whisper.cpp + shim on CPU only. Image: registry.weyland.lab/whisper-cuda (hand-tagged by
+# whisper.cpp version; services/whisper-cuda/). Runbook: docs/runbooks/transcription-whisper.md.
+#
+# One pod, two containers from the same image:
+#   whisper-server  native whisper.cpp, POST /inference on 8080, model ggml-large-v3 on the GPU (one time-slice of 4)
+#   shim            OpenAI-compatible POST /v1/audio/transcriptions on 9000, forwards to 127.0.0.1:8080
+# The model (3.1 GB) lives on a local-path PVC; the pod is pinned to timberback, so the volume is created there
+# (WaitForFirstConsumer). The init container downloads it once and checks its SHA-256 on every start.
+# UNMESHED, like llama-guard: the weyland namespace has no sidecar injection.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: whisper-models
+  namespace: weyland
+  labels:
+    app: whisper
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whisper
+  namespace: weyland
+  labels:
+    app: whisper
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # one RWO model volume and one GPU slice: never two pods at once
+  selector:
+    matchLabels:
+      app: whisper
+  template:
+    metadata:
+      labels:
+        app: whisper
+        sidecar.istio.io/inject: "false"
+    spec:
+      # timberback holds the GPU; the toleration stays until its onboarding taint is lifted.
+      nodeSelector:
+        kubernetes.io/hostname: timberback
+      tolerations:
+        - key: weyland.lab/onboarding
+          operator: Exists
+          effect: NoSchedule
+      runtimeClassName: nvidia
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: fetch-model
+          image: registry.weyland.lab/whisper-cuda:1.9.5-2
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              f=/models/ggml-large-v3.bin
+              want=64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2
+              if [ -f "$f" ] && echo "$want  $f" | sha256sum -c --status; then
+                echo "model present, checksum ok"; exit 0
+              fi
+              echo "downloading ggml-large-v3 (3.1 GB)"
+              curl -fL --retry 3 -o "$f.part" https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin
+              echo "$want  $f.part" | sha256sum -c
+              mv "$f.part" "$f"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          volumeMounts:
+            - { name: models, mountPath: /models }
+      containers:
+        - name: whisper-server
+          image: registry.weyland.lab/whisper-cuda:1.9.5-2
+          imagePullPolicy: IfNotPresent
+          args: ["-m", "/models/ggml-large-v3.bin", "--host", "0.0.0.0", "--port", "8080", "-t", "4"]
+          ports:
+            - { name: inference, containerPort: 8080 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          # whisper-server binds only after the model is loaded, and GET / serves its page: a 200 means the model is in.
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 250m, memory: 1Gi }
+            limits:
+              memory: 4Gi
+              nvidia.com/gpu: 1     # one of 4 time-slices; VRAM is NOT isolated: large-v3 needs about 4 GB
+          volumeMounts:
+            - { name: models, mountPath: /models, readOnly: true }
+        - name: shim
+          image: registry.weyland.lab/whisper-cuda:1.9.5-2
+          imagePullPolicy: IfNotPresent
+          command: ["/app/venv/bin/uvicorn", "shim:app", "--host", "0.0.0.0", "--port", "9000"]
+          env:
+            - { name: WHISPER_INFERENCE_URL, value: "http://127.0.0.1:8080/inference" }
+          ports:
+            - { name: openai, containerPort: 9000 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          readinessProbe:
+            httpGet: { path: /health, port: 9000 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 9000 }
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: whisper-models
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whisper
+  namespace: weyland
+  labels:
+    app: whisper
+spec:
+  type: ClusterIP
+  selector:
+    app: whisper
+  ports:
+    - { name: openai, port: 9000, targetPort: 9000 }
+    - { name: inference, port: 8080, targetPort: 8080 }
+---
+# LAN NodePort for rogueone. externalTrafficPolicy: Local keeps the client IP so the NetworkPolicy's ipBlock can match
+# (the mlflow-lan mechanism); a Local NodePort answers only on the node running the pod, so the LAN address is
+# timberback's: 192.168.1.233:30901 (OpenAI shim) and :30881 (native /inference).
+apiVersion: v1
+kind: Service
+metadata:
+  name: whisper-lan
+  namespace: weyland
+  labels:
+    app: whisper
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector:
+    app: whisper
+  ports:
+    - { name: openai, port: 9000, targetPort: 9000, protocol: TCP, nodePort: 30901 }
+    - { name: inference, port: 8080, targetPort: 8080, protocol: TCP, nodePort: 30881 }
+---
+# No auth on whisper: admit only its callers. Open WebUI (STT), Uptime Kuma (monitor), rogueone (the NodePort).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: whisper-callers-only
+  namespace: weyland
+spec:
+  podSelector:
+    matchLabels: { app: whisper }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: open-webui }
+        - podSelector:
+            matchLabels: { app: uptime-kuma }
+        - ipBlock: { cidr: 192.168.1.230/32 }
+      ports:
+        - { protocol: TCP, port: 9000 }
+        - { protocol: TCP, port: 8080 }

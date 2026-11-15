@@ -1,11 +1,63 @@
-# B11 — Whisper STT Runbook — weyland (CT 103)
+# Whisper STT Runbook — timberback GPU (k8s app `whisper`), replacing CT 103
 
-Speech-to-text on weyland's CPU via **whisper.cpp**. Pure CPU, no GPU.
-Exposes its native `/inference` plus an OpenAI-compatible `/v1/audio/transcriptions` shim so
-the tool server / any OpenAI client can use local whisper instead of a cloud STT.
+Speech-to-text via **whisper.cpp**. Exposes its native `/inference` plus an OpenAI-compatible
+`/v1/audio/transcriptions` shim, so Open WebUI (and any OpenAI client) uses local whisper instead of a cloud STT.
 
-**Related:** [B7 Ollama runbook](model-serving-ollama.md) (same LXC pattern) · code:
-`nodes/weyland/whisper/` (`shim.py`, `whisper-server.service`, `whisper-shim.service`).
+**Moving (B134 plan step 2, 2026-11-14):** from CPU-only CT 103 on the weyland Proxmox host to timberback's RTX 5070 Ti
+as the Argo app `whisper` (`k8s/whisper/`). The two run side by side until the new one is verified; then Open WebUI
+switches, CT 103 is stopped, and about a week later destroyed. The CT sections further down describe the old host until
+then.
+
+**Related:** [timberback runbook](timberback.md) (GPU sharing, VRAM budget) · code: `services/whisper-cuda/` (image),
+`k8s/whisper/` (Deployment, Services, NetworkPolicy, alert) · legacy CT code: `nodes/weyland/whisper/`.
+
+## On timberback (k8s app `whisper`)
+
+- **Pod:** one Deployment pinned to timberback, two containers from one image: `whisper-server` (native, port 8080,
+  `ggml-large-v3` on the GPU, one of 4 time-slices) and `shim` (OpenAI-compatible, port 9000). `Recreate` strategy.
+- **Model:** on the PVC `whisper-models` (local-path, so it lives on timberback). The `fetch-model` init container
+  downloads `ggml-large-v3.bin` (3.1 GB) once from `huggingface.co/ggerganov/whisper.cpp` and checks its SHA-256
+  (`64d182b4…94d1e2`) on every start.
+- **In-cluster:** `http://whisper.weyland.svc:9000/v1` (OpenAI) and `:8080/inference` (native).
+- **From rogueone:** `http://192.168.1.233:30901/v1` and `:30881/inference` — the `whisper-lan` NodePort is
+  `externalTrafficPolicy: Local` (keeps rogueone's IP for the NetworkPolicy), so it answers on timberback's address.
+- **Who may call it:** NetworkPolicy `whisper-callers-only` admits Open WebUI, Uptime Kuma and rogueone (`192.168.1.230/32`).
+- **Alert:** `WhisperDown` (warning) when the Deployment has no ready replica for 10 minutes.
+
+### The image (`registry.weyland.lab/whisper-cuda:<whisper.cpp version>`)
+
+Built from `services/whisper-cuda/Dockerfile`: whisper.cpp **v1.9.5** (commit checked at build) compiled for
+compute capability 12.0 on NVIDIA's CUDA 12.8.1 images (pinned by digest), plus the shim and its locked Python
+dependencies (`requirements.txt`, compiled from `requirements.in` with `uv pip compile --exclude-newer`). Hand-tagged, not
+in `scripts/ci/images.tsv`: it changes only on a whisper.cpp or dependency bump. The upstream CUDA image was rejected:
+a rolling tag, and no kernels for this GPU's architecture.
+
+Build and push (on rogueone: the nvcc build needs more memory than mother can spare; list the tags first and never
+reuse one):
+
+[rogueone]
+```
+docker build -t registry.weyland.lab/whisper-cuda:1.9.5-2 /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/whisper-cuda
+```
+
+[rogueone]
+```
+/home/edwardmangini/IdeaProjects/weyland/scripts/push-image.sh registry.weyland.lab/whisper-cuda:1.9.5-2
+```
+
+Tags are `<whisper.cpp version>[-<rebuild>]`: `1.9.5` was the first push, `1.9.5-2` the rebuild after the shim's Sonar fixes (the live tag). A tag is never reused: the node caches by tag (`IfNotPresent`). A new build gets the next free tag and a manifest bump in `k8s/whisper/whisper.yaml` (three image lines).
+
+### Test it
+
+[rogueone]
+```
+curl -s http://192.168.1.233:30901/v1/audio/transcriptions -F file=@/home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/whisper-cuda/jfk.wav -F model=whisper-1 -F response_format=json
+```
+
+Expect exactly what CT 103 returned for the same clip on 2026-11-14 (in about 12 s on CPU):
+`{"text":"And so my fellow Americans,\n ask not what your country can do for you,\n ask what you can do for your country."}`.
+
+# Legacy: CT 103 on the weyland host (until retired)
 
 ---
 

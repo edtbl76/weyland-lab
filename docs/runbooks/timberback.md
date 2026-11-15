@@ -199,15 +199,35 @@ spec:
         limits: {nvidia.com/gpu: 1}
 ```
 
-There is **one GPU and no sharing**: one pod at a time gets the whole card. The device plugin
+The device plugin
 ([k8s/nvidia-device-plugin/values.yaml](../../nodes/mother/lab/weyland-platform/k8s/nvidia-device-plugin/values.yaml),
-Argo app `nvidia-device-plugin`) advertises it.
+Argo app `nvidia-device-plugin`) advertises the card **time-sliced into 4** (2026-11-14), so `nvidia.com/gpu: 1` is one
+slice and the node offers 4. A request for 2 or more slices is rejected (`failRequestsGreaterThanOne`).
 
-Check what the node offers:
+Check what the node offers (expect `4`):
 
 [rogueone]
 ```
 kubectl get node timberback -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
+```
+
+## GPU sharing and the VRAM budget
+
+Time-slicing shares the GPU's compute, **not its memory**: every pod sees all 16 GB of VRAM, and nothing stops two
+pods from asking for more than exists between them. The one that allocates last fails with a CUDA out-of-memory error.
+So every GPU workload has a VRAM budget here, and a new one is checked against the total before it lands:
+
+| Workload | Slice | VRAM budget | Source |
+|---|---|---|---|
+| whisper (ggml-large-v3, `k8s/whisper/`) | 1 | ~4 GB | B134 plan step 2 |
+| (free) | 3 | ~12 GB | |
+
+Measure the real figure once a workload is running and update its row (check `nvidia-smi` on timberback, which lists
+each process's memory):
+
+[timberback]
+```
+nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv
 ```
 
 ## The onboarding taint

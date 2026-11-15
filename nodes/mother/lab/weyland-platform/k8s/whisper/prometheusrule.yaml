@@ -1,0 +1,22 @@
+# whisper down alert (B134 plan step 2). Lives in the `monitoring` ns with release:monitoring (kube-prometheus-stack
+# ruleSelector); routes to the Weyland Alerts Telegram chat. Speech-to-text down breaks voice input in Open WebUI and
+# nothing else, so severity is `warning`. kube-state-metrics signal (whisper.cpp has no /metrics), like llama-guard.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: whisper
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: whisper
+      rules:
+        - alert: WhisperDown
+          expr: kube_deployment_status_replicas_available{namespace="weyland",deployment="whisper"} < 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "whisper (speech-to-text, timberback GPU) has no ready replica"
+            description: "Voice input in Open WebUI fails while whisper is down. Check: kubectl -n weyland describe pod -l app=whisper (model download, GPU slice, timberback node). Runbook: docs/runbooks/transcription-whisper.md"
