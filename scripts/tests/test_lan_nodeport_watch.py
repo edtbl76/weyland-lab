@@ -253,3 +253,66 @@ def test_probes_go_to_the_host_evaluate_was_given():
     inv = [svc("weyland", "mlflow-lan", [(5000, 30500)]), svc("data-mesh", "mysql-lan", [(3306, 30306)])]
     w.evaluate(inv, [], PROBES, probe, "10.9.8.7")
     assert seen == ["10.9.8.7", "10.9.8.7"]
+
+
+# --- externalTrafficPolicy: Local (2026-11-15) -----------------------------------------------------------------------
+# A Local NodePort answers only on a node that runs one of its ready pods. With one node that was always mother; with
+# timberback joined (whisper-lan, its pod on timberback) probing mother's IP drops the connection. Shapes below are the
+# live pod and node JSON observed 2026-11-15 (spec.nodeName, the Ready condition, status.addresses InternalIP).
+
+def local_svc(ns, name, ports, selector=None):
+    s = svc(ns, name, ports, selector)
+    s["spec"]["externalTrafficPolicy"] = "Local"
+    return s
+
+
+def pod(ns, labels, node, ready=True, phase="Running"):
+    return {"metadata": {"namespace": ns, "labels": labels}, "spec": {"nodeName": node},
+            "status": {"phase": phase, "conditions": [{"type": "Ready", "status": "True" if ready else "False"}]}}
+
+
+def node(name, ip):
+    return {"metadata": {"name": name}, "status": {"addresses": [{"address": ip, "type": "InternalIP"},
+                                                                  {"address": name, "type": "Hostname"}]}}
+
+
+NODES = [node("mother", "192.168.1.243"), node("timberback", "192.168.1.233")]
+WHISPER_PROBES = {"weyland/whisper-lan:30901": ("http", "/health")}
+
+
+def recording_probe(seen, ok=True):
+    def probe(host, port, kind, arg):
+        seen.append((host, port))
+        return ok, "HTTP 200" if ok else "timed out"
+    return probe
+
+
+def test_a_local_nodeport_is_probed_on_the_node_running_its_ready_pod():
+    inv = [local_svc("weyland", "whisper-lan", [(9000, 30901)], {"app": "whisper"})]
+    hosts = w.local_hosts(inv, [pod("weyland", {"app": "whisper", "x": "1"}, "timberback")], NODES)
+    seen = []
+    rc, _ = w.evaluate(inv, [], WHISPER_PROBES, recording_probe(seen), "192.168.1.243", hosts)
+    assert rc == 0 and seen == [("192.168.1.233", 30901)]
+
+
+def test_a_cluster_policy_nodeport_still_uses_the_default_host():
+    inv = [svc("weyland", "mlflow-lan", [(5000, 30500)])]
+    hosts = w.local_hosts(inv, [pod("weyland", {"app": "mlflow-lan"}, "timberback")], NODES)
+    seen = []
+    w.evaluate(inv, [], {"weyland/mlflow-lan:30500": ("http", "/health")}, recording_probe(seen), "192.168.1.243", hosts)
+    assert seen == [("192.168.1.243", 30500)]
+
+
+def test_a_local_nodeport_with_no_ready_pod_is_down_with_the_reason_not_probed_elsewhere():
+    inv = [local_svc("weyland", "whisper-lan", [(9000, 30901)], {"app": "whisper"})]
+    pods = [pod("weyland", {"app": "whisper"}, "timberback", ready=False)]
+    seen = []
+    rc, lines = w.evaluate(inv, [], WHISPER_PROBES, recording_probe(seen), "192.168.1.243", w.local_hosts(inv, pods, NODES))
+    assert rc == 1 and seen == []
+    assert any("DOWN" in l and "whisper-lan:30901" in l and "no ready pod" in l for l in lines)
+
+
+def test_local_hosts_ignores_pods_in_other_namespaces_and_unknown_nodes():
+    inv = [local_svc("weyland", "whisper-lan", [(9000, 30901)], {"app": "whisper"})]
+    pods = [pod("data-mesh", {"app": "whisper"}, "timberback"), pod("weyland", {"app": "whisper"}, "ghost-node")]
+    assert w.local_hosts(inv, pods, NODES) == {"weyland/whisper-lan": None}

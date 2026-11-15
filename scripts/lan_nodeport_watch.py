@@ -69,6 +69,8 @@ PROBES = {
     "weyland/weyland-apisix:30090": ("http", ROOT),              # 404 at / still proves the gateway answers
     "weyland/weyland-apisix:32224": ("http", "/apisix/prometheus/metrics"),
     "weyland/weyland-tool-server:30080": ("http", HEALTH),
+    "weyland/whisper-lan:30881": ("http", ROOT),                # native whisper.cpp; / is served once the model loads
+    "weyland/whisper-lan:30901": ("http", "/health"),           # OpenAI shim (externalTrafficPolicy Local: timberback)
     "woodpecker/woodpecker-grpc-lan:30900": ("tcp", None),
     "woodpecker/woodpecker-http-lan:30980": ("http", HEALTHZ),
 }
@@ -181,8 +183,50 @@ def nodeports(services):
     return ports
 
 
-def evaluate(services, workloads, probes, probe_fn, host="127.0.0.1"):
-    """-> (exit code, report lines). Pure decision logic; probe_fn(host, port, kind, arg) does the I/O."""
+def _ready(p):
+    return (p.get("status") or {}).get("phase") == "Running" and any(
+        c.get("type") == "Ready" and c.get("status") == "True" for c in (p.get("status") or {}).get("conditions") or [])
+
+
+def _internal_ips(nodes):
+    """-> {node name: InternalIP}."""
+    ips = {}
+    for n in nodes:
+        ip = next((a["address"] for a in (n.get("status") or {}).get("addresses") or [] if a.get("type") == "InternalIP"), None)
+        if ip:
+            ips[n["metadata"]["name"]] = ip
+    return ips
+
+
+def _serves(p, ns, sel):
+    """A pod is behind a Service when it is in the Service's namespace, matches its selector, and is ready."""
+    return (p["metadata"]["namespace"] == ns and bool(sel) and _ready(p)
+            and sel.items() <= (p["metadata"].get("labels") or {}).items())
+
+
+def local_hosts(services, pods, nodes):
+    """-> {"<ns>/<svc>": node IP or None} for every externalTrafficPolicy: Local NodePort Service.
+
+    A Local NodePort answers only on a node running one of its ready pods (that is what keeps the client IP), so it is
+    probed there; None means no ready pod on a known node (2026-11-15: whisper-lan's pod is on timberback, and probing
+    mother dropped the connection)."""
+    ips = _internal_ips(nodes)
+    out = {}
+    for s in services:
+        spec = s.get("spec") or {}
+        if spec.get("type") != "NodePort" or spec.get("externalTrafficPolicy") != "Local":
+            continue
+        ns, sel = s["metadata"]["namespace"], spec.get("selector") or {}
+        nodes_up = sorted({p["spec"].get("nodeName") for p in pods if _serves(p, ns, sel)} & set(ips))
+        out[f"{ns}/{s['metadata']['name']}"] = ips[nodes_up[0]] if nodes_up else None
+    return out
+
+
+def evaluate(services, workloads, probes, probe_fn, host="127.0.0.1", hosts=None):
+    """-> (exit code, report lines). Pure decision logic; probe_fn(host, port, kind, arg) does the I/O.
+
+    `hosts` (from local_hosts) overrides `host` per externalTrafficPolicy: Local Service; None there means DOWN."""
+    hosts = hosts or {}
     ports = nodeports(services)
     if not ports:
         return 2, ["no NodePort found in the cluster inventory — refusing to report all up"]
@@ -195,7 +239,12 @@ def evaluate(services, workloads, probes, probe_fn, host="127.0.0.1"):
             lines.append(f"parked  {key} (its workload is at replicas 0)"); parked += 1
             continue
         kind, arg = probes[key]
-        ok, why = probe_fn(host, int(key.rsplit(":", 1)[1]), kind, arg)
+        svc_key = key.rsplit(":", 1)[0]
+        target = hosts.get(svc_key, host)
+        if target is None:
+            lines.append(f"DOWN    {key} [{kind}] — externalTrafficPolicy Local and no ready pod on a known node"); rc = 1
+            continue
+        ok, why = probe_fn(target, int(key.rsplit(":", 1)[1]), kind, arg)
         if ok:
             up += 1
         else:
@@ -207,7 +256,8 @@ def evaluate(services, workloads, probes, probe_fn, host="127.0.0.1"):
 
 
 def node_ip(nodes):
-    """The first node's InternalIP — where every NodePort answers. Raises CannotRead when there is none."""
+    """The first node's InternalIP: where a Cluster-policy NodePort is probed (any node answers those; Local ones go
+    through local_hosts). Raises CannotRead when there is none."""
     for n in nodes:
         for a in (n.get("status") or {}).get("addresses") or []:
             if a.get("type") == "InternalIP":
@@ -216,9 +266,9 @@ def node_ip(nodes):
 
 
 def read_cluster():
-    """-> (services, workloads, nodes) from the live cluster. Raises CannotRead — never an empty 'all clear'."""
+    """-> (services, workloads, nodes, pods) from the live cluster. Raises CannotRead — never an empty 'all clear'."""
     out = {}
-    for what in ("svc", "deploy,sts", "nodes"):
+    for what in ("svc", "deploy,sts", "nodes", "pods"):
         try:
             r = subprocess.run(["kubectl", "get", what, "-A", "-o", "json"], capture_output=True, text=True, timeout=60)
         except (OSError, subprocess.TimeoutExpired) as e:
@@ -229,7 +279,7 @@ def read_cluster():
             out[what] = json.loads(r.stdout)["items"]
         except (ValueError, KeyError) as e:
             raise CannotRead(f"kubectl get {what}: unreadable output ({e})") from e
-    return out["svc"], out["deploy,sts"], out["nodes"]
+    return out["svc"], out["deploy,sts"], out["nodes"], out["pods"]
 
 
 def push(url, rc, summary):
@@ -264,9 +314,9 @@ def push_url(env_file=ENV_FILE):
 
 def main(argv):
     try:
-        services, workloads, nodes = read_cluster()
+        services, workloads, nodes, pods = read_cluster()
         host = os.environ.get(HOST_ENV) or node_ip(nodes)
-        rc, lines = evaluate(services, workloads, PROBES, probe, host)
+        rc, lines = evaluate(services, workloads, PROBES, probe, host, local_hosts(services, pods, nodes))
     except CannotRead as e:
         rc, lines = 2, [f"could not read the cluster inventory: {e}"]
     print("\n".join(lines))

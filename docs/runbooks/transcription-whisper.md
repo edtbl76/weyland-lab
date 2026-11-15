@@ -65,6 +65,9 @@ The words match CT 103 exactly. CT 103 returned the same text split into three s
 
 # Legacy: CT 103 on the weyland host (until retired)
 
+**STOPPED 2026-11-15** (`pct stop 103`, `pct set 103 --onboot 0`). Roll back with `pct start 103` from the weyland host
+(and repoint Open WebUI with `scripts/open_webui_curate.py`). Destroy about 2026-11-22; this section goes with it.
+
 ---
 
 **Live since 2026-06-12.** Unprivileged LXC `whisper` (CTID **103**) on the weyland Proxmox host.
