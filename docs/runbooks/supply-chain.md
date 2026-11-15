@@ -232,6 +232,24 @@ policy (no second copy that can drift):
   the CI script (`scripts/embed-image-provenance.sh` regenerates it; `image-provenance.bats` asserts
   no drift).
 
+  Run it now instead of waiting for 03:10 (after an `exemptImages` change has synced, or to clear a red Argo
+  `monitoring-extras`), then read its verdict:
+
+  [rogueone]
+  ```
+  kubectl -n monitoring create job image-provenance-manual-$(date +%s) --from=cronjob/image-provenance
+  ```
+
+  [rogueone]
+  ```
+  kubectl -n monitoring logs job/$(kubectl -n monitoring get jobs --sort-by=.metadata.creationTimestamp -o name | grep image-provenance | tail -1 | cut -d/ -f2) --all-containers | tail -5
+  ```
+
+  Pass: `image-provenance: fed N image(s) · policy …` with no `UNREVIEWED IMAGES` block. A new third-party image
+  needs a FULL-PATH entry in `exemptImages` (`k8s/gatekeeper/image-signatures.yaml`), never a registry root:
+  `nvcr.io/nvidia/k8s-device-plugin` (2026-11-15) failed the job for a day because the device plugin was deployed
+  without one.
+
 The three layers stack: **CI** (pre-merge, declared) + **enumerator** (nightly, all declared workloads
 live) + **Gatekeeper audit** (interval, running pods). When all three are green, the estate provably
 conforms to the prefix rule — which is exactly the precondition step 1 below needs. (Provenance is not

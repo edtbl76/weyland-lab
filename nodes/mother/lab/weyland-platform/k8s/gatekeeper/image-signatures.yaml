@@ -199,6 +199,7 @@ spec:
       - pgvector/                                 # pgvector Postgres
       - prompve/                                  # prometheus-pve-exporter
       - squidfunk/                                # mkdocs-material
+      - nvcr.io/nvidia/k8s-device-plugin          # NVIDIA device plugin (timberback GPU, ADR-0012); official chart, pinned. Owner, 2026-11-15
       # ── SOLO-MAINTAINER namespaces. Legitimate and in use, but a different trust tier:
       #    one account compromise is one supply-chain compromise. Reviewed and accepted; the
       #    tiering exists so this concentration is visible rather than buried in an alphabetised list.
