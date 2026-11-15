@@ -232,6 +232,34 @@ kubectl taint node timberback weyland.lab/onboarding=true:NoSchedule-
 Then delete the `node-taint` entry from `nodes/timberback/host/rancher/k3s/config.yaml` (and the live
 `/etc/rancher/k3s/config.yaml`), or the agent re-applies the taint on its next start.
 
+## Cross-node canary
+
+Proves a pod on timberback can reach services on mother through flannel, the Istio sidecar and NetworkPolicy. Run it
+before pinning anything to timberback, and again after a k3s, flannel or Istio change. **Passed 2026-11-14.**
+
+The manifest is `nodes/timberback/checks/timberback-canary.yaml` (a sidecar-injected pod in `data-mesh`, pinned to
+timberback, tolerating the onboarding taint, deleted after; Argo does not manage it).
+
+[rogueone]
+```
+kubectl apply -f /home/edwardmangini/IdeaProjects/weyland/nodes/timberback/checks/timberback-canary.yaml && kubectl -n data-mesh wait --for=condition=Ready pod/timberback-canary --timeout=240s
+```
+
+[rogueone]
+```
+kubectl -n data-mesh exec timberback-canary -c canary -- sh -c 'curl -s -o /dev/null -w "gms %{http_code}\n" http://datahub-datahub-gms.data-mesh:8080/health; curl -s -o /dev/null -w "bifrost %{http_code}\n" http://bifrost.weyland:8080/health; curl -sk -o /dev/null -w "trino-8443 %{http_code}\n" https://trino.data-mesh:8443/v1/info; curl -s -o /dev/null -m 6 -w "trino-8080 %{http_code}\n" http://trino.data-mesh:8080/v1/info'
+```
+
+[rogueone]
+```
+kubectl -n data-mesh delete pod timberback-canary
+```
+
+Pass: `gms 200`, `bifrost 200`, `trino-8443 200`, and `trino-8080` NOT 200 (503: the policy admits only Traefik on
+8080, so a 200 there means NetworkPolicy is not enforced). Then confirm the mesh call was mutual TLS in Prometheus:
+`istio_requests_total{source_workload="timberback-canary", destination_workload="datahub-datahub-gms", reporter="destination"}`
+carries `connection_security_policy="mutual_tls"`.
+
 ## k3s agent
 
 Apply a changed config from the repo:

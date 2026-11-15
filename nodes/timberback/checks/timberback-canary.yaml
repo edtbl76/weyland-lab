@@ -1,0 +1,29 @@
+# Cross-node canary for timberback (B134, passed 2026-11-14). NOT deployed by Argo: applied by hand, deleted after.
+# Procedure and pass criteria: docs/runbooks/timberback.md § Cross-node canary. The perf-trino-k6 label is one
+# trino-front-door-only admits on 8443, so the Trino call tests that NetworkPolicy holds across nodes.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: timberback-canary
+  namespace: data-mesh
+  labels:
+    job-name: perf-trino-k6   # admitted by trino-front-door-only on 8443; proves NetworkPolicy across nodes
+    app: timberback-canary
+  annotations:
+    proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: timberback
+  tolerations:
+    - key: weyland.lab/onboarding
+      operator: Exists
+      effect: NoSchedule
+  restartPolicy: Never
+  activeDeadlineSeconds: 900
+  containers:
+    - name: canary
+      image: alpine/k8s:1.35.6
+      command: ["sleep", "800"]
+      resources:
+        requests: {cpu: 10m, memory: 32Mi}
+        limits: {memory: 128Mi}
