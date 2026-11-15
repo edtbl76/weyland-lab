@@ -75,6 +75,11 @@ metadata:
     app: weyland-lan-dns
 spec:
   replicas: 1
+  # Recreate, not RollingUpdate: the pod holds hostPort 53 on mother's LAN IP and is pinned there, so a surge pod can
+  # never schedule beside the old one; a rolling update deadlocks (found 2026-11-14 on the first template change in
+  # 119 days). Recreate trades a few seconds of LAN DNS downtime per rollout for a rollout that completes.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: weyland-lan-dns
