@@ -185,23 +185,29 @@ def test_main_is_1_when_an_alert_cannot_be_delivered(monkeypatch):
     assert dh.main(["--gms", "http://gms", "--alertmanager", "http://am", "--token", "t"]) == 1
 
 
-# --- B199 (2026-10-01): sources whose store is parked by default (replicas: 0) --------------------------------------
-# Their ingestion either fails (store down) or has its schedule paused; neither is news while the store is parked.
-# Undo with B134 (EMA-195) — remove the name from PARKED when the store is un-parked.
+# --- Parked stores (B199 parked three 2026-10-01; B134 un-parked them 2026-11-16) -------------------------------------
+# A parked store's ingestion either fails (store down) or has its schedule paused; neither is news while it is parked.
+# The mechanism stays (re-park a store and its name goes back in PARKED); the list is empty now.
 
-def test_a_parked_source_whose_latest_run_failed_is_quiet():
+def test_a_parked_source_whose_latest_run_failed_is_quiet(monkeypatch):
+    monkeypatch.setattr(dh, "PARKED", {"MongoDB - Weyland": "parked for a test"})
     s = _src("MongoDB - Weyland", runs=[_run("FAILURE", H)])
     assert dh.verdicts([s], NOW) == []
 
 
-def test_a_parked_source_with_its_schedule_paused_is_quiet():
+def test_a_parked_source_with_its_schedule_paused_is_quiet(monkeypatch):
+    monkeypatch.setattr(dh, "PARKED", {"CockroachDB - Weyland": "parked for a test"})
     s = _src("CockroachDB - Weyland", cron=None, runs=[_run("SUCCESS", 30 * 24 * H)])
     assert dh.verdicts([s], NOW) == []
 
 
-def test_the_three_parked_sources_are_exactly_the_parked_stores():
-    assert set(dh.PARKED) == {"Cassandra - Weyland", "CockroachDB - Weyland", "MongoDB - Weyland"}
-    assert all("B199" in why and "B134" in why for why in dh.PARKED.values())
+def test_no_store_is_parked_since_b134_unparked_them():
+    assert dh.PARKED == {}
+
+
+def test_an_unparked_store_alerts_on_failure_again():
+    s = _src("MongoDB - Weyland", runs=[_run("FAILURE", H)])
+    assert [v[0] for v in dh.verdicts([s], NOW)] == ["DataHubIngestionFailed"]
 
 
 def test_a_source_that_is_not_parked_still_alerts_on_failure():

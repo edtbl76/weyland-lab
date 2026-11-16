@@ -9,6 +9,10 @@ setup() {
   mkdir -p "$T/data-mesh" "$T/superset"
   cp "$REAL/data-mesh/cassandra.yaml" "$REAL/data-mesh/mongodb.yaml" "$REAL/data-mesh/cockroachdb.yaml" "$T/data-mesh/"
   cp "$REAL/superset/superset-values.yaml" "$T/superset/"
+  # Start every copy PARKED, whatever the repo holds today: the tests pin wake/park behaviour, not the repo's current
+  # state (B134 un-parked all four 2026-11-16; the real state is pinned by its own test below). One line per file.
+  sed -i -E 's/^  replicas: 1$/  replicas: 0/' "$T"/data-mesh/*.yaml
+  sed -i -E 's/^    replicaCount: 1$/    replicaCount: 0/' "$T/superset/superset-values.yaml"
   export STORE_PARK_ROOT="$T" STORE_PARK_NO_KUBECTL=1
   # DataHub stub: records each call; exits with $DH_RC (default 0). Never touches a real GMS.
   cat > "$T/dh" <<'STUB'
@@ -451,4 +455,12 @@ pushed() { git -C "$T.origin" rev-list --count main; }
   run bash "$S" up
   [ "$status" -eq 2 ]
   [[ "$output" == *"usage: store-park.sh up <store|all>"* ]]   # the up-specific usage, not the catch-all
+}
+
+@test "the real repo: all four stores are awake since B134 un-parked them (2026-11-16)" {
+  REALT="${BATS_TEST_DIRNAME}/../../nodes/mother/lab/weyland-platform/k8s"
+  for f in cassandra mongodb cockroachdb; do
+    python3 -c "import yaml,sys;d=[x for x in yaml.safe_load_all(open('$REALT/data-mesh/$f.yaml')) if x and x.get('kind') in ('Deployment','StatefulSet')][0];sys.exit(0 if d['spec']['replicas']==1 else 1)" || { echo "$f is not awake"; return 1; }
+  done
+  python3 -c "import yaml,sys;sys.exit(0 if yaml.safe_load(open('$REALT/superset/superset-values.yaml'))['supersetWorker']['replicas']['replicaCount']==1 else 1)" || { echo "superset-worker is not awake"; return 1; }
 }

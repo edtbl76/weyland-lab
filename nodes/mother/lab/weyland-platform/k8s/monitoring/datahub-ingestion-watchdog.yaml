@@ -72,15 +72,11 @@ data:
         "urn:li:dataHubIngestionSource:cli-151c2b7711eb626e440af8c75a9082e9":
             "[CLI] dbt — created by a one-off `datahub ingest` CLI run (2026-07-12); scheduled dbt ingestion is 'dbt - Weyland'",
     }
-    # Sources whose store is PARKED by default (replicas: 0 in git) — B199, 2026-10-01. Keyed by NAME (the ingestion-source
-    # URNs are UI-generated and not recorded anywhere). While parked, the ingestion either fails (store down) or has its
-    # schedule paused in DataHub; neither is news. Undo with B134 (EMA-195) § Undo on hardware: remove the name here.
-    _PARKED_WHY = "store parked by default (replicas: 0) — B199 2026-10-01; un-park with B134 (EMA-195)"
-    PARKED = {
-        "Cassandra - Weyland": _PARKED_WHY,
-        "CockroachDB - Weyland": _PARKED_WHY,
-        "MongoDB - Weyland": _PARKED_WHY,
-    }
+    # Sources whose store is PARKED (replicas: 0 in git). Keyed by NAME (the ingestion-source URNs are UI-generated and not
+    # recorded anywhere). While parked, the ingestion either fails (store down) or has its schedule paused in DataHub;
+    # neither is news. EMPTY since 2026-11-16: B134 un-parked Cassandra, CockroachDB and MongoDB (B199 had parked them
+    # 2026-10-01). Re-park a store with `scripts/store-park.sh down <store>` and add its source name back here.
+    PARKED: dict = {}
     QUERY = ("query($start:Int!,$count:Int!){ listIngestionSources(input:{start:$start,count:$count}) { total "
              "ingestionSources { urn name type schedule { interval timezone } "
              f"executions(start:0,count:{RUNS}) "

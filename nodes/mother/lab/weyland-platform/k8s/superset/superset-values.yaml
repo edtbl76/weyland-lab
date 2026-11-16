@@ -48,13 +48,19 @@ supersetNode:
 
 # Same Recreate strategy on the Celery worker.
 supersetWorker:
-  # PARKED by default — B199 (2026-10-01): mother runs at 72-75 of 78 GB and freezes from page-cache thrash; parking
-  # the idle Tier-2 stores returns ~9 GB. Wake: set replicas: 1 here and push (Argo selfHeal reverts a live scale).
-  # UNDO when new hardware lands — tracked in B134 (EMA-195) § Undo on hardware.
-  # (No async queries / scheduled reports are configured, so a parked worker blocks nothing in use.)
+  # UN-PARKED 2026-11-16 (B134 step 4; B199 had parked it at replicaCount 0). Stateless celery worker, so it runs on
+  # timberback, keeping mother's added load to the stores whose volumes live there. Park again with
+  # `scripts/store-park.sh down superset-worker`. Chart 0.17.2 reads nodeSelector/tolerations only at the TOP level (all
+  # Superset pods), so the worker is placed by this affinity; the onboarding toleration is top-level (below).
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - { key: kubernetes.io/hostname, operator: In, values: [timberback] }
   replicas:
     enabled: true
-    replicaCount: 0
+    replicaCount: 1
   podAnnotations:
     sidecar.istio.io/inject: "true"
   strategy:
@@ -168,3 +174,11 @@ ingress:
     - secretName: weyland-wildcard-tls   # reused in data-mesh (Trino uses it too)
       hosts:
         - superset.weyland.lab
+
+# Top level, so it applies to every Superset pod (the chart has no per-component tolerations): it ALLOWS them onto
+# timberback while its onboarding taint stands; only the worker is REQUIRED there (supersetWorker.affinity). Remove
+# with the taint (B134).
+tolerations:
+  - key: weyland.lab/onboarding
+    operator: Exists
+    effect: NoSchedule

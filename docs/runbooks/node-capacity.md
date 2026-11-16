@@ -120,7 +120,11 @@ Kept on purpose: the three daily synthetic posters (auto-resolve = 2 msgs/day; p
 `KubeJobFailed` (covers every Job — `ScheduledJobFailed` lists only 20); `NodeMemoryRequestsNearCeiling` (requests,
 not usage). Open: `LiteLLMEgressEnabled` / `BifrostSpendObserved` page every 4h about deliberate states (owner call).
 
-## Parked stores (B199, 2026-10-01 — undo with B134 when hardware lands)
+## Parked stores (B199, 2026-10-01 — UN-PARKED 2026-11-16 by B134)
+
+**Un-parked 2026-11-16:** all four run again (Cassandra, MongoDB, CockroachDB on mother, where their volumes are; the
+Superset worker on timberback), and the three DataHub schedules are resumed. The table below is the record of what B199
+parked, and still the list `scripts/store-park.sh` manages if a store needs parking again.
 
 **Parked by default** (`replicas: 0` committed to git; Argo enforces it, so a live scale is reverted within ~3 min):
 

@@ -29,10 +29,10 @@ metadata:
   namespace: data-mesh
 spec:
   serviceName: cassandra
-  # PARKED by default — B199 (2026-10-01): mother runs at 72-75 of 78 GB and freezes from page-cache thrash; parking
-  # the idle Tier-2 stores returns ~9 GB. Wake: set replicas: 1 here and push (Argo selfHeal reverts a live scale).
-  # UNDO when new hardware lands — tracked in B134 (EMA-195) § Undo on hardware.
-  replicas: 0
+  # UN-PARKED 2026-11-16 (B134 step 4): B199 parked it at replicas 0 (2026-10-01) while mother froze from page-cache
+  # thrash; with batches 1+2 moved to timberback, mother had 21.7 GB available. Park again with
+  # `scripts/store-park.sh down <store>` (git is the only switch that sticks: Argo selfHeal reverts a live scale).
+  replicas: 1
   selector:
     matchLabels:
       app: cassandra
