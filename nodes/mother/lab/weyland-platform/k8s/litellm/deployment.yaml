@@ -26,6 +26,15 @@ spec:
         # (no hand `rollout restart`). 2026-10-22: B222 wl-judge -> qwen3:14b, new wl-local lane.
         weyland.lab/litellm-config-rev: "2026-10-30-b234-virtual-keys-db"
     spec:
+      # On timberback (B134 plan step 3, batch 2, 2026-11-16): stateless, meshed, reached by ClusterIP / ingress
+      # (litellm's NodePort is externalTrafficPolicy Cluster, so 192.168.1.243:30400 still answers). The
+      # toleration goes when timberback's onboarding taint does.
+      nodeSelector:
+        kubernetes.io/hostname: timberback
+      tolerations:
+        - key: weyland.lab/onboarding
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: litellm
           # B69 — pinned to an immutable DIGEST (was the mutable `main-stable` tag, which silently changes under

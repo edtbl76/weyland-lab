@@ -885,10 +885,10 @@ data:
       - {id: "k8s:weyland/Deployment/keycloak", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/kokoro", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/lancedb-exporter", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
-      - {id: "k8s:weyland/Deployment/langfuse-web", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+      - {id: "k8s:weyland/Deployment/langfuse-web", host: "timberback", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "B134 plan step 3 batch 2 (2026-11-16): stateless, meshed, no LAN address change"}
       - {id: "k8s:weyland/Deployment/langfuse-worker", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/likec4", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
-      - {id: "k8s:weyland/Deployment/litellm", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+      - {id: "k8s:weyland/Deployment/litellm", host: "timberback", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "B134 plan step 3 batch 2 (2026-11-16): stateless, meshed, no LAN address change"}
       - {id: "k8s:weyland/Deployment/llama-guard", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/mlflow", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/nemo-guardrails", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
@@ -912,10 +912,10 @@ data:
       - {id: "k8s:weyland/Deployment/unleash", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/uptime-kuma", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
       - {id: "k8s:weyland/Deployment/weaviate", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
-      - {id: "k8s:weyland/Deployment/weyland-agent", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+      - {id: "k8s:weyland/Deployment/weyland-agent", host: "timberback", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "B134 plan step 3 batch 2 (2026-11-16): stateless, meshed, no LAN address change"}
       - {id: "k8s:weyland/Deployment/weyland-apisix", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/weyland-apisix-dashboard", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
-      - {id: "k8s:weyland/Deployment/weyland-guard", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+      - {id: "k8s:weyland/Deployment/weyland-guard", host: "timberback", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "B134 plan step 3 batch 2 (2026-11-16): stateless, meshed, no LAN address change"}
       - {id: "k8s:weyland/Deployment/weyland-lan-dns", host: "mother", state: "stateless", move: "pinned: hostPort 53 — LAN clients resolve at mother's IP", target: "stays", managed: "argo", why: "B134 pinning pass 2026-11-14: nodeSelector mother"}
       - {id: "k8s:weyland/Deployment/weyland-mcp-compositor", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/weyland-mcp-compositor-memory", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}

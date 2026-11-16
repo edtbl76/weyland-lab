@@ -17,6 +17,15 @@ spec:
         app: weyland-guard
         sidecar.istio.io/inject: "true"   # B8 — needed for STRICT-mTLS Postgres (guardrail_verdicts)
     spec:
+      # On timberback (B134 plan step 3, batch 2, 2026-11-16): stateless, meshed, reached by ClusterIP / ingress
+      # (litellm's NodePort is externalTrafficPolicy Cluster, so 192.168.1.243:30400 still answers). The
+      # toleration goes when timberback's onboarding taint does.
+      nodeSelector:
+        kubernetes.io/hostname: timberback
+      tolerations:
+        - key: weyland.lab/onboarding
+          operator: Exists
+          effect: NoSchedule
       enableServiceLinks: false
       containers:
         - name: weyland-guard
