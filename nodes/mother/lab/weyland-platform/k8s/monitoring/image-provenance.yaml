@@ -170,7 +170,9 @@ data:
     #   POLICY_EXCLUDED_NS  newline excluded namespaces         }  K8sImageSignature constraint)
     #   POLICY_FILE         path to image-signatures.yaml (default: the platform policy)
     #   MANIFEST_ROOT       dir to scan in git mode (default: the platform k8s tree)
-    #   CI_PIPELINE_FILES   space-separated CI pipeline files whose step images are judged as namespace `woodpecker`
+    #   (NOT named CI_PIPELINE_FILES: Woodpecker sets that built-in in every step, a JSON list of changed files, and
+    #   the first CI run read `[]` as a file name, 2026-11-15.)
+    #   IMAGE_PROVENANCE_PIPELINES   space-separated CI pipeline files whose step images are judged as namespace `woodpecker`
     #                       in git mode (default: the repo's .woodpecker.yml). CI step pods run in the cluster, so the
     #                       enumerator and the Gatekeeper audit see their images whenever a run overlaps a step; 8 CI
     #                       images were in no reviewed list until 2026-11-15. A listed file that is missing is exit 2.
@@ -191,7 +193,7 @@ data:
 
     POLICY_FILE="${POLICY_FILE:-$PLATFORM_DIR/k8s/gatekeeper/image-signatures.yaml}"
     MANIFEST_ROOT="${MANIFEST_ROOT:-$PLATFORM_DIR/k8s}"
-    CI_PIPELINE_FILES="${CI_PIPELINE_FILES-${REPO_ROOT:+$REPO_ROOT/.woodpecker.yml}}"
+    IMAGE_PROVENANCE_PIPELINES="${IMAGE_PROVENANCE_PIPELINES-${REPO_ROOT:+$REPO_ROOT/.woodpecker.yml}}"
 
     # Populated by load_policy; newline-separated. The decision functions read these globals.
     ALLOWED=""
@@ -282,8 +284,8 @@ data:
         printf '%s\n' "$IMAGE_LIST" | sed '/^[[:space:]]*$/d'
         return 0
       fi
-      # shellcheck disable=SC2086  # CI_PIPELINE_FILES is a space-separated list on purpose
-      python3 - "$MANIFEST_ROOT" $CI_PIPELINE_FILES <<'PY'
+      # shellcheck disable=SC2086  # IMAGE_PROVENANCE_PIPELINES is a space-separated list on purpose
+      python3 - "$MANIFEST_ROOT" $IMAGE_PROVENANCE_PIPELINES <<'PY'
     import sys, glob, os, yaml
     root, pipelines = sys.argv[1], sys.argv[2:]
     def walk(o, out):

@@ -195,7 +195,7 @@ _ci_fixture() {  # <pipeline yaml> -> sets MROOT (one reviewed manifest) and PIP
 
 @test "git scan: an unreviewed CI step image exits 1 and names it with the pipeline file" {
   _ci_fixture $'steps:\n  - name: lint\n    image: evilcorp/linter:latest\n    commands: [true]'
-  MANIFEST_ROOT="$MROOT" CI_PIPELINE_FILES="$PIPE" POLICY_ALLOWED="$FIXTURE_ALLOWED" POLICY_EXEMPT="$FIXTURE_EXEMPT" \
+  MANIFEST_ROOT="$MROOT" IMAGE_PROVENANCE_PIPELINES="$PIPE" POLICY_ALLOWED="$FIXTURE_ALLOWED" POLICY_EXEMPT="$FIXTURE_EXEMPT" \
     run "$GUARD"
   [ "$status" -eq 1 ]
   [[ "$output" == *"evilcorp/linter:latest"* ]]
@@ -204,7 +204,7 @@ _ci_fixture() {  # <pipeline yaml> -> sets MROOT (one reviewed manifest) and PIP
 
 @test "git scan: reviewed CI step images (exempt, allowlisted, official) pass alongside the manifests" {
   _ci_fixture $'steps:\n  - name: a\n    image: alpine/git:latest\n  - name: b\n    image: registry.weyland.lab/ci:v1\n  - name: c\n    image: python:3.12-slim'
-  MANIFEST_ROOT="$MROOT" CI_PIPELINE_FILES="$PIPE" POLICY_ALLOWED="$FIXTURE_ALLOWED" POLICY_EXEMPT="$FIXTURE_EXEMPT" \
+  MANIFEST_ROOT="$MROOT" IMAGE_PROVENANCE_PIPELINES="$PIPE" POLICY_ALLOWED="$FIXTURE_ALLOWED" POLICY_EXEMPT="$FIXTURE_EXEMPT" \
     run "$GUARD"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
   [[ "$output" == *"4"* ]]   # 1 manifest image + 3 step images judged
@@ -212,8 +212,17 @@ _ci_fixture() {  # <pipeline yaml> -> sets MROOT (one reviewed manifest) and PIP
 
 @test "git scan: a configured CI pipeline file that is missing fails closed (exit 2), never a smaller clean scan" {
   _ci_fixture $'steps: []'
-  MANIFEST_ROOT="$MROOT" CI_PIPELINE_FILES="$BATS_TEST_TMPDIR/nope.yml" POLICY_ALLOWED="$FIXTURE_ALLOWED" POLICY_EXEMPT="$FIXTURE_EXEMPT" \
+  MANIFEST_ROOT="$MROOT" IMAGE_PROVENANCE_PIPELINES="$BATS_TEST_TMPDIR/nope.yml" POLICY_ALLOWED="$FIXTURE_ALLOWED" POLICY_EXEMPT="$FIXTURE_EXEMPT" \
     run "$GUARD"
   [ "$status" -eq 2 ]
   [[ "$output" == *"nope.yml"* ]]
+}
+
+@test "git scan: Woodpecker's own CI_PIPELINE_FILES (a JSON list of changed files) is ignored" {
+  # CI #667 (2026-11-15): the input was first named CI_PIPELINE_FILES, which Woodpecker sets in every step; the
+  # guard read `[]` as a pipeline file and exited 2. The input is IMAGE_PROVENANCE_PIPELINES; this pins the fix.
+  _ci_fixture $'steps:\n  - name: a\n    image: alpine/git:latest'
+  CI_PIPELINE_FILES='[]' MANIFEST_ROOT="$MROOT" IMAGE_PROVENANCE_PIPELINES="$PIPE" \
+  POLICY_ALLOWED="$FIXTURE_ALLOWED" POLICY_EXEMPT="$FIXTURE_EXEMPT" run "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
