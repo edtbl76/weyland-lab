@@ -95,21 +95,22 @@ here in the same change. "Reproducible" means a documented rebuild path, not a b
 |---|---|---|
 | mother **USB** (`/mnt/minio`) | MinIO itself, the `rogueone-backup` restic repo, **and** the core Postgres dumps | nothing on this disk survives the disk |
 | mother **NVMe** | the MinIO bucket mirror, the data-mesh Postgres dumps, the Open WebUI, Woodpecker and Bifrost backups | a USB failure, not a mother failure |
+| timberback **NVMe** (B134, 2026-11-16) | the **MinIO replica**: every bucket, incl. the core Postgres dumps (`backups`) and `rogueone-backup`; versioned, 30 days of history | a USB failure **and** a mother failure (a second machine; still the same house) |
 | GitHub | code, config, IaC | anything local |
 | Google Drive | media and documents | anything local |
 | **Off-site copy of lab data** | **none** | — |
 
 ## Closing Gaps — known gaps, found while writing this page
 
-1. **Core Postgres dumps sit on the same USB disk as MinIO.** A USB failure loses both the database copies and the
+1. **CLOSING (B134, 2026-11-16): the MinIO replica on timberback copies the `backups` bucket nightly.** Closed once the first full copy and the restore drill in `runbooks/storage-minio.md` § Replica pass. Was: **Core Postgres dumps sit on the same USB disk as MinIO.** A USB failure loses both the database copies and the
    object store. Fix: land the dumps on NVMe (like `pg-backup`) or add them to the mirror.
 2. **The three cluster backups have never had a restore drill.** They alert when they fail to run, but nobody has
    proven the dumps and mirror restore. **Partly closed 2026-10-21:** the core `pg_dumpall` restored `mlflow` and
    `ranger` into a scratch Postgres with every count equal to live (`scripts/pg-restore-drill.sh`, B215/B221 re-audit).
    Still open: the other core databases, the data-mesh `pg-backup`, and the MinIO mirror.
-3. **The MinIO mirror has no history.** `--remove` propagates a bad delete within a day. Fix: versioned copies or
+3. **CLOSING (B134, 2026-11-16): the replica's buckets are versioned with 30 days of noncurrent versions** (an overwrite or a mirrored delete keeps the old version for 30 days; tested 2026-11-16 against real MinIO). The NVMe mirror on mother still has none. Was: **The MinIO mirror has no history.** `--remove` propagates a bad delete within a day. Fix: versioned copies or
    dated snapshots.
-4. **`rogueone-backup` is not mirrored to NVMe.** It lives only on the USB disk.
+4. **CLOSING (B134, 2026-11-16): the replica copies every bucket, `rogueone-backup` included.** Was: **`rogueone-backup` is not mirrored to NVMe.** It lives only on the USB disk.
 5. **No off-site copy of lab data** ([runbooks/backups.md](runbooks/backups.md) § Offsite has the 3-2-1 plan).
 6. **Linear had no backup.** Closed 2026-09-27: nightly snapshot (B194 Slice 1) + a passing restore drill (Slice 2). Limit: the Free plan caps issues at 250, so a full-workspace restore needs archiving or a temporary upgrade. Alert drill 2026-09-27: a skipped run fired `DagsterJobStale` → Telegram.
 7. **Manual escrows can't be checked.** The SealedSecrets key and the restic password have no record of when they

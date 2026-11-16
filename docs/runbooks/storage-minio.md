@@ -276,6 +276,30 @@ generator refuses a bucket the CronJob does not mirror.
 A real restore uses the same mirror with the live bucket as the target: `mc mirror /backup/minio/<bucket> src/<bucket>`
 from a pod that mounts the PVC (the drill's manifest, with `D` set to the bucket). Drill first.
 
+## Replica on timberback (B134, 2026-11-16)
+
+A second MinIO, `minio-replica` (`k8s/minio/replica.yaml`), runs on **timberback**: a second machine, so a USB failure
+or a mother failure no longer takes the only copy. The `minio-replica-sync` CronJob (00:25 NY) copies **every**
+bucket from the primary (the core Postgres dumps are the `backups` bucket; `rogueone-backup` is included), into
+**versioned** buckets whose lifecycle keeps noncurrent versions for **30 days**: an overwrite or a delete upstream
+leaves the previous version restorable for 30 days. After each bucket's `mc mirror` the job runs `mc diff`, and any
+difference fails it; an empty bucket list fails it too. A failed or stale run pages critical (`ScheduledBackupFailed`,
+`ScheduledJobStale` 26 h). Still the same house: not an off-site copy (`dr.md` gap 5).
+
+In-cluster only: `http://minio-replica.minio.svc.cluster.local:9000`, the primary's credentials (`minio-creds`).
+
+1. **The first full copy (~1 TB) is started by hand**, not left to 00:25 (mother):
+   ```
+   kubectl -n minio create job minio-replica-first-$(date +%s) --from=cronjob/minio-replica-sync
+   ```
+   Follow it: `kubectl -n minio logs -f job/<name>`. Pass: the last line is
+   `minio replica complete: N bucket(s) mirrored and verified`.
+2. **Restore one object, or an older version of it**, from any pod with `mc` and the credentials (the sync Job's image
+   and env): `mc ls --versions dst/<bucket>/<key>` lists the history; `mc cp --version-id <id> dst/<bucket>/<key> src/<bucket>/<key>`
+   puts that version back on the primary.
+3. **Restore drill:** run once after the first full copy (B134), with the exact commands recorded here and the result
+   in [dr.md](../dr.md). Until it passes, `dr.md` gaps 1, 3 and 4 read CLOSING, not closed.
+
 ## Operational notes / gotchas
 
 - **After a weyland reboot or drive re-plug:** the UAS quirk persists (modprobe.d), and the

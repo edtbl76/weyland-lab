@@ -63,6 +63,7 @@ model {
 
   timberback = node "timberback" "Bare-metal k3s GPU worker (.233), joined 2026-11-14 (ADR-0012): Ryzen 9 9950X, 96 GB, RTX 5070 Ti 16 GB, Ubuntu 24.04 on btrfs (snapper). Tainted weyland.lab/onboarding until B134 lifts it; workloads land only by node selector + toleration." {
     whisper = component "whisper" "Speech-to-text (B134 plan step 2, 2026-11-14): whisper.cpp v1.9.5 CUDA (ggml-large-v3, ~4 GB VRAM, one of 4 GPU time-slices) + the OpenAI shim :9000/v1 and native :8080/inference. In-cluster whisper.weyland.svc; rogueone via the whisper-lan NodePort .233:30901 (NetworkPolicy: Open WebUI, Kuma, rogueone only). Replaces CT 103."
+    minioReplica = component "MinIO replica" "B134 (2026-11-16): a second MinIO holding a copy of EVERY bucket from the primary (mother USB), filled nightly by minio-replica-sync (00:25 NY, mc mirror + mc diff). Versioned, 30 days of history. Closes dr.md gaps 1, 3, 4; same house, so not off-site."
     gpuPlugin = component "NVIDIA device plugin" "nvidia-device-plugin 0.20.1 (Argo): advertises the RTX 5070 Ti time-sliced into 4 (nvidia.com/gpu: 4). Time-slicing shares compute, not VRAM: budget in runbooks/timberback.md."
   }
 
@@ -417,6 +418,7 @@ model {
   weyland.mother.ops.platform.buildkitd -> weyland.mother.ops.infra.registry "push git-<sha> tag via registry-push.weyland.lab (basic auth, B211)"
   weyland.mother.ops.platform.scanSuite -> weyland.mother.ops.infra.registry "pulls the 23 deployed images to scan them (trivy-images, B213; a failed pull is broken, never zero)"
   weyland.mother.mesh.ml.mlflow -> weyland.mother.ops.infra.minio "artifact store"
+  weyland.mother.ops.infra.minio -> timberback.minioReplica "nightly mirror of every bucket (minio-replica-sync 00:25 NY; versioned, 30-day history)"
   weyland.mother.mesh.ml.aiGateway -> rogueone.ollama "local models (8) + guard/eval judge qwen3:14b /v1 (thinking off)"
   weyland.mother.mesh.ml.aiGateway -> weyland.mother.ai.litellm "LiteLLM-routed hosted providers"
   weyland.mother.mesh.ml.aiGateway -> hostedModels "native hosted providers (gated egress)"
