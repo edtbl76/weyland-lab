@@ -52,6 +52,13 @@ supersetWorker:
   # timberback, keeping mother's added load to the stores whose volumes live there. Park again with
   # `scripts/store-park.sh down superset-worker`. Chart 0.17.2 reads nodeSelector/tolerations only at the TOP level (all
   # Superset pods), so the worker is placed by this affinity; the onboarding toleration is top-level (below).
+  # Explicit --concurrency (2026-11-16): celery's prefork default is one process per CPU the container SEES, which is the
+  # node's count: 16 on mother (~1.5 GB), 32 on timberback, where it OOM-killed at the 3Gi limit 6 times running.
+  # No async queries or scheduled reports are configured, so 2 processes is ample. Otherwise the chart's default command.
+  command:
+    - "/bin/sh"
+    - "-c"
+    - ". {{ .Values.configMountPath }}/superset_bootstrap.sh; exec celery --app=superset.tasks.celery_app:app worker --concurrency=2"
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
