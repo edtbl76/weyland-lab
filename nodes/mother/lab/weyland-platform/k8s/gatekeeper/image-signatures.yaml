@@ -200,6 +200,17 @@ spec:
       - prompve/                                  # prometheus-pve-exporter
       - squidfunk/                                # mkdocs-material
       - nvcr.io/nvidia/k8s-device-plugin          # NVIDIA device plugin (timberback GPU, ADR-0012); official chart, pinned. Owner, 2026-11-15
+      # ── CI STEP IMAGES (.woodpecker.yml; pods in the `woodpecker` namespace). Full paths, owner-reviewed
+      #    2026-11-15: they were in no list, so any provenance run or Gatekeeper audit overlapping their step failed.
+      #    scripts/check-image-provenance.sh now judges .woodpecker.yml at merge time, so a new one cannot land unlisted.
+      - bats/bats                                 # shell-tests (bats)
+      - cljkondo/clj-kondo                        # Clojure lint lane
+      - curlimages/curl                           # HTTP probes in CI steps
+      - koalaman/shellcheck-alpine                # shellcheck
+      - mcr.microsoft.com/dotnet/sdk              # .NET lane (Microsoft's official SDK image)
+      - pipelinecomponents/yamllint               # YAML lint
+      - rocker/r-ver                              # R test + scan lanes (Rocker project)
+      - sbtscala/scala-sbt                        # Scala lane (sbt's official image)
       # ── SOLO-MAINTAINER namespaces. Legitimate and in use, but a different trust tier:
       #    one account compromise is one supply-chain compromise. Reviewed and accepted; the
       #    tiering exists so this concentration is visible rather than buried in an alphabetised list.

@@ -248,7 +248,9 @@ policy (no second copy that can drift):
   Pass: `image-provenance: fed N image(s) · policy …` with no `UNREVIEWED IMAGES` block. A new third-party image
   needs a FULL-PATH entry in `exemptImages` (`k8s/gatekeeper/image-signatures.yaml`), never a registry root:
   `nvcr.io/nvidia/k8s-device-plugin` (2026-11-15) failed the job for a day because the device plugin was deployed
-  without one.
+  without one. **CI step images count too:** their pods run in the `woodpecker` namespace, so since 2026-11-15
+  `scripts/check-image-provenance.sh` (CI repo-guards) also judges every `image:` in `.woodpecker.yml` (namespace
+  `woodpecker`). Eight CI images had been in no list and failed any provenance run that overlapped their step.
 
 The three layers stack: **CI** (pre-merge, declared) + **enumerator** (nightly, all declared workloads
 live) + **Gatekeeper audit** (interval, running pods). When all three are green, the estate provably

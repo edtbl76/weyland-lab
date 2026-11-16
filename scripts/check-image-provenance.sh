@@ -47,6 +47,10 @@
 #   POLICY_EXCLUDED_NS  newline excluded namespaces         }  K8sImageSignature constraint)
 #   POLICY_FILE         path to image-signatures.yaml (default: the platform policy)
 #   MANIFEST_ROOT       dir to scan in git mode (default: the platform k8s tree)
+#   CI_PIPELINE_FILES   space-separated CI pipeline files whose step images are judged as namespace `woodpecker`
+#                       in git mode (default: the repo's .woodpecker.yml). CI step pods run in the cluster, so the
+#                       enumerator and the Gatekeeper audit see their images whenever a run overlaps a step; 8 CI
+#                       images were in no reviewed list until 2026-11-15. A listed file that is missing is exit 2.
 #
 # Sourced by scripts/tests/image-provenance.bats with IMAGE_PROVENANCE_LIB=1 to exercise the decision
 # functions (implicit_official / is_reviewed) without running main.
@@ -64,6 +68,7 @@ PLATFORM_DIR="${PLATFORM_DIR:-}"
 
 POLICY_FILE="${POLICY_FILE:-$PLATFORM_DIR/k8s/gatekeeper/image-signatures.yaml}"
 MANIFEST_ROOT="${MANIFEST_ROOT:-$PLATFORM_DIR/k8s}"
+CI_PIPELINE_FILES="${CI_PIPELINE_FILES-${REPO_ROOT:+$REPO_ROOT/.woodpecker.yml}}"
 
 # Populated by load_policy; newline-separated. The decision functions read these globals.
 ALLOWED=""
@@ -154,9 +159,10 @@ collect_images() {
     printf '%s\n' "$IMAGE_LIST" | sed '/^[[:space:]]*$/d'
     return 0
   fi
-  python3 - "$MANIFEST_ROOT" <<'PY'
-import sys, glob, yaml
-root = sys.argv[1]
+  # shellcheck disable=SC2086  # CI_PIPELINE_FILES is a space-separated list on purpose
+  python3 - "$MANIFEST_ROOT" $CI_PIPELINE_FILES <<'PY'
+import sys, glob, os, yaml
+root, pipelines = sys.argv[1], sys.argv[2:]
 def walk(o, out):
     if isinstance(o, dict):
         for k, v in o.items():
@@ -179,6 +185,17 @@ for f in sorted(glob.glob(root + "/**/*.yaml", recursive=True) + glob.glob(root 
     except Exception:
         # A single unparseable manifest must not silently shrink the estate under audit.
         print("PARSE_ERROR\t" + f, file=sys.stderr)
+# CI step images: the pods run in the `woodpecker` namespace. A listed file that is absent is a broken input,
+# never "no CI images" (fail closed: exit non-zero so main reports exit 2).
+for f in pipelines:
+    if not os.path.isfile(f):
+        print(f"missing CI pipeline file: {f}", file=sys.stderr)
+        sys.exit(3)
+    imgs = []
+    for doc in yaml.safe_load_all(open(f)):
+        walk(doc, imgs)
+    for img in imgs:
+        print(f"woodpecker\t{img}")
 PY
 }
 

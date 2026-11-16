@@ -181,3 +181,39 @@ JSON
   POLICY_JSON="$d/policy.json" WORKLOADS_JSON="$d/workloads.json" GUARD_PATH="$d/guard" run bash "$d/run.sh"
   [ "$status" -eq 2 ]
 }
+
+# --- CI step images (2026-11-15) ----------------------------------------------------------------------------------
+# CI step pods run in the `woodpecker` namespace, so the in-cluster enumerator and the Gatekeeper audit judge their
+# images whenever a run overlaps a step. Eight CI images were in no reviewed list: invisible until a provenance run
+# happened to overlap the R lane. The git scan now judges .woodpecker.yml's step images too, at merge time.
+
+_ci_fixture() {  # <pipeline yaml> -> sets MROOT (one reviewed manifest) and PIPE (the pipeline file)
+  MROOT="$BATS_TEST_TMPDIR/k8s"; mkdir -p "$MROOT"
+  printf 'apiVersion: v1\nkind: Pod\nmetadata: {name: p, namespace: weyland}\nspec: {containers: [{name: c, image: "registry.weyland.lab/ok:v1"}]}\n' > "$MROOT/p.yaml"
+  PIPE="$BATS_TEST_TMPDIR/.woodpecker.yml"; printf '%s\n' "$1" > "$PIPE"
+}
+
+@test "git scan: an unreviewed CI step image exits 1 and names it with the pipeline file" {
+  _ci_fixture $'steps:\n  - name: lint\n    image: evilcorp/linter:latest\n    commands: [true]'
+  MANIFEST_ROOT="$MROOT" CI_PIPELINE_FILES="$PIPE" POLICY_ALLOWED="$FIXTURE_ALLOWED" POLICY_EXEMPT="$FIXTURE_EXEMPT" \
+    run "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"evilcorp/linter:latest"* ]]
+  [[ "$output" == *"woodpecker"* ]]
+}
+
+@test "git scan: reviewed CI step images (exempt, allowlisted, official) pass alongside the manifests" {
+  _ci_fixture $'steps:\n  - name: a\n    image: alpine/git:latest\n  - name: b\n    image: registry.weyland.lab/ci:v1\n  - name: c\n    image: python:3.12-slim'
+  MANIFEST_ROOT="$MROOT" CI_PIPELINE_FILES="$PIPE" POLICY_ALLOWED="$FIXTURE_ALLOWED" POLICY_EXEMPT="$FIXTURE_EXEMPT" \
+    run "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"4"* ]]   # 1 manifest image + 3 step images judged
+}
+
+@test "git scan: a configured CI pipeline file that is missing fails closed (exit 2), never a smaller clean scan" {
+  _ci_fixture $'steps: []'
+  MANIFEST_ROOT="$MROOT" CI_PIPELINE_FILES="$BATS_TEST_TMPDIR/nope.yml" POLICY_ALLOWED="$FIXTURE_ALLOWED" POLICY_EXEMPT="$FIXTURE_EXEMPT" \
+    run "$GUARD"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"nope.yml"* ]]
+}
