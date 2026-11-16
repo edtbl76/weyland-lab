@@ -133,6 +133,15 @@ spec:
       template:
         spec:
           restartPolicy: Never
+          # On timberback (2026-11-16): the first copy OOM-killed twice at a 1Gi limit on mother, early in `datasets`
+          # (325 GB of small lakeFS objects; `mc mirror` and `mc diff` hold a bucket's listing in memory). timberback has
+          # the headroom, and the bytes cross the network once (mother's MinIO -> timberback) instead of via mother.
+          nodeSelector:
+            kubernetes.io/hostname: timberback
+          tolerations:
+            - key: weyland.lab/onboarding
+              operator: Exists
+              effect: NoSchedule
           containers:
             - name: mc
               image: registry.weyland.lab/minio-client:cg-2026-10-22@sha256:f0b1d3d6ae12391d9bbe88345dee6da67027c93cda18dc5c9a463c2cc7d61b29  # the lab's mirrored mc (backup.yaml)
@@ -140,8 +149,8 @@ spec:
                 allowPrivilegeEscalation: false
                 seccompProfile: { type: RuntimeDefault }
               resources:
-                requests: { memory: 128Mi, cpu: 100m }
-                limits: { memory: 1Gi }
+                requests: { memory: 512Mi, cpu: 100m }
+                limits: { memory: 6Gi }   # 1Gi OOM-killed on `datasets` listings (2026-11-16)
               command: ["/bin/sh", "-c"]
               args:
                 - |

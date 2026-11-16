@@ -288,6 +288,9 @@ difference fails it; an empty bucket list fails it too. A failed or stale run pa
 
 In-cluster only: `http://minio-replica.minio.svc.cluster.local:9000`, the primary's credentials (`minio-creds`).
 
+The sync Job runs **on timberback** with a 6 GiB limit: the first copy OOM-killed twice at 1 GiB on mother (2026-11-16),
+early in `datasets`, whose many small lakeFS objects make `mc mirror` / `mc diff` listings large.
+
 1. **The first full copy (~1 TB) is started by hand**, not left to 00:25 (mother):
    ```
    kubectl -n minio create job minio-replica-first-$(date +%s) --from=cronjob/minio-replica-sync

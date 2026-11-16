@@ -142,7 +142,7 @@ workloads:
   - {id: "k8s:kube-system/Deployment/traefik", host: "mother", state: "stateless", move: "movable", target: "any", managed: "k3s"}
   - {id: "k8s:minio/CronJob/minio-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
   - {id: "k8s:minio/Deployment/minio-replica", host: "timberback", state: "pvc:local-path (minio-replica-data, ~1 TB, the copy of every MinIO bucket)", move: "pinned: the point is a SECOND machine, never mother", target: "stays", managed: "argo", likec4: "minioReplica", why: "B134 (2026-11-16): closes docs/dr.md gaps 1, 3, 4"}
-  - {id: "k8s:minio/CronJob/minio-replica-sync", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo", why: "B134 (2026-11-16): nightly mc mirror primary -> replica, verified with mc diff"}
+  - {id: "k8s:minio/CronJob/minio-replica-sync", host: "timberback", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "B134 (2026-11-16): nightly mc mirror primary -> replica, verified with mc diff"}
   - {id: "k8s:minio/Deployment/filestash", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
   - {id: "k8s:minio/Deployment/minio", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
   - {id: "k8s:monitoring/CronJob/alert-coverage", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
