@@ -17,13 +17,14 @@ Status: active
 
      To                         Action      From
      --                         ------      ----
-[ 1] 11434/tcp                  ALLOW IN    192.168.1.243
-[ 2] 11434/tcp                  ALLOW IN    172.17.0.0/16
-[ 3] 8765/tcp                   ALLOW IN    192.168.1.243
-[ 4] 11434/tcp                  DENY IN     Anywhere
-[ 5] 8765/tcp                   DENY IN     Anywhere
-[ 6] 11434/tcp (v6)             DENY IN     Anywhere (v6)
-[ 7] 8765/tcp (v6)              DENY IN     Anywhere (v6)
+[ 1] 11434/tcp                  ALLOW IN    192.168.1.233
+[ 2] 11434/tcp                  ALLOW IN    192.168.1.243
+[ 3] 11434/tcp                  ALLOW IN    172.17.0.0/16
+[ 4] 8765/tcp                   ALLOW IN    192.168.1.243
+[ 5] 11434/tcp                  DENY IN     Anywhere
+[ 6] 8765/tcp                   DENY IN     Anywhere
+[ 7] 11434/tcp (v6)             DENY IN     Anywhere (v6)
+[ 8] 8765/tcp (v6)              DENY IN     Anywhere (v6)
 EOF
 }
 
@@ -31,7 +32,7 @@ EOF
   good
   run bash "$S" --check
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  [[ "$output" == *"OK — 2 port(s), 3 allow rule(s) and their denies in place"* ]] || { echo "$output"; return 1; }
+  [[ "$output" == *"OK — 2 port(s), 4 allow rule(s) and their denies in place"* ]] || { echo "$output"; return 1; }
 }
 
 @test "a missing allow is drift, named" {
@@ -81,11 +82,31 @@ EOF
   [[ "$output" == *"CANNOT CHECK: no numbered rule parsed"* ]] || { echo "$output"; return 1; }
 }
 
-@test "--apply prints the ufw commands in allow-then-deny order when asked for a dry run" {
+@test "--apply on an EMPTY rule set uses plain allow (ufw rejects insert 1 with no rules), then the denies" {
+  printf 'Status: active\n' > "$F"
   run env UFW_DRY_RUN=1 bash "$S" --apply
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  [ "$(echo "$output" | head -1)" = "ufw allow from 192.168.1.243 to any port 11434 proto tcp" ] || { echo "$output"; return 1; }
+  [ "$(echo "$output" | head -1)" = "ufw allow from 192.168.1.233 to any port 11434 proto tcp" ] || { echo "$output"; return 1; }
+  if echo "$output" | grep -q 'insert'; then echo "insert used on an empty rule set"; return 1; fi
   [ "$(echo "$output" | grep -n 'deny 11434/tcp' | cut -d: -f1)" -gt "$(echo "$output" | grep -n '172.17.0.0/16' | cut -d: -f1)" ]
+}
+
+@test "--apply on a LIVE rule set inserts every allow at the top, above the existing denies (first match wins)" {
+  # 2026-11-16: a plain `ufw allow` APPENDS, so an allow added after the port's DENY never fires. The live
+  # firewall already has its denies, so adding timberback (.233) must insert, not append.
+  good
+  run env UFW_DRY_RUN=1 bash "$S" --apply
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"ufw insert 1 allow from 192.168.1.233 to any port 11434 proto tcp"* ]] || { echo "$output"; return 1; }
+  if echo "$output" | grep -E '^ufw allow '; then echo "an allow was appended"; return 1; fi
+}
+
+@test "timberback's allow on 11434 is required: missing is drift, named (litellm calls Ollama from timberback)" {
+  good
+  sed -i '/ALLOW IN    192.168.1.233/d' "$F"
+  run bash "$S" --check
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"MISSING: allow 11434/tcp from 192.168.1.233"* ]] || { echo "$output"; return 1; }
 }
 
 @test "no mode is a usage error, exit 2" {

@@ -4,7 +4,8 @@
 # WHY: the rules lived only in two runbooks and in rogueone's ufw, which only root can read, so nothing could notice a
 # rule going missing. These ports matter: Basic Memory (:8765) has no auth, and Ollama's front door (:11434) is the one
 # path the cluster has to the GPU. ufw is first-match, so each port is its ALLOWs first, then a DENY for everyone else.
-#   :11434  Ollama's front door (ollama-proxy.service): mother (every pod arrives SNATed to it) + docker0 (OpenHands).
+#   :11434  Ollama's front door (ollama-proxy.service): mother and timberback (every pod arrives SNATed to its node's
+#           IP; timberback added 2026-11-16 when litellm moved there, B134) + docker0 (OpenHands).
 #           The proxy also asks mother's callers for the bearer token; ufw keeps the rest of the LAN off it entirely.
 #   :8765   Basic Memory (B182): mother only (Bifrost).
 #
@@ -16,6 +17,7 @@ set -euo pipefail
 
 # port|source — the ALLOWs, in order. Each port listed here also gets a DENY after its ALLOWs.
 ALLOWS=(
+  "11434|192.168.1.233"
   "11434|192.168.1.243"
   "11434|172.17.0.0/16"
   "8765|192.168.1.243"
@@ -28,9 +30,14 @@ usage() { echo "usage: $0 --apply | --check" >&2; exit 2; }
 apply() {
   local run=(ufw)
   [ "${UFW_DRY_RUN:-0}" = 1 ] && run=(echo ufw)
+  # ufw is first-match and a plain `allow` APPENDS: on a live rule set an allow added after the port's DENY never
+  # fires. So when rules exist, insert each allow at the top; `insert 1` is refused on an empty set, so use allow there.
+  local status add=(allow)
+  if [ -n "${UFW_STATUS_FILE:-}" ]; then status="$(cat "$UFW_STATUS_FILE")"; else status="$(ufw status numbered)"; fi
+  grep -qE '^\[ *[0-9]+\]' <<<"$status" && add=(insert 1 allow)
   local a
   for a in "${ALLOWS[@]}"; do
-    "${run[@]}" allow from "${a#*|}" to any port "${a%%|*}" proto tcp
+    "${run[@]}" "${add[@]}" from "${a#*|}" to any port "${a%%|*}" proto tcp
   done
   local p
   for p in "${PORTS[@]}"; do

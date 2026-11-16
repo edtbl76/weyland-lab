@@ -22,7 +22,7 @@ reference — they still apply to the CPU-offloaded portion of any model that ov
   `ollama-proxy.service` (nginx) owns `192.168.1.230:11434` and `172.17.0.1:11434`. A remote caller must send
   `Authorization: Bearer <token>`; model management (`/api/pull`, `/api/push`, `/api/create`, `/api/copy`,
   `/api/delete`, `/api/blobs`) is refused to every remote caller, token or not. rogueone's own processes (loopback, its
-  LAN address, docker0) need no token. ufw still admits `:11434` only from mother and docker0. Full section:
+  LAN address, docker0) need no token. ufw still admits `:11434` only from the two k3s nodes (mother, and timberback since 2026-11-16 when litellm moved there: B134; every pod arrives SNATed to its node's IP) and docker0. `rogueone-ufw.sh --apply` inserts allows at the top on a live rule set (a plain `ufw allow` appends after the DENY and never fires). Full section:
   [§ Front door](#front-door--token-proxy-b211-2026-10-22).
 - **Hardware:** RTX 5000 Ada (16 GB VRAM) + 128 GB RAM. Models that fit in VRAM run fully on GPU;
   larger models (e.g. 30B@Q4 ≈ 20 GB) offload the overflow layers to CPU/RAM.
