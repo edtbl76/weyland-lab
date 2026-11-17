@@ -282,8 +282,11 @@ A second MinIO, `minio-replica` (`k8s/minio/replica.yaml`), runs on **timberback
 or a mother failure no longer takes the only copy. The `minio-replica-sync` CronJob (00:25 NY) copies **every**
 bucket from the primary (the core Postgres dumps are the `backups` bucket; `rogueone-backup` is included), into
 **versioned** buckets whose lifecycle keeps noncurrent versions for **30 days**: an overwrite or a delete upstream
-leaves the previous version restorable for 30 days. After each bucket's `mc mirror` the job runs `mc diff`, and any
-difference fails it; an empty bucket list fails it too. A failed or stale run pages critical (`ScheduledBackupFailed`,
+leaves the previous version restorable for 30 days. After each bucket's `mc mirror` the job runs `mc diff` and fails on
+any object that was on the primary **before that bucket's sync started** but is missing or stale on the replica; objects
+written or deleted DURING the copy (Loki, Tempo, Langfuse write by the second) are counted (`written-during-sync`,
+`deleted-upstream`) and caught by the next run. A strict diff failed on `loki-chunks` (2026-11-16). An empty bucket list or
+an unreadable side fails the Job too. Tested locally against real MinIO (empty, normal, live writer, a real miss). A failed or stale run pages critical (`ScheduledBackupFailed`,
 `ScheduledJobStale` 26 h). Still the same house: not an off-site copy (`dr.md` gap 5).
 
 In-cluster only: `http://minio-replica.minio.svc.cluster.local:9000`, the primary's credentials (`minio-creds`).
