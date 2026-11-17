@@ -63,7 +63,7 @@ model {
 
   timberback = node "timberback" "Bare-metal k3s GPU worker (.233), joined 2026-11-14 (ADR-0012): Ryzen 9 9950X, 96 GB, RTX 5070 Ti 16 GB, Ubuntu 24.04 on btrfs (snapper). Tainted weyland.lab/onboarding until B134 lifts it; workloads land only by node selector + toleration." {
     whisper = component "whisper" "Speech-to-text (B134 plan step 2, 2026-11-14): whisper.cpp v1.9.5 CUDA (ggml-large-v3, ~4 GB VRAM, one of 4 GPU time-slices) + the OpenAI shim :9000/v1 and native :8080/inference. In-cluster whisper.weyland.svc; rogueone via the whisper-lan NodePort .233:30901 (NetworkPolicy: Open WebUI, Kuma, rogueone only). Replaces CT 103."
-    minioReplica = component "MinIO replica" "B134 (2026-11-16): a second MinIO holding a copy of EVERY bucket from the primary (mother USB), filled nightly by minio-replica-sync (00:25 NY, mc mirror + mc diff). Versioned, 30 days of history. Closes dr.md gaps 1, 3, 4; same house, so not off-site."
+    minioReplica = component "MinIO replica" "B134 (2026-11-16): a second MinIO holding a copy of EVERY bucket from the primary (mother USB), filled nightly by minio-replica-sync (00:25 NY, mc mirror + mc diff). Versioned, 30 days of history. Plus the core Postgres dumps, which are plain files MinIO does not list, copied as files by minio-replica-pgdumps (00:30 NY) into pg-dumps. Closes dr.md gaps 1, 3, 4; same house, so not off-site."
     gpuPlugin = component "NVIDIA device plugin" "nvidia-device-plugin 0.20.1 (Argo): advertises the RTX 5070 Ti time-sliced into 4 (nvidia.com/gpu: 4). Time-slicing shares compute, not VRAM: budget in runbooks/timberback.md."
   }
 

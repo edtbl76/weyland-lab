@@ -95,14 +95,14 @@ here in the same change. "Reproducible" means a documented rebuild path, not a b
 |---|---|---|
 | mother **USB** (`/mnt/minio`) | MinIO itself, the `rogueone-backup` restic repo, **and** the core Postgres dumps | nothing on this disk survives the disk |
 | mother **NVMe** | the MinIO bucket mirror, the data-mesh Postgres dumps, the Open WebUI, Woodpecker and Bifrost backups | a USB failure, not a mother failure |
-| timberback **NVMe** (B134, 2026-11-16) | the **MinIO replica**: every bucket, incl. the core Postgres dumps (`backups`) and `rogueone-backup`; versioned, 30 days of history | a USB failure **and** a mother failure (a second machine; still the same house) |
+| timberback **NVMe** (B134, 2026-11-16) | the **MinIO replica**: every MinIO bucket incl. `rogueone-backup`, plus the core Postgres dumps as files (`pg-dumps`, copied by their own Job); versioned, 30 days of history | a USB failure **and** a mother failure (a second machine; still the same house) |
 | GitHub | code, config, IaC | anything local |
 | Google Drive | media and documents | anything local |
 | **Off-site copy of lab data** | **none** | — |
 
 ## Closing Gaps — known gaps, found while writing this page
 
-1. **CLOSING (B134, 2026-11-16): the MinIO replica on timberback copies the `backups` bucket nightly.** Closed once the first full copy and the restore drill in `runbooks/storage-minio.md` § Replica pass. Was: **Core Postgres dumps sit on the same USB disk as MinIO.** A USB failure loses both the database copies and the
+1. **CLOSING (B134, 2026-11-17): `minio-replica-pgdumps` copies the dump files to the replica's versioned `pg-dumps` bucket nightly (00:30), 30 days of them.** The dumps are plain files in MinIO's directory, NOT objects (the `backups` bucket lists 0), so the bucket-level replica alone never copied them (an assumption corrected 2026-11-17 on the first full copy). Closed once a restore drill passes (`runbooks/storage-minio.md` § Replica). Was: **Core Postgres dumps sit on the same USB disk as MinIO.** A USB failure loses both the database copies and the
    object store. Fix: land the dumps on NVMe (like `pg-backup`) or add them to the mirror.
 2. **The three cluster backups have never had a restore drill.** They alert when they fail to run, but nobody has
    proven the dumps and mirror restore. **Partly closed 2026-10-21:** the core `pg_dumpall` restored `mlflow` and

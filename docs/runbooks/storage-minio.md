@@ -280,7 +280,7 @@ from a pod that mounts the PVC (the drill's manifest, with `D` set to the bucket
 
 A second MinIO, `minio-replica` (`k8s/minio/replica.yaml`), runs on **timberback**: a second machine, so a USB failure
 or a mother failure no longer takes the only copy. The `minio-replica-sync` CronJob (00:25 NY) copies **every**
-bucket from the primary (the core Postgres dumps are the `backups` bucket; `rogueone-backup` is included), into
+bucket from the primary (`rogueone-backup` included), into
 **versioned** buckets whose lifecycle keeps noncurrent versions for **30 days**: an overwrite or a delete upstream
 leaves the previous version restorable for 30 days. After each bucket's `mc mirror` the job runs `mc diff` and fails on
 any object that was on the primary **before that bucket's sync started** but is missing or stale on the replica; objects
@@ -290,6 +290,13 @@ an unreadable side fails the Job too. Tested locally against real MinIO (empty, 
 `ScheduledJobStale` 26 h). Still the same house: not an off-site copy (`dr.md` gap 5).
 
 In-cluster only: `http://minio-replica.minio.svc.cluster.local:9000`, the primary's credentials (`minio-creds`).
+
+**The core Postgres dumps are NOT a MinIO bucket.** `postgres-backup` writes them as plain files into
+`/mnt/minio/backups/pg`, inside MinIO's directory, and MinIO does not list them (the `backups` bucket shows 0 objects). The
+`minio-replica-pgdumps` CronJob (00:30 NY, pinned to mother) mounts that directory read-only and mirrors the
+`weyland-all-*.sql.gz` files into the replica's versioned `pg-dumps` bucket, then checks every dump's size there. The disk
+keeps 7; the replica keeps each rotated-out dump 30 more days. Restore one: `mc cp dst/pg-dumps/weyland-all-<date>.sql.gz .`
+(or `--version-id` for a rotated-out one), then the core restore in `runbooks/backups.md`.
 
 The sync Job runs **on timberback** with a 6 GiB limit: the first copy OOM-killed twice at 1 GiB on mother (2026-11-16),
 early in `datasets`, whose many small lakeFS objects make `mc mirror` / `mc diff` listings large.
