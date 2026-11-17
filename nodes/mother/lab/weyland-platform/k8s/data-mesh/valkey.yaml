@@ -21,6 +21,11 @@ spec:
       labels:
         app: valkey
     spec:
+      # Pinned to mother (2026-11-17, before timberback's onboarding taint was lifted): valkey-lan is a Local-policy
+      # NodePort (it keeps rogueone's source IP for the NetworkPolicy pin), so it answers only on the pod's node, and
+      # every client dials 192.168.1.243:30379.
+      nodeSelector:
+        kubernetes.io/hostname: mother
       containers:
         - name: valkey
           image: valkey/valkey:8-alpine  # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root

@@ -5,10 +5,9 @@ node-label:
   - "weyland.lab/host=timberback"
   - "weyland.lab/gpu=nvidia-rtx-5070-ti"
   - "nvidia.com/gpu.present=true"
-node-taint:
-  # ONBOARDING: nothing schedules here until it is removed deliberately (DaemonSets that tolerate everything still
-  # land). Joining must not silently move mother's workloads: the stateful-pinning pass (B134) comes first.
-  - "weyland.lab/onboarding=true:NoSchedule"
+# No node-taint: the onboarding taint (weyland.lab/onboarding=true:NoSchedule) was lifted 2026-11-17 after the
+# pinning pass was re-run (docs/runbooks/timberback.md § The onboarding taint). Every workload not pinned to mother
+# may now schedule here.
 kubelet-arg:
   - "max-pods=250"
   # Same guardrails as mother (nodes/mother/host/rancher/k3s/config.yaml, B98/B99): evict pods before the OS

@@ -20,11 +20,12 @@ Status: active
 [ 1] 11434/tcp                  ALLOW IN    192.168.1.233
 [ 2] 11434/tcp                  ALLOW IN    192.168.1.243
 [ 3] 11434/tcp                  ALLOW IN    172.17.0.0/16
-[ 4] 8765/tcp                   ALLOW IN    192.168.1.243
-[ 5] 11434/tcp                  DENY IN     Anywhere
-[ 6] 8765/tcp                   DENY IN     Anywhere
-[ 7] 11434/tcp (v6)             DENY IN     Anywhere (v6)
-[ 8] 8765/tcp (v6)              DENY IN     Anywhere (v6)
+[ 4] 8765/tcp                   ALLOW IN    192.168.1.233
+[ 5] 8765/tcp                   ALLOW IN    192.168.1.243
+[ 6] 11434/tcp                  DENY IN     Anywhere
+[ 7] 8765/tcp                   DENY IN     Anywhere
+[ 8] 11434/tcp (v6)             DENY IN     Anywhere (v6)
+[ 9] 8765/tcp (v6)              DENY IN     Anywhere (v6)
 EOF
 }
 
@@ -32,7 +33,7 @@ EOF
   good
   run bash "$S" --check
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  [[ "$output" == *"OK — 2 port(s), 4 allow rule(s) and their denies in place"* ]] || { echo "$output"; return 1; }
+  [[ "$output" == *"OK — 2 port(s), 5 allow rule(s) and their denies in place"* ]] || { echo "$output"; return 1; }
 }
 
 @test "a missing allow is drift, named" {
@@ -103,10 +104,20 @@ EOF
 
 @test "timberback's allow on 11434 is required: missing is drift, named (litellm calls Ollama from timberback)" {
   good
-  sed -i '/ALLOW IN    192.168.1.233/d' "$F"
+  sed -i '/11434\/tcp  *ALLOW IN    192.168.1.233/d' "$F"
   run bash "$S" --check
   [ "$status" -eq 1 ]
   [[ "$output" == *"MISSING: allow 11434/tcp from 192.168.1.233"* ]] || { echo "$output"; return 1; }
+}
+
+@test "timberback's allow on 8765 is required: missing is drift, named (the memory MCP gateway may run on timberback)" {
+  # 2026-11-17: the onboarding taint was lifted, so any unpinned pod — the gateway that reads Basic Memory — can land
+  # on timberback and reach rogueone from 192.168.1.233.
+  good
+  sed -i '/8765\/tcp  *ALLOW IN    192.168.1.233/d' "$F"
+  run bash "$S" --check
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"MISSING: allow 8765/tcp from 192.168.1.233"* ]] || { echo "$output"; return 1; }
 }
 
 @test "no mode is a usage error, exit 2" {

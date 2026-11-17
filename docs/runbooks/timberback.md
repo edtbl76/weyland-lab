@@ -185,7 +185,8 @@ CUDA versions per pod freely.
 
 ## Run a GPU workload
 
-A pod gets the GPU with three things — the GPU limit, the `nvidia` runtime, and (while onboarding) the toleration:
+A pod gets the GPU with the GPU limit and the `nvidia` runtime. The toleration below was needed while the onboarding
+taint was on (until 2026-11-17); it is harmless now and the existing manifests keep it:
 
 ```yaml
 spec:
@@ -265,25 +266,48 @@ kubectl -n weyland delete job timberback-gpu-bench
 
 ## The onboarding taint
 
-timberback joined with `weyland.lab/onboarding=true:NoSchedule`, so **nothing moves to it** until the taint is
-removed (DaemonSets that tolerate everything still run there).
+timberback joined with `weyland.lab/onboarding=true:NoSchedule`. **Lifted 2026-11-17.** Every workload not pinned to
+mother may now schedule here. Removing the taint moves nothing at once; a pod moves only when it is next scheduled
+(a rollout, a restart, a CronJob run), and the scheduler favours the emptier node, so unpinned pods drift here
+over time.
 
-**The pinning pass is done (2026-11-14):** every workload marked `stays` in `placement.yaml` was checked live. 44 are
-held on mother by local-path volumes bound to it; `postgres-backup` (host path `/mnt/minio/backups`), `ray-head`
-(hostNetwork) and `weyland-lan-dns` (hostPort 53) now carry `nodeSelector: kubernetes.io/hostname: mother`. Before
-removing the taint, re-run that check if workloads were added since. **One caveat stays:** the default `local-path`
-storage class (`WaitForFirstConsumer`) creates a NEW volume on whichever node its pod lands on, so a new stateful
-workload needs a deliberate placement (a node selector for mother, or a decision that its data lives on timberback).
+**The pre-lift check (re-run 2026-11-17 against the live cluster):** 167 workloads. 15 are pinned by a node
+selector, and 44 are held on mother by local-path volumes bound to it. Of the 108 free to move, every image comes from
+a registry timberback pulls from. No free workload uses a host path, host networking or a host port. Two broke the
+rules, and both are now pinned to mother:
 
-To remove the taint:
+| Workload | Why it must stay on mother |
+| -- | -- |
+| `data-mesh/valkey` | `valkey-lan` is a Local-policy NodePort, so it answers only on its pod's node; clients dial `192.168.1.243:30379` |
+| `weyland/mlflow` | `mlflow-lan` (`:30500`) is the same; the Ray worker dials mother. Moving mlflow is a separate owner decision |
+
+Off the cluster, pods on timberback arrive from `192.168.1.233`. rogueone's firewall
+(`nodes/rogueone/ufw/rogueone-ufw.sh`) now admits it on 11434 (Ollama) and on 8765 (Basic Memory). Apply that on
+rogueone before lifting the taint.
+
+**Caveats that stay:**
+
+- A new Local-policy NodePort, host path, host network or host port needs a node selector for mother. The same goes
+  for an off-cluster allowlist that admits only `192.168.1.243`.
+- The default `local-path` storage class (`WaitForFirstConsumer`) creates a NEW volume on whichever node its pod
+  lands on. A new stateful workload needs a deliberate placement: a node selector for mother, or a decision that its
+  data lives on timberback.
+
+To lift the taint (done 2026-11-17):
 
 [rogueone]
 ```
 kubectl taint node timberback weyland.lab/onboarding=true:NoSchedule-
 ```
 
-Then delete the `node-taint` entry from `nodes/timberback/host/rancher/k3s/config.yaml` (and the live
-`/etc/rancher/k3s/config.yaml`), or the agent re-applies the taint on its next start.
+The `node-taint` entry is gone from `nodes/timberback/host/rancher/k3s/config.yaml`. Install that file with the
+command in § k3s agent, so the live config matches git and no restart can put the taint back. Then confirm the node
+has no taints (prints `[]` or nothing):
+
+[rogueone]
+```
+kubectl get node timberback -o jsonpath='{.spec.taints}'
+```
 
 ## Cross-node canary
 

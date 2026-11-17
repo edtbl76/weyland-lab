@@ -722,7 +722,7 @@ data:
       mother:     {access: "ssh emangini@mother", kind: qemu-vm, runs_on: weyland, pve_id: "qemu/101", always_on: true, note: "k3s control plane; the only node until timberback joined 2026-11-14"}
       whisper:    {kind: lxc, runs_on: weyland, pve_id: "lxc/103", always_on: false, note: "STOPPED 2026-11-15, onboot off (B134 plan step 2): whisper moved to timberback as the k8s app whisper. No `access`, so the nightly host check skips it (pct exec fails on a stopped CT). Destroy about 2026-11-22, then delete this host and its rows. Was: access ssh root@weyland pct exec 103, whisper.cpp CPU STT (.246)"}
       rogueone:   {access: "local", kind: laptop, always_on: false, node_exporter: "192.168.1.230:9100", note: "RTX 5000 Ada 16 GB, 128 GB RAM (.230); sleeps — not always on; systemd-only node-exporter (B198)"}
-      timberback: {access: "ssh emangini@timberback", kind: bare-metal, always_on: true, note: "Ryzen 9 9950X, 96 GB, RTX 5070 Ti 16 GB (.233); bare-metal Ubuntu on btrfs, k3s GPU WORKER (ADR-0012), joined 2026-11-14 with the weyland.lab/onboarding taint"}
+      timberback: {access: "ssh emangini@timberback", kind: bare-metal, always_on: true, note: "Ryzen 9 9950X, 96 GB, RTX 5070 Ti 16 GB (.233); bare-metal Ubuntu on btrfs, k3s GPU WORKER (ADR-0012), joined 2026-11-14 with the weyland.lab/onboarding taint, lifted 2026-11-17"}
 
     # OS / desktop units on a watched host that are not workloads. Exact unit names — never a pattern, so a new lab
     # service cannot hide behind one.
@@ -803,7 +803,7 @@ data:
       - {id: "k8s:data-mesh/Deployment/superset-worker", host: "timberback", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "un-parked 2026-11-16 (B134 step 4); B199 had parked it 2026-10-01"}
       - {id: "k8s:data-mesh/Deployment/timescaledb", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
       - {id: "k8s:data-mesh/Deployment/trino", host: "timberback", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "largest stateless memory request (5.5Gi); OOM-killed at node pressure 2026-09-27. Moved 2026-11-15 (B134 plan step 3); trino-lan (Local) now .233:30843, cert names both node IPs"}
-      - {id: "k8s:data-mesh/Deployment/valkey", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+      - {id: "k8s:data-mesh/Deployment/valkey", host: "mother", state: "stateless", move: "pinned: valkey-lan is a Local-policy NodePort clients dial at mother's IP", target: "stays", managed: "argo", why: "2026-11-17: nodeSelector mother before the timberback taint lift"}
       - {id: "k8s:data-mesh/Deployment/weyland-flink", host: "mother", state: "stateless", move: "movable", target: "any", managed: "operator (FlinkDeployment)"}
       - {id: "k8s:data-mesh/StatefulSet/cassandra", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo", why: "un-parked 2026-11-16 (B134 step 4); B199 had parked it 2026-10-01"}
       - {id: "k8s:data-mesh/StatefulSet/opensearch-cluster-master", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
@@ -893,7 +893,7 @@ data:
       - {id: "k8s:weyland/Deployment/likec4", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/litellm", host: "timberback", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "B134 plan step 3 batch 2 (2026-11-16): stateless, meshed, no LAN address change"}
       - {id: "k8s:weyland/Deployment/llama-guard", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
-      - {id: "k8s:weyland/Deployment/mlflow", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
+      - {id: "k8s:weyland/Deployment/mlflow", host: "mother", state: "stateless", move: "pinned: mlflow-lan is a Local-policy NodePort the Ray worker dials at mother's IP", target: "stays", managed: "argo", why: "2026-11-17: nodeSelector mother before the timberback taint lift"}
       - {id: "k8s:weyland/Deployment/nemo-guardrails", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:weyland/Deployment/neo4j", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
       - {id: "k8s:weyland/Deployment/neo4j-mcp", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}

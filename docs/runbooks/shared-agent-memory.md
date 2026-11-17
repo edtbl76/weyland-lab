@@ -13,7 +13,7 @@ Design + evidence: [design/shared-agent-memory-design.md](../design/shared-agent
 | Claude Code's path | `~/.claude/projects/-home-edwardmangini-IdeaProjects-weyland/memory` → **symlink** to the notes |
 | Server | Basic Memory 0.23.2, user unit `basic-memory.service`, MCP streamable HTTP on `:8765` |
 | Gateway | Bifrost MCP client `Agent_Memory` → `http://192.168.1.230:8765/mcp`; coding-agents key = all tools, operator key = read-only |
-| Firewall | rogueone ufw: `:8765` admits only mother (`192.168.1.243`); everything else unchanged (default allow) |
+| Firewall | rogueone ufw: `:8765` admits only the two k3s nodes, mother (`192.168.1.243`) and timberback (`192.168.1.233`, since 2026-11-17), because pods arrive SNATed to their node's IP; everything else unchanged (default allow) |
 | Watchdog | user timer `agent-memory-watch` every 15 min — gitleaks + read-only health → Kuma push monitor |
 
 All commands below run on **rogueone** unless the label says otherwise.
@@ -74,6 +74,14 @@ sudo sed -i 's/^DEFAULT_FORWARD_POLICY=.*/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc
 sudo ufw allow from 192.168.1.243 to any port 8765 proto tcp
 sudo ufw deny 8765/tcp
 sudo ufw enable
+```
+Since B211 the rules live in git, in `nodes/rogueone/ufw/rogueone-ufw.sh`. That script also admits timberback
+(`192.168.1.233`, since 2026-11-17: once its onboarding taint was lifted, Bifrost or any other caller may run there).
+Apply it and check it:
+
+[rogueone]
+```
+sudo bash /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ufw/rogueone-ufw.sh --apply && sudo bash /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ufw/rogueone-ufw.sh --check
 ```
 Prove both sides (mother pod reaches it; a non-mother source does not):
 

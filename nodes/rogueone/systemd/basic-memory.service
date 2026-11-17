@@ -7,7 +7,7 @@
 #             systemctl --user daemon-reload && systemctl --user enable --now basic-memory.service
 #   REQUIRED: loginctl enable-linger edwardmangini   <- runs without an active login (already on for this user)
 #   Check:    uv run --with mcp python scripts/check-shared-memory.py   ·   logs: journalctl --user -u basic-memory
-#   Firewall: the server has NO auth — only localhost and mother (Bifrost) may reach :8765 (runbook § Firewall).
+#   Firewall: the server has NO auth — only localhost and the k3s nodes (Bifrost) may reach :8765 (runbook § Firewall).
 [Unit]
 Description=Basic Memory — shared agent memory over MCP (B182)
 After=network-online.target
@@ -23,8 +23,9 @@ Environment=BASIC_MEMORY_ENSURE_FRONTMATTER_ON_SYNC=false
 Environment=BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED=true
 # Register the project (idempotent: "already exists" is fine; a real failure makes ExecStart fail on --project).
 ExecStartPre=-/home/edwardmangini/.local/bin/basic-memory project add weyland /home/edwardmangini/agent-memory/weyland
-# Listens on the LAN so Bifrost (mother) can reach it. The server has NO auth: ufw on rogueone admits ONLY mother
-# (192.168.1.243) to :8765 and denies everyone else; loopback is unaffected (runbook § Firewall, enabled 2026-10-03).
+# Listens on the LAN so Bifrost (in k3s) can reach it. The server has NO auth: ufw on rogueone admits ONLY the k3s
+# nodes, mother (192.168.1.243) and timberback (192.168.1.233, since 2026-11-17), to :8765 and denies everyone else;
+# loopback is unaffected (runbook § Firewall, enabled 2026-10-03; rules in nodes/rogueone/ufw/rogueone-ufw.sh).
 ExecStart=/home/edwardmangini/.local/bin/basic-memory mcp --transport streamable-http --host 0.0.0.0 --port 8765 --project weyland
 Restart=on-failure
 RestartSec=10
