@@ -115,7 +115,7 @@ The **Classify** path of the guardrails platform (B115): a **model-based content
 Guard** over its full safety taxonomy (S1 violent crime, S9 weapons, S11 self-harm, …) — run as a SECOND opinion
 alongside the single-purpose Scan scanners (Prompt Guard 2 injection + Presidio PII). Since B117 it is **also the platform's toxicity signal** (llm_guard.toxicity retired — its S-taxonomy covers hate/harassment/sexual). It is **not** a
 baked model: the validator (`validators/llama_guard.py`) POSTs to the always-on **`llama-guard`** svc —
-**tier 1** = Llama-Guard-3-1B on **CPU (mother)**, served by **llama.cpp** at temp 0 (`LLAMA_GUARD_URL` on the
+**tier 1** = Llama-Guard-3-1B on **timberback's GPU** (since 2026-11-17: ~50 ms a check, ~1.7 GB VRAM; on mother's CPU it took a median ~7.5 s and 214 of 4,089 calls in 14 days timed out and failed open), served by **llama.cpp** at temp 0 (`LLAMA_GUARD_URL` on the
 deployment; `k8s/llama-guard/`). Runs on **INPUT** (the prompt) and **OUTPUT** (the answer), both **SHADOW**. Reply
 `unsafe\n<S-cat>` → BLOCK verdict `unsafe: S<cat>`; `safe` → PASS; unreachable / odd reply → **fail-open** (PASS), per
 the caller contract. **Tier 2** (an on-demand Llama-Guard-3-8B on the **rogueone GPU**, same llama.cpp stack) is the

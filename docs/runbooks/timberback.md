@@ -221,7 +221,8 @@ So every GPU workload has a VRAM budget here, and a new one is checked against t
 | Workload | Slice | VRAM budget | Source |
 |---|---|---|---|
 | whisper (ggml-large-v3, `k8s/whisper/`) | 1 | 4.0 GB (measured 2026-11-14: 4,024 MiB) | B134 plan step 2 |
-| (free) | 3 | ~11.9 GB of 15.9 GB | |
+| llama-guard (Llama-Guard-3-1B Q8_0, `k8s/llama-guard/`) | 1 | 1.7 GB (measured 2026-11-17 on rogueone with the same image: 1,720 MiB; re-measure here) | B134 follow-up |
+| (free) | 2 | ~10.2 GB of 15.9 GB | |
 
 Measure the real figure once a workload is running and update its row (check `nvidia-smi` on timberback, which lists
 each process's memory):
