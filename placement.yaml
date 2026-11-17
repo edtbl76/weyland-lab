@@ -210,7 +210,7 @@ workloads:
   - {id: "k8s:weyland/Deployment/likec4", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
   - {id: "k8s:weyland/Deployment/litellm", host: "timberback", state: "stateless", move: "movable", target: "k3s-worker", managed: "argo", why: "B134 plan step 3 batch 2 (2026-11-16): stateless, meshed, no LAN address change"}
   - {id: "k8s:weyland/Deployment/llama-guard", host: "timberback", state: "stateless", move: "pinned: GPU (one time-slice, ~1.7 GB VRAM)", target: "stays", managed: "argo", why: "2026-11-17: CPU on mother took ~7.5 s a check with timeouts; GPU ~50 ms"}
-  - {id: "k8s:weyland/Deployment/mlflow", host: "mother", state: "stateless", move: "pinned: mlflow-lan is a Local-policy NodePort the Ray worker dials at mother's IP", target: "stays", managed: "argo", why: "2026-11-17: nodeSelector mother before the timberback taint lift"}
+  - {id: "k8s:weyland/Deployment/mlflow", host: "mother", state: "stateless", move: "pinned: mlflow-lan is a Local-policy NodePort the Ray worker dials at mother's IP", target: "stays", managed: "argo", why: "ADR-0013 (2026-11-17): stays on mother for good"}
   - {id: "k8s:weyland/Deployment/nemo-guardrails", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
   - {id: "k8s:weyland/Deployment/neo4j", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
   - {id: "k8s:weyland/Deployment/neo4j-mcp", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}

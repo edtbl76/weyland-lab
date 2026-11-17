@@ -221,7 +221,7 @@ So every GPU workload has a VRAM budget here, and a new one is checked against t
 | Workload | Slice | VRAM budget | Source |
 |---|---|---|---|
 | whisper (ggml-large-v3, `k8s/whisper/`) | 1 | 4.0 GB (measured 2026-11-14: 4,024 MiB) | B134 plan step 2 |
-| llama-guard (Llama-Guard-3-1B Q8_0, `k8s/llama-guard/`) | 1 | 1.7 GB (measured 2026-11-17 on rogueone with the same image: 1,720 MiB; re-measure here) | B134 follow-up |
+| llama-guard (Llama-Guard-3-1B Q8_0, `k8s/llama-guard/`) | 1 | 1.7 GB (measured here 2026-11-17: 1,706 MiB) | B134 follow-up |
 | (free) | 2 | ~10.2 GB of 15.9 GB | |
 
 Measure the real figure once a workload is running and update its row (check `nvidia-smi` on timberback, which lists
@@ -280,7 +280,7 @@ rules, and both are now pinned to mother:
 | Workload | Why it must stay on mother |
 | -- | -- |
 | `data-mesh/valkey` | `valkey-lan` is a Local-policy NodePort, so it answers only on its pod's node; clients dial `192.168.1.243:30379` |
-| `weyland/mlflow` | `mlflow-lan` (`:30500`) is the same; the Ray worker dials mother. Moving mlflow is a separate owner decision |
+| `weyland/mlflow` | `mlflow-lan` (`:30500`) is the same; the Ray worker dials mother. It stays for good: [ADR-0013](../adr/0013-keep-mlflow-on-mother.md) |
 
 Off the cluster, pods on timberback arrive from `192.168.1.233`. rogueone's firewall
 (`nodes/rogueone/ufw/rogueone-ufw.sh`) now admits it on 11434 (Ollama) and on 8765 (Basic Memory). Apply that on

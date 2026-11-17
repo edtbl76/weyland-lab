@@ -42,9 +42,9 @@ spec:
         # log_model. Postgres (5432) still rides the mesh (mTLS intact); only the S3 upload goes direct.
         traffic.sidecar.istio.io/excludeOutboundPorts: "9000"
     spec:
-      # Pinned to mother (2026-11-17, before timberback's onboarding taint was lifted): mlflow-lan is a Local-policy
-      # NodePort pinned to rogueone, so it answers only on the pod's node, and the Ray worker dials 192.168.1.243:30500.
-      # Moving mlflow to timberback is an open owner decision (B134 follow-up); this keeps today's behaviour until then.
+      # Pinned to mother for good (ADR-0013, 2026-11-17): mlflow-lan is a Local-policy NodePort pinned to rogueone,
+      # so it answers only on the pod's node, and every caller dials 192.168.1.243:30500. Do not switch it to the
+      # Cluster policy: that would open the unauthenticated MLflow to the whole LAN.
       nodeSelector:
         kubernetes.io/hostname: mother
       containers:
@@ -202,7 +202,7 @@ metadata:
     app: mlflow
 spec:
   type: NodePort
-  externalTrafficPolicy: Local   # preserve the client source IP so the host nft rule can pin :30500 to rogueone
+  externalTrafficPolicy: Local   # preserve the client source IP so the NetworkPolicy ipBlock (netpol.yaml) can pin :30500 to rogueone (ADR-0013)
   selector:
     app: mlflow
   ports:
