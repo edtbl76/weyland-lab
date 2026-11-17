@@ -98,7 +98,7 @@ LanceDB, Redpanda, Feast). Which dataset lives where: [data-domain-storage-grid.
 - [superset.md](runbooks/superset.md) — Superset (B65 Tier-2 #3): ad-hoc BI/SQL over Trino, Keycloak OIDC
 - [timberback.md](runbooks/timberback.md) — the k3s GPU worker (ADR-0012): btrfs snapshots + rollback, NVIDIA driver/kernel changes, GPU pods, the onboarding taint, rebuild
 - [timescaledb.md](runbooks/timescaledb.md) — TimescaleDB time-series store (B65 Tier-2)
-- [transcription-whisper.md](runbooks/transcription-whisper.md) — whisper.cpp STT (CT 103) + OpenAI shim
+- [transcription-whisper.md](runbooks/transcription-whisper.md) — whisper.cpp STT on timberback's GPU (k8s `whisper`) + OpenAI shim
 - [trino.md](runbooks/trino.md) — Trino federation query engine (native-Nessie iceberg + postgresql catalogs)
 - [repo-coverage.md](runbooks/repo-coverage.md) — repo coverage parity (B138): `repos.yaml` SoT + `check-repo-coverage.sh` drift guard + `onboard-repo.sh`; reconcile every repo-watching lane (pr/catalog/scan/ci/backup/iac) to one canonical list
 - [unleash.md](runbooks/unleash.md) — Unleash (B43, feature-mgmt): OSS feature flags, meshed Postgres, → Port `feature_flag` webhook; secret-paste + inotify gotchas

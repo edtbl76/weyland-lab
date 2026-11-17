@@ -262,14 +262,14 @@ and its second-node target (`target`, B134: where it goes now that timberback is
 |---|---|---|
 | repo | `bash scripts/check-placement.sh` in `repo-guards` | a bad field or enum, an unknown host, a LikeC4 node / host-native component with no row, a pvc/host-path row marked movable |
 | live | `placement-coverage` CronJob (monitoring, 03:40 NY) | a running Deployment/StatefulSet/DaemonSet/CronJob, active rogueone service/timer or Proxmox guest with no row; a row naming nothing running (unless `on_demand`) |
-| host | `placement_check.py --hosts` inside the nightly `machine-inv-drift` (rogueone, 03:45 NY; Kuma → Telegram) — B180 | on mother, rogueone and whisper: a unit or `host_config` file with a repo `source` that is missing or differs from it (comment-only differences pass), a unit file in `/etc/systemd/system` or `~/.config/systemd/user` with no row (and not in `host_os_units`), a failed unit, a timer that never fired or last fired more than 2x its `every` ago |
+| host | `placement_check.py --hosts` inside the nightly `machine-inv-drift` (rogueone, 03:45 NY; Kuma → Telegram) — B180 | on mother, rogueone and timberback: a unit or `host_config` file with a repo `source` that is missing or differs from it (comment-only differences pass), a unit file in `/etc/systemd/system` or `~/.config/systemd/user` with no row (and not in `host_os_units`), a failed unit, a timer that never fired or last fired more than 2x its `every` ago |
 
-The repo check also asserts that every host file under `nodes/*/host/`, `nodes/rogueone/{systemd,apparmor}/`,
-`nodes/weyland/whisper/` and the `services/*/*.service` units is referenced by exactly one row, and that each `source`
+The repo check also asserts that every host file under `nodes/*/host/`, `nodes/rogueone/{systemd,apparmor}/`
+and the `services/*/*.service` units is referenced by exactly one row, and that each `source`
 exists. The host check reaches each host by its `access` field in `hosts:` (`local`, `ssh emangini@mother`,
-`ssh root@weyland pct exec 103`). Unit and config rows also appear in Port as `installed_package` kinds
+`ssh emangini@timberback`; a Proxmox guest would use `ssh root@weyland pct exec <ctid>`). Unit and config rows also appear in Port as `installed_package` kinds
 `systemd-unit` / `host-config` (status `system`), emitted with the machine inventory; a guest that is not a cataloged
-machine (whisper) is filed under the host it `runs_on`.
+machine is filed under the host it `runs_on` (whisper CT 103 was the case until it was destroyed, 2026-11-17).
 
 The live check reads Prometheus only: kube-state-metrics, pve-exporter, and rogueone's systemd-only node-exporter
 (job `systemd-rogueone`, config `nodes/rogueone/systemd/prometheus-node-exporter.default`). rogueone is read over the

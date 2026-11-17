@@ -48,7 +48,7 @@ result joins the machine-inventory result in one Kuma heartbeat.
 sequenceDiagram
     participant D as machine-inv-drift (rogueone, 03:45 NY)
     participant F as placement.yaml (origin/main worktree)
-    participant H as host (local, ssh mother, ssh weyland pct exec 103)
+    participant H as host (local, ssh mother, ssh timberback)
     participant G as repo copies (source)
     participant K as Uptime Kuma to Telegram
     D->>F: unit and host_config rows per host, with access

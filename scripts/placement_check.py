@@ -58,8 +58,6 @@ HOST_FILE_GLOBS = (
     "nodes/*/host/**/*",
     "nodes/rogueone/systemd/*",
     "nodes/rogueone/apparmor/*",
-    "nodes/weyland/whisper/*.service",
-    "nodes/weyland/whisper/shim.py",
     "nodes/mother/lab/weyland-platform/services/*/*.service",
 )
 UNIT_PREFIXES = (SYSTEMD, USER_SYSTEMD)

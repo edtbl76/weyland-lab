@@ -549,7 +549,7 @@ above too.
 |---|---|---|---|
 | Ollama (LLM, rogueone GPU) | `curl -s http://192.168.1.230:11434/api/tags` | [model-serving-ollama](../runbooks/model-serving-ollama.md) | [voice-chat](../demos/voice-chat.md) |
 | LiteLLM gateway (hosted models, NodePort 30400) | `curl -s http://mother:30400/health/liveliness` | [model-gateway](../runbooks/model-gateway.md) | [model-gateway](../demos/model-gateway.md) |
-| whisper (STT, CT 103) | `TODO: verify` (native `:8080/inference` is POST-only; no health route) | [transcription-whisper](../runbooks/transcription-whisper.md) | [voice-chat](../demos/voice-chat.md) |
+| whisper (STT, k8s `whisper` on timberback) | `curl -s http://192.168.1.233:30901/v1/audio/transcriptions -F file=@/home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/whisper-cuda/jfk.wav -F model=whisper-1 -F response_format=json` (POST-only; no health route) | [transcription-whisper](../runbooks/transcription-whisper.md) | [voice-chat](../demos/voice-chat.md) |
 
 ### Platform / ops
 

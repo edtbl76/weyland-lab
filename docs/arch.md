@@ -58,7 +58,7 @@ LXC containers:
 weyland (MS-A2, Proxmox, 192.168.1.232)
 ├── vm-101  mother     192.168.1.243   k3s AI platform
 ├── ct-102  ollama     RETIRED (B79 → moved to rogueone; 32 GB reclaimed → mother 50→64 GB)
-├── ct-103  whisper    192.168.1.246   whisper.cpp CPU STT — BEING RETIRED (moved to timberback's GPU 2026-11-14, B134)
+├── ct-103  whisper    RETIRED 2026-11-17 (destroyed; STT moved to timberback's GPU 2026-11-14, B134)
 └── ct-104  hermes     (RETIRED 2026-07-23 — destroyed; B66 operator replaces it on mother k8s)
 rogueone (laptop, 192.168.1.230, RTX 5000 Ada 16 GB) — external; vLLM + dev + Claude Code
 ```
@@ -73,7 +73,7 @@ rogueone (laptop, 192.168.1.230, RTX 5000 Ada 16 GB) — external; vLLM + dev + 
 | **mother** | VM vm-101, k3s | .243 | `emangini@mother` | Shared AI platform: tool-server, vector/graph stores, Dagster, UIs, observability, MinIO, DNS, ingress. |
 | **rogueone** | Laptop, RTX 5000 Ada 16 GB | .230 | `edwardmangini@rogueone` | GPU inference (vLLM) + **Ollama** (B79 — moved off CT-102 2026-07-12; `:11434` LAN-bound, serves the eval-judge panel + tool-server/open-webui + the B66 operator brain) + dev workstation + Claude Code (MCP client) + **permanent native Ray edge worker** (`ray-worker.service` → mother's Ray head) + remote model training (`genre-trainer`) + **restic backup** (B130 — encrypted incremental → MinIO `rogueone-backup`, daily 02:30; the local-only gap = dotfiles/config/`.claude`-memory/secrets/curated-Documents + allow-listed repos' untracked; Port dashboard + Kuma dead-man's-switch; [runbooks/backups.md](runbooks/backups.md)) + the **software-factory conveyor** (B179, 2026-10-12 — the Emdash desktop app's `agent-ready-nightly` automation has Claude Code take the oldest `agent-ready` Linear issue into a local worktree at 04:00, push off; freshness = `emdash-conveyor-watch` → Kuma; [runbooks/software-factory.md](runbooks/software-factory.md)). Not always-on. |
 | ~~**ollama** (CT 102)~~ **RETIRED B79** | — | — | — | Moved to rogueone (`.230:11434`, 2026-07-12) → 32 GB reclaimed → mother 50→64 GB. |
-| **whisper** | LXC CT 103 | .246 | via `weyland` host | CPU STT (whisper.cpp + OpenAI shim). |
+| ~~**whisper** (CT 103)~~ **RETIRED B134** | — | — | — | Destroyed 2026-11-17. STT runs on timberback's GPU as the k8s app `whisper` (whisper.cpp CUDA + OpenAI shim). |
 | ~~hermes~~ RETIRED | ~~LXC CT 104~~ destroyed 2026-07-23 | — | — | **Decommissioned** (B2, NousResearch framework). Replaced by the **B66 operator agent** — a LangGraph pod on mother (local `qwen2.5:7b` brain + Haiku failover, Telegram long-poll, tool-server `/mcp-act`). |
 
 **Boundaries (intentional):** the **VM boundary** = lifecycle / blast-radius / rollback; the
@@ -101,7 +101,7 @@ supersedes the cancelled B12 (a static registry without the lifecycle).
   Everything else forwards to 1.1.1.1/9.9.9.9.
 - **Traefik** (k3s ingress) terminates **TLS** for the `*.weyland.lab` UIs using an mkcert wildcard cert.
 - **rogueone** also keeps `/etc/hosts` entries for `*.weyland.lab` (it isn't pointed at CoreDNS).
-- **DHCP reservations** pin whisper CT (`.246`) + rogueone (`.230`) so endpoint URLs stay stable.
+- **DHCP reservations** pin rogueone (`.230`) so endpoint URLs stay stable; timberback (`.233`) is static (netplan). whisper's `.246` reservation is free since CT 103 was destroyed (2026-11-17).
 - **Addressing convention:** k3s services -> `mother:<NodePort>` or `*.weyland.lab` (Traefik);
   standalone CTs -> reserved IP / `*.weyland.lab`; in-cluster-only -> `*.weyland.svc`.
 
@@ -962,7 +962,7 @@ full roster: `design/application-taxonomy.md`. Concept page: [concepts/applicati
 | Path | Where | Engine | Use |
 |---|---|---|---|
 | **Large LLMs (capacity)** | rogueone (GPU) | Ollama (GGUF) | RAG generation, eval-judge, batch — 6 models; moved off the retired CT-102 CPU (B79), now GPU-served. Prefer MoE (low active params). |
-| **STT** | weyland CT 103 (CPU) | whisper.cpp `large-v3` | voice -> text, faster-than-real-time; OpenAI-shim for drop-in clients. |
+| **STT** | timberback (GPU, k8s `whisper`) | whisper.cpp `large-v3` (CUDA) | voice -> text, ~0.2-0.3 s for an 11 s clip (CT 103's CPU took ~12 s; moved B134); OpenAI-shim for drop-in clients. |
 | **Throughput/batch serving (bench)** | rogueone (GPU) | vLLM | **B111 on-demand GPU bench** — `Qwen2.5-7B-Instruct-AWQ` (7B 4-bit = 16GB-card sweet spot), `:8001`, Bifrost `vllm` provider. Why an engine vs Ollama: **continuous batching** — measured **~15× throughput (88.9→1329.5 tok/s, conc 1→16) at ~flat latency**, because decode is memory-bandwidth-bound and batching amortizes the per-token weight-read across requests. On-demand, **native Docker engine** (`DOCKER_HOST=…docker.sock`; Desktop=no GPU), VRAM hard-capped (`--gpu-memory-utilization 0.55`; too low → negative KV cache). `scripts/vllm-bench.sh`. [demos/gpu-inference.md](demos/gpu-inference.md) · [runbooks/gpu-inference.md](runbooks/gpu-inference.md). |
 | **Prefix-cache serving (bench)** | rogueone (GPU) | SGLang | **B111 on-demand GPU bench** — `Llama-3.2-1B`, `:8002`, Bifrost `sgl`. SGLang's distinct job vs vLLM = **RadixAttention prefix caching**: a repeated fat system-prompt / RAG-context prefix is prefilled once then reused — measured **~6.2× faster TTFT on cache hits (26ms vs 164ms)**, exactly the lab's agent/RAG shape. `--mem-fraction-static` goes HIGHER not lower (opposite of vLLM). **PD/prefill-decode disaggregation REJECTED** (needs ≥2 GPUs; CPU-decode dead on the non-AMX i9). `scripts/sglang-bench.sh`. **Three-engine serving:** Ollama=simple · vLLM=throughput · SGLang=prefix-cache. |
 | **Hosted models (escalation)** | (cloud) via mother **LiteLLM** | Gemini + OpenRouter (free tiers) | stronger-than-local brains on demand; API-key (no subscription/ToS issue); human-gated egress. |

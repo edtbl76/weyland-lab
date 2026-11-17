@@ -1,15 +1,14 @@
-# Whisper STT Runbook — timberback GPU (k8s app `whisper`), replacing CT 103
+# Whisper STT Runbook — timberback GPU (k8s app `whisper`)
 
 Speech-to-text via **whisper.cpp**. Exposes its native `/inference` plus an OpenAI-compatible
 `/v1/audio/transcriptions` shim, so Open WebUI (and any OpenAI client) uses local whisper instead of a cloud STT.
 
-**Moving (B134 plan step 2, 2026-11-14):** from CPU-only CT 103 on the weyland Proxmox host to timberback's RTX 5070 Ti
-as the Argo app `whisper` (`k8s/whisper/`). The two run side by side until the new one is verified; then Open WebUI
-switches, CT 103 is stopped, and about a week later destroyed. The CT sections further down describe the old host until
-then.
+**History:** whisper ran CPU-only in LXC CT 103 on the weyland Proxmox host from 2026-06-12. B134 (plan step 2) moved it
+to timberback's RTX 5070 Ti as the Argo app `whisper` (`k8s/whisper/`) on 2026-11-14. CT 103 was stopped 2026-11-15
+and destroyed 2026-11-17; its code (`nodes/weyland/whisper/`) and OpenTofu record went with it (git history keeps both).
 
 **Related:** [timberback runbook](timberback.md) (GPU sharing, VRAM budget) · code: `services/whisper-cuda/` (image),
-`k8s/whisper/` (Deployment, Services, NetworkPolicy, alert) · legacy CT code: `nodes/weyland/whisper/`.
+`k8s/whisper/` (Deployment, Services, NetworkPolicy, alert).
 
 ## On timberback (k8s app `whisper`)
 
@@ -63,113 +62,15 @@ Expect (measured 2026-11-14 on timberback, 0.18-0.31 s for the 11 s clip; CT 103
 The words match CT 103 exactly. CT 103 returned the same text split into three segments, so its plain text has
 `\n` line breaks; the GPU decodes the clip as one segment. Compare words, not bytes.
 
-# Legacy: CT 103 on the weyland host (until retired)
-
-**STOPPED 2026-11-15** (`pct stop 103`, `pct set 103 --onboot 0`). Roll back with `pct start 103` from the weyland host
-(and repoint Open WebUI with `scripts/open_webui_curate.py`). Destroy about 2026-11-22; this section goes with it.
-
----
-
-**Live since 2026-06-12.** Unprivileged LXC `whisper` (CTID **103**) on the weyland Proxmox host.
-- **Address:** `192.168.1.246` (DHCP-reserved).
-  - `/inference` (native whisper.cpp) → `http://192.168.1.246:8080/inference`
-  - `/v1/audio/transcriptions` (OpenAI shim) → `http://192.168.1.246:9000/v1`
-- **Spec:** 8 cores · 8 GB RAM · 15 GB rootfs on `local-zfs` (NVMe) · `nesting=1` (Debian 12).
-- **Model:** `ggml-large-v3` (~3 GB, max accuracy; CPU is fast enough that turbo isn't needed).
-
-## Access
-Through the Proxmox host (no direct login): `ssh emangini@weyland` → `pct enter 103` → `root@whisper`.
-One-offs: `pct exec 103 -- <cmd>`. Files in from the host: `pct push 103 <host-file> <ct-path>`.
-
-## Create the container (on weyland host)
-```bash
-pct create 103 local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst --hostname whisper --unprivileged 1 --rootfs local-zfs:15
-pct set 103 --net0 name=eth0,bridge=vmbr0,ip=dhcp
-pct set 103 --cores 8 --memory 8192 --swap 0 --onboot 1 --features nesting=1
-pct start 103
-pct exec 103 -- ip -4 addr show eth0     # note the DHCP IP (192.168.1.246); IPv4 lands a few s after start
-```
-
-## Build whisper.cpp (inside CT 103)
-```bash
-apt update && apt install -y build-essential cmake git curl ffmpeg
-git clone https://github.com/ggml-org/whisper.cpp
-cd whisper.cpp
-cmake -B build
-cmake --build build -j --config Release      # -> build/bin/{whisper-server,whisper-cli}
-sh ./models/download-ggml-model.sh large-v3   # ~3 GB -> models/ggml-large-v3.bin
-```
-cmake auto-detects AVX-512/FMA on the 9955HX. `ffmpeg` lets the
-server accept mp3/m4a/etc. (whisper wants 16 kHz mono WAV internally).
-
-## Quick CLI transcription (one-off, no server)
-```bash
-./build/bin/whisper-cli -m /root/whisper.cpp/models/ggml-large-v3.bin -f samples/jfk.wav
-```
-Handy for ad-hoc/local files; the server below is for the API path.
-
-## whisper-server (native /inference)
-Validated foreground run (CPU only — log shows `no GPU found`, `CPU total size = 3094.36 MB`):
-```bash
-./build/bin/whisper-server -m models/ggml-large-v3.bin --host 0.0.0.0 --port 8080 -t 4
-```
-Native test (multipart upload → `{"text": ...}`):
-```bash
-curl 127.0.0.1:8080/inference -F file=@samples/jfk.wav -F response_format=json
-```
-> The native server exposes **only** `/inference` (and `/load`) — **no** `/v1/audio/transcriptions`.
-> That's what the shim below adds.
-
-## OpenAI-compatible shim (/v1/audio/transcriptions)
-Code: `nodes/weyland/whisper/shim.py` — a ~40-line FastAPI adapter that forwards uploads to
-`/inference` and returns a **strict** OpenAI response (`{"text": ...}`). Strictness matters:
-some OpenAI clients fall back *silently* on response-shape drift, so the shim asks whisper for plain
-text and builds the JSON itself — no stray fields.
-
-**Deploy (3 files from `nodes/weyland/whisper/`).** On rogueone (repo root), stage to the host
-(**weyland is accessed as `root`**, unlike mother which is `emangini`):
-```bash
-rsync -a nodes/weyland/whisper/shim.py nodes/weyland/whisper/whisper-server.service nodes/weyland/whisper/whisper-shim.service root@weyland:~/
-```
-On the weyland host, push into CT 103:
-```bash
-pct exec 103 -- mkdir -p /root/whisper-shim
-pct push 103 /root/shim.py /root/whisper-shim/shim.py
-pct push 103 /root/whisper-server.service /etc/systemd/system/whisper-server.service
-pct push 103 /root/whisper-shim.service /etc/systemd/system/whisper-shim.service
-```
-Inside CT 103 — Python venv + deps, then enable both services (stop the foreground server first):
-```bash
-apt install -y python3-venv
-python3 -m venv /root/whisper-shim/venv
-/root/whisper-shim/venv/bin/pip install fastapi uvicorn httpx python-multipart
-systemctl daemon-reload
-systemctl enable --now whisper-server
-systemctl enable --now whisper-shim
-systemctl status whisper-server whisper-shim --no-pager
-```
-
-## Test the OpenAI path
-Inside CT 103 (then from rogueone via `http://192.168.1.246:9000`):
-```bash
-curl 127.0.0.1:9000/v1/audio/transcriptions -F file=@/root/whisper.cpp/samples/jfk.wav -F model=whisper-1 -F response_format=json
-```
-Expect strict `{"text":" And so my fellow Americans, ask not what your country can do for you..."}`.
-
 ## Consumers
 
 ### Open WebUI (recommended) — B13
 The robust consumer: a browser voice/chat UI that uses **Ollama for chat** and **this shim for
 voice-in** via Open WebUI's OpenAI-compatible Audio→STT setting (base URL
-`http://whisper.weyland.svc.cluster.local:9000/v1` since 2026-11-14, `http://192.168.1.246:9000/v1` before + any dummy key).
+`http://whisper.weyland.svc.cluster.local:9000/v1` + any dummy key).
 The value lives in Open WebUI's database; `scripts/open_webui_curate.py` owns it (`--check` reports drift). Stable, documented config that **fails open**
 (breaks one panel, not a whole agent). ✅ **Live & validated 2026-06-12** at
 `https://chat.weyland.lab` (mic → shim `POST /v1/audio/transcriptions` confirmed). Manifests:
 `nodes/mother/lab/weyland-platform/k8s/open-webui/`. See backlog B13.
 
 > OpenClaw removed 2026-07-17, to be revisited (B28).
-
-## TODO / tuning
-- [x] DHCP-reserve `192.168.1.246` on the router (done 2026-06-12).
-- [x] CoreDNS + rogueone `/etc/hosts`: `whisper.weyland.lab` → 192.168.1.246 (done 2026-06-12).
-- [ ] Benchmark real-time-factor on a long clip; tune `-t` in `whisper-server.service` if useful.

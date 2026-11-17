@@ -222,7 +222,7 @@ model {
     }
 
     // hermes CT (CT 104) RETIRED 2026-07-23 — destroyed; operator role → weyland.mother.ai.operator
-    whisper = node "whisper CT" "whisper.cpp (CT 103, .246) — CPU STT. BEING RETIRED (B134, 2026-11-14): replaced by timberback.whisper; stopped after the cutover, destroyed about a week later"
+    // whisper CT (CT 103) RETIRED 2026-11-17 — destroyed; STT runs on timberback.whisper (B134)
   }
 
   // ================= Relationships =================
@@ -250,7 +250,6 @@ model {
   weyland.mother.ops.obs.lancedbExporter -> weyland.mother.ops.obs.grafana "LanceDB row-count metrics"
   weyland.mother.ops.obs.kuma -> telegram "uptime alerts"
   rogueone.machineInvDrift -> weyland.mother "SSH: collect packages + host placement check"
-  rogueone.machineInvDrift -> weyland.whisper "SSH via pct exec 103: host placement check"
   rogueone.machineInvDrift -> port "emit + verify host / installed_package entities"
   rogueone.machineInvDrift -> weyland.mother.ops.obs.kuma "push heartbeat (down on an unreachable host, placement, Port, or a push-interval finding; catalog drift alone is up, PR named)"
   rogueone.machineInvDrift -> weyland.mother.ops.obs.kuma "kuma_push_check.py: read every push monitor's interval (sqlite3 -readonly via mother) vs runbooks/uptime-kuma.md"

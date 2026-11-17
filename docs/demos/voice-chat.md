@@ -47,24 +47,35 @@ sequenceDiagram
 
 ## CLI walkthrough
 
-Verify the shim end-to-end from inside CT 103 (whisper host is reached as `root@weyland` → `pct`),
-using the bundled JFK sample — one command, no placeholder:
+Verify the shim end-to-end from rogueone through the `whisper-lan` NodePort on timberback (`.233`; a Local-policy
+port, so it answers on the pod's node), using the JFK sample in the repo:
 
+[rogueone]
 ```
-[weyland] pct exec 103 -- curl -s 127.0.0.1:9000/v1/audio/transcriptions -F file=@/root/whisper.cpp/samples/jfk.wav -F model=whisper-1 -F response_format=json
-```
-
-Verify the native whisper-server path the shim forwards to:
-
-```
-[weyland] pct exec 103 -- curl -s 127.0.0.1:8080/inference -F file=@/root/whisper.cpp/samples/jfk.wav -F response_format=json
+curl -s http://192.168.1.233:30901/v1/audio/transcriptions -F file=@/home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/whisper-cuda/jfk.wav -F model=whisper-1 -F response_format=json
 ```
 
-Confirm both services are up:
+Expect (run 2026-11-17): `{"text":"And so my fellow Americans, ask not what your country can do for you, ask what you can do for your country."}`
 
+Verify the native whisper-server path the shim forwards to (port 30881):
+
+[rogueone]
 ```
-[weyland] pct exec 103 -- systemctl status whisper-server whisper-shim --no-pager
+curl -s http://192.168.1.233:30881/inference -F file=@/home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/whisper-cuda/jfk.wav -F response_format=json
 ```
+
+Expect a `{"text": ...}` JSON reply with the speech as two segments. Called bare like this, with none of the shim's
+request parameters, the native path decoded the second half wrongly on 2026-11-17 ("but what your country can do for
+you"). The shim path above is the one consumers use, and it is correct.
+
+Confirm the pod is up on timberback (both containers, `whisper-server` and the shim):
+
+[rogueone]
+```
+kubectl -n weyland get pods -l app=whisper -o wide
+```
+
+Expect one pod, `2/2 Running`, on node `timberback`.
 
 Confirm the chat backend (Ollama) is reachable from the LAN:
 

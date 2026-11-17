@@ -101,14 +101,23 @@ The provider's **source type (`port-labs`) ≠ its resource prefix (`port_`)**. 
 > only reads, that token is enough to check the record against Proxmox, but it is not kept in `.env`.
 > Check the live guest set without any token: `pve_guest_info` in Prometheus (command below).
 Guests were imported brownfield (CLI `tofu import <addr> <node>/<vmid>`, e.g. `weyland/103`). **Live on Proxmox as
-of 2026-11-08: only VM mother (101, `proxmox_virtual_environment_vm`) and CT whisper (103,
-`proxmox_virtual_environment_container`)** (checked through `pve_guest_info`). Hermes (CT 104) was destroyed
+of 2026-11-17: only VM mother (101, `proxmox_virtual_environment_vm`)** (checked through `pve_guest_info`). CT whisper
+(103) was destroyed 2026-11-17 (B134 moved whisper to timberback's GPU); `whisper.tf` is deleted and its resource
+removed from state with the command below. Hermes (CT 104) was destroyed
 2026-07-23 and its resource is gone from the code. **Drift fixed by B239 (2026-11-08):** `openclaw.tf` (VM 100,
 OpenClaw dropped) and `ollama.tf` (CT 102, Ollama moved to rogueone in B79) declared guests that no longer existed,
 so a `tofu apply` would have tried to recreate them. Both files are deleted and both resources removed from state
-(`tofu state rm`, owner, 2026-11-08: "Successfully removed 2 resource instance(s)"). The state now lists exactly
-`proxmox_virtual_environment_vm.mother` and `proxmox_virtual_environment_container.whisper`, the two guests Proxmox
-runs (`tofu state list` needs only the MinIO backend credentials in `scripts/.env`). The live set is checked with
+(`tofu state rm`, owner, 2026-11-08: "Successfully removed 2 resource instance(s)"). After CT 103's removal (2026-11-17) the state
+lists exactly `proxmox_virtual_environment_vm.mother`, the one guest Proxmox runs (`tofu state list` needs only the
+MinIO backend credentials in `scripts/.env`).
+
+Remove a destroyed guest from the record (after `pct destroy` / `qm destroy` on weyland, and with its `.tf` deleted):
+
+[rogueone]
+```
+cd /home/edwardmangini/IdeaProjects/weyland && set -a && . scripts/.env && set +a && tofu -chdir=nodes/mother/lab/weyland-platform/tofu/proxmox state rm proxmox_virtual_environment_container.whisper && tofu -chdir=nodes/mother/lab/weyland-platform/tofu/proxmox state list
+```
+ The live set is checked with
 `pve_guest_info` in Prometheus (`curl -s 'http://192.168.1.243:30909/api/v1/query' --data-urlencode 'query=pve_guest_info'`). Auth: API token — `PROXMOX_VE_API_TOKEN='root@pam!tofu=<uuid>'` (create in
 Datacenter→Permissions→API Tokens, **Privilege Separation OFF**) + `PROXMOX_VE_ENDPOINT='https://weyland:8006/'`;
 provider `insecure = true` (self-signed cert). No phantom here — bpg's source type (`proxmox`) == resource prefix.
