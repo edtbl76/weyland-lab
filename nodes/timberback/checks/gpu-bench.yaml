@@ -1,0 +1,75 @@
+# One-off GPU benchmark for timberback (B134 acceptance criterion: measured tokens/s for an 8B and a 70B-class model).
+# NOT deployed by Argo: applied by hand, deleted after. Procedure and results: docs/runbooks/timberback.md § GPU benchmark.
+#
+# Image: llama.cpp full-cuda build b12033 (commit 2026-11-01, >= 14 days old at use), pinned by digest. Checked
+# 2026-11-17: libggml-cuda.so carries native sm_120a SASS (RTX 5070 Ti / Blackwell), so no PTX JIT at start.
+# Models (ungated, sha256 from the Hugging Face API, checked on download):
+#   8B   Qwen/Qwen3-8B-GGUF  Qwen3-8B-Q4_K_M.gguf                              5.0 GB   fully on the GPU
+#   70B  bartowski/Llama-3.3-70B-Instruct-GGUF  Llama-3.3-70B-Instruct-Q4_K_M.gguf  42.5 GB  does NOT fit 16 GB VRAM:
+#        run CPU-only (-ngl 0) and with 18 layers offloaded (about what fits beside whisper's ~4 GB)
+# One GPU time-slice (nvidia.com/gpu: 1); VRAM is shared with whisper, so the 70B offload stays modest.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: timberback-gpu-bench
+  namespace: weyland
+  labels:
+    app: timberback-gpu-bench
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 7200
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: timberback-gpu-bench
+        sidecar.istio.io/inject: "false"
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: timberback
+      tolerations:
+        - key: weyland.lab/onboarding
+          operator: Exists
+          effect: NoSchedule
+      runtimeClassName: nvidia
+      initContainers:
+        - name: fetch-models
+          image: ghcr.io/ggml-org/llama.cpp:full-cuda-b12033@sha256:0ae61194d97f4fddf23ebffb0e23de97520cd169554d1a388bc607903a0e1659
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              get() {  # <repo> <file> <sha256>
+                curl -fL --retry 3 -s -o "/models/$2" "https://huggingface.co/$1/resolve/main/$2"
+                echo "$3  /models/$2" | sha256sum -c
+              }
+              get Qwen/Qwen3-8B-GGUF Qwen3-8B-Q4_K_M.gguf d98cdcbd03e17ce47681435b5150e34c1417f50b5c0019dd560e4882c5745785
+              get bartowski/Llama-3.3-70B-Instruct-GGUF Llama-3.3-70B-Instruct-Q4_K_M.gguf 32df3baccb556f9840059b2528b2dee4d3d516b24afdfb9d0c56ff5f63e3a664
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          volumeMounts:
+            - { name: models, mountPath: /models }
+      containers:
+        - name: bench
+          image: ghcr.io/ggml-org/llama.cpp:full-cuda-b12033@sha256:0ae61194d97f4fddf23ebffb0e23de97520cd169554d1a388bc607903a0e1659
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader
+              echo "### 8B, fully on the GPU"
+              /app/llama-bench -m /models/Qwen3-8B-Q4_K_M.gguf -ngl 99 -p 512 -n 128 -r 3 -o md
+              echo "### 70B-class, CPU-only and with 18 layers on the GPU"
+              /app/llama-bench -m /models/Llama-3.3-70B-Instruct-Q4_K_M.gguf -ngl 0,18 -t 16 -p 512 -n 64 -r 2 -o md
+          resources:
+            requests: { cpu: "8", memory: 8Gi }
+            limits:
+              memory: 56Gi
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - { name: models, mountPath: /models }
+      volumes:
+        - name: models
+          emptyDir: { sizeLimit: 60Gi }

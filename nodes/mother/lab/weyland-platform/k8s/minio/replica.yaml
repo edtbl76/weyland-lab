@@ -169,7 +169,11 @@ spec:
                     start="$(date -u +%Y-%m-%dT%H:%M:%S)"
                     # To a file, not a pipe: sh has no pipefail, and a failed mirror must fail the Job (set -e). The
                     # per-object lines stay out of the log (a first copy is ~a million lines into Loki); a count is kept.
-                    mc mirror --overwrite --remove --quiet "src/$b" "dst/$b" > /tmp/mirror.log
+                    # --retry: retry a failed object on its own instead of aborting the run. 2026-11-17: one registry blob
+                    # read back empty from mother's USB disk (ContentLength=10463496 with Body length 0) and killed the
+                    # whole copy; read three times afterwards it was intact (sha256 = its content address). An object that
+                    # keeps failing still fails the Job: the mirror exits non-zero, and `mc diff` below reports it missing.
+                    mc mirror --overwrite --remove --retry --quiet "src/$b" "dst/$b" > /tmp/mirror.log
                     copied="$(wc -l < /tmp/mirror.log)"
                     # Verify, don't assume (2026-11-16 redesign: a strict `mc diff` failed on loki-chunks, which Loki
                     # writes by the second). `mc diff` exits 0 whether or not buckets differ and 1 when it cannot read

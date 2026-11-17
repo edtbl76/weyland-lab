@@ -230,6 +230,39 @@ each process's memory):
 nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv
 ```
 
+## GPU benchmark (B134, 2026-11-17)
+
+What this card actually does, measured with llama.cpp's `llama-bench` (build b12033, native `sm_120a` code) on one GPU
+time-slice beside whisper (4 GB of VRAM in use). One-off Job `nodes/timberback/checks/gpu-bench.yaml` (applied by hand,
+deleted after; it downloads both models, checks their SHA-256, and runs the benchmark), 18 minutes end to end.
+
+| Model | Placement | Prompt (512 tokens) | Generation |
+|---|---|---|---|
+| Qwen3-8B Q4_K_M (4.7 GiB) | fully on the GPU | 7,506 tokens/s | **149 tokens/s** |
+| Llama-3.3-70B-Instruct Q4_K_M (39.6 GiB) | CPU only (`-ngl 0`, 16 threads) | 194 tokens/s | **1.4 tokens/s** |
+| Llama-3.3-70B-Instruct Q4_K_M | 18 layers on the GPU | 235 tokens/s | **1.8 tokens/s** |
+
+A model that fits in VRAM is fast; a 70B does not fit in 16 GB and is memory-bandwidth bound (nearly all of it is in
+system RAM, read once per generated token), so it runs but is impractical for chat. The useful range for this card is
+models up to roughly the low teens of billions of parameters at 4-bit, within the VRAM budget above.
+
+Re-run after a driver, CUDA or llama.cpp change (the Job's image is pinned by digest; bump it deliberately):
+
+[rogueone]
+```
+kubectl apply -f /home/edwardmangini/IdeaProjects/weyland/nodes/timberback/checks/gpu-bench.yaml
+```
+
+[rogueone]
+```
+kubectl -n weyland logs -f job/timberback-gpu-bench -c bench
+```
+
+[rogueone]
+```
+kubectl -n weyland delete job timberback-gpu-bench
+```
+
 ## The onboarding taint
 
 timberback joined with `weyland.lab/onboarding=true:NoSchedule`, so **nothing moves to it** until the taint is
