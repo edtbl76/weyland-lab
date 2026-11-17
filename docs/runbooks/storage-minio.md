@@ -310,8 +310,11 @@ early in `datasets`, whose many small lakeFS objects make `mc mirror` / `mc diff
 2. **Restore one object, or an older version of it**, from any pod with `mc` and the credentials (the sync Job's image
    and env): `mc ls --versions dst/<bucket>/<key>` lists the history; `mc cp --version-id <id> dst/<bucket>/<key> src/<bucket>/<key>`
    puts that version back on the primary.
-3. **Restore drill (first run 2026-11-17, PASSED; repeat after any change to the sync):** from any pod with `mc` and the
-   credentials (the sync Job's image and env), with `dst` the replica:
+3. **Restore drill (first run 2026-11-17, PASSED; re-run 2026-11-17 as a Job, PASSED; repeat after any change to the sync):**
+   the one-shot read-only Job `nodes/timberback/checks/minio-replica-drill.yaml` runs all three checks below and fails
+   closed (`kubectl apply -f /home/edwardmangini/IdeaProjects/weyland/nodes/timberback/checks/minio-replica-drill.yaml`,
+   then `kubectl -n minio logs job/minio-replica-drill`; walkthrough in `docs/demos/backup-restore.md` § MinIO replica).
+   By hand: from any pod with `mc` and the credentials (the sync Job's image and env), with `dst` the replica:
    - **a Postgres dump:** `mc cat dst/pg-dumps/<newest>.sql.gz | sha256sum` equals `sha256sum` of the same file in
      `/mnt/minio/backups/pg/` on mother, and `mc cat dst/pg-dumps/<newest>.sql.gz | gzip -t` passes. 2026-11-17:
      `weyland-all-20261117.sql.gz`, sha256 `a6099c51…` on both, gzip OK, `pg_dumpall` header present.

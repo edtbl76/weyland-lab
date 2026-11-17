@@ -8,6 +8,9 @@
 #   70B  bartowski/Llama-3.3-70B-Instruct-GGUF  Llama-3.3-70B-Instruct-Q4_K_M.gguf  42.5 GB  does NOT fit 16 GB VRAM:
 #        run CPU-only (-ngl 0) and with 18 layers offloaded (about what fits beside whisper's ~4 GB)
 # One GPU time-slice (nvidia.com/gpu: 1); VRAM is shared with whisper, so the 70B offload stays modest.
+#
+# SCAN TRIAGE (2026-11-17): the code-scan-suite reads this file, and kubescape flags C-0009/C-0050/C-0270 (CPU limits),
+# C-0211 (security context) and C-0237 (image signature): the house pattern recorded in k8s/minio/replica.yaml.
 apiVersion: batch/v1
 kind: Job
 metadata:

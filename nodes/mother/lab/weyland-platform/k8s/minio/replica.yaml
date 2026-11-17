@@ -10,6 +10,16 @@
 #
 # Same credentials as the primary (minio-creds): same trust boundary, one secret to rotate. In-cluster only (ClusterIP),
 # like the primary's own Service.
+#
+# SCAN TRIAGE (code-scan-suite, 2026-11-17, B134 DoD audit). This file adds 16 kubescape HIGH findings across
+# minio-replica, minio-replica-sync and minio-replica-pgdumps, recorded here as port-pr-reconcile.yaml records its own:
+#   C-0009 / C-0050 / C-0270 (resource + CPU limits) · C-0211 (security context) · C-0237 (image signature): the house
+#   pattern, identical to the existing backup jobs. Requests plus memory-only limits (a CPU limit throttles; the lab
+#   sets memory limits only), and unsigned upstream/registry images (signatures are B88 decision 2, verified in CI and
+#   by Gatekeeper's registry-prefix constraint, not by kubescape).
+#   C-0048 (HostPath mount) on minio-replica-pgdumps: deliberate. The core Postgres dumps are files on mother's disk
+#   (/mnt/minio/backups/pg, written by postgres-backup's own hostPath), so reading them needs the host path; it is
+#   mounted readOnly and the Job is pinned to mother.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

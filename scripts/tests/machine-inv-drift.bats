@@ -142,3 +142,27 @@ sync_stub() { # sync_stub <verify-rc> — an INV_CMD that logs "<verb> <MACHINE_
   [[ "$output" == *"Port not synced"* ]]
   [ ! -s "$SYNC_LOG" ]
 }
+
+# sot_hosts (2026-11-17): the nightly refresh scans every host the committed catalog lists. The list was hard-coded
+# (rogueone mother weyland), so timberback would never have been refreshed even after onboarding.
+@test "sot_hosts: lists every host in the catalog it is given" {
+  f="$BATS_TEST_TMPDIR/inv.yaml"
+  printf 'hosts:\n  rogueone: {role: ""}\n  mother: {role: ""}\n  timberback: {role: ""}\n' > "$f"
+  run sot_hosts "$f"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [ "$output" = "rogueone mother timberback" ] || { echo "$output"; return 1; }
+}
+
+@test "sot_hosts: a catalog with no hosts fails closed, named" {
+  f="$BATS_TEST_TMPDIR/inv.yaml"
+  printf 'hosts: {}\n' > "$f"
+  run sot_hosts "$f"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"lists no hosts"* ]] || { echo "$output"; return 1; }
+}
+
+@test "sot_hosts: an unreadable catalog fails closed, named" {
+  run sot_hosts "$BATS_TEST_TMPDIR/absent.yaml"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"cannot read"* ]] || { echo "$output"; return 1; }
+}

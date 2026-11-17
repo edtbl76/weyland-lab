@@ -195,9 +195,21 @@ NodePort had never worked (see MySQL below).
 | Component | Endpoint | Purpose |
 |---|---|---|
 | Ollama (rogueone, **B79**) | `ollama.weyland.lab:11434/v1` (.230) | **GPU** LLM serving on rogueone — moved off CT-102 2026-07-12 (freed 32 GB → mother 50→64 GB); 6 models; serves the eval-judge panel + tool-server/open-webui + the **B66 operator brain (`qwen2.5:7b`, local-primary; Haiku failover when the card can't serve)** + the MLflow gateway's guardrail judge (`qwen3:14b`, B215). `OLLAMA_HOST=127.0.0.1:11434` behind **`ollama-proxy.service`** (B211, 2026-10-22: nginx on `.230:11434` asks every remote caller for the `ollama-proxy-token` bearer token and refuses remote model management; ufw admits only mother + docker0). **Driver (B226):** the NVIDIA packages are held back from unattended-upgrades (`/etc/apt/apt.conf.d/51weyland-hold-nvidia`; rogueone boots one pinned kernel with a DKMS-built module, so module and driver drift only when a driver moves without a reboot — it ran nine days unseen, 2026-10-09 → 10-19), and the hourly `gpu-driver-drift` user timer pushes module-vs-driver to Kuma. |
+| ~~Hermes (CT 104)~~ RETIRED | — (destroyed 2026-07-23) | **Decommissioned** (B2, NousResearch agent). Replaced by the **B66 operator agent** — a LangGraph pod on mother, local `qwen2.5:7b` brain (curated flat toolset; Haiku health-failover), Telegram long-poll, tool-server `/mcp-act` (job-allowlist + confirm-step). Kanban (B27) → Linear. Design rationale kept in `concepts/agent-platform-design.md`. |
+
+### timberback (k3s GPU worker, since 2026-11-14 — ADR-0012, B134)
+The second k3s node: bare-metal Ryzen 9 9950X, 96 GB, RTX 5070 Ti 16 GB. No taint since 2026-11-17, so any workload not
+pinned to mother may schedule here. `placement.yaml` is the per-workload record; the rows below are the ones pinned to
+timberback on purpose. GPU sharing is time-sliced (4 slices, VRAM not isolated): the budget table is in
+[runbooks/timberback.md](runbooks/timberback.md).
+
+| Component | Endpoint | Purpose |
+|---|---|---|
 | whisper-server (k8s `whisper`, timberback GPU) | `whisper.weyland.svc:8080/inference`; rogueone `.233:30881` | native whisper.cpp STT (multipart), CUDA, ggml-large-v3; moved from CT 103 2026-11-14 (B134). |
 | whisper OpenAI shim (k8s `whisper`, timberback) | `whisper.weyland.svc:9000/v1/audio/transcriptions`; rogueone `.233:30901` | OpenAI-compatible STT adapter -> whisper-server (same pod). |
-| ~~Hermes (CT 104)~~ RETIRED | — (destroyed 2026-07-23) | **Decommissioned** (B2, NousResearch agent). Replaced by the **B66 operator agent** — a LangGraph pod on mother, local `qwen2.5:7b` brain (curated flat toolset; Haiku health-failover), Telegram long-poll, tool-server `/mcp-act` (job-allowlist + confirm-step). Kanban (B27) → Linear. Design rationale kept in `concepts/agent-platform-design.md`. |
+| llama-guard (k8s `llama-guard`, timberback GPU) | `llama-guard.weyland.svc:8080` (ClusterIP) | Llama-Guard-3-1B, the Classify layer weyland-guard calls (B115). On the GPU since 2026-11-17: ~50 ms a check and 1.7 GB VRAM, where mother's CPU took a median ~7.5 s and timed out (failing open) on up to 17% of checks a day. |
+| MinIO replica (k8s `minio-replica`, ns `minio`) | `minio-replica.minio.svc:9000` (ClusterIP, S3) | Nightly versioned copy of every MinIO bucket plus the core Postgres dump files: the lab's first backup on a second machine. Design in §10l. |
+| Moved stateless workloads | (their usual Services) | B134 moved trino, datahub-gms, weyland-guard, litellm, weyland-agent, langfuse-web and the Superset worker here; the stores stay on mother (local-path PVs). |
 
 ### rogueone
 | Component | Endpoint | Purpose |
@@ -1870,6 +1882,46 @@ per test where the runner has a reporter (built in, or one pinned package instal
 per project for the six lanes with none (julia, haskell, ada, C, swift-tokamak, perl). Rollout detail:
 [concepts/test-visibility.md](concepts/test-visibility.md) § Rollout. The other repos are B238 (EMA-337) and stud.io
 EMA-336 (deferred), within the free plan's roughly 1M results a month (weyland-lab uses ~600k).
+
+---
+
+### 10l. A second machine for the backups — the MinIO replica (B134, 2026-11-16/17)
+
+**The gap it closes.** Until timberback joined, every backup in the lab lived on one disk: MinIO sits on mother's 8 TB
+USB drive, and so did the core Postgres dumps (plain files beside it), `rogueone-backup` (rogueone's restic repo) and
+the registry. One drive failure would have taken the data and its backups together (dr.md Closing Gaps 1, 3 and 4).
+
+**Comparative placement — how to get a second copy onto timberback:**
+
+| Option | Verdict | Why |
+|---|---|---|
+| **A second MinIO on timberback, filled nightly by `mc mirror`** (chosen) | adopt | The copy is a working S3 endpoint (restore = read from it, or mirror back), every bucket is copied without a list to maintain, and versioning plus a 30-day noncurrent-version rule gives history the old same-disk mirror never had. It reuses the lab's own image and credentials. |
+| MinIO server-side bucket replication | reject | Replicates continuously, so a bad delete or overwrite propagates within seconds. It is configured per bucket on the primary (22 today, new ones forgotten), and existing objects need a separate resync. A nightly pull keeps the primary untouched. |
+| MinIO site replication | reject | Active-active: it syncs IAM, policy and deletes in both directions. That is a cluster design, not a backup. |
+| restic from mother to timberback's disk | reject | Deduplicated, but a restore needs restic and a full snapshot read: the objects are not directly readable, and the registry and MLflow stay unusable until restored. |
+| An off-site copy (cloud) | out of scope | Not $0 at ~1 TB. Gap 5 (off-site) stays open in dr.md. |
+
+**Design decisions that carry the weight:**
+- **Verify, don't trust the mirror's exit code.** After the mirror, `mc diff` compares source and replica. An object the
+  replica lacks only fails the run if it **predates the sync**. Writes that land during the two-hour first copy (Loki
+  chunks, Tempo blocks) are counted as written-during-sync and caught by the next night's run. That split replaced a
+  strict diff that failed on live buckets (2026-11-16). An empty bucket list also fails, rather than reading as success.
+- **The dumps need their own job.** The core Postgres dumps are files in `/mnt/minio/backups/pg`, written by hostPath,
+  which MinIO does not list (the `backups` bucket shows 0 objects). `minio-replica-pgdumps` (00:30 NY, on mother)
+  copies them into the replica's versioned `pg-dumps` bucket and checks each file's size, failing closed when there
+  are none.
+- **Sized for the largest listing.** The sync runs on timberback with a 6 Gi limit: 1 Gi was OOM-killed listing
+  `datasets`. `--retry` absorbs transient short reads on large registry blobs (the one seen on the first copy was checked by sha and was intact).
+- **Same credentials, in-cluster only.** The replica uses `minio-creds` and a ClusterIP Service, so the trust boundary
+  and the secret to rotate do not change.
+
+**Proven before done (2026-11-17):** the first full copy verified 22 buckets with 0 missing (1h54m); the dump job copied
+and size-checked 7 dumps. The restore drill read a dump back byte-identical (`gzip -t` OK), read a deleted Loki
+object's old version back from history, and read an MLflow artifact back byte-identical. Freshness and failed-job
+alerts cover both CronJobs (`cron-freshness-rules.yaml`). Same house, so still not off-site.
+
+Runbook: [storage-minio.md § Replica](runbooks/storage-minio.md). Flow: [flow-backup.md](diagrams/flow-backup.md).
+DR rows: [dr.md](dr.md). Placement: `placement.yaml` (`minio-replica`, `minio-replica-sync`, `minio-replica-pgdumps`).
 
 ## 11. Operational lessons (why the CTs are tuned the way they are)
 

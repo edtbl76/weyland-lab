@@ -33,12 +33,33 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="${MACHINE_INV_REPO:-edtbl76/weyland-lab}"
 BASE="${MACHINE_INV_BASE:-main}"
 BRANCH="${MACHINE_INV_DRIFT_BRANCH:-chore/machine-inventory-drift}"
-HOSTS="${MACHINE_INV_HOSTS:-rogueone mother weyland}"
+# Empty = scan every host the committed catalog lists (sot_hosts, read from the origin/main worktree in main).
+HOSTS="${MACHINE_INV_HOSTS:-}"
 COLLECT_CMD="${MACHINE_INV_COLLECT_CMD:-bash $REPO_ROOT/scripts/collect-machine-inventory.sh}"
 INV_CMD="${MACHINE_INV_PY_CMD:-python3 $REPO_ROOT/scripts/machine_inventory.py}"
 PORT_ENV="${MACHINE_INV_PORT_ENV:-$REPO_ROOT/nodes/mother/lab/weyland-platform/tofu/port/.env}"
 PLACEMENT_CMD="${MACHINE_INV_PLACEMENT_CMD:-python3 $REPO_ROOT/scripts/placement_check.py --hosts --file}"
 KUMA_CHECK_CMD="${MACHINE_INV_KUMA_CHECK_CMD:-python3 $REPO_ROOT/scripts/kuma_push_check.py}"
+
+# sot_hosts <machine-inventory.yaml> — the hosts the catalog lists, space-separated, in file order. Fails closed (non-zero,
+# named) on an unreadable file or an empty host list, so a broken catalog never reads as "nothing to scan". It was a
+# hard-coded list until 2026-11-17, which would have left an onboarded timberback out of every nightly refresh.
+sot_hosts() {
+  python3 - "$1" <<'PY'
+import sys
+import yaml
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        hosts = list((yaml.safe_load(f) or {}).get("hosts") or {})
+except (OSError, yaml.YAMLError) as exc:
+    print(f"cannot read the catalog {sys.argv[1]}: {exc}")
+    sys.exit(2)
+if not hosts:
+    print(f"the catalog {sys.argv[1]} lists no hosts")
+    sys.exit(1)
+print(" ".join(hosts))
+PY
+}
 
 # decide_signal <drift 0|1> <unreachable-hosts> <summary> [<placement-rc>] [<port-failed 0|1>] [<kuma-check-rc>] —
 # the pure Kuma/Telegram decision. Prints "<up|down>\t<msg>". `down` (→ Telegram) when the JOB or the estate failed:
@@ -147,8 +168,12 @@ main() {
   fi
 
   # 2) reconcile each REACHABLE host into the worktree's SoT (unreachable → skipped, never pruned)
-  local unreachable="" h
-  for h in $HOSTS; do
+  local unreachable="" h hosts="$HOSTS"
+  if [ -z "$hosts" ] && ! hosts="$(sot_hosts "$wt/machine-inventory.yaml")"; then
+    echo "!! $hosts — no host scanned" >&2
+    unreachable=" (catalog unreadable)"; hosts=""
+  fi
+  for h in $hosts; do
     if $COLLECT_CMD "$h" | MACHINE_INV_SOT="$wt/machine-inventory.yaml" $INV_CMD merge --prune "$h"; then :; else
       echo "!! could not scan $h (unreachable or empty) — skipped, catalog untouched for it" >&2
       unreachable="$unreachable $h"

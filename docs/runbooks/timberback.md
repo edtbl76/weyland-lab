@@ -289,6 +289,11 @@ rogueone before lifting the taint.
 **Found on the lift:** DaemonSets that did not tolerate the taint scheduled a pod on timberback at once. For Alloy that
 was wrong: it tails every pod through the Kubernetes API, so a second Alloy pod ships every log line twice. Alloy is
 pinned to mother (`k8s/loki/alloy-values.yaml`), and that one pod still collects both nodes' logs.
+**Found three hours later, by CI:** Woodpecker step pods were not pinned. A pipeline whose first step landed on
+timberback got its `local-path` workspace volume there, and `test-java`, which also mounts `ci-cache-maven` on mother,
+could schedule on neither node and sat Pending until the 3 h timeout killed CI #676. Every step pod is now pinned to
+mother (`WOODPECKER_BACKEND_K8S_POD_NODE_SELECTOR` in `k8s/woodpecker/woodpecker-values.yaml`); CI on timberback is
+B200's job. The lesson: a pod that mounts two `local-path` volumes needs them on one node, and nothing checks that.
 
 **Caveats that stay:**
 

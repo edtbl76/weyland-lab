@@ -647,7 +647,7 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
-# B115 — llama-guard: Classify layer of the guardrails platform, TIER 1. Llama-Guard-3-1B on CPU, always-on,
+# B115 — llama-guard: Classify layer of the guardrails platform, TIER 1. Llama-Guard-3-1B, always-on (on timberback's GPU since 2026-11-17; CPU on mother before),
 # served by llama.cpp (OpenAI-compatible). The default content-safety classifier weyland-guard calls. UNMESHED
 # (sidecar.istio.io/inject:false) so the on-boot HuggingFace GGUF pull stays off the mesh proxy-startup ordering.
 apiVersion: argoproj.io/v1alpha1

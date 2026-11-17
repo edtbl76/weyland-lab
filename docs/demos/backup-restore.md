@@ -46,3 +46,44 @@ cd /home/edwardmangini/IdeaProjects/weyland; set -a; . ./scripts/.env; set +a; T
 - The restore writes only to `/tmp/restore-test` — removed by the last command.
 - Each run creates one `backup` Port entity (kept — it's the history) and one restic snapshot (retention prunes to
   7d/4w/6m). A throwaway test entity is deletable via the Port API (`DELETE /v1/blueprints/backup/entities/<id>`).
+
+## MinIO replica on timberback — restore drill (B134)
+
+rogueone's restic repository lands in MinIO's `rogueone-backup` bucket. Since 2026-11-16, every bucket (that one
+included) and the core Postgres dump files are also copied nightly to a versioned MinIO on timberback, a second
+machine. This drill proves the copy restores, not just that the sync Job is green. Sequence diagram:
+[flow-minio-replica.md](../diagrams/flow-minio-replica.md). Runbook: [storage-minio.md § Replica](../runbooks/storage-minio.md).
+
+The drill is a one-shot, read-only Job (`nodes/timberback/checks/minio-replica-drill.yaml`). It writes nothing to
+either MinIO. Run it and wait:
+
+[rogueone]
+```
+kubectl apply -f /home/edwardmangini/IdeaProjects/weyland/nodes/timberback/checks/minio-replica-drill.yaml && kubectl -n minio wait --for=condition=complete --timeout=900s job/minio-replica-drill
+```
+
+Read the result:
+
+[rogueone]
+```
+kubectl -n minio logs job/minio-replica-drill
+```
+
+Expected (run 2026-11-17, `RESTORE DRILL PASSED`):
+
+- **1. the newest Postgres dump** (`weyland-all-20261117.sql.gz`): sha256 `a6099c51…` on mother's disk and on the
+  replica, and `gzip -t OK`.
+- **2. a deleted object's old version**: a `loki-chunks` object behind a delete marker reads back from history
+  (version `219fe4c3…`, 861 bytes).
+- **3. an MLflow model file older than a day**
+  (`mlflow/genre-classifier/1bdc6894…/artifacts/model/MLmodel`): sha256 `42116172…` on both.
+
+Any failed check prints `FAIL: <reason>` and the Job fails. An empty listing or a field it cannot parse counts as a
+failure, never as a pass.
+
+Teardown (the Job also expires 24 h after it finishes):
+
+[rogueone]
+```
+kubectl -n minio delete job minio-replica-drill
+```

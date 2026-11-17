@@ -8,6 +8,9 @@ check. Then it reports to **both** layers: a Port `backup` entity (the "see" das
 heartbeat (the dead-man's-switch → Telegram if it ever goes silent). Both reporters are fail-safe — a reporting
 outage never fails the backup.
 
+The restic repository lands in MinIO's `rogueone-backup` bucket, and since 2026-11-17 that bucket is also copied every
+night to the MinIO replica on timberback (a second machine): [flow-minio-replica.md](flow-minio-replica.md).
+
 ```mermaid
 sequenceDiagram
     participant T as systemd --user timer (02:30 NY)

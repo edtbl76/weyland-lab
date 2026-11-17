@@ -23,7 +23,7 @@ and **offline eval** (B84/MLflow) sit alongside as the act-safety and quality la
 
 ## Placement in the lab
 - **Scan** → weyland-guard (edge, all agents) — already there; optionally graft LLM Guard's scanner set.
-- **Classify** → **two tiers**: (a) **Llama-Guard-3-1B always-on on CPU (mother)** — the *default*, always-available classifier weyland-guard calls on every classify (Kokoro-style small service; no GPU contention/freeze, $0, no cold-start on the guard path); (b) **Llama-Guard-3-8B on-demand on the rogueone GPU** (vLLM, the B111 pattern) — the *stronger* escalation for calls that need a heavier verdict (e.g. the 1B is uncertain / high-risk context).
+- **Classify** → **two tiers**: (a) **Llama-Guard-3-1B always-on on CPU (mother)** (moved to timberback's GPU 2026-11-17, B134 follow-up: ~50 ms a check instead of ~7.5 s) — the *default*, always-available classifier weyland-guard calls on every classify (Kokoro-style small service; no GPU contention/freeze, $0, no cold-start on the guard path); (b) **Llama-Guard-3-8B on-demand on the rogueone GPU** (vLLM, the B111 pattern) — the *stronger* escalation for calls that need a heavier verdict (e.g. the 1B is uncertain / high-risk context).
 - **Dialog** → NeMo wrapping the **Open WebUI / chat** lane (topical control for the browser assistant, where dialogue policy matters).
 - **Structure** → Guardrails AI on structured-output agents/tasks.
 

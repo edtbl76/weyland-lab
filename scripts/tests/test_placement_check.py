@@ -310,8 +310,20 @@ def test_main_repo_mode_passes_on_a_clean_inventory(tmp_path, capsys):
     p.write_text(yaml.safe_dump(_doc()))
     m = tmp_path / "model.likec4"
     m.write_text(MODEL)
-    assert pc.main(["--repo", "--file", str(p), "--model", str(m)]) == 0
+    inv = tmp_path / "machine-inventory.yaml"
+    inv.write_text(yaml.safe_dump(_inv("weyland", "mother", "rogueone")))
+    assert pc.main(["--repo", "--file", str(p), "--model", str(m), "--inventory", str(inv)]) == 0
     assert "OK" in capsys.readouterr().out
+
+
+def test_main_repo_mode_is_2_when_the_machine_inventory_cannot_be_read(tmp_path, capsys):
+    import yaml
+    p = tmp_path / "placement.yaml"
+    p.write_text(yaml.safe_dump(_doc()))
+    m = tmp_path / "model.likec4"
+    m.write_text(MODEL)
+    assert pc.main(["--repo", "--file", str(p), "--model", str(m), "--inventory", str(tmp_path / "absent.yaml")]) == 2
+    assert "cannot read" in capsys.readouterr().err
 
 
 def test_main_repo_mode_is_1_on_drift(tmp_path, capsys):
@@ -424,6 +436,38 @@ def test_a_host_file_referenced_twice_is_a_finding(tmp_path):
     doc["host_config"] = [_hc(), _hc(id="file:mother/etc/other.conf", path="/etc/other.conf")]
     assert any("99-weyland-buildkit" in f and "2 inventory entries" in f
                for f in pc.check_repo_host_files(doc, str(tmp_path)))
+
+
+# --- machine inventory: every cataloged host is a machine in machine-inventory.yaml (2026-11-17) -------------------
+# timberback joined the cluster 2026-11-14 and ran for three days with no machine-inventory entry (so no Port host
+# entity) while every other check stayed green. An LXC guest is filed under the host it `runs_on`, so it is exempt.
+
+def _inv(*hosts):
+    return {"hosts": {h: {"role": "", "packages": []} for h in hosts}}
+
+
+def test_every_non_guest_host_has_a_machine_inventory_entry():
+    assert pc.check_machine_inventory(_doc(), _inv("weyland", "mother", "rogueone")) == []
+
+
+def test_a_host_missing_from_the_machine_inventory_is_a_finding_naming_the_fix():
+    findings = pc.check_machine_inventory(_doc(), _inv("weyland", "mother"))
+    assert len(findings) == 1, findings
+    assert "rogueone" in findings[0] and "no machine-inventory entry" in findings[0] and "onboard-machine" in findings[0]
+
+
+def test_an_lxc_guest_needs_no_machine_inventory_entry():
+    assert not any("whisper" in f for f in pc.check_machine_inventory(_doc(), _inv("weyland", "mother", "rogueone")))
+
+
+def test_a_machine_inventory_host_with_no_placement_host_is_a_finding():
+    findings = pc.check_machine_inventory(_doc(), _inv("weyland", "mother", "rogueone", "hermes"))
+    assert any("hermes" in f and "not a host in placement.yaml" in f for f in findings), findings
+
+
+def test_an_empty_machine_inventory_cannot_be_read_as_clean():
+    with pytest.raises(pc.CannotRead):
+        pc.check_machine_inventory(_doc(), {"hosts": {}})
 
 
 # --- B180: installed content vs git --------------------------------------------------------------------------------

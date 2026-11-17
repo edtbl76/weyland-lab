@@ -4993,3 +4993,114 @@ hosts:
     - name: zstd
       kind: apt
       status: system
+  timberback:
+    role: ''
+    packages:
+    - name: base-files
+      kind: apt
+      status: system
+    - name: bash
+      kind: apt
+      status: system
+    - name: bsdutils
+      kind: apt
+      status: system
+    - name: btrfs-progs
+      kind: apt
+      status: system
+    - name: dash
+      kind: apt
+      status: system
+    - name: diffutils
+      kind: apt
+      status: system
+    - name: efibootmgr
+      kind: apt
+      status: system
+    - name: findutils
+      kind: apt
+      status: system
+    - name: grep
+      kind: apt
+      status: system
+    - name: grub-efi-amd64
+      kind: apt
+      status: system
+    - name: grub-efi-amd64-signed
+      kind: apt
+      status: system
+    - name: gzip
+      kind: apt
+      status: system
+    - name: hostname
+      kind: apt
+      status: system
+    - name: init
+      kind: apt
+      status: system
+    - name: libnvidia-container-tools
+      kind: apt
+      status: system
+    - name: libnvidia-container1
+      kind: apt
+      status: system
+    - name: linux-generic-hwe-24.04
+      kind: apt
+      status: system
+    - name: linux-image-7.0.0-31-generic
+      kind: apt
+      status: system
+    - name: linux-modules-7.0.0-31-generic
+      kind: apt
+      status: system
+    - name: linux-modules-nvidia-595-open-generic-hwe-24.04
+      kind: apt
+      status: system
+    - name: login
+      kind: apt
+      status: system
+    - name: ncurses-base
+      kind: apt
+      status: system
+    - name: ncurses-bin
+      kind: apt
+      status: system
+    - name: nvidia-container-toolkit
+      kind: apt
+      status: system
+    - name: nvidia-container-toolkit-base
+      kind: apt
+      status: system
+    - name: nvidia-headless-595-open
+      kind: apt
+      status: system
+    - name: nvidia-utils-595
+      kind: apt
+      status: system
+    - name: openssh-server
+      kind: apt
+      status: system
+    - name: shim-signed
+      kind: apt
+      status: system
+    - name: snapper
+      kind: apt
+      status: system
+    - name: ubuntu-drivers-common
+      kind: apt
+      status: system
+    - name: ubuntu-minimal
+      kind: apt
+      status: system
+    - name: ubuntu-server
+      kind: apt
+      status: system
+    - name: ubuntu-server-minimal
+      kind: apt
+      status: system
+    - name: ubuntu-standard
+      kind: apt
+      status: system
+    - name: util-linux
+      kind: apt
+      status: system

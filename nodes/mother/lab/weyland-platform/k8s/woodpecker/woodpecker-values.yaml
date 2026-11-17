@@ -10,6 +10,12 @@ agent:
     WOODPECKER_BACKEND_K8S_STORAGE_CLASS: local-path
     WOODPECKER_BACKEND_K8S_VOLUME_SIZE: 5G
     WOODPECKER_BACKEND_K8S_STORAGE_RWX: false        # single-node k3s → local-path is RWO; steps run sequentially
+    # Every step pod on mother (2026-11-17). Lifting timberback's taint let a pipeline's first step land there, and
+    # local-path then created that pipeline's workspace volume on timberback. A later step that also mounts a CI cache
+    # (ci-cache-maven etc., local-path on mother) needed both nodes at once and sat Pending until the 3 h pipeline
+    # timeout killed it (CI #676: test-java, 0/2 nodes "didn't match PersistentVolume's node affinity"). Pinning every
+    # step pod keeps the workspace and the caches on one node. Running CI on timberback too is B200's job.
+    WOODPECKER_BACKEND_K8S_POD_NODE_SELECTOR: '{"kubernetes.io/hostname":"mother"}'
     # B153 — let a step opt into a dedicated ServiceAccount via backend_options.kubernetes.serviceAccountName.
     # OFF by default (privilege-escalation vector in MULTI-tenant clusters); safe here — this is a solo,
     # single-repo build farm. The golden-path-smoke step uses it to run as `golden-path-runner` instead of

@@ -1,0 +1,89 @@
+# MinIO replica restore drill (B134, DoD Pillar 9): proves the replica on timberback RESTORES, not just that the sync
+# Job is green. One-shot, read-only: it reads from the replica (and, for comparisons, the primary and the dump files on
+# mother) and writes nothing to either MinIO. Not Argo-managed: apply it, read the log, delete it.
+# Runbook: docs/runbooks/storage-minio.md § Replica. Demo: docs/demos/backup-restore.md § MinIO replica.
+#
+# Three checks, each fails the Job on its own (fail closed: an empty listing or an unparsed field is a failure):
+#   1. the newest Postgres dump on the replica is byte-identical (sha256) to the file on mother's disk, and gunzips;
+#   2. an object deleted upstream is still readable from the replica's history (an older version behind a delete marker);
+#   3. an MLflow model file older than a day is byte-identical on the replica and the primary.
+#
+# SCAN TRIAGE (2026-11-17): the code-scan-suite reads this file, and kubescape flags C-0009/C-0050/C-0270 (CPU limits),
+# C-0211 (security context) and C-0237 (image signature): the house pattern recorded in k8s/minio/replica.yaml.
+# C-0048 (HostPath) is deliberate: check 1 reads the dump files on mother's disk, mounted readOnly.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-replica-drill
+  namespace: minio
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 1800
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: mother     # check 1 reads the dump files, a host path on mother's USB disk
+      containers:
+        - name: drill
+          image: registry.weyland.lab/minio-client:cg-2026-10-22@sha256:f0b1d3d6ae12391d9bbe88345dee6da67027c93cda18dc5c9a463c2cc7d61b29
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile: { type: RuntimeDefault }
+          resources:
+            requests: { memory: 64Mi, cpu: 50m }
+            limits: { memory: 1Gi }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              mc alias set src http://minio.minio.svc.cluster.local:9000 "$MC_USER" "$MC_PASS" >/dev/null
+              mc alias set dst http://minio-replica.minio.svc.cluster.local:9000 "$MC_USER" "$MC_PASS" >/dev/null
+              fail=0
+
+              echo "== 1. newest Postgres dump: byte-identical and gunzips"
+              f="$(find /dumps -maxdepth 1 -name 'weyland-all-*.sql.gz' | sort | tail -1)"
+              if [ -z "$f" ]; then echo "   FAIL: no dump on disk"; fail=1; else
+                k="$(basename "$f")"
+                disk="$(sha256sum "$f" | cut -c1-64)"
+                repl="$(mc cat "dst/pg-dumps/$k" | sha256sum | cut -c1-64)"
+                echo "   $k disk=$disk replica=$repl"
+                [ "$disk" = "$repl" ] || { echo "   FAIL: sha256 differs"; fail=1; }
+                if mc cat "dst/pg-dumps/$k" | gzip -t; then echo "   gzip -t OK"; else echo "   FAIL: gzip -t"; fail=1; fi
+              fi
+
+              echo "== 2. a deleted object's old version reads back from history (loki-chunks)"
+              line="$(mc ls --versions --recursive --json dst/loki-chunks 2>/dev/null | grep -m1 '"isDeleteMarker":true' || true)"
+              key="$(echo "$line" | sed -n 's/.*"key":"\([^"]*\)".*/\1/p')"
+              if [ -z "$key" ]; then echo "   FAIL: no delete marker found (or the listing format changed): ${line:-empty}"; fail=1; else
+                old="$(mc ls --versions --json "dst/loki-chunks/$key" | grep -v '"isDeleteMarker":true' | head -1 | sed -n 's/.*"versionId":"\([^"]*\)".*/\1/p')"
+                if [ -z "$old" ]; then echo "   FAIL: $key has no older version"; fail=1; else
+                  n="$(mc cat --version-id "$old" "dst/loki-chunks/$key" | wc -c)"
+                  echo "   $key version $old: $n bytes"
+                  [ "$n" -gt 0 ] || { echo "   FAIL: empty read"; fail=1; }
+                fi
+              fi
+
+              echo "== 3. an MLflow model file older than a day: byte-identical on both"
+              m="$(mc find src/mlflow --name MLmodel --older-than 1d 2>/dev/null | head -1 || true)"
+              if [ -z "$m" ]; then echo "   FAIL: no MLmodel older than a day on the primary"; fail=1; else
+                rel="${m#src/}"
+                a="$(mc cat "src/$rel" | sha256sum | cut -c1-64)"
+                b="$(mc cat "dst/$rel" | sha256sum | cut -c1-64)"
+                echo "   $rel primary=$a replica=$b"
+                [ "$a" = "$b" ] || { echo "   FAIL: sha256 differs"; fail=1; }
+              fi
+
+              [ "$fail" -eq 0 ] || { echo "RESTORE DRILL FAILED"; exit 1; }
+              echo "RESTORE DRILL PASSED $(date -u)"
+          env:
+            - name: MC_USER
+              valueFrom: { secretKeyRef: { name: minio-creds, key: MINIO_ROOT_USER } }
+            - name: MC_PASS
+              valueFrom: { secretKeyRef: { name: minio-creds, key: MINIO_ROOT_PASSWORD } }
+          volumeMounts:
+            - { name: dumps, mountPath: /dumps, readOnly: true }
+      volumes:
+        - name: dumps
+          hostPath: { path: /mnt/minio/backups/pg, type: Directory }

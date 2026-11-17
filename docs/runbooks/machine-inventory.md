@@ -110,6 +110,14 @@ Inputs: `<host>` (a **hostname**, never an IP — [feedback-ssh-conventions]) an
 Done when `verify <host>` is green: `<host>` and its `installed_package` entities are in the Port catalog, and
 future adds/removals surface as `status: unreviewed` drift on the next refresh (the canonical op above).
 
+### 5. Guarded: a host cannot be skipped (2026-11-17)
+`scripts/check-placement.sh` (repo mode, in CI `repo-guards`) fails when a host in `placement.yaml` `hosts:` has no
+entry in `machine-inventory.yaml`, naming this checklist. LXC guests are exempt because they are filed under the host
+they `runs_on`. It also fails when the inventory lists a host `placement.yaml` no longer knows, which is a destroyed or
+renamed machine to remove. Found when timberback ran three days (2026-11-14 to 11-17) with no inventory entry and no Port
+host entity while every other check stayed green; it was onboarded 2026-11-17 (36 apt packages plus 4 host units and
+configs, 40 Port entities, `verify` OK).
+
 ## How it runs (cadence)
 
 Two paths: an **on-demand refresh** (the canonical op above — run it when you've changed a machine) and, since
@@ -126,7 +134,9 @@ auth, and `PR_TOKEN` / Port creds / `KUMA_INVENTORY_PUSH_URL` in `scripts/.env` 
    A failure no longer only prints: it turns the heartbeat `down` (step 6). The catalog is read from the job's
    `origin/main` worktree, never your checkout (fixed 2026-10-26: a `git pull` mid-run made emit and verify read
    different files, Port 925 vs SoT 921, heartbeat down; the checkout would also have published uncommitted edits).
-2. For each **reachable** host, `collect | machine_inventory.py merge --prune` **inside an isolated git worktree**
+2. For each **reachable** host the committed catalog lists (`sot_hosts`, read from the worktree since 2026-11-17; it was a
+   hard-coded `rogueone mother weyland` until then, so a newly onboarded host was never refreshed; `MACHINE_INV_HOSTS`
+   overrides), `collect | machine_inventory.py merge --prune` **inside an isolated git worktree**
    off `origin/main` (your working checkout is never touched). `--prune` reconciles removals too. An
    **unreachable** host is **skipped, never pruned** — merge refuses empty stdin, so a host it could not scan can
    never be blanked.

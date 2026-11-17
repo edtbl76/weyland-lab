@@ -178,6 +178,26 @@ def check_repo_host_files(doc, root):
     return out
 
 
+# --- machine inventory: every cataloged host is a machine in machine-inventory.yaml (2026-11-17) -------------------
+# timberback ran three days with no machine-inventory entry (so no Port host entity) and nothing noticed. An LXC guest
+# is filed under the host it `runs_on`, so only non-guest hosts need an entry; an inventory host that placement.yaml
+# no longer knows is stale (a destroyed or renamed machine).
+GUEST_KINDS = ("lxc",)
+
+
+def check_machine_inventory(doc, inventory):
+    inv_hosts = set((inventory or {}).get("hosts") or {})
+    if not inv_hosts:
+        raise CannotRead("machine-inventory.yaml lists no hosts: refusing to report every host as inventoried")
+    hosts = doc.get("hosts") or {}
+    out = [f"{h}: host has no machine-inventory entry (run the onboard-machine skill / "
+           f"docs/runbooks/machine-inventory.md § Onboarding a new machine)"
+           for h, spec in sorted(hosts.items()) if (spec or {}).get("kind") not in GUEST_KINDS and h not in inv_hosts]
+    out += [f"{h}: in machine-inventory.yaml but not a host in placement.yaml (remove it, or add the host)"
+            for h in sorted(inv_hosts - set(hosts))]
+    return out
+
+
 # --- B180: installed content vs git --------------------------------------------------------------------------------
 
 NOT_INSTALLED = "NOT INSTALLED"
@@ -594,7 +614,16 @@ def _run(args):
             findings += check_model(doc, f.read())
         root = os.path.dirname(os.path.abspath(args.file))   # sources are repo paths, relative to placement.yaml
         findings += check_sources(doc, root) + check_repo_host_files(doc, root)
+        findings += check_machine_inventory(doc, _load_inventory(args.inventory))
     return findings
+
+
+def _load_inventory(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise CannotRead(f"cannot read {path}: {exc}") from exc
 
 
 def _read_repo(root, src):
@@ -616,6 +645,7 @@ def main(argv=None):
                       help="B180: gather each host over its `access` and compare installed units/files with git")
     ap.add_argument("--file", default=os.path.join(root, "placement.yaml"))
     ap.add_argument("--model", default=os.path.join(root, "docs/architecture/weyland.likec4"))
+    ap.add_argument("--inventory", default=os.path.join(root, "machine-inventory.yaml"))
     # No baked-in URL: the CronJob passes --prometheus explicitly, and a guessed endpoint is not a reading (S5332).
     ap.add_argument("--prometheus", default=os.environ.get("PROMETHEUS_URL"))
     args = ap.parse_args(argv)

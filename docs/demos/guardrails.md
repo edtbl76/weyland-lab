@@ -4,7 +4,7 @@ Since B70 Part 2 the B14 guard layer is a **standalone service, `weyland-guard`*
 and the future B66 fleet POST each hook to it instead of loading validator models in-process. All validators ship
 **SHADOW** (record-only, never block); callers **fail open**. Verdicts land in Prometheus `/metrics` + the
 `guardrail_verdicts` Postgres table. Validated live 2026-07-23. The **Classify** layer (B115) adds
-`llama_guard.safety` — a Llama Guard content-safety classifier (tier-1 1B on CPU/mother; on-demand 8B on the rogueone
+`llama_guard.safety` — a Llama Guard content-safety classifier (tier-1 1B on timberback's GPU, ~50 ms a check since 2026-11-17; on-demand 8B on the rogueone
 GPU) — on INPUT+OUTPUT (shadow, fail-open); validated 2026-08-03.
 
 Grounded in [diagrams/flow-guardrails.md](../diagrams/flow-guardrails.md) and the `/guard/*` surface in
@@ -110,7 +110,7 @@ Now the jailbreak `/guard/input` (or a `/context/ask` with it) returns `{"decisi
 
 `llama_guard.safety` is a **model-based content-safety classifier** (Meta's Llama Guard over its full safety taxonomy)
 — a second opinion beside the single-purpose scanners, on INPUT + OUTPUT, **shadow**, fail-open. It POSTs to the
-always-on **`llama-guard`** svc (tier-1 Llama-Guard-3-1B, CPU/mother; llama.cpp at temp 0).
+always-on **`llama-guard`** svc (tier-1 Llama-Guard-3-1B on timberback's GPU; llama.cpp at temp 0).
 
 Confirm it's loaded, fire a harmful prompt at INPUT (shadow → still `allow`), and read the recorded `block` verdict —
 **mother**:
