@@ -3,6 +3,13 @@
 # rbac.create (default) grants the discovery + pods/log access. Loki push = the SingleBinary svc (no gateway).
 controller:
   type: daemonset
+  # Mother only (2026-11-17). loki.source.kubernetes tails pods through the k8s API, not node-local files, and this
+  # config neither filters by node nor clusters, so EACH Alloy pod ships every pod's logs (and scrapes Pyroscope).
+  # It ran on mother alone while timberback was tainted. Lifting the taint put a second copy on timberback, which
+  # doubled ingestion. One Alloy still covers both nodes. To go per-node instead, select
+  # spec.nodeName=$HOSTNAME in discovery and give the Pyroscope scrape a single owner first.
+  nodeSelector:
+    kubernetes.io/hostname: mother
 
 alloy:
   configMap:

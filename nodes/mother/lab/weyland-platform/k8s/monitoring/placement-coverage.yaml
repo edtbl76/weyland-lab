@@ -834,7 +834,7 @@ data:
       - {id: "k8s:monitoring/CronJob/dashboard-coverage", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:monitoring/CronJob/image-provenance", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:monitoring/CronJob/servicemonitor-coverage", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
-      - {id: "k8s:monitoring/DaemonSet/alloy", host: "mother", state: "stateless", move: "every-node", target: "every-node", managed: "argo"}
+      - {id: "k8s:monitoring/DaemonSet/alloy", host: "mother", state: "stateless", move: "pinned: one Alloy tails every pod via the k8s API; a second copy doubles log ingestion", target: "stays", managed: "argo", why: "2026-11-17: nodeSelector mother after the timberback taint lift put a duplicate on timberback"}
       - {id: "k8s:nvidia-device-plugin/DaemonSet/nvidia-device-plugin", host: "timberback", state: "stateless", move: "hardware-bound: advertises timberback's RTX 5070 Ti", target: "stays", managed: "argo", likec4: "gpuPlugin", why: "ADR-0012 — runs only where nvidia.com/gpu.present=true (timberback)"}
       - {id: "k8s:nvidia-device-plugin/DaemonSet/nvidia-device-plugin-mps-control-daemon", host: "timberback", state: "stateless", move: "hardware-bound: MPS GPU sharing", target: "stays", managed: "argo", why: "the chart's MPS daemon; schedules on no node until a node is labelled for MPS sharing (none today)"}
       - {id: "k8s:monitoring/DaemonSet/monitoring-prometheus-node-exporter", host: "mother", state: "stateless", move: "every-node", target: "every-node", managed: "argo"}

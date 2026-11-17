@@ -285,6 +285,10 @@ Off the cluster, pods on timberback arrive from `192.168.1.233`. rogueone's fire
 (`nodes/rogueone/ufw/rogueone-ufw.sh`) now admits it on 11434 (Ollama) and on 8765 (Basic Memory). Apply that on
 rogueone before lifting the taint.
 
+**Found on the lift:** DaemonSets that did not tolerate the taint scheduled a pod on timberback at once. For Alloy that
+was wrong: it tails every pod through the Kubernetes API, so a second Alloy pod ships every log line twice. Alloy is
+pinned to mother (`k8s/loki/alloy-values.yaml`), and that one pod still collects both nodes' logs.
+
 **Caveats that stay:**
 
 - A new Local-policy NodePort, host path, host network or host port needs a node selector for mother. The same goes
@@ -343,7 +347,7 @@ Apply a changed config from the repo:
 
 [rogueone]
 ```
-rsync -a /home/edwardmangini/IdeaProjects/weyland/nodes/timberback/host/rancher/k3s/config.yaml emangini@timberback:/tmp/ && ssh emangini@timberback 'sudo install -m 0644 /tmp/config.yaml /etc/rancher/k3s/config.yaml && sudo systemctl restart k3s-agent && systemctl is-active k3s-agent'
+rsync -a /home/edwardmangini/IdeaProjects/weyland/nodes/timberback/host/rancher/k3s/config.yaml emangini@timberback:/tmp/ && ssh -t emangini@timberback 'sudo install -m 0644 /tmp/config.yaml /etc/rancher/k3s/config.yaml && sudo systemctl restart k3s-agent && systemctl is-active k3s-agent'
 ```
 
 Logs:
