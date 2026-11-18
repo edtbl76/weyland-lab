@@ -189,7 +189,9 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     lever is capacity (headroom on mother) — a sizing decision, not a CI change.
 - **Build engine = a persistent `buildkitd` Deployment** (`k8s/woodpecker/buildkitd.yaml`, Argo app
   `woodpecker-buildkitd`), NOT build-in-the-step-pod. The `build` step is a thin `buildctl --addr tcp://buildkitd:1234`
-  client that mounts nothing.
+  client that mounts nothing. **On timberback since 2026-11-17** (B200 step 3a): pinned there with a 12 GiB limit and
+  its own cache volume `buildkitd-cache-tb`, because on mother it peaked at 5.34 of 6 GiB with one golden-path stream.
+  Callers reach it through the Service, so nothing else changed; the image is pinned by digest (it was `:latest`).
 
 **Why the daemon (hard-won 2026-08-18):** daemonless BuildKit inside an ephemeral Woodpecker step pod could not do
 its snapshot mounts on this k3s cluster. In order we cleared: (1) **`fs.inotify.max_user_instances` on MOTHER** — the
@@ -378,8 +380,8 @@ chosen `woodpecker.sqlite` over `/data/woodpecker.sqlite` and DELETES `woodpecke
 
 ## Toolchain caches (B88 #6)
 
-Five persistent PVCs (`k8s/woodpecker/ci-caches.yaml`, ns `woodpecker`, RWO local-path, **hand-applied** like
-`buildkitd-cache`) are mounted per-lane in `.woodpecker.yml` via the step-level `volumes: [<pvc>:<path>]` key, each
+Five persistent PVCs (`k8s/woodpecker/ci-caches.yaml`, ns `woodpecker`, RWO local-path, **hand-applied**; unlike
+`buildkitd-cache-tb`, which Argo manages in `buildkitd.yaml`) are mounted per-lane in `.woodpecker.yml` via the step-level `volumes: [<pvc>:<path>]` key, each
 with the matching cache env var: `ci-cache-cargo` → `CARGO_HOME=/cache/cargo` (+ a **literal** `PATH` incl.
 `/cache/cargo/bin`, so `command -v cargo-llvm-cov` finds the cached binary — never `$PATH` in YAML); `ci-cache-maven`
 → `/root/.m2/repository`; `ci-cache-trivy` → `TRIVY_CACHE_DIR`; `ci-cache-go` → `GOMODCACHE`/`GOCACHE`; `ci-cache-npm`

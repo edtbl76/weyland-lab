@@ -209,6 +209,7 @@ timberback on purpose. GPU sharing is time-sliced (4 slices, VRAM not isolated):
 | whisper OpenAI shim (k8s `whisper`, timberback) | `whisper.weyland.svc:9000/v1/audio/transcriptions`; rogueone `.233:30901` | OpenAI-compatible STT adapter -> whisper-server (same pod). |
 | llama-guard (k8s `llama-guard`, timberback GPU) | `llama-guard.weyland.svc:8080` (ClusterIP) | Llama-Guard-3-1B, the Classify layer weyland-guard calls (B115). On the GPU since 2026-11-17: ~50 ms a check and 1.7 GB VRAM, where mother's CPU took a median ~7.5 s and timed out (failing open) on up to 17% of checks a day. |
 | MinIO replica (k8s `minio-replica`, ns `minio`) | `minio-replica.minio.svc:9000` (ClusterIP, S3) | Nightly versioned copy of every MinIO bucket plus the core Postgres dump files: the lab's first backup on a second machine. Design in §10l. |
+| buildkitd (k8s `buildkitd`, ns `woodpecker`) | `buildkitd.woodpecker.svc:1234` (ClusterIP, CI build steps only) | The CI image builder, moved here 2026-11-17 (B200 step 3a): 12 GiB limit and its own cache volume. On mother it peaked at 5.34 of 6 GiB. |
 | Moved stateless workloads | (their usual Services) | B134 moved trino, datahub-gms, weyland-guard, litellm, weyland-agent, langfuse-web and the Superset worker here; the stores stay on mother (local-path PVs). |
 
 ### rogueone

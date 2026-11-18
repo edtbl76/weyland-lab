@@ -3633,7 +3633,7 @@ DB header). Lowering connections can starve the UI/API — measure. A Postgres o
 
 **Out of scope.** Parallel CI on more agents (B200, hardware). The B199 memory stalls (node-level; separate cause).
 
-### B200 — Parallel CI across more build agents on new hardware — HIGH (↑ Low→High 2026-11-14 rebalance: CI runs take ~80 min, more agents pay back on every push; UNHELD 2026-11-14: the hardware landed (timberback, ADR-0012); Linear `parked:held` removed) — was LOW, HELD FOR HARDWARE (2026-10-03, Linear EMA-286)
+### B200 — Parallel CI across more build agents on new hardware — **IN PROGRESS 2026-11-17** — HIGH (↑ Low→High 2026-11-14 rebalance: CI runs take ~80 min, more agents pay back on every push; UNHELD 2026-11-14: the hardware landed (timberback, ADR-0012); Linear `parked:held` removed) — was LOW, HELD FOR HARDWARE (2026-10-03, Linear EMA-286)
 
 **Why.** A full CI run is **68 steps, ~86 min, strictly sequential** (#241: sum of step time = wall clock, 5,202 s).
 weyland-lab is ONE workflow pinned `labels: {backend: kubernetes}`, so it uses one of mother's 2 k8s agents, and the
@@ -3686,6 +3686,30 @@ steps would run as the owner with the Docker socket, and CI would depend on rogu
 Longhorn) to parallelise steps within one workflow. Push webhooks.
 
 Blocked by **B134** (EMA-195, the hardware). Relates B177 (lean trigger), B199 (mother memory), B57b (the mixed fleet).
+
+**Plan (2026-11-17, approved step by step; measured on CI #675: 71 steps, 104 min, sample-app lanes ~62 min, golden-path
+30 min, platform ~12 min).** Each step pushed and proven alone:
+1. A timberback agent pool: agents labeled `node=timberback` with `POD_NODE_SELECTOR` timberback and their own
+   `ci-cache-*-tb` volumes; mother's agents labeled `node=mother`. Workflows pick a pool by label, so a workflow's
+   workspace and caches share one node by design (CI #676 died of exactly that split, below). **Sizing:** slots = the
+   workflows that should run at once (6-7 on timberback, 2 on mother), capped by measured peaks (biggest steps 2.96 /
+   2.90 / 2.63 GiB; timberback 85.5 GiB allocatable, 15% used), start at one agent with `MAX_WORKFLOWS=6`, then tune
+   from queue time (too few) and node free memory (too many; keep >= ~20 GiB free).
+2. Split `.woodpecker.yml` into workflows, all still on mother: `platform`, 3-4 sample-app groups (scan-haskell's 12 min
+   balanced into its own), `golden-path`, `finish` (sonar-gate, notify-port/slack after all). Lean gating stays the
+   pipeline variables, now at workflow level; `trunk-upload` runs per workflow (Sonar reads no cross-workflow files).
+3. Move the sample-app and golden-path workflows to the timberback pool.
+   **3a BUILT 2026-11-17, deploys after the in-flight CI run (it uses buildkitd): buildkitd moves to timberback** (12 GiB, `buildkitd-cache-tb`, image pinned by digest). On
+   mother it peaked at 5.34 of 6 GiB with one golden-path stream. Proven first with the exact image and flags on a
+   timberback local-path volume (btrfs): a COPY + RUN + apk build exported a 6.2 MB OCI image. A registry build cache
+   was considered and rejected for golden paths: they build cold by design (#92/#93 cross-contamination).
+4. Parallel golden-path groups; measure buildkitd's peak with 2 before trying 3. The step-name NetworkPolicy
+   (`buildkitd-ci-build-steps-only`) and `write-surface-netpol.bats` change with the new step names.
+5. Measure and close on two full on-demand runs (proposed wording change from "two consecutive nightly runs": the DoD
+   never waits on a scheduled run).
+**Prework found 2026-11-17:** CI #676 was killed at the 3 h timeout after the timberback taint lift: its workspace
+volume was created on timberback while `ci-cache-maven` lives on mother, so `test-java` could schedule on neither. Fixed
+by pinning every step pod to mother (`WOODPECKER_BACKEND_K8S_POD_NODE_SELECTOR`) until step 1 replaces it.
 
 ### B199 — mother runs out of memory overnight and stalls (CI killed, node NotReady) — **DONE 2026-10-08** (HIGH, 2026-09-30, Linear EMA-258)
 

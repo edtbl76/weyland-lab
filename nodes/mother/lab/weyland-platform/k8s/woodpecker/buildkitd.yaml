@@ -5,10 +5,18 @@
 # namespace (the standard buildkit-in-k8s pattern) and the CI step becomes a thin `buildctl --addr tcp://…` client
 # that mounts nothing. Small idle footprint (request 128Mi); spikes ~1-3 GB during a build (off-hours cron), on the
 # overlayfs snapshotter over a real-fs PVC. LAN/in-ns only, plain tcp (no TLS) — ns-internal Service.
+#
+# ON TIMBERBACK since 2026-11-17 (B200 step 3a). On mother it peaked at 5.34 GiB of its 6 GiB limit over 7 days with ONE
+# golden-path stream, on a node at 78% memory, so parallel golden-path groups had nowhere to go. timberback has the
+# headroom: the limit is now 12 GiB. Proven before the move with this exact image, flags and a local-path volume on
+# timberback (btrfs, subvol @rancher): overlayfs worked, a COPY + RUN + apk build exported a 6.2 MB OCI image.
+# The cache volume is new (buildkitd-cache-tb, created on timberback by WaitForFirstConsumer); Argo prunes the old
+# buildkitd-cache on mother. Only nightly-images uses the cache; golden-path builds are cold by design
+# (scripts/run-golden-path-jobs.sh: --no-cache + a fresh context per build, after #92/#93), so the move costs them nothing.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: buildkitd-cache
+  name: buildkitd-cache-tb
   namespace: woodpecker
 spec:
   accessModes: [ReadWriteOnce]
@@ -38,9 +46,11 @@ spec:
       annotations:
         sidecar.istio.io/inject: "false"                                        # buildkit tcp must not go via Envoy
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: timberback
       containers:
         - name: buildkitd
-          image: moby/buildkit:latest
+          image: moby/buildkit@sha256:99368f3e46177c6405b9740e4461d91cee004128daeecca78d4ceac50ec1da5c   # the digest that ran on mother until 2026-11-17 (was :latest)
           args:
             - --addr
             - tcp://0.0.0.0:1234
@@ -59,12 +69,12 @@ spec:
             periodSeconds: 20
           resources:
             requests: { cpu: 100m, memory: 128Mi }
-            limits: { memory: 6Gi }
+            limits: { memory: 12Gi }      # 6Gi on mother (peak 5.34 GiB, one golden-path stream); room for 2-3 groups at once
           volumeMounts:
             - { name: cache, mountPath: /var/lib/buildkit }
       volumes:
         - name: cache
-          persistentVolumeClaim: { claimName: buildkitd-cache }
+          persistentVolumeClaim: { claimName: buildkitd-cache-tb }
 ---
 apiVersion: v1
 kind: Service

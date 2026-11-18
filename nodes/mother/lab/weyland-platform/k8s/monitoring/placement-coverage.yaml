@@ -958,7 +958,7 @@ data:
       - {id: "k8s:weyland/CronJob/uptime-kuma-backup", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
       - {id: "k8s:weyland/CronJob/bifrost-mcp-watchdog", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:weyland/CronJob/anthropic-model-watch", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
-      - {id: "k8s:woodpecker/Deployment/buildkitd", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
+      - {id: "k8s:woodpecker/Deployment/buildkitd", host: "timberback", state: "pvc:local-path (buildkitd-cache-tb, a build cache: regenerates)", move: "pinned: nodeSelector timberback + its cache PV there", target: "stays", managed: "argo", why: "B200 step 3a, 2026-11-17: peaked 5.34 of 6 GiB on mother; 12 GiB on timberback for parallel golden-path groups"}
       - {id: "k8s:woodpecker/StatefulSet/woodpecker-agent", host: "mother", state: "stateless", move: "movable", target: "any", managed: "argo"}
       - {id: "k8s:woodpecker/StatefulSet/woodpecker-server", host: "mother", state: "pvc:local-path", move: "pinned: local-path PV on mother", target: "stays", managed: "argo"}
 
