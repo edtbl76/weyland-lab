@@ -3,7 +3,7 @@
 # parallel. Layout, ordering and the rules every file follows: .woodpecker/README.md.
 labels:
   backend: kubernetes
-  node: mother        # the agent pool (B200 step 1). Every workflow names one: see README.md § Agent pools.
+  node: timberback    # the agent pool (B200 step 3: sample-app and golden-path work runs on timberback). See README.md.
 when:
   - event: manual
   - event: cron

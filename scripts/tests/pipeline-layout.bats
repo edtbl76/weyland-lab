@@ -3,6 +3,7 @@
 # or edited workflow cannot quietly break them. Each rule was learned the hard way:
 #   - no node label: a workflow could land on the other agent pool, away from the ci-cache-* volumes (CI #676 hung 3 h);
 #   - a cache volume mounted by two workflows: two steps writing one RWO cache at once;
+#   - a cache from another pool's node: a local-path volume mounts only on its node (step 3: `-tb` = timberback);
 #   - deliver not waiting on everything: images ship from a red run;
 #   - finish not waiting on everything: it reads a still-running workflow (#686);
 #   - a workflow-level gate on a --var: Woodpecker never shows it the var, so the workflow is filtered out (#681);
@@ -33,6 +34,9 @@ for name, doc in flows.items():
             vol = str(v).split(":")[0]
             if vol.startswith("ci-cache-"):
                 caches.setdefault(vol, set()).add(name)
+                home = "timberback" if vol.endswith("-tb") else "mother"
+                if labels.get("node") != home:
+                    bad.append(f"{name}/{s.get('name')}: mounts {vol}, which lives on {home}, but the workflow runs on node {labels.get('node')}")
 for vol, users in sorted(caches.items()):
     if len(users) > 1:
         bad.append(f"{vol} is mounted by {sorted(users)}: one workflow per cache (RWO, one writer at a time)")
@@ -66,7 +70,7 @@ check() { run python3 "$CHECK" "$1"; }
 }
 
 @test "a workflow with no node label is refused" {
-  sed -i '/^  node: mother/d' "$COPY/fixtures-a.yml"
+  sed -i '/^  node: /d' "$COPY/fixtures-a.yml"
   check "$COPY"
   [ "$status" -eq 1 ] && [[ "$output" == *"fixtures-a: labels must name"* ]] || { echo "$output"; return 1; }
 }
@@ -75,11 +79,17 @@ check() { run python3 "$CHECK" "$1"; }
   python3 - "$COPY/fixtures-c.yml" <<'PY'
 import sys, yaml
 p = sys.argv[1]; d = yaml.safe_load(open(p))
-d["steps"][0]["volumes"] = ["ci-cache-npm:/cache/npm"]
+d["steps"][0]["volumes"] = ["ci-cache-npm-tb:/cache/npm"]     # fixtures-c is on timberback too: only sharing is wrong
 yaml.safe_dump(d, open(p, "w"))
 PY
   check "$COPY"
-  [ "$status" -eq 1 ] && [[ "$output" == *"ci-cache-npm is mounted by"* ]] || { echo "$output"; return 1; }
+  [ "$status" -eq 1 ] && [[ "$output" == *"ci-cache-npm-tb is mounted by"* ]] || { echo "$output"; return 1; }
+}
+
+@test "a cache from the other pool's node is refused (a local-path volume mounts only on its node; CI #676)" {
+  sed -i 's/ci-cache-npm-tb:/ci-cache-npm:/' "$COPY/fixtures-b.yml"
+  check "$COPY"
+  [ "$status" -eq 1 ] && [[ "$output" == *"mounts ci-cache-npm, which lives on mother, but the workflow runs on node timberback"* ]] || { echo "$output"; return 1; }
 }
 
 @test "deliver that does not wait for every work workflow is refused" {

@@ -138,7 +138,7 @@ spec:
     targetRevision: main
     path: nodes/mother/lab/weyland-platform/k8s/woodpecker
     directory:
-      include: 'agent-timberback.yaml'
+      include: '{agent-timberback.yaml,ci-caches-timberback.yaml}'   # the pool + its node-local caches (B200 step 3)
   destination:
     server: https://kubernetes.default.svc
     namespace: woodpecker

@@ -397,7 +397,10 @@ workflow lists; an agent's extra labels do not matter.
 
 A workflow picks its pool with `labels: { backend: kubernetes, node: <mother|timberback> }`. **A workflow whose steps mount
 a node-local volume must name its `node`**: one that names only `backend` matches both pools, and on timberback a step that
-mounts a `ci-cache-*` volume (on mother) cannot schedule. weyland-lab names `node: mother`. Algopedia and
+mounts a `ci-cache-*` volume (on mother) cannot schedule. weyland-lab's `platform`, `deliver` and `finish` name
+`node: mother`; `fixtures-haskell`, `fixtures-a/-b/-c` and `golden-path` name `node: timberback` (B200 step 3), and
+`fixtures-b` mounts timberback's own caches (`ci-cache-{npm,cargo,go}-tb`, `k8s/woodpecker/ci-caches-timberback.yaml`).
+`scripts/tests/pipeline-layout.bats` fails if a workflow mounts a cache that lives on the other pool's node. Algopedia and
 emangini-tailwind-nextjs-contentlayer name only `backend: kubernetes` and mount no volumes (checked 2026-11-18), so they
 may run on either pool. The other repos run on rogueone's `backend: local` agents. That was CI #676: killed after 3 h with "0/2 nodes ... PersistentVolume's node affinity".
 A step pod's workspace volume is created on its pod's node, so pinning the pod pins the volume too.
@@ -425,8 +428,8 @@ with the matching cache env var: `ci-cache-cargo` → `CARGO_HOME=/cache/cargo` 
 `/cache/cargo/bin`, so `command -v cargo-llvm-cov` finds the cached binary — never `$PATH` in YAML); `ci-cache-maven`
 → `/root/.m2/repository`; `ci-cache-trivy` → `TRIVY_CACHE_DIR`; `ci-cache-go` → `GOMODCACHE`/`GOCACHE`; `ci-cache-npm`
 → `npm_config_cache`. Warm-vs-cold: `cargo install` stops recompiling (scan-rust 125s→6s), the 109 MB trivy DB stops
-re-downloading (build 682s→370s) — ~9 min/run. RWO is correct: each cache is mounted by ONE workflow only (maven by `platform`, trivy by `deliver`, cargo/go/npm
-by `fixtures-b`), whose steps run in order, so there is one writer at a time, which the caches need anyway
+re-downloading (build 682s→370s) — ~9 min/run. RWO is correct: each cache is mounted by ONE workflow only (on mother: maven by `platform`, trivy by `deliver`;
+on timberback: the `-tb` cargo/go/npm copies by `fixtures-b`, since B200 step 3; mother's cargo/go/npm are now unused), whose steps run in order, so there is one writer at a time, which the caches need anyway
 (`scripts/tests/pipeline-layout.bats` fails if a second workflow mounts one). **Apply the PVCs before the run** or step pods hang Pending.
 
 ## Gotchas (hard-won)

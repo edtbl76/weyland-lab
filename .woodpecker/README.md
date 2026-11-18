@@ -6,20 +6,22 @@ B200 split it so independent work runs in parallel. Runbook: [docs/runbooks/wood
 
 ## What runs where
 
-| Workflow | What it holds | Waits for |
+| Workflow (pool) | What it holds | Waits for |
 |---|---|---|
-| `platform.yml` | the lab's own checks: yaml lint, repo guards, Port/Linear sync, shellcheck, shell and Python tests, the Java Flink modules, integration lanes, the SonarQube gate | — |
-| `fixtures-haskell.yml` | the Haskell sample-app lanes (~17 min, the longest, so alone) | — |
-| `fixtures-a.yml` | sample-app lanes: ada, swift, elixir | — |
-| `fixtures-b.yml` | sample-app lanes: node, react-native, flutter, dart, rust, go, c, cpp, lua, php (every lane on the npm, cargo or go cache) | — |
-| `fixtures-c.yml` | sample-app lanes: swift-tokamak, kotlin, julia, ruby, scala, perl, dotnet, r, clojure, erlang | — |
-| `golden-path.yml` | `golden-path-smoke`: build and serve every golden path through buildkitd | — |
-| `deliver.yml` | `detect-changes` → `build` → `kubeconform` → `deploy-handoff` (the image build and tag-bump PR) | all six above; **skipped if any failed** |
-| `finish.yml` | `notify-port`, `notify-slack` with the pipeline's true status | everything, `deliver` included, on success **or** failure |
+| `platform.yml` (mother) | the lab's own checks: yaml lint, repo guards, Port/Linear sync, shellcheck, shell and Python tests, the Java Flink modules, integration lanes, the SonarQube gate | — |
+| `fixtures-haskell.yml` (timberback) | the Haskell sample-app lanes (~17 min, the longest, so alone) | — |
+| `fixtures-a.yml` (timberback) | sample-app lanes: ada, swift, elixir | — |
+| `fixtures-b.yml` (timberback) | sample-app lanes: node, react-native, flutter, dart, rust, go, c, cpp, lua, php (every lane on the npm, cargo or go cache) | — |
+| `fixtures-c.yml` (timberback) | sample-app lanes: swift-tokamak, kotlin, julia, ruby, scala, perl, dotnet, r, clojure, erlang | — |
+| `golden-path.yml` (timberback) | `golden-path-smoke`: build and serve every golden path through buildkitd | — |
+| `deliver.yml` (mother) | `detect-changes` → `build` → `kubeconform` → `deploy-handoff` (the image build and tag-bump PR) | all six above; **skipped if any failed** |
+| `finish.yml` (mother) | `notify-port`, `notify-slack` with the pipeline's true status | everything, `deliver` included, on success **or** failure |
 
 ## Rules every workflow follows
 
-1. **Name the agent pool.** `labels: { backend: kubernetes, node: mother }`. An agent takes a workflow only if it carries
+1. **Name the agent pool.** `labels: { backend: kubernetes, node: <mother|timberback> }`: `platform`, `deliver` and
+   `finish` run on mother; the `fixtures-*` and `golden-path` workflows on timberback (B200 step 3). A cache volume
+   lives on one node, so `fixtures-b` mounts timberback's `-tb` copies. An agent takes a workflow only if it carries
    every label the workflow lists, and a workflow whose steps mount a node-local volume (`ci-cache-*`) must run on the
    node that holds it (CI #676 hung 3 h on that split). Agent pools: runbook § Agent pools.
 2. **Gate on a `--var` at the step, never the workflow.** On v3.18 a workflow-level `when: evaluate` never sees a

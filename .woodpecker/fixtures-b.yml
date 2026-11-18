@@ -3,7 +3,7 @@
 # parallel. Layout, ordering and the rules every file follows: .woodpecker/README.md.
 labels:
   backend: kubernetes
-  node: mother        # the agent pool (B200 step 1). Every workflow names one: see README.md § Agent pools.
+  node: timberback    # the agent pool (B200 step 3: sample-app and golden-path work runs on timberback). See README.md.
 when:
   - event: manual
   - event: cron
@@ -19,7 +19,7 @@ steps:
       JEST_JUNIT_REPORTER: /tmp/jest-junit/node_modules/jest-junit
       npm_config_cache: /cache/npm            # B88 #6 — persist the npm package cache
     volumes:
-      - ci-cache-npm:/cache/npm
+      - ci-cache-npm-tb:/cache/npm
     commands:
       # Four archetypes on ONE toolchain. Each lane's fixture is now its GOLDEN PATH (B153 switch,
       # replacing the retired B88 hello apps): javascript=node/express, typescript=node/nestjs,
@@ -47,7 +47,7 @@ steps:
     environment:
       npm_config_cache: /cache/npm            # B88 #6 — same npm cache as test-node
     volumes:
-      - ci-cache-npm:/cache/npm
+      - ci-cache-npm-tb:/cache/npm
     commands:
       - apk add --no-cache bash >/dev/null
       - bash scripts/run-lang-scan.sh typescript
@@ -71,7 +71,7 @@ steps:
       # installed outside the project by the first command and passed to jest by this path.
       JEST_JUNIT_REPORTER: /tmp/jest-junit/node_modules/jest-junit
     volumes:
-      - ci-cache-npm:/cache/npm
+      - ci-cache-npm-tb:/cache/npm
     commands:
       - npm install --prefix /tmp/jest-junit --no-audit --no-fund --silent jest-junit@17.0.0   # B189 (see JEST_JUNIT_REPORTER)
       - bash scripts/run-lang-tests.sh react-native --self-check
@@ -92,7 +92,7 @@ steps:
     environment:
       npm_config_cache: /cache/npm            # same npm cache as test-node/scan-node
     volumes:
-      - ci-cache-npm:/cache/npm
+      - ci-cache-npm-tb:/cache/npm
     commands:
       - bash scripts/run-lang-scan.sh react-native
 
@@ -146,7 +146,7 @@ steps:
       PATH: /cache/cargo/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
     volumes:
-      - ci-cache-cargo:/cache/cargo
+      - ci-cache-cargo-tb:/cache/cargo
     # OOM-killed mid-compile (exit 137, nightly #253, 2026-10-04) during the cargo-llvm-cov coverage rebuild — the
     # first failure in 10 nightlies (81-113s each). No memory request = best-effort QoS, first to die when the node is
     # tight; same class + fix as test-swift / the syft-trivy step. MEMORY ONLY — no cpu request (mother's cpu wall).
@@ -196,7 +196,7 @@ steps:
       CARGO_HOME: /cache/cargo
       PATH: /cache/cargo/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
-      - ci-cache-cargo:/cache/cargo
+      - ci-cache-cargo-tb:/cache/cargo
     commands:
       - rustup component add clippy rustfmt >/dev/null 2>&1 || true
       - cargo install cargo-audit cargo-deny --locked >/dev/null 2>&1 || true
@@ -210,7 +210,7 @@ steps:
       GOCACHE: /cache/go/build
       LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
     volumes:
-      - ci-cache-go:/cache/go
+      - ci-cache-go-tb:/cache/go
     commands:
       # NOT -alpine: `go test -race` needs cgo, and alpine without build-base cannot race-detect —
       # it would silently run without the detector.

@@ -1,0 +1,36 @@
+# B200 step 3 (2026-11-18) — the toolchain caches for the CI workflows that run on timberback's agent pool.
+#
+# A local-path volume lives on one node, and a step pod can only mount it there. The mother caches (ci-caches.yaml)
+# stay on mother for the workflows that run there (platform: maven; deliver: trivy). fixtures-b moved to the timberback
+# pool, so it gets its own copies here, with a `-tb` suffix that ties each cache to its node:
+#   ci-cache-npm-tb   → test/scan-node, test/scan-react-native (npm_config_cache)
+#   ci-cache-cargo-tb → test/scan-rust (CARGO_HOME, cargo-llvm-cov / audit / deny)
+#   ci-cache-go-tb    → test-go (GOMODCACHE / GOCACHE)
+# Sizes copy ci-caches.yaml. WaitForFirstConsumer: each volume is created on timberback when the first step that mounts
+# it is scheduled there (every step pod of that pool is pinned to timberback), so it starts cold and warms on run one.
+# One workflow mounts each cache, so there is one writer at a time (RWO); scripts/tests/pipeline-layout.bats fails if a
+# workflow mounts a cache from another pool's node or a second workflow mounts one.
+# Argo-managed (app woodpecker-agent-timberback), unlike the hand-applied ci-caches.yaml.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: ci-cache-npm-tb, namespace: woodpecker }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: ci-cache-cargo-tb, namespace: woodpecker }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 4Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: ci-cache-go-tb, namespace: woodpecker }
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources: { requests: { storage: 4Gi } }

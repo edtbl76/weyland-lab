@@ -2,16 +2,20 @@
 #
 # Every lane reinstalled its toolchain per run — `cargo install cargo-llvm-cov/cargo-audit/cargo-deny`
 # (compiled from source, minutes each), maven plugins, go modules, npm packages, and (since #3) the
-# 109 MB trivy vuln DB. These PVCs persist those across runs; the lanes mount them in `.woodpecker/ci.yml`
+# 109 MB trivy vuln DB. These PVCs persist those across runs; the steps mount them (in the .woodpecker/ workflows)
 # at each toolchain's cache dir with the matching cache env var.
 #
 # HAND-APPLIED, like `buildkitd-cache` — `k8s/woodpecker/` raw manifests are not Argo-synced (the Helm
-# app deploys woodpecker itself; these are operator-applied). MUST exist before the `.woodpecker/ci.yml`
-# mounts reference them, or step pods stay Pending on a missing PVC.
+# app deploys woodpecker itself; these are operator-applied). MUST exist before a workflow mounts them, or step pods
+# stay Pending on a missing PVC.
 #
-# RWO + local-path: steps run SEQUENTIALLY on the single node, so one writer at a time keeps each cache
-# intact (concurrent writers would corrupt a shared cargo/maven dir — RWO enforces the one-at-a-time the
-# caches need anyway). Node-local, on mother's disk.
+# MOTHER'S caches (B200, 2026-11-18): local-path volumes live on mother, so only workflows on the mother agent pool may
+# mount them. Since step 3 those are maven (platform: test/scan-java) and trivy (deliver: build). cargo, go and npm are
+# still here but no workflow mounts them any more: fixtures-b moved to timberback with its own copies
+# (ci-caches-timberback.yaml, `-tb`, Argo-managed). scripts/tests/pipeline-layout.bats enforces the node match.
+#
+# RWO + local-path: each cache is mounted by ONE workflow, whose steps run in order, so one writer at a time keeps
+# each cache intact (concurrent writers would corrupt a shared cargo/maven dir). Node-local, on mother's disk.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata: { name: ci-cache-cargo, namespace: woodpecker }
