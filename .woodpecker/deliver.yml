@@ -1,0 +1,130 @@
+# deliver — build the changed images, validate their manifests, open the tag-bump PR. Runs only after EVERY other work workflow succeeded (a failed dependency skips it), the same rule the single pipeline enforced with `status: success`.
+# One of 8 workflows (B200, 2026-11-18): the pipeline that was .woodpecker.yml, split so independent work runs in
+# parallel. Layout, ordering and the rules every file follows: .woodpecker/README.md.
+labels:
+  backend: kubernetes
+  node: mother        # the agent pool (B200 step 1). Every workflow names one: see README.md § Agent pools.
+when:
+  - event: manual
+  - event: cron
+depends_on: [platform, fixtures-haskell, fixtures-a, fixtures-b, fixtures-c, golden-path]
+steps:
+
+  # ── 2. detect which images changed since their currently-deployed git-<sha> ──
+  - name: detect-changes
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
+    image: alpine/git:latest
+    commands:
+      - sh scripts/ci/detect-changes.sh
+
+  # ── 3. build + push the changed images (thin buildctl client → buildkitd) ───
+  # Builds against the persistent buildkitd Deployment (k8s/woodpecker/buildkitd.yaml) over tcp. This step mounts
+  # nothing and needs no privilege — buildkitd does the snapshot mounts in its own stable mnt ns. (Daemonless
+  # BuildKit in an ephemeral step pod EPERM'd on its mounts on this cluster, even privileged+trusted; hence the daemon.)
+  # The client-side context filesync uses inotify — fine now that mother's fs.inotify.max_user_instances = 8192.
+  - name: build
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
+    image: moby/buildkit:latest
+    environment:
+      BUILDKIT_HOST: tcp://buildkitd:1234
+      TRIVY_CACHE_DIR: /cache/trivy           # B88 #6 — persist trivy's 109MB vuln DB across runs (was re-downloaded every build)
+      COSIGN_KEY:                             # A1 — v3.18 secret injection is `from_secret`, NOT the deprecated `secrets:` list
+        from_secret: cosign_key
+      COSIGN_PASSWORD: ""                      # empty (key generated with no passphrase); a plain env, since Woodpecker rejects an empty SECRET
+      # B211: images, build cache and signatures push through the authenticated push host; registry.weyland.lab is the
+      # pull name (GET/HEAD only). build-images.sh writes these into a private docker config and refuses to start without.
+      REGISTRY_PUSH_HOST: registry-push.weyland.lab
+      REGISTRY_PUSH_AUTH:
+        from_secret: registry_push_auth
+    volumes:
+      - ci-cache-trivy:/cache/trivy
+    # B88 gap #3 — the per-image supply-chain scans (syft SBOM + trivy image vuln) analyse the full
+    # pushed image. With no memory request the step pod is best-effort QoS and was OOMKilled (exit 137)
+    # scanning a large ML image on the RAM-tight node. A 1Gi request makes it Burstable (a real floor,
+    # not first-to-die) and a 4Gi limit gives the scans headroom. MEMORY ONLY — no cpu request, to
+    # avoid adding to mother's cpu-requests wall (cpu is compressible; it never triggers an OOM kill).
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 4Gi
+    commands:
+      # B88 Phase 3 — syft + cosign + trivy are fetched here rather than baked into moby/buildkit,
+      # which is upstream's image and not ours to rebuild. All single static binaries.
+      # PINNED + CHECKSUM-VERIFIED release assets from github.com (2026-11-04). Until then this step piped each
+      # tool's installer straight from its `main` branch into sh (and cosign from "latest"): unpinned, and on
+      # 2026-11-04 trivy's installer started downloading from get.trivy.dev, a host that is NXDOMAIN for
+      # everyone (Google and Cloudflare resolvers too), so every build failed with a silent exit 6 (CI #572,
+      # #573). Each tool is now one exact release at least two weeks old, verified against the sha256 in that
+      # release's own checksums file; a missing line or a mismatch fails the step. Bump: change the version,
+      # keep the asset names in step (they include it), and run CI.
+      # B88 gap #3 — trivy is the per-build vulnerability scan (supply-chain.sh vuln). Weekly-only trivy meant
+      # a base-image CVE sat uncaught until Sunday; this runs it per pushed image (loud, non-fatal). trivy pulls
+      # its vuln DB on first run — a cache lives in gap #6.
+      - apk add --no-cache curl bash >/dev/null 2>&1 || true
+      - |
+        set -e
+        T=$(mktemp -d)
+        fetch() { curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o "$T/$2" "$1"; }
+        verify() { # verify <file> <asset name> <checksums file>: the asset's own line (an exact name match), or fail
+          sum=$(awk -v f="$2" '$2 == f || $2 == "*" f { print $1 }' "$T/$3")
+          [ -n "$sum" ] || { echo "no checksum line for $2 in $3"; exit 1; }
+          echo "$sum  $T/$1" | sha256sum -c -
+        }
+        # (asset names are built with printf, never with braced shell variables: Woodpecker substitutes those itself)
+        TRIVY=0.76.1  # 2026-10-21
+        A=$(printf 'trivy_%s_Linux-64bit.tar.gz' "$TRIVY"); S=$(printf 'trivy_%s_checksums.txt' "$TRIVY")
+        fetch "https://github.com/aquasecurity/trivy/releases/download/v$TRIVY/$A" trivy.tgz
+        fetch "https://github.com/aquasecurity/trivy/releases/download/v$TRIVY/$S" trivy.sums
+        verify trivy.tgz "$A" trivy.sums
+        tar -xzf "$T/trivy.tgz" -C /usr/local/bin trivy
+        SYFT=1.55.0   # 2026-10-19
+        A=$(printf 'syft_%s_linux_amd64.tar.gz' "$SYFT"); S=$(printf 'syft_%s_checksums.txt' "$SYFT")
+        fetch "https://github.com/anchore/syft/releases/download/v$SYFT/$A" syft.tgz
+        fetch "https://github.com/anchore/syft/releases/download/v$SYFT/$S" syft.sums
+        verify syft.tgz "$A" syft.sums
+        tar -xzf "$T/syft.tgz" -C /usr/local/bin syft
+        COSIGN=3.1.4  # 2026-10-20
+        fetch "https://github.com/sigstore/cosign/releases/download/v$COSIGN/cosign-linux-amd64" cosign
+        fetch "https://github.com/sigstore/cosign/releases/download/v$COSIGN/cosign_checksums.txt" cosign.sums
+        verify cosign cosign-linux-amd64 cosign.sums
+        install -m 0755 "$T/cosign" /usr/local/bin/cosign
+        trivy --version | head -1; syft version | grep -m1 '^Version'; cosign version 2>&1 | grep -m1 GitVersion
+      # Warm trivy's vuln DB ONCE before the scan loop. Without this, the first image's scan races the
+      # DB download and trivy returns a valid-looking 0-findings report (observed: a fresh install
+      # reported 0 CVEs for an image that really had 327) — an absence-as-success the per-scan guard
+      # cannot detect. Best-effort: if it fails, the scans report BROKEN, which is the honest outcome.
+      - trivy image --download-db-only >/dev/null 2>&1 || echo "[build] WARNING - trivy DB pre-download failed, vuln scans may report BROKEN"
+      - sh scripts/ci/build-images.sh
+
+  # ── 4. schema-validate the manifests that will carry the new tag ────────────
+  - name: kubeconform
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
+    image: ghcr.io/yannh/kubeconform:latest-alpine
+    commands:
+      - |
+        [ -s .ci-image-bumps ] || { echo "kubeconform: nothing built — skip"; exit 0; }
+        # validate each manifest that will carry the new tag (cols 3+ of each row); fail the gate on any error
+        rc=0
+        for m in $(cut -f3- .ci-image-bumps | tr '\t ' '\n\n' | sed '/^$/d' | sort -u); do
+          f="nodes/mother/lab/weyland-platform/$m"
+          [ -f "$f" ] || continue
+          echo "validate $f"
+          /kubeconform -strict -summary -ignore-missing-schemas "$f" || rc=1
+        done
+        exit $rc
+
+  # ── 5. deploy handoff: bump tags → branch → PR (you merge → Argo deploys) ────
+  - name: deploy-handoff
+    image: alpine:latest
+    when:
+      - status: success
+        evaluate: 'SMOKE_ONLY != "smoke"'
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - apk add --no-cache git curl >/dev/null
+      - sh scripts/ci/open-deploy-pr.sh

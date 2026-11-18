@@ -1,0 +1,22 @@
+{
+ "number": 684,
+ "status": "success",
+ "workflows": [
+  {
+   "name": "bad",
+   "state": "success"
+  },
+  {
+   "name": "deliver",
+   "state": "success"
+  },
+  {
+   "name": "finish",
+   "state": "success"
+  },
+  {
+   "name": "ok",
+   "state": "success"
+  }
+ ]
+}

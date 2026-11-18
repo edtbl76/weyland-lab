@@ -1,0 +1,234 @@
+# fixtures-c — sample-app lanes: swift-tokamak, kotlin, julia, ruby, scala, perl, dotnet, r, clojure, erlang.
+# One of 8 workflows (B200, 2026-11-18): the pipeline that was .woodpecker.yml, split so independent work runs in
+# parallel. Layout, ordering and the rules every file follows: .woodpecker/README.md.
+labels:
+  backend: kubernetes
+  node: mother        # the agent pool (B200 step 1). Every workflow names one: see README.md § Agent pools.
+when:
+  - event: manual
+  - event: cron
+steps:
+
+  # B164 "Swift without iOS" — Tokamak (SwiftUI-compatible API) → WebAssembly via carton, all on Linux.
+  # The whole stack is PINNED: Tokamak's last release is 0.11.1 (Feb 2023) and carton's images stop at
+  # 0.20.1 (carton 1.x is SPM-plugin-only), so the image is swiftwasm/carton:0.20.1 (SwiftWasm Swift 5.9.1)
+  # and Package.resolved is committed. Tests run as wasm XCTest in Node.js (headless). TEST-ONLY for
+  # lang-scan: swift-format shipped with Swift 6.0, absent from this 5.9.1 toolchain — the swift/vapor-app lane
+  # already covers Swift linting, so there is no scan-swift-tokamak (wiring an un-runnable scanner would
+  # violate the fail-closed contract). This is the Linux-verifiable half of "Swift UI"; the iOS/SwiftUI
+  # on-device surface stays parked on the Mac hardware gate (swift-ios).
+  - name: test-swift-tokamak
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " swift-tokamak ")'}]
+    image: ghcr.io/swiftwasm/carton:0.20.1
+    # carton compiles Tokamak + OpenCombine + JavaScriptKit to wasm — heavy like test-swift, and equally
+    # best-effort by default. Same memory-request→Burstable fix so a RAM spike doesn't OOM-kill it on the
+    # tight node. (carton drives swift build internally; no straightforward -j knob, so the limit + request
+    # do the bounding here.)
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 4Gi
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+    commands:
+      - bash scripts/run-lang-tests.sh swift-tokamak --self-check
+      - bash scripts/run-lang-tests.sh swift-tokamak
+      # headless web-bundle smoke — carton bundle → Bundle/ (index.html + <hash>.wasm + JS glue),
+      # the Tokamak client's analogue of the RN expo-export / Flutter build-web smokes.
+      - cd golden-paths/mobile/swift-tokamak && carton bundle && cd -
+
+  - name: test-kotlin
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " kotlin ")'}]
+    image: gradle:8.10-jdk21
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+    commands:
+      # No gradle cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) — gradle
+      # re-resolves deps per run. Add the cache as a fast-follow once the lane is green.
+      - bash scripts/run-lang-tests.sh kotlin --self-check
+      - bash scripts/run-lang-tests.sh kotlin
+      # (coverage ratchet for kotlin is a fast-follow, like dotnet)
+
+  - name: scan-kotlin
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " kotlin ")'}]
+    image: gradle:8.10-jdk21
+    commands:
+      - bash scripts/run-lang-scan.sh kotlin
+
+  - name: test-julia
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " julia ")'}]
+    image: julia:1.11
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+    commands:
+      - bash scripts/run-lang-tests.sh julia --self-check
+      - bash scripts/run-lang-tests.sh julia
+
+  - name: scan-julia
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " julia ")'}]
+    image: julia:1.11
+    commands:
+      - bash scripts/run-lang-scan.sh julia
+
+  - name: test-ruby
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " ruby ")'}]
+    image: ruby:3.3   # Debian-based: bash + build-essential (puma C ext) already present, no apk dance
+    environment:
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
+      # B189 phase 2b: minitest-reporters (owner-approved 1.8.0), added by run-lang-tests.sh through a CI-only Gemfile
+      # on top of each project's locked gems; the golden paths' Gemfiles are untouched.
+      RUBY_JUNIT_REPORTERS_VERSION: "1.8.0"
+    commands:
+      - bash scripts/run-lang-tests.sh ruby --self-check
+      - bash scripts/run-lang-tests.sh ruby   # Rails fixture + the Sinatra golden path (discovered)
+      # (coverage ratchet for ruby is a fast-follow, like dotnet/kotlin/scala/php)
+
+  - name: scan-ruby
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " ruby ")'}]
+    image: ruby:3.3
+    commands:
+      - bash scripts/run-lang-scan.sh ruby
+
+  - name: test-scala
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " scala ")'}]
+    image: sbtscala/scala-sbt:eclipse-temurin-21.0.12_8_1.13.0_3.8.4
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+    commands:
+      # No sbt/coursier cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) —
+      # sbt re-resolves deps per run. Add the cache as a fast-follow once the lane is green.
+      - bash scripts/run-lang-tests.sh scala --self-check
+      - bash scripts/run-lang-tests.sh scala
+      # (coverage ratchet for scala is a fast-follow, like dotnet/kotlin)
+
+  - name: scan-scala
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " scala ")'}]
+    image: sbtscala/scala-sbt:eclipse-temurin-21.0.12_8_1.13.0_3.8.4
+    commands:
+      - bash scripts/run-lang-scan.sh scala
+
+  - name: test-perl
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " perl ")'}]
+    image: perl:5.40
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+    commands:
+      # the dispatch runs `cpanm --installdeps .` (Mojolicious) — cpanm ships in the perl image
+      - bash scripts/run-lang-tests.sh perl --self-check
+      - bash scripts/run-lang-tests.sh perl
+
+  - name: scan-perl
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " perl ")'}]
+    image: perl:5.40
+    commands:
+      - cpanm --quiet --notest Perl::Critic
+      - bash scripts/run-lang-scan.sh perl
+
+  - name: test-dotnet
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " dotnet ")'}]
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    environment:
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
+      # B189 phase 2b: JunitXml.TestLogger (owner-approved 8.0.0), loaded by adapter path from here (no PackageReference)
+      JUNIT_LOGGER_DIR: /tmp/junit-logger
+    commands:
+      # No NuGet cache volume yet (a cache PVC needs its own ci-caches.yaml entry + Argo sync) — dotnet
+      # restores per run. Add the cache as a fast-follow once the lane is green.
+      # B189: the logger nupkg is checked against its sha256 (nuget.org's catalog SHA512 matched on 2026-11-07).
+      - sh scripts/ci/apt-install.sh --no-install-recommends unzip >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/junit-logger.nupkg https://www.nuget.org/api/v2/package/JunitXml.TestLogger/8.0.0
+      - echo "9ddfe96a19048744ced3c482ae098f4cd0f7c9d4aec8a6e2cae168244b3da30b  /tmp/junit-logger.nupkg" | sha256sum -c -
+      - mkdir -p /tmp/junit-logger && unzip -j -o -q /tmp/junit-logger.nupkg 'build/_common/*.dll' -d /tmp/junit-logger
+      - bash scripts/run-lang-tests.sh dotnet --self-check
+      - bash scripts/run-lang-tests.sh dotnet
+      # (coverage ratchet for dotnet is a fast-follow — the collector wiring differs per toolchain)
+
+  - name: scan-dotnet
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " dotnet ")'}]
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    commands:
+      - bash scripts/run-lang-scan.sh dotnet
+
+  # B164 extended-language wave — optional/breadth langs (R/Perl/Haskell/Ada). Each docker-verified on rogueone.
+  - name: test-r
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " r ")'}]
+    image: rocker/r-ver:4
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+    commands:
+      # the dispatch installs plumber/jsonlite/testthat (rocker PPM binaries) if absent
+      # B189 phase 2b: xml2 (owner-approved 1.6.0) for testthat's JunitReporter, from a DATED Posit snapshot so it can
+      # never pull a newer, unreviewed version; the step fails if the installed version is not exactly 1.6.0.
+      - Rscript -e 'install.packages("xml2", repos = "https://p3m.dev/cran/__linux__/resolute/2026-10-20", quiet = TRUE); v <- as.character(packageVersion("xml2")); cat("xml2", v, "\n"); if (v != "1.6.0") quit(status = 1)'
+      - bash scripts/run-lang-tests.sh r --self-check
+      - bash scripts/run-lang-tests.sh r
+
+  # B164 optional/breadth scan lanes.
+  - name: scan-r
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " r ")'}]
+    image: rocker/r-ver:4
+    commands:
+      # scan_r installs lintr on demand (fail-closed)
+      - bash scripts/run-lang-scan.sh r
+
+  - name: test-clojure
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " clojure ")'}]
+    image: clojure:temurin-21-lein   # Debian-based: bash present; lein is the toolchain
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+    commands:
+      # B189 phase 2b: test2junit (owner-approved 1.4.4) via the lein USER profile, so project.clj stays clean.
+      - mkdir -p ~/.lein && echo '{:user {:plugins [[test2junit "1.4.4"]]}}' > ~/.lein/profiles.clj
+      - bash scripts/run-lang-tests.sh clojure --self-check
+      - bash scripts/run-lang-tests.sh clojure   # Compojure fixture + the Ring golden path (discovered)
+      # (coverage ratchet for clojure is a fast-follow, like dotnet/kotlin/scala/php/ruby/elixir)
+
+  - name: scan-clojure
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " clojure ")'}]
+    image: cljkondo/clj-kondo:latest   # ships clj-kondo + bash; lints statically, no lein/dep fetch
+    commands:
+      - bash scripts/run-lang-scan.sh clojure
+
+  # B164 extended-language wave — clean keeps. Each verified in its toolchain image on rogueone before wiring.
+  - name: test-erlang
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " erlang ")'}]
+    image: erlang:27
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+    commands:
+      - bash scripts/run-lang-tests.sh erlang --self-check
+      - bash scripts/run-lang-tests.sh erlang
+
+  # B164 extended-language wave — scan lanes (advisory findings; lane fails only if the scanner is missing).
+  - name: scan-erlang
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " erlang ")'}]
+    image: erlang:27
+    commands:
+      - bash scripts/run-lang-scan.sh erlang
+
+  # ── test results → Trunk Flaky Tests (B189; one upload per workflow since B200) ──────────────────────────
+  # Uploads this workflow's JUnit to Trunk, after a failure too. Gated exactly like its lanes (the same
+  # SMOKE_ONLY / RUN_FIXTURES / FIXTURE_LANES test, OR-ed over this workflow's lane keys), so it runs
+  # exactly when at least one lane here ran, and then a run with no report is red (fail closed).
+  # trunk-upload.sh judges each upload from the CLI's printed output. Runbook: docs/runbooks/trunk-flaky-tests.md.
+  - name: trunk-upload
+    image: alpine:3.20
+    when:
+      - event: [manual, cron]
+        status: [success, failure]
+        evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " swift-tokamak " || (" " + FIXTURE_LANES + " ") contains " kotlin " || (" " + FIXTURE_LANES + " ") contains " julia " || (" " + FIXTURE_LANES + " ") contains " ruby " || (" " + FIXTURE_LANES + " ") contains " scala " || (" " + FIXTURE_LANES + " ") contains " perl " || (" " + FIXTURE_LANES + " ") contains " dotnet " || (" " + FIXTURE_LANES + " ") contains " r " || (" " + FIXTURE_LANES + " ") contains " clojure " || (" " + FIXTURE_LANES + " ") contains " erlang ")'
+    environment:
+      TRUNK_API_TOKEN:
+        from_secret: trunk_org_token
+      TRUNK_COLLECTION_ID: ZuFEh5e5
+      TRUNK_CLI_VERSION: 0.16.1
+      TRUNK_CLI_SHA256: 8c34f99a41d4b3151f711aca05d01478b2f707dd698d3980d2524646021af5f2
+    commands:
+      - apk add --no-cache bash curl git >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/trunk-cli.tgz "https://github.com/trunk-io/analytics-cli/releases/download/$TRUNK_CLI_VERSION/trunk-analytics-cli-x86_64-unknown-linux.tar.gz"
+      - echo "$TRUNK_CLI_SHA256  /tmp/trunk-cli.tgz" | sha256sum -c -
+      - tar -xzf /tmp/trunk-cli.tgz -C /usr/local/bin trunk-analytics-cli
+      - bash scripts/ci/trunk-upload.sh reports/junit

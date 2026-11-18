@@ -1,0 +1,135 @@
+# fixtures-a — sample-app lanes: ada, swift, elixir.
+# One of 8 workflows (B200, 2026-11-18): the pipeline that was .woodpecker.yml, split so independent work runs in
+# parallel. Layout, ordering and the rules every file follows: .woodpecker/README.md.
+labels:
+  backend: kubernetes
+  node: mother        # the agent pool (B200 step 1). Every workflow names one: see README.md § Agent pools.
+when:
+  - event: manual
+  - event: cron
+steps:
+
+  - name: test-ada
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " ada ")'}]
+    image: ubuntu:24.04
+    # Alire builds gnatcoll (AWS's dependency) FROM SOURCE — a source-builder like swift/haskell, and
+    # best-effort by default, so gprbuild's $ncpus fan-out OOM-killed the step pod mid-compile (#124).
+    # Memory request → Burstable; ADA_BUILD_JOBS forwards -j to gprbuild; 6Gi limit gives the gnatcoll
+    # build headroom. Same class/fix as test-swift/test-haskell.
+    environment:
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
+      ADA_BUILD_JOBS: "2"
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 6Gi
+    commands:
+      # AWS 25.x needs Alire's binary GNAT 14.2.1 (Ubuntu FSF GNAT 13.3 can't compile gnatcoll 25.x); the
+      # build shells out to gcc/git/curl/openssl-dev (see the golden path's Dockerfile). CI-confirms the lane.
+      - sh scripts/ci/apt-install.sh --no-install-recommends build-essential libssl-dev git curl ca-certificates unzip
+      - curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip -o /tmp/alr.zip
+      - unzip -q /tmp/alr.zip -d /tmp/alr && install -m755 /tmp/alr/bin/alr /usr/local/bin/alr
+      # alr downloads gnat/gprbuild from GitHub INTERNALLY (no curl flag reaches it), and a single 504 on
+      # the gprbuild asset fails the lane — seen 2026-09-14. Retry the whole toolchain install up to 5×,
+      # fail CLOSED on the 5th (never let the last failed attempt's exit be masked into success).
+      - for i in 1 2 3 4 5; do alr -n --force toolchain --select gnat_native=14.2.1 gprbuild=26.0.1 && break; [ "$i" = 5 ] && { echo "alr toolchain failed after 5 attempts"; exit 1; }; echo "alr toolchain attempt $i/5 failed (transient 504?); retrying in 5s"; sleep 5; done
+      - bash scripts/run-lang-tests.sh ada --self-check
+      - bash scripts/run-lang-tests.sh ada
+
+  - name: scan-ada
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " ada ")'}]
+    image: ubuntu:24.04
+    # Same gnatcoll-from-source OOM class as test-ada (scan re-runs `alr build`): Burstable floor + -j cap.
+    environment:
+      ADA_BUILD_JOBS: "2"
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 6Gi
+    commands:
+      - sh scripts/ci/apt-install.sh --no-install-recommends build-essential libssl-dev git curl ca-certificates unzip
+      - curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip -o /tmp/alr.zip
+      - unzip -q /tmp/alr.zip -d /tmp/alr && install -m755 /tmp/alr/bin/alr /usr/local/bin/alr
+      # alr downloads gnat/gprbuild from GitHub INTERNALLY (no curl flag reaches it), and a single 504 on
+      # the gprbuild asset fails the lane — seen 2026-09-14. Retry the whole toolchain install up to 5×,
+      # fail CLOSED on the 5th (never let the last failed attempt's exit be masked into success).
+      - for i in 1 2 3 4 5; do alr -n --force toolchain --select gnat_native=14.2.1 gprbuild=26.0.1 && break; [ "$i" = 5 ] && { echo "alr toolchain failed after 5 attempts"; exit 1; }; echo "alr toolchain attempt $i/5 failed (transient 504?); retrying in 5s"; sleep 5; done
+      - bash scripts/run-lang-scan.sh ada
+
+  - name: test-swift
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " swift ")'}]
+    # swift:6.4.1 (2026-10-18, B220): swift-nio >= 2.98 needs tools 6.1 — on 6.0 the resolver held the golden path at
+    # swift-nio 2.97.1 (5 advisories). Keep test-swift, scan-swift and golden-paths/swift/vapor-app/Dockerfile in step.
+    image: swift:6.4.1
+    # The vapor-app fixture compiles Vapor's whole graph (BoringSSL/swift-crypto C++ + asm, ~1057 units).
+    # With no memory request the step pod is best-effort QoS and was OOM-killed mid-compile on the RAM-tight
+    # node (#121) — same class as the syft/trivy step below. A memory request makes it Burstable (a floor,
+    # not first-to-die) + a limit gives headroom; SWIFT_BUILD_JOBS caps build parallelism so PEAK stays under
+    # the limit. MEMORY ONLY — no cpu request (cpu is compressible; avoids mother's cpu-requests wall).
+    environment:
+      SWIFT_BUILD_JOBS: "2"
+      LANG_JUNIT_DIR: reports/junit   # B189 (see test-python)
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 4Gi
+    commands:
+      - bash scripts/run-lang-tests.sh swift --self-check
+      - bash scripts/run-lang-tests.sh swift
+
+  - name: scan-swift
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " swift ")'}]
+    image: swift:6.4.1
+    commands:
+      - bash scripts/run-lang-scan.sh swift
+
+  - name: test-elixir
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " elixir ")'}]
+    image: elixir:1.17   # Debian-based: bash + build tools present
+    environment:
+      LANG_JUNIT_DIR: reports/junit   # B189: junit_formatter is a test-only dep in each elixir golden path's mix.exs
+    commands:
+      - mix local.hex --force && mix local.rebar --force
+      - bash scripts/run-lang-tests.sh elixir --self-check
+      - bash scripts/run-lang-tests.sh elixir   # Phoenix fixture + the Plug golden path (discovered)
+      # (coverage ratchet for elixir is a fast-follow, like dotnet/kotlin/scala/php/ruby)
+
+  - name: scan-elixir
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " elixir ")'}]
+    image: elixir:1.17
+    commands:
+      - mix local.hex --force && mix local.rebar --force
+      - bash scripts/run-lang-scan.sh elixir
+
+  # ── test results → Trunk Flaky Tests (B189; one upload per workflow since B200) ──────────────────────────
+  # Uploads this workflow's JUnit to Trunk, after a failure too. Gated exactly like its lanes (the same
+  # SMOKE_ONLY / RUN_FIXTURES / FIXTURE_LANES test, OR-ed over this workflow's lane keys), so it runs
+  # exactly when at least one lane here ran, and then a run with no report is red (fail closed).
+  # trunk-upload.sh judges each upload from the CLI's printed output. Runbook: docs/runbooks/trunk-flaky-tests.md.
+  - name: trunk-upload
+    image: alpine:3.20
+    when:
+      - event: [manual, cron]
+        status: [success, failure]
+        evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " ada " || (" " + FIXTURE_LANES + " ") contains " swift " || (" " + FIXTURE_LANES + " ") contains " elixir ")'
+    environment:
+      TRUNK_API_TOKEN:
+        from_secret: trunk_org_token
+      TRUNK_COLLECTION_ID: ZuFEh5e5
+      TRUNK_CLI_VERSION: 0.16.1
+      TRUNK_CLI_SHA256: 8c34f99a41d4b3151f711aca05d01478b2f707dd698d3980d2524646021af5f2
+    commands:
+      - apk add --no-cache bash curl git >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/trunk-cli.tgz "https://github.com/trunk-io/analytics-cli/releases/download/$TRUNK_CLI_VERSION/trunk-analytics-cli-x86_64-unknown-linux.tar.gz"
+      - echo "$TRUNK_CLI_SHA256  /tmp/trunk-cli.tgz" | sha256sum -c -
+      - tar -xzf /tmp/trunk-cli.tgz -C /usr/local/bin trunk-analytics-cli
+      - bash scripts/ci/trunk-upload.sh reports/junit

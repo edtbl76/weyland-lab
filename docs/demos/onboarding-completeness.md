@@ -80,7 +80,7 @@ REGISTRY_FILE=/nonexistent ... # → exit 2 "CANNOT RUN — registry unreadable"
 ```
 
 **Tests + wiring:** `scripts/tests/onboarding-completeness.bats` **10 passed** (incl. the live-invariant
-case); `shellcheck --severity=warning` **0**. Runs in the `.woodpecker.yml` `repo-guards` step — pure
+case); `shellcheck --severity=warning` **0**. Runs in the `.woodpecker/platform.yml` `repo-guards` step — pure
 file analysis, secret-free, no cluster.
 
 ## The scaffolder (Phase 1b) — RUN 2026-09-07

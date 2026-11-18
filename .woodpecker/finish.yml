@@ -1,0 +1,58 @@
+# finish — post the pipeline's TRUE status to Port, and to Slack on failure, after everything else.
+# One of 8 workflows (B200, 2026-11-18): the pipeline that was .woodpecker.yml, split so independent work runs in
+# parallel. Layout, ordering and the rules every file follows: .woodpecker/README.md.
+labels:
+  backend: kubernetes
+  node: mother        # the agent pool (B200 step 1). Every workflow names one: see README.md § Agent pools.
+when:
+  - event: manual
+    status: [success, failure]
+  - event: cron
+    status: [success, failure]
+depends_on: [platform, fixtures-haskell, fixtures-a, fixtures-b, fixtures-c, golden-path, deliver]
+steps:
+  # ── the pipeline's TRUE status (B200) ─────────────────────────────────────────────────────────────────
+  # Inside a workflow, $CI_PIPELINE_STATUS and `when: status` see only THAT workflow (proven on the throwaway branch
+  # b200-status-test: #683 failed in another workflow while `finish` read success). So both steps ask Woodpecker's
+  # API through scripts/ci/pipeline-status.sh: failure if any other workflow failed/errored/was killed, success if all
+  # succeeded or were skipped, and anything else is reported as failure (it exits 2; `|| rc=$?` keeps the step's
+  # `set -e` from dying before it posts). Anonymous read: weyland-lab is a public repo, so no token enters CI.
+  # `depends_on` lists EVERY workflow, deliver included: #686 showed a finish that starts early reads a still-running
+  # workflow and (correctly) refuses to call that a success.
+  # notify-port is NOT gated: the CI-reliability signal posts in every mode (smoke included).
+  - name: notify-port
+    image: alpine:3.20
+    environment:
+      PORT_INGEST_URL:
+        from_secret: port_ingest_url
+    commands:
+      - apk add --no-cache curl jq >/dev/null
+      - |
+        rc=0
+        out="$(sh scripts/ci/pipeline-status.sh)" || rc=$?
+        status="$(printf '%s\n' "$out" | head -1)"
+        echo "pipeline status=$status (pipeline-status.sh exit $rc) $(printf '%s\n' "$out" | sed -n 2p)"
+        printf '{"number":%s,"status":"%s","repo":"%s","branch":"%s","commit":"%s","event":"%s","url":"%s"}' \
+          "$CI_PIPELINE_NUMBER" "$status" "$CI_REPO" "$CI_COMMIT_BRANCH" "$CI_COMMIT_SHA" "$CI_PIPELINE_EVENT" "$CI_PIPELINE_URL" > /tmp/port.json
+        # Bounded so a hung Port fails fast rather than pinning the step.
+        curl -sf --connect-timeout 10 --max-time 20 -X POST "$PORT_INGEST_URL" -H "Content-Type: application/json" -d @/tmp/port.json
+
+  # Slack on a failed (or unknown) pipeline only. It always runs and decides from the true status itself, because a
+  # `when: status: failure` here would only ever see this workflow, which succeeds.
+  - name: notify-slack
+    image: alpine:3.20
+    environment:
+      SLACK_WEBHOOK:
+        from_secret: slack_webhook_deploys
+    commands:
+      - apk add --no-cache curl jq >/dev/null
+      - |
+        rc=0
+        out="$(sh scripts/ci/pipeline-status.sh 2>/tmp/status.err)" || rc=$?
+        status="$(printf '%s\n' "$out" | head -1)"
+        detail="$(printf '%s\n' "$out" | sed -n 2p)"
+        [ -n "$detail" ] || detail="$(head -c 300 /tmp/status.err)"     # unknown status: the reason is on stderr
+        if [ "$status" = success ]; then echo "pipeline succeeded: no Slack post"; exit 0; fi
+        printf '{"attachments":[{"color":"danger","title":"[CI FAILED] %s #%s on %s","text":"%s (%s) at %.8s: %s  %s"}]}' \
+          "$CI_REPO" "$CI_PIPELINE_NUMBER" "$CI_COMMIT_BRANCH" "$CI_PIPELINE_EVENT" "$status" "$CI_COMMIT_SHA" "$CI_PIPELINE_URL" "$detail" > /tmp/slack.json
+        curl -sf --connect-timeout 10 --max-time 20 -X POST "$SLACK_WEBHOOK" -H "Content-Type: application/json" -d @/tmp/slack.json

@@ -143,7 +143,7 @@ for weeks. It fails closed on an unreachable API, an empty live list, or an unpa
 tests in `scripts/tests/port-iac-coverage.bats`, each mutation-verified. The Port curls are bounded
 (`--connect-timeout 10 --max-time 25`) so a hung API fails the step fast instead of pinning it — it still fails.
 
-**CI wiring:** step `port-iac-coverage` in `.woodpecker.yml` — it is the one guard here that needs credentials
+**CI wiring:** step `port-iac-coverage` in `.woodpecker/platform.yml` — it is the one guard here that needs credentials
 (`port_client_id` / `port_client_secret`), which is why it is a separate step from `repo-guards` (pure file
 analysis, no secrets). It is a **hard gate**: any non-zero exit — drift, a broken guard, or Port being unreachable —
 fails the pipeline. (A warn-and-continue path for Port outages was added during the 2026-09-24 Port outage and

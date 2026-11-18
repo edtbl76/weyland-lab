@@ -17,7 +17,7 @@ The owner has pushed to main. Get the lean CI pipeline green.
 2. Check in once per expected run time, not on a short timer. Each check: list every step that is not `success`.
    Read the step's log, not just its state.
 3. When a step fails, prove the layer before fixing: read the failing log lines, reproduce locally in the step's own
-   toolchain image where possible, fix, run the full local guard suite (`repo-guards` in `.woodpecker.yml`), and hand
+   toolchain image where possible, fix, run the full local guard suite (`repo-guards` in `.woodpecker/platform.yml`), and hand
    the owner the push (the owner does all git). Then retrigger.
 4. The Sonar gate: read `QUALITY GATE STATUS` in the `sonar-gate` log. If it failed only because a new hotspot is
    unreviewed and the hotspot is genuinely safe, mark it with `scripts/sonar_api.py review-safe <file> "<reason>"`

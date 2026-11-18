@@ -11,7 +11,7 @@ initiative) and **initiative-driven scope** (2026-09-24; see § "Check H" below)
 - **Guard:** `scripts/check-linear-sync.sh` · **Tests:** `scripts/tests/linear-sync.bats` (72 cases)
 - **Exit codes:** `0` clean · `1` drift · `2` the guard could not do its job (no key, Linear unreachable/timeout,
   non-200, unparseable/empty response). Both 1 and 2 block — a Linear outage fails the pipeline (fail-closed).
-- **CI:** `.woodpecker.yml` step `linear-sync`, **blocking**. Its own step rather than folded into
+- **CI:** `.woodpecker/platform.yml` step `linear-sync`, **blocking**. Its own step rather than folded into
   `repo-guards` (deliberately secret-free, pure file analysis) or `port-iac-coverage` (different SaaS,
   and a step should hold only the secret it uses). Needs the `linear_api_key` repo secret covering
   **cron + manual** — a secret that does not cover the triggering event is a whole-config PARSE error,

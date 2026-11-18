@@ -83,7 +83,7 @@ way; the old step-level `secrets: [...]` list is deprecated (lint: *Additional p
 allowed*) and silently injects nothing. `supply-chain.sh` passes it to cosign as **`--key env://COSIGN_KEY`**
 — cosign's `--key` wants a file path or an `env://` ref, NOT raw PEM (it would try to open the PEM as a
 filename; `cosign_key_ref` auto-detects: a file path by hand, `env://` in CI). `COSIGN_PASSWORD` is a **plain
-empty env** in `.woodpecker.yml` (the key has no passphrase, and Woodpecker rejects an *empty secret* with a
+empty env** in `.woodpecker/deliver.yml` (the key has no passphrase, and Woodpecker rejects an *empty secret* with a
 422) — so **only `cosign_key` is a Woodpecker secret**. Pull it from the in-cluster secret, don't paste:
 
 ```
@@ -249,7 +249,7 @@ policy (no second copy that can drift):
   needs a FULL-PATH entry in `exemptImages` (`k8s/gatekeeper/image-signatures.yaml`), never a registry root:
   `nvcr.io/nvidia/k8s-device-plugin` (2026-11-15) failed the job for a day because the device plugin was deployed
   without one. **CI step images count too:** their pods run in the `woodpecker` namespace, so since 2026-11-15
-  `scripts/check-image-provenance.sh` (CI repo-guards) also judges every `image:` in `.woodpecker.yml` (namespace
+  `scripts/check-image-provenance.sh` (CI repo-guards) also judges every `image:` in `.woodpecker/*.yml` (namespace
   `woodpecker`). Eight CI images had been in no list and failed any provenance run that overlapped their step.
 
 The three layers stack: **CI** (pre-merge, declared) + **enumerator** (nightly, all declared workloads

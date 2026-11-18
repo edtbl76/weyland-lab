@@ -200,9 +200,9 @@ spec:
       - prompve/                                  # prometheus-pve-exporter
       - squidfunk/                                # mkdocs-material
       - nvcr.io/nvidia/k8s-device-plugin          # NVIDIA device plugin (timberback GPU, ADR-0012); official chart, pinned. Owner, 2026-11-15
-      # ── CI STEP IMAGES (.woodpecker.yml; pods in the `woodpecker` namespace). Full paths, owner-reviewed
+      # ── CI STEP IMAGES (.woodpecker/*.yml; pods in the `woodpecker` namespace). Full paths, owner-reviewed
       #    2026-11-15: they were in no list, so any provenance run or Gatekeeper audit overlapping their step failed.
-      #    scripts/check-image-provenance.sh now judges .woodpecker.yml at merge time, so a new one cannot land unlisted.
+      #    scripts/check-image-provenance.sh now judges the .woodpecker/ workflows at merge time, so a new one cannot land unlisted.
       - bats/bats                                 # shell-tests (bats)
       - cljkondo/clj-kondo                        # Clojure lint lane
       - curlimages/curl                           # HTTP probes in CI steps

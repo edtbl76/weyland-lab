@@ -66,7 +66,7 @@ converge on — is itself the stop-or-accept decision, made per finding. The bar
 `gate_shallow`) is a knob in `scripts/complexity-triage.json`. **The gate could only be turned on *from* a run:**
 the codebase's own distribution set the bar — after the B162 remediation zero high-`TANGLED`/`SHALLOW` remain, so
 the gate passes today and blocks only *new* clear complexity debt. In CI it is the `--gate` step in
-`.woodpecker.yml`.
+`.woodpecker/platform.yml`.
 
 ## Where CodeScene and SonarQube fit
 

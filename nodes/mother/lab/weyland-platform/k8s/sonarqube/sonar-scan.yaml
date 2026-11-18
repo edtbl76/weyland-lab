@@ -13,7 +13,7 @@
 # build artifacts, the golden-paths/ language fixtures (B88/B153 hello-world, no prod code) and eval/ task fixtures
 # (deliberately-buggy coding-agent tasks). What remains is the real code: the Python services + the Flink Java modules.
 #
-# COVERAGE: the `coverage-python` initContainer mirrors CI's python lane EXACTLY (.woodpecker.yml `test-python`):
+# COVERAGE: the `coverage-python` initContainer mirrors CI's python lane EXACTLY (.woodpecker/platform.yml `test-python`):
 # python:3.12-slim → run-lang-tests.sh python (installs each project's requirements-test.txt, runs the suites) →
 # coverage-ratchet.sh run python. coverage-ratchet's cov_python now also emits a Cobertura coverage.xml per real
 # service (weyland-dagster, weyland-guard); the scanner imports them via sonar.python.coverage.reportPaths, so

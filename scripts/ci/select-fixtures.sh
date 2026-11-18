@@ -54,20 +54,30 @@ fi
 #     to repo-guards, a step every lean run executes anyway. The base version is the merge-base copy; a missing one
 #     (new file, git trouble) leaves the path empty and step 3 fails closed. TEST SEAMS: SELECT_WOODPECKER_BASE /
 #     SELECT_WOODPECKER_HEAD name the two files directly.
-WP_HEAD="${SELECT_WOODPECKER_HEAD:-$ROOT/.woodpecker.yml}"
+#     B200 (2026-11-18): the pipeline is a DIRECTORY of workflows (.woodpecker/*.yml). The base copy is rebuilt as a
+#     directory from the merge-base tree; a base that still has the old single .woodpecker.yml is copied in as one
+#     workflow, so the split itself compares unequal and selects a full run (correctly).
+WP_HEAD="${SELECT_WOODPECKER_HEAD:-$ROOT/.woodpecker}"
 WP_BASE="${SELECT_WOODPECKER_BASE:-}"
-if [ -z "${SELECT_WOODPECKER_BASE+x}" ] && grep -qxF '.woodpecker.yml' <<<"$changed"; then
-  WP_BASE="$(mktemp)"; trap 'rm -f "$WP_BASE"' EXIT
-  if ! mb="$(git -C "$ROOT" merge-base "$BASE" HEAD 2>/dev/null)" \
-     || ! git -C "$ROOT" show "$mb:.woodpecker.yml" > "$WP_BASE" 2>/dev/null; then
-    rm -f "$WP_BASE"; WP_BASE=""
+if [ -z "${SELECT_WOODPECKER_BASE+x}" ] && grep -qE '^\.woodpecker(\.yml|/[^/]+\.ya?ml)$' <<<"$changed"; then
+  WP_BASE="$(mktemp -d)"; trap 'rm -rf "$WP_BASE"' EXIT
+  ok=0
+  if mb="$(git -C "$ROOT" merge-base "$BASE" HEAD 2>/dev/null)"; then
+    for f in $(git -C "$ROOT" ls-tree --name-only "$mb" .woodpecker/ 2>/dev/null | grep -E '\.ya?ml$'); do
+      git -C "$ROOT" show "$mb:$f" > "$WP_BASE/$(basename "$f")" 2>/dev/null && ok=1
+    done
+    if git -C "$ROOT" show "$mb:.woodpecker.yml" > "$WP_BASE/woodpecker.yml" 2>/dev/null; then ok=1
+    else rm -f "$WP_BASE/woodpecker.yml"; fi
   fi
+  [ "$ok" = 1 ] || { rm -rf "$WP_BASE"; WP_BASE=""; }
 fi
 
 # 3. Decide. Python matches each changed file against the manifest's fixture_trigger_paths prefixes.
 #    Any python trouble (missing python3, missing pyyaml, unparseable manifest, no prefixes) prints "1".
 LIST_ROOTS_CMD="${SELECT_LIST_ROOTS_CMD:-bash $ROOT/scripts/run-lang-tests.sh}"
+PIPELINE_LIB="$ROOT/scripts/lib"   # scripts/lib/woodpecker_pipeline.py: reads the .woodpecker/ workflows
 CHANGED="$changed" MANIFEST="$MANIFEST" WP_BASE="$WP_BASE" WP_HEAD="$WP_HEAD" PLAN="$PLAN" ROOT="$ROOT" \
+  PIPELINE_LIB="$PIPELINE_LIB" \
   LIST_ROOTS_CMD="$LIST_ROOTS_CMD" python3 - <<'PY' || emit_run_all
 import os, re, shlex, subprocess, sys
 PLAN = os.environ.get("PLAN") == "1"
@@ -102,19 +112,35 @@ if not changed:
     #                                               closed to the full matrix; "0" needs POSITIVE evidence
     #                                               of a non-fixture-only change. Run the selector BEFORE
     #                                               pushing (dirty tree) to get the lean signal.
+sys.path.insert(0, os.environ.get("PIPELINE_LIB", ""))
+try:
+    import woodpecker_pipeline as wp
+except Exception:
+    emit("1")                                     # cannot load the pipeline reader → run all
+
+def is_pipeline(f):
+    """A changed path that is part of the pipeline: a workflow under .woodpecker/, or the old single file (its
+    deletion by the B200 split must count)."""
+    return f == ".woodpecker.yml" or bool(re.match(r"^\.woodpecker/[^/]+\.ya?ml$", f))
+
 def fixture_view(path):
-    """The parts of a .woodpecker.yml that decide what a fixture lane does: every top-level key except `steps`, plus
-    the steps whose `when` gates on RUN_FIXTURES (anchors resolved by the loader). None = cannot tell → trigger."""
+    """The parts of the pipeline that decide what a fixture lane does: every workflow's top-level keys except `steps`,
+    plus the steps whose `when` gates on RUN_FIXTURES, keyed (workflow, step) since a step name such as trunk-upload
+    repeats across workflows (anchors resolved by the loader). None = cannot tell → trigger."""
+    if not path:
+        return None
     try:
-        doc = yaml.safe_load(open(path, encoding="utf-8"))
+        flows = wp.workflows(path)
     except Exception:
         return None
-    if not isinstance(doc, dict) or not isinstance(doc.get("steps"), list):
-        return None
-    gated = [s for s in doc["steps"] if isinstance(s, dict) and "RUN_FIXTURES" in str(s.get("when", ""))]
+    if os.path.isfile(path):
+        flows = [("", doc) for _, doc in flows]   # one file = one workflow; its file name is not part of the content
+    top = {name: {k: v for k, v in doc.items() if k != "steps"} for name, doc in flows}
+    gated = {(name, s.get("name")): s for name, doc in flows for s in doc["steps"]
+             if isinstance(s, dict) and "RUN_FIXTURES" in str(s.get("when", ""))}
     if not gated:
         return None                               # no gated step at all: the gate was renamed or removed → trigger
-    return ({k: v for k, v in doc.items() if k != "steps"}, gated)
+    return (top, gated)
 
 def woodpecker_touches_fixtures():
     base, head = os.environ.get("WP_BASE", ""), os.environ.get("WP_HEAD", "")
@@ -125,7 +151,7 @@ def woodpecker_touches_fixtures():
 
 fixture_changes = []
 for f in changed:
-    if f == ".woodpecker.yml" and not woodpecker_touches_fixtures():
+    if is_pipeline(f) and not woodpecker_touches_fixtures():
         continue                                  # only ungated steps changed: they run in a lean pipeline anyway
     if any(f.startswith(pre) for pre in prefixes):
         fixture_changes.append(f)
@@ -142,25 +168,24 @@ def changed_lane_keys():
     old, new = fixture_view(os.environ.get("WP_BASE", "")), fixture_view(os.environ.get("WP_HEAD", ""))
     if old is None or new is None or old[0] != new[0]:
         return None
-    by_name = lambda steps: {st.get("name"): st for st in steps}
-    o, n = by_name(old[1]), by_name(new[1])
+    o, n = old[1], new[1]
     keys = set()
-    for name in set(o) | set(n):
-        if o.get(name) == n.get(name):
+    for key in set(o) | set(n):
+        if o.get(key) == n.get(key):
             continue
-        m = re.match(r"^(?:test|scan)-([a-z0-9-]+)$", str(name))
+        m = re.match(r"^(?:test|scan)-([a-z0-9-]+)$", str(key[1]))
         if not m:
             return None                           # the smoke step (or an unknown gated step) changed → full
         keys.add(m.group(1))
     return keys
 
 extra_lanes = set()
-if ".woodpecker.yml" in fixture_changes:
+if any(is_pipeline(f) for f in fixture_changes):
     keys = changed_lane_keys() if os.environ.get("WP_BASE") else None
     if keys is None:
         emit("1")
     extra_lanes = keys
-    fixture_changes = [f for f in fixture_changes if f != ".woodpecker.yml"]
+    fixture_changes = [f for f in fixture_changes if not is_pipeline(f)]
 gp_changes = [f for f in fixture_changes if f.startswith("golden-paths/") and len(f.split("/")) >= 4]
 if len(gp_changes) != len(fixture_changes):
     emit("1")
@@ -168,11 +193,11 @@ if len(gp_changes) != len(fixture_changes):
 def lane_table():
     """{lane key: {languages}} from the fixture-gated steps that run run-lang-(tests|scan).sh <lang>. None = cannot tell."""
     try:
-        doc = yaml.safe_load(open(os.environ.get("WP_HEAD", ""), encoding="utf-8"))
+        steps = [st for _, st in wp.steps(os.environ.get("WP_HEAD", ""))]
     except Exception:
         return None
     table = {}
-    for st in (doc or {}).get("steps") or []:
+    for st in steps:
         if not isinstance(st, dict) or "RUN_FIXTURES" not in str(st.get("when", "")):
             continue
         m = re.match(r"^(?:test|scan)-([a-z0-9-]+)$", str(st.get("name", "")))

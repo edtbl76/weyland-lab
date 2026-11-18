@@ -499,7 +499,7 @@ cannot come from a broken fixture. The fail-closed cases assert the **reason** i
 a non-zero exit: `[ "$status" -ne 0 ]` alone passes on exit 127, which is how a test written to prove
 the SMOKE gate failed closed passed against a function that did not exist (2026-08-23).
 
-Also runs in CI as the blocking `shell-tests` step in `.woodpecker.yml`, beside `shellcheck` — the step
+Also runs in CI as the blocking `shell-tests` step in `.woodpecker/platform.yml`, beside `shellcheck` — the step
 runs `bats scripts/tests/` over the whole directory, so a new suite file needs no CI change.
 
 ---

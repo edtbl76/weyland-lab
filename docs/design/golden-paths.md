@@ -54,7 +54,7 @@ flowchart TD
     GP -->|"scripts/new-service.sh &lt;path&gt; &lt;name&gt;"| SVC["real service<br/>(token rewritten, selfcheck dropped,<br/>onboarding declaration printed)"]
     GP -->|"resolve_fixture()"| FIX["this lane's fixture+probe<br/>(replaces the retired B88 hello app)"]
 
-    subgraph CI["CI lanes (.woodpecker.yml)"]
+    subgraph CI["CI lanes (.woodpecker/*.yml)"]
         direction LR
         FIX --> T["run-lang-tests.sh<br/>fixture passes · selfcheck fails · real projects pass"]
         FIX --> C["coverage-ratchet.sh<br/>no regression vs baseline"]
@@ -107,7 +107,7 @@ same `buildctl` invocation and `registry.insecure=true`/buildcache flags as `scr
 applies a run-to-completion Job that starts the image, curls `/ready` + `/hello`, asserts exit 0, and
 deletes it. Fail-closed: a build/apply failure is exit 2, a smoke failure exit 1.
 
-**It runs in CI, not by hand.** `.woodpecker.yml`'s `golden-path-smoke` step invokes it (in a
+**It runs in CI, not by hand.** `.woodpecker/golden-path.yml`'s `golden-path-smoke` step invokes it (in a
 `moby/buildkit` step pod that also installs `kubectl`), so the golden paths are built + smoked
 in-cluster on every pipeline run. The Jobs run in a dedicated **`golden-paths`** namespace (no istio
 injection → no sidecar blocking completion), and `k8s/golden-paths/golden-paths-rbac.yaml` grants a
@@ -145,7 +145,7 @@ same build → k8s Job → curl smoke (its own scoped pipeline via `--var GOLDEN
 which scopes only `golden-path-smoke`; the test/scan lanes always run all languages). **11 ecosystems,
 14 paths, all ★ Job-verified in-cluster.** Each non-frontend ecosystem is a **net-new test + scan lane**
 in `run-lang-tests.sh` / `run-lang-scan.sh` (runner + `test_glob` + `root_marker` + a fail-closed
-selfcheck) plus a `.woodpecker.yml` runner image and a `quality-tools.yaml` scanner registration.
+selfcheck) plus a `.woodpecker/fixtures-*.yml` runner image and a `quality-tools.yaml` scanner registration.
 
 - **.NET** — ★ ASP.NET Core (minimal API · xunit + WebApplicationFactory · `Category=selfcheck` trait · `dotnet format`) — #97
 - **Kotlin** — ★ Ktor (`testApplication` · shadow jar · JUnit `@Tag("selfcheck")` · ktlint) — #100
@@ -193,12 +193,12 @@ endpoints served): **Erlang**/Cowboy (`rebar3`, eunit) · **Julia**/Oxygen.jl (`
 toolchain, `swift test`, `swift:6.4.1-jammy-slim` runtime (6.0 until B220, 2026-10-18 — swift-nio ≥ 2.98 needs tools 6.1) — NOT the hardware-gated iOS Swift, which stays B164
 workstream 1) · **Dart**/shelf (`dart compile exe`, `-t selfcheck --run-skipped`). Lanes wired: `run-lang-tests.sh`
 (markers + dispatch) + `lib/lang-fixtures.sh` (fixtures) + `run-lang-scan.sh` (scanners: `rebar3 xref` · JuliaFormatter ·
-`luacheck` · `swift format lint` · `dart analyze`) + `quality-tools.yaml` (26 lang-scan tools) + `.woodpecker.yml`
+`luacheck` · `swift format lint` · `dart analyze`) + `quality-tools.yaml` (26 lang-scan tools) + `.woodpecker/fixtures-*.yml`
 (`test-*`/`scan-*` per lang) + `golden-path-smoke` auto-discovers the 5 Dockerfiles. **Optional/breadth (4), also all built + docker-verified + wired (2026-09-11):** **R**/plumber (`testthat`,
 `lintr`) · **Perl**/Mojolicious (`prove` + Test::Mojo, `perlcritic`) · **Haskell**/Scotty (`cabal test` + hspec,
 `hlint` — path is hlint-clean) · **Ada**/AWS (Alire binary GNAT 14.2.1, AUnit, scan = compiler `-gnatwa -gnaty`
 since gnatcheck/libadalang-tools is a heavy separate crate). All 9 wired into `run-lang-tests.sh` +
-`lib/lang-fixtures.sh` + `run-lang-scan.sh` + `quality-tools.yaml` + `.woodpecker.yml`
+`lib/lang-fixtures.sh` + `run-lang-scan.sh` + `quality-tools.yaml` + `.woodpecker/fixtures-*.yml`
 (`test-*`/`scan-*` per lang). **CI-CONFIRMED 2026-09-13:** all 58 test + scan lanes green (pipeline #126) and
 all 9 new Dockerfiles built via buildkit + served in-cluster as run-to-completion Jobs + torn down
 (golden-path-smoke, "OK — all 9 golden path(s) served in-cluster and were torn down"). Service-path matrix
@@ -240,7 +240,7 @@ discovery). Verified: react-native, flutter, and swift-tokamak each discover **0
 dart no longer sees flutter, the node lanes no longer see RN, the swift lane sees only vapor + swift-ios (not
 swift-tokamak), and swift-ios still rides the swift lane. Wired across the shared surfaces (`run-lang-tests.sh` ·
 `lib/lang-fixtures.sh` · `run-lang-scan.sh` · `quality-tools.yaml` — 31 lang-scan tools, `flutter-analyze` added +
-`eslint` reused for RN, swift-tokamak test-only · `.woodpecker.yml` `test-react-native`/`test-flutter`/`test-swift-tokamak`
+`eslint` reused for RN, swift-tokamak test-only · `.woodpecker/fixtures-*.yml` `test-react-native`/`test-flutter`/`test-swift-tokamak`
 + `scan-react-native`/`scan-flutter`). **CI-CONFIRMED 2026-09-13:** all 5 mobile lanes green (pipeline #126).
 The matrix total is now **48 (44 service + 4 mobile clients)**, and **B164 is closed** — only the on-device
 iOS/SwiftUI UI remains, carved out to **B168 (Very Low)** as the documented Mac-hardware-gate limitation.

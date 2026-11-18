@@ -1,19 +1,22 @@
 # Woodpecker step menu — weyland CI
 
-A "café menu" of every step in [`.woodpecker.yml`](../../.woodpecker.yml): what each does, its image, and
+A "café menu" of every step in the pipeline ([`.woodpecker/`](../../.woodpecker/README.md), one file per workflow): what each does, its image, and
 when you'd want it. The operational runbook (deploy, triggers, gotchas, secrets) is
 [woodpecker.md](woodpecker.md); this page is the **step catalog**.
 
 ## How the kitchen runs (read first)
 
-- **One workflow, `backend: kubernetes`.** Every step is a pod on mother's `woodpecker-agent-0/-1`. The
-  workflow is deliberately pinned to the k8s backend so it can't land on the rogueone **local-backend**
-  agents (those are STUD.io's, B57b). A step that needs the host (privileged, eBPF, docker-in-docker) can
+- **Eight workflows, `backend: kubernetes` (B200, 2026-11-18).** `platform`, `fixtures-haskell`, `fixtures-a/-b/-c`
+  and `golden-path` run in parallel; `deliver` waits for all six and is skipped if any failed; `finish` waits for
+  everything and posts the true status. Every step is a pod; each workflow names its agent pool (`node: mother`
+  today) and is pinned to the k8s backend so it can't land on the rogueone **local-backend** agents (those are
+  STUD.io's, B57b). Which step lives in which file: `.woodpecker/README.md`. A step that needs the host (privileged, eBPF, docker-in-docker) can
   therefore NOT run here — see "Off-menu" below.
 - **Trigger:** `when: event: [manual, cron]` — no push webhooks on the LAN. The `nightly-images` cron
   (`0 5 * * *` UTC) is the full-regression run; manual is everything else.
-- **Sequential, in file order.** No `depends_on` — single-node k3s → local-path RWO, so steps run one at a
-  time and pass workspace files (`.ci-build-plan`, `.ci-image-bumps`) cleanly step→step.
+- **Sequential inside a workflow.** Each workflow's workspace is a local-path RWO volume, so its steps run one at a
+  time and pass workspace files (`.ci-build-plan`, `.ci-image-bumps`, both in `deliver`) cleanly step→step. Files
+  never pass between workflows: each workflow with lanes uploads its own JUnit (`trunk-upload`).
 - **Blocking by default.** A failing step fails the pipeline (and the nightly ship). Add `failure: ignore`
   to a step to keep it reporting without blocking — do not silently delete a guard.
 
@@ -91,12 +94,12 @@ The pipeline runs *all* steps in file order; there is no per-step "run just this
   (privileged pods run fine here) — it's a hard docker dependency. So keploy runs two other ways:
   - **On the host, on-demand (the working path):** `bash scripts/keploy-verify.sh` on rogueone — docker +
     keploy present, proven 7/7. This is the recommended form for a $0 lab.
-  - **CI path, if ever wanted:** convert this file to a `.woodpecker/` directory (verified: a `.woodpecker/`
-    dir shadows the single `.woodpecker.yml`, so the main pipeline moves into `.woodpecker/build.yml`
-    unchanged) and add `.woodpecker/keploy.yml` with `labels: {backend: local}` + `when: event: manual`,
-    landing on the **rogueone local-backend agent** (which has docker + a proven keploy). Costs: the
-    restructure changes main-pipeline discovery (needs a validation trigger) and the local agent must run
-    keploy with the privileges it needs. Worth it for a real service with downstream deps, not a
+  - **CI path, if ever wanted:** the pipeline is already a `.woodpecker/` directory (B200), so add
+    `.woodpecker/keploy.yml` with `labels: {backend: local}` + `when: event: manual`,
+    landing on the **rogueone local-backend agent** (which has docker + a proven keploy). Cost: the local
+    agent must run keploy with the privileges it needs, `finish` must then `depends_on` it too, and
+    `scripts/tests/pipeline-layout.bats` needs a deliberate exception, because its first rule requires
+    `backend: kubernetes` for every workflow. Worth it for a real service with downstream deps, not a
     hello-world. (Keploy's own `keploy ci scaffold` emits **GitHub Actions**, which the LAN can't webhook.)
 
 **Adding a new step:** copy the closest existing step (image + `commands`), keep it in file order at the

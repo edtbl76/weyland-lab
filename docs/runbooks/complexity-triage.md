@@ -95,7 +95,7 @@ The lab's *reading* lives in this engine; the two scanners stay as independent s
 
 ## CI wiring
 
-The `complexity-triage` step in `.woodpecker.yml` runs the triage **with `--gate`** on every build — it BLOCKS on
+The `complexity-triage` step in `.woodpecker/platform.yml` runs the triage **with `--gate`** on every build — it BLOCKS on
 a high-confidence `TANGLED` or any `SHALLOW`, and reports the rest. (image `python:3.12-slim`, installs
 `scripts/requirements-test.txt`, runs `bash scripts/check-complexity.sh --gate`.) Not in `quality-tools.yaml` —
 that registry is the scan *suite* (SonarQube/CodeScene/scan-suite); this is a repo-guard like the other

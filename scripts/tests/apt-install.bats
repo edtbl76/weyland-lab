@@ -55,8 +55,8 @@ teardown() { rm -rf "$STUB"; }
   [[ "$output" == *"usage"* ]]
 }
 
-@test "every apt-get install in .woodpecker.yml goes through the retry helper" {
-  run grep -n 'apt-get install' "$REPO/.woodpecker.yml"
+@test "every apt-get install in the pipeline (.woodpecker/*.yml) goes through the retry helper" {
+  run grep -n 'apt-get install' "$REPO"/.woodpecker/*.yml
   [ "$status" -eq 1 ] || { echo "steps that call apt-get install directly (use scripts/ci/apt-install.sh):"; echo "$output"; return 1; }
-  [ "$(grep -c 'scripts/ci/apt-install.sh' "$REPO/.woodpecker.yml")" -ge 9 ]
+  [ "$(cat "$REPO"/.woodpecker/*.yml | grep -c 'scripts/ci/apt-install.sh')" -ge 9 ]
 }

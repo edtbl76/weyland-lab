@@ -65,7 +65,7 @@ woodpecker-cli pipeline log show edtbl76/stud.io <N> <STEP>     # tail a step lo
 - Same LAN-webhook constraint as below applies — STUD.io runs are CLI/manual-triggered (auto-trigger = B57a).
 
 ## weyland image CI → CD (B57a)
-The weyland-lab `.woodpecker.yml` builds the weyland-built images (`weyland-tool-server`, `weyland-dagster-*`,
+The weyland-lab pipeline (`.woodpecker/`, eight workflows since B200; the build is `.woodpecker/deliver.yml`) builds the weyland-built images (`weyland-tool-server`, `weyland-dagster-*`,
 `weyland-rag-index`, `feast-server`, `weyland-flink*`, `store-scaler`, `scan-suite`, `guardrails-structure`,
 `nemo-guardrails`) and deploys them **via git**, replacing the manual `scripts/build-push-images.sh` + hand-bumped
 tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
@@ -95,8 +95,9 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     split. A workflow whose steps are all skipped still runs its clone (~8 s) and reports success. (The older note said
     "only the FIRST workflow's `when`"; that was wrong, not merely out of date.) (`pipeline deploy`/`deployment`-event selection is a 403 for this token — permission-walled.)
   - A plain `create` with no var, and the nightly cron, still run the **full** pipeline (manual-full preserved).
-- **Lean language matrix (B177) — skip the ~46 fixture-language lanes when you didn't touch them.** CI steps run
-  SEQUENTIALLY (RWO workspace), so a full run is ~30 min of golden-path lanes on the RAM-tight node. When a change
+- **Lean language matrix (B177) — skip the ~46 fixture-language lanes when you didn't touch them.** Steps inside one
+  workflow run SEQUENTIALLY (RWO workspace); since B200 the lanes are spread over four parallel `fixtures-*` workflows,
+  but every skipped lane is still time and memory you don't need. When a change
   is production/docs/scripts only (not `golden-paths/`), gate the fixture lanes off with `RUN_FIXTURES=0`. Compute it
   from the working tree **BEFORE you push** (an empty post-push diff fails closed to the full matrix — by design):
   ```bash
@@ -106,7 +107,7 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
     --var FIXTURE_LANES="$FIXTURE_LANES" --var GOLDEN_PATH_ONLY="$GOLDEN_PATH_ONLY"
   ```
   **Per-lane selection (2026-10-18):** `--plan` narrows a change confined to golden paths (or to lane steps in
-  `.woodpecker.yml`) to just the lanes that test it — `FIXTURE_LANES` = the lane keys (`test-<key>`/`scan-<key>`, e.g.
+  `.woodpecker/fixtures-*.yml`) to just the lanes that test it — `FIXTURE_LANES` = the lane keys (`test-<key>`/`scan-<key>`, e.g.
   `swift`), `GOLDEN_PATH_ONLY` = the changed golden paths that have a Dockerfile (for `golden-path-smoke`). The mapping is
   the lanes' OWN discovery (`run-lang-tests.sh <lang> --list-roots`), so `golden-paths/mobile/swift-ios` selects `swift`.
   `FIXTURE_LANES=''` = every lane (full), `'none'` = no lane (a golden path only the smoke covers, e.g. `python/flask` —
@@ -128,7 +129,7 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
   a trigger path. **After a push**, compute the selector against the pre-push commit:
   `RUN_FIXTURES="$(SELECT_BASE=<origin/main before the push> bash scripts/ci/select-fixtures.sh)"`. `golden-path-smoke` is
   lean-gated too (`SMOKE_ONLY == "smoke" || RUN_FIXTURES != "0"`), so a lean run skips the all-~44-paths build.
-  **`.woodpecker.yml` is compared by content, not by name (2026-10-16):** pipeline #382 ran the full matrix for hours
+  **The pipeline (`.woodpecker/` since B200; `.woodpecker.yml` before) is compared by content, not by name (2026-10-16):** pipeline #382 ran the full matrix for hours
   because one line was added to `repo-guards`, a step every lean run executes anyway. The selector now loads the
   merge-base and current copies and compares only what can change a fixture lane: every top-level key (labels, `when`,
   shared anchors) and every step whose `when` gates on `RUN_FIXTURES`, with anchors resolved. A change confined to
@@ -209,8 +210,9 @@ The daemon is privileged + AppArmor-unconfined **in its own manifest** (accepted
   `weyland_ci_reliability` dashboard; see [the CI reliability signal section](#woodpecker--port-ci-reliability-signal-b63-done-2026-08-19).
 
 ## Pipelines
-- `.woodpecker.yml` lives at the **repo root on GitHub** (Woodpecker reads it from the forge, NOT your local
-  checkout — if it's only local, the UI says "nothing to run"). Steps use the k8s backend (each step = a pod).
+- The pipeline is the **`.woodpecker/` directory on GitHub**, one `*.yml` per workflow (B200, 2026-11-18; it was
+  `.woodpecker.yml`). Woodpecker reads it from the forge, NOT your local checkout: if it's only local, the UI says
+  "nothing to run". Steps use the k8s backend (each step = a pod). Layout and rules: `.woodpecker/README.md`.
 - `.yamllint` at the repo root tunes the `yaml-syntax` check: `extends: relaxed` + `line-length: disable`
   (80-col is meaningless for commented k8s manifests; keeps the checks that catch real breakage).
 
@@ -237,8 +239,10 @@ can't provide. Docs: [../diagrams/flow-ci-reliability-signal.md](../diagrams/flo
   the public YAML. Events: weyland-lab `cron,manual`; stud.io `manual,pull_request,push`.
 - Payload built with `printf` (clean JSON, no quote-escaping): number/status/repo/branch/commit/event/url.
 - **The step differs by backend, because of a DAG subtlety:**
-  - **weyland-lab** (`kubernetes`, **single** workflow) — one `notify-port` step reads `$CI_PIPELINE_STATUS`; reliable
-    here because the pipeline *is* that one workflow, so the status is final at the last step. Proven: run #12 → success.
+  - **weyland-lab** (`kubernetes`, **eight** workflows since B200) — `notify-port` runs in the `finish` workflow, which
+    `depends_on` every other workflow and runs on success or failure. It does NOT read `$CI_PIPELINE_STATUS` (that sees
+    only `finish`, which succeeds: #683). It asks the API through `scripts/ci/pipeline-status.sh`. (Until B200 the
+    pipeline was one workflow, so the env var was final at the last step; proven then by run #12.)
   - **STUD.io** (`local`, **three parallel** workflows) — `$CI_PIPELINE_STATUS` reflects the **whole** pipeline, which
     isn't final while sibling workflows run, so it reads **empty** at main's notify time. Fix = **two status-gated
     steps** (`notify-port-pass` / `notify-port-fail`) that **hardcode** the status, each `depends_on` **every** prior
@@ -311,7 +315,7 @@ set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && w
 ```
 
 The B190 `issue-readiness` step's secret (create once with `add`; rotate with `update` and the same flags). It must
-exist BEFORE `.woodpecker.yml` references it — a missing secret fails the whole config, every step:
+exist BEFORE the pipeline (`.woodpecker/platform.yml`) references it — a missing secret fails the whole config, every step:
 
 ```bash
 set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && woodpecker-cli repo secret add --repository edtbl76/weyland-lab --name linear_comment_key --value "$LINEAR_API_KEY" --event cron --event manual --event push
@@ -416,13 +420,14 @@ The newest `last_contact` rows are the live agents: each restart registers a new
 ## Toolchain caches (B88 #6)
 
 Five persistent PVCs (`k8s/woodpecker/ci-caches.yaml`, ns `woodpecker`, RWO local-path, **hand-applied**; unlike
-`buildkitd-cache-tb`, which Argo manages in `buildkitd.yaml`) are mounted per-lane in `.woodpecker.yml` via the step-level `volumes: [<pvc>:<path>]` key, each
+`buildkitd-cache-tb`, which Argo manages in `buildkitd.yaml`) are mounted per-lane in `.woodpecker/*.yml` via the step-level `volumes: [<pvc>:<path>]` key, each
 with the matching cache env var: `ci-cache-cargo` → `CARGO_HOME=/cache/cargo` (+ a **literal** `PATH` incl.
 `/cache/cargo/bin`, so `command -v cargo-llvm-cov` finds the cached binary — never `$PATH` in YAML); `ci-cache-maven`
 → `/root/.m2/repository`; `ci-cache-trivy` → `TRIVY_CACHE_DIR`; `ci-cache-go` → `GOMODCACHE`/`GOCACHE`; `ci-cache-npm`
 → `npm_config_cache`. Warm-vs-cold: `cargo install` stops recompiling (scan-rust 125s→6s), the 109 MB trivy DB stops
-re-downloading (build 682s→370s) — ~9 min/run. RWO is correct: single-node sequential steps = one writer, which the
-caches need anyway. **Apply the PVCs before the run** or step pods hang Pending.
+re-downloading (build 682s→370s) — ~9 min/run. RWO is correct: each cache is mounted by ONE workflow only (maven by `platform`, trivy by `deliver`, cargo/go/npm
+by `fixtures-b`), whose steps run in order, so there is one writer at a time, which the caches need anyway
+(`scripts/tests/pipeline-layout.bats` fails if a second workflow mounts one). **Apply the PVCs before the run** or step pods hang Pending.
 
 ## Gotchas (hard-won)
 - **Install apt packages through `scripts/ci/apt-install.sh`, never a bare `apt-get install`** (2026-11-10). Nightly
@@ -430,7 +435,7 @@ caches need anyway. **Apply the PVCs before the run** or step pods hang Pending.
   security pocket replaced the package in between, so the fresh index already pointed at a deleted `.deb`. The helper
   re-runs `apt-get update` and retries up to 3 times (15 s apart), then fails closed naming the packages; it passes its
   arguments through to `apt-get install -y`, so a step keeps its own flags. `scripts/tests/apt-install.bats` fails if
-  any step in `.woodpecker.yml` calls `apt-get install` directly. The helper is a fixture trigger path (`ci-langs.yaml`),
+  any step in `.woodpecker/*.yml` calls `apt-get install` directly. The helper is a fixture trigger path (`ci-langs.yaml`),
   so changing it re-runs the fixture lanes.
 - **Step `volumes` need repo trust:** the SERVER rejects them with `Insufficient trust level to use volumes` unless
   the repo's `trusted.volumes` is set (`PATCH /api/repos/<id>` `{"trusted":{"volumes":true}}`). **`woodpecker-cli
@@ -444,14 +449,17 @@ caches need anyway. **Apply the PVCs before the run** or step pods hang Pending.
   eligible, not at workflow end. A notify step whose only implicit dep is `clone` runs right after `build` — while the
   status is still `success` — and reports before scan/e2e/perf fail. Make notify the **terminal stage**:
   `depends_on: [<every other step>]`.
-- **`$CI_PIPELINE_STATUS` is empty on a multi-workflow run (B63):** it reflects the whole pipeline, not one workflow,
-  so it's blank while sibling workflows still run. Port drops an empty-enum `status` silently — ingest returns
-  `ok:true` but writes **no entity**. On multi-workflow repos, **hardcode** the status in two `when:status`-gated
-  steps instead of reading the env var.
+- **`$CI_PIPELINE_STATUS` is wrong on a multi-workflow run (B63, B200):** STUD.io's parallel workflows read it
+  **empty** while siblings ran (Port drops an empty-enum `status` silently: ingest returns `ok:true` but writes **no
+  entity**), and weyland-lab's separate `finish` workflow read it as **`success`** while another workflow had failed
+  (#683, 2026-11-18), with `when: status` likewise seeing only its own workflow. Never trust it across workflows:
+  weyland-lab's `finish` asks the API instead (`scripts/ci/pipeline-status.sh`; anonymous read, public repo), and
+  STUD.io hardcodes the status in two `when:status`-gated steps.
 - **Config must be on GitHub**, not just local — Woodpecker reads from the forge head.
 - Benign agent log: `could not persist agent config at /etc/woodpecker/agent.conf` (agent persistence is off;
   harmless — the agent just re-registers on restart).
-- Single-node k3s → `WOODPECKER_BACKEND_K8S_STORAGE_RWX: false` + `local-path` (RWO; steps run sequentially).
+- `WOODPECKER_BACKEND_K8S_STORAGE_RWX: false` + `local-path`: each workflow's workspace is an RWO volume on its pool's
+  node, so steps inside one workflow run sequentially; workflows run in parallel (B200).
 - **A step can run under a dedicated ServiceAccount (B153):** the agent sets
   `WOODPECKER_BACKEND_K8S_SERVICE_ACCOUNT_NAME_ALLOW_FROM_STEP: 'true'` (woodpecker-values.yaml), so a step may
   opt into a named SA via `backend_options.kubernetes.serviceAccountName`. **OFF by default** upstream (a
@@ -467,7 +475,7 @@ caches need anyway. **Apply the PVCs before the run** or step pods hang Pending.
 
 ## Pointers
 - **Step catalog (café menu of every CI step + how to select a subset):** [woodpecker-step-menu.md](woodpecker-step-menu.md)
-- Values: `k8s/woodpecker/woodpecker-values.yaml` · pipeline: `.woodpecker.yml` + `.yamllint` (repo root)
+- Values: `k8s/woodpecker/woodpecker-values.yaml` · pipeline: `.woodpecker/` (8 workflows, layout in its `README.md`) + `.yamllint` (repo root)
 - Port: `ci_pipeline` blueprint + `woodpecker` webhook DS + `weyland_ci_reliability` dashboard (B63) + Launcher `endpoint/woodpecker`
 - STUD.io CI: 3 workflows (main · plugin-scanner · roadie) on the farm via `local`-backend agents on rogueone (B57b DONE) — `flow-woodpecker-studio-ci` + `demos/woodpecker-studio-ci.md`
 - weyland image CI→CD (B57a DONE): buildkitd daemon → registry → tag-bump PR → Argo — `flow-weyland-image-ci` + `demos/weyland-image-ci.md`

@@ -55,7 +55,7 @@ sequenceDiagram
 
 ## Run it
 
-In CI it runs itself — the `.woodpecker.yml` `golden-path-smoke` step (after the test/scan lanes) invokes
+In CI it runs itself — the `.woodpecker/golden-path.yml` `golden-path-smoke` step (after the test/scan lanes) invokes
 `scripts/run-golden-path-jobs.sh` in a `moby/buildkit` step pod that also installs `kubectl`, under the dedicated
 **`golden-path-runner`** SA (`backend_options.kubernetes.serviceAccountName`, enabled by the agent's
 `WOODPECKER_BACKEND_K8S_SERVICE_ACCOUNT_NAME_ALLOW_FROM_STEP`). RBAC is least-privilege: Job management ONLY in

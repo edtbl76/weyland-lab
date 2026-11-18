@@ -2,7 +2,8 @@
 
 **What it proves:** `scripts/ci/select-fixtures.sh` skips the fixture-language lanes (`0`) only when a change provably
 touched none of them, and runs them (`1`) otherwise. `.woodpecker.yml` is now judged by what changed inside it, not by
-its name.
+its name (since B200, 2026-11-18, the whole `.woodpecker/` directory, merge-base vs HEAD; a change to any workflow
+file, or the deletion of the old `.woodpecker.yml`, counts as a pipeline change).
 
 **Why it exists:** pipeline #382 ran the full matrix for hours because one line was added to `repo-guards`, a step
 every lean run executes anyway.

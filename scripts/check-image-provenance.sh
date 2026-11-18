@@ -49,8 +49,9 @@
 #   MANIFEST_ROOT       dir to scan in git mode (default: the platform k8s tree)
 #   (NOT named CI_PIPELINE_FILES: Woodpecker sets that built-in in every step, a JSON list of changed files, and
 #   the first CI run read `[]` as a file name, 2026-11-15.)
-#   IMAGE_PROVENANCE_PIPELINES   space-separated CI pipeline files whose step images are judged as namespace `woodpecker`
-#                       in git mode (default: the repo's .woodpecker.yml). CI step pods run in the cluster, so the
+#   IMAGE_PROVENANCE_PIPELINES   space-separated CI pipeline files or directories (a directory = its *.yml workflows)
+#                       whose step images are judged as namespace `woodpecker` in git mode (default: the repo's
+#                       .woodpecker/ directory, one file per workflow since B200; a directory with no workflow is exit 2). CI step pods run in the cluster, so the
 #                       enumerator and the Gatekeeper audit see their images whenever a run overlaps a step; 8 CI
 #                       images were in no reviewed list until 2026-11-15. A listed file that is missing is exit 2.
 #
@@ -70,7 +71,7 @@ PLATFORM_DIR="${PLATFORM_DIR:-}"
 
 POLICY_FILE="${POLICY_FILE:-$PLATFORM_DIR/k8s/gatekeeper/image-signatures.yaml}"
 MANIFEST_ROOT="${MANIFEST_ROOT:-$PLATFORM_DIR/k8s}"
-IMAGE_PROVENANCE_PIPELINES="${IMAGE_PROVENANCE_PIPELINES-${REPO_ROOT:+$REPO_ROOT/.woodpecker.yml}}"
+IMAGE_PROVENANCE_PIPELINES="${IMAGE_PROVENANCE_PIPELINES-${REPO_ROOT:+$REPO_ROOT/.woodpecker}}"
 
 # Populated by load_policy; newline-separated. The decision functions read these globals.
 ALLOWED=""
@@ -189,7 +190,17 @@ for f in sorted(glob.glob(root + "/**/*.yaml", recursive=True) + glob.glob(root 
         print("PARSE_ERROR\t" + f, file=sys.stderr)
 # CI step images: the pods run in the `woodpecker` namespace. A listed file that is absent is a broken input,
 # never "no CI images" (fail closed: exit non-zero so main reports exit 2).
-for f in pipelines:
+expanded = []
+for p in pipelines:
+    if os.path.isdir(p):
+        found = sorted(glob.glob(os.path.join(p, "*.yml")) + glob.glob(os.path.join(p, "*.yaml")))
+        if not found:
+            print(f"no CI workflow (*.yml) in {p}", file=sys.stderr)
+            sys.exit(3)
+        expanded += found
+    else:
+        expanded.append(p)
+for f in expanded:
     if not os.path.isfile(f):
         print(f"missing CI pipeline file: {f}", file=sys.stderr)
         sys.exit(3)

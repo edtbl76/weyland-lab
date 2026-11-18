@@ -9,7 +9,7 @@
 # downloading, so the index pointed at a .deb that no longer existed (404). A fresh index fixes that; so does a retry
 # after a mirror's brief 5xx. Up to 3 attempts, APT_RETRY_DELAY seconds apart (default 15), then exit with apt-get's
 # status and a line naming the packages. POSIX sh: the CI images do not all have bash. Tests:
-# scripts/tests/apt-install.bats, which also checks that every `apt-get install` in .woodpecker.yml uses this.
+# scripts/tests/apt-install.bats, which also checks that every `apt-get install` in .woodpecker/*.yml uses this.
 set -u
 
 [ "$#" -gt 0 ] || { echo "usage: sh scripts/ci/apt-install.sh [apt-get install flags] <package>..." >&2; exit 2; }

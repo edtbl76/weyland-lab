@@ -72,7 +72,7 @@ fail=0
 # explicit -- the same shape as check-app-registry.sh's ALIAS map.
 # Scanned set: the docs tree PLUS the B82 application registry, whose header comment also states a
 # count ("78 Argo apps, all accounted"). That one drifted to 72 and was invisible to a docs-only scan.
-# Deliberately NOT a whole-repo sweep: .woodpecker.yml and this script both QUOTE stale numbers while
+# Deliberately NOT a whole-repo sweep: the .woodpecker/ workflows and this script both QUOTE stale numbers while
 # explaining the bug, and a broad scan would flag its own documentation.
 scan_paths=("$here/docs")
 reg="$PLATFORM_DIR/services/weyland-dagster/weyland_pipeline/applications.yaml"

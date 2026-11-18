@@ -192,10 +192,11 @@ stub_git_pushed() {
 }
 
 @test "the pipeline's linear-sync step is report-only only when SHIP_RUN=1" {
-  run python3 - "$REPO_ROOT/.woodpecker.yml" <<'PY'
-import sys, yaml
-steps = yaml.safe_load(open(sys.argv[1]))["steps"]
-(step,) = [s for s in (steps if isinstance(steps, list) else [dict(v, name=k) for k, v in steps.items()]) if s.get("name") == "linear-sync"]
+  run python3 - "$REPO_ROOT" <<'PY'
+import sys
+sys.path.insert(0, f"{sys.argv[1]}/scripts/lib")
+import woodpecker_pipeline as wpl            # .woodpecker/*.yml since B200 (2026-11-18)
+(step,) = [s for _, s in wpl.steps(f"{sys.argv[1]}/.woodpecker") if s.get("name") == "linear-sync"]
 cmd = "\n".join(step["commands"])
 assert "check-linear-sync.sh" in cmd, cmd
 assert "SHIP_RUN" in cmd and "REPORT-ONLY" in cmd, "linear-sync must be report-only in a ship run"

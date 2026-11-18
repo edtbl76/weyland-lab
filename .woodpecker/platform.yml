@@ -1,0 +1,508 @@
+# platform — the lab's own checks: guards, lint, production tests (Python, shell, the Java Flink modules), integration lanes, the SonarQube gate.
+# One of 8 workflows (B200, 2026-11-18): the pipeline that was .woodpecker.yml, split so independent work runs in
+# parallel. Layout, ordering and the rules every file follows: .woodpecker/README.md.
+labels:
+  backend: kubernetes
+  node: mother        # the agent pool (B200 step 1). Every workflow names one: see README.md § Agent pools.
+when:
+  - event: manual
+  - event: cron
+steps:
+  # ── 1. lint the k8s manifests (syntax) ──────────────────────────────────────
+  - name: yaml-syntax
+    image: pipelinecomponents/yamllint:latest
+    commands:
+      - yamllint nodes/mother/lab/weyland-platform/k8s/
+
+  # ── 1b. repo guards: diagrams parse, documented counts match reality ────────
+  # WHY THIS STEP EXISTS: on 2026-08-21 a sweep found FIFTEEN mermaid blocks under docs/ that had
+  # never rendered (all the same bug — a `;` inside sequence-diagram text, which mermaid treats as a
+  # statement separator) and TEN stale Argo application counts across eight files, in three different
+  # generations (28 / 59 / 72) against 78 actual. Both classes had been in the repo for months.
+  #
+  # Nothing caught them because the checks were human. The DoD mandates a per-batch "Diagrams" pillar,
+  # a "verify the render" cross-cutting rule, and a docs relevance sweep — all satisfied by eye. A page
+  # saying "28 apps onboarded" READS as perfectly relevant; only comparing it to the cluster reveals it.
+  # scripts/check-app-registry.sh could not help: it compares structure to structure, so a number typed
+  # into a sentence is invisible to it.
+  #
+  # BLOCKING ON PURPOSE. These are cheap and deterministic, and an advisory warning is exactly what let
+  # 15 diagrams rot. Trade-off, stated plainly: a stale doc count will now fail the nightly cron and no
+  # images will ship that run. If that coupling proves wrong, add `failure: ignore` to this step — it
+  # keeps reporting and stops blocking. Do NOT silently delete the step.
+  #
+  # All five guards run here. The three older ones (check-app-registry / check-quality-tools /
+  # check-sa-automount-collisions) had ALSO never been wired — the repo's own comments claimed they
+  # "enforce" and "guard" things while nothing ran them. All three are pure file analysis (python3 +
+  # pyyaml, no cluster access), so there is no reason they were not in CI other than nobody adding them.
+  - name: repo-guards
+    image: node:24-alpine
+    commands:
+      - apk add --no-cache bash python3 py3-yaml jq opentofu >/dev/null   # jq: check-odcs-contracts.sh (B157); opentofu: check-tofu-fmt.sh
+      # The mermaid parser needs its own resolution root: ESM ignores NODE_PATH, so a global install
+      # does not satisfy a bare `import "mermaid"`. Built here per-run rather than baked into an image.
+      # Deliberately NOT @mermaid-js/mermaid-cli — that pulls puppeteer + headless Chromium, which
+      # needs a sandbox this cluster's step pods should not be granting.
+      - mkdir -p /tmp/mmcheck
+      - printf '{"name":"mmcheck","private":true,"type":"module"}\n' > /tmp/mmcheck/package.json
+      - (cd /tmp/mmcheck && npm install --silent --no-audit --no-fund mermaid jsdom)
+      - MERMAID_CHECK_ROOT=/tmp/mmcheck bash scripts/check-mermaid.sh docs
+      - bash scripts/check-doc-counts.sh
+      - bash scripts/check-app-registry.sh
+      # B239 — every deployed app names its runbook (or a recorded runbook_gap) and appears on a docs/*-map.html.
+      # The registry is the exact source; the 2026-11 audit's fuzzy matching is what this replaces.
+      - python3 scripts/check-doc-coverage.py
+      # B241 — the weyland-capabilities skill (register_bifrost_skills.py) must match capabilities.yaml + repos.yaml.
+      - python3 scripts/capabilities-skill.py --check
+      # B138 — every repo-watching lane (pr-staleness, Port github integration, …) must match the canonical
+      # repos.yaml SoT for its ENFORCED lanes, or a repo silently goes unwatched (found 1..6-repo divergence).
+      # File analysis, plus the ci lane: an ANONYMOUS Woodpecker activation lookup (no secret, in-cluster svc).
+      # Pending lanes are reported, not enforced, so the guard grows incrementally.
+      - bash scripts/check-repo-coverage.sh
+      # B209 — every deployed service that can change state declares `writes` in applications.yaml and has a front door:
+      # a NetworkPolicy / AuthorizationPolicy selecting its pods, a stated `front_door`, or a tracked `accepted_gap: B<n>`.
+      # The Dagster API, store-scaler and the Realm took writes from any pod until 2026-10-14. Pure file analysis.
+      - bash scripts/check-write-surfaces.sh
+      # 2026-10-21 — every in-cluster service a JupyterHub notebook dials admits the singleuser servers through any
+      # front-door NetworkPolicy that selects it. B211's front doors refused the notebooks for a week (Trino, Valkey);
+      # each policy's pin proved its LISTED callers, nothing asked whether every REAL caller was listed. Pure file analysis.
+      - bash scripts/check-notebook-front-doors.sh
+      - bash scripts/check-quality-tools.sh
+      # B234 — no wl-private-* LiteLLM alias may reach a hosted provider (target, host allowlist, every fallback form,
+      # wildcards, group aliases). Its bats cases run in shell-tests; this runs the guard itself on the real config.
+      - python3 scripts/check-private-lanes.py nodes/mother/lab/weyland-platform/k8s/litellm/configmap.yaml
+      # Every OpenTofu dir under nodes/ must pass `tofu fmt -check` — 7 files had drifted unnoticed (2026-09-24),
+      # burying real diffs in re-alignment noise. Parse errors are exit 2, not a formatting finding.
+      - bash scripts/check-tofu-fmt.sh
+      # Every exact pin in a service's requirements.in must match its requirements.txt. dependabot compiles FROM
+      # the .in, so a stale pin there regenerated a cryptography/mlflow downgrade on every re-cut (#63, 2026-09-25).
+      - bash scripts/check-requirements-sync.sh
+      # 2026-10-16 — the ratchet on packages a Dockerfile `pip install`s outside a requirements file: invisible to every
+      # source scanner, and drift-prone when unpinned (103 at the first count). Per-Dockerfile ceilings in
+      # scripts/ci/dockerfile-installs.baseline may only fall. Pure file analysis.
+      - bash scripts/check-dockerfile-installs.sh
+      # B214 (2026-10-16) — every directory holding a requirements*.txt has a pip entry in .github/dependabot.yml.
+      # 19 of 23 had none, so an advisory against those pins never reached a security PR. Pure file analysis.
+      - bash scripts/check-dependabot-coverage.sh
+      # B214 leftover (2026-10-22) — every Dependabot `ignore` is backed by an osv-scanner.toml accept at the pinned
+      # version, and the pin is still below the ignored range. A stale ignore blocks security updates silently.
+      - bash scripts/check-dependabot-ignores.sh
+      - bash scripts/check-sa-automount-collisions.sh
+      # B140 — a CronJob's cadence lives on three surfaces (manifest schedule · schedules.md ·
+      # the freshness budget). Nothing kept them honest, so relaxing a schedule silently made
+      # its alert false-fire and tightening one silently stopped it catching a stop.
+      - bash scripts/check-cron-freshness-budgets.sh
+      # B196 — the Dagster sibling: every RUNNING ScheduleDefinition has a watchdog budget (k8s/dagster/freshness.yaml)
+      # at >= 110% of its interval, and no STOPPED one does. Budgets drifted 7 weeks after catalog/timeseries/emit went
+      # nightly (false DagsterJobStale every 30m), and feast/registrations ran unwatched. Pure AST + YAML, no cluster.
+      - bash scripts/check-dagster-watchdog-budgets.sh
+      - bash scripts/check-adr.sh   # B248: the ADR log (sections, status, numbering, index)
+      # B198 — placement inventory (placement.yaml): schema, known hosts, and every LikeC4 node / host-native component
+      # has a row. The live half (running workloads vs rows) is the nightly placement-coverage CronJob. Pure file analysis.
+      - bash scripts/check-placement.sh
+      # B142 — a `pip-audit --ignore-vuln` exception is scoped to a vuln ID and NOTHING else, so
+      # unlike osv-scanner.toml's version-scoped PackageOverrides it can never expire on its own.
+      # This asserts each accepted ID is really wired into scan.py's IGNORED_VULNS, and that the
+      # upstream condition justifying it still holds (asked of PyPI). When the blocker is fixed,
+      # this goes red and names the exception to delete, instead of it rotting unnoticed.
+      - bash scripts/check-pip-audit-ignores.sh
+      # B157 — ODCS data-contract conformance. Every *.odcs.yaml must carry the adopted required
+      # fundamentals (id/name/version/status/domain/dataProduct/description/servers/schema/team +
+      # per-property name+logicalType). Structural only — no cluster — so it runs here, not as a CronJob.
+      - bash scripts/check-odcs-contracts.sh
+      # U13 — architecture guard: the OnnxBge query-embedder class is duplicated across weyland-tool-server
+      # (main.py) and weyland-agent (retrievers.py); both must embed the SAME model with the SAME pooling or
+      # the agent retrieves against a vector space the index was not built in. Compares the method bodies
+      # modulo docstring; fails closed on drift (exit 1) or a missing/absent class (exit 2). python3 above.
+      - bash scripts/check-onnx-sync.sh
+      # B88 (image-signature follow-up) — declared-image provenance invariant. The Gatekeeper
+      # require-signed-images constraint only AUDITS running pods in dryrun; this asserts at PR time
+      # that every `image:` declared in the k8s manifests is from a reviewed source (the same
+      # allow/exempt/official rule as the constraint's Rego, read from the same policy file). Fails
+      # closed: exit 1 names an unreviewed image, exit 2 if the policy can't be parsed. Its in-cluster
+      # sibling (k8s/monitoring/image-provenance.yaml) covers chart-rendered non-running workloads.
+      - bash scripts/check-image-provenance.sh
+      # B154 Phase 1a — onboarding completeness: every `deployed: true` service in applications.yaml
+      # must be PLACED in the single LikeC4 model (by an explicit `likec4:` id or a normalized match).
+      # The coverage family proves scraped/visualized/alerted/cataloged/registered; this proves placed —
+      # the surface the DoD flags as ungoverned. Fail-closed: exit 1 names an unplaced service, exit 2 if
+      # the registry or model can't be read. Pure file analysis, no cluster.
+      - bash scripts/check-onboarding-completeness.sh
+      # B155 — API lifecycle governance over apis.yaml: every API declares owner (resolving to a real
+      # service) + kind + status + version; a published openapi/a2a API carries a captured contract
+      # snapshot; deprecations declare retire_by+successor; a retired API has no consumers. Breaking
+      # changes are enforced live by the api-drift CronJob + scripts/lib/api_spec_diff.py. File-only.
+      - bash scripts/check-api-lifecycle.sh
+      # B175 — the loop library (knowledge-repos/loop-library): every loop carries a checkable terminal condition, and
+      # the bundle the Dagster publisher reads (services/weyland-dagster/scripts/loop_library.json) is byte-identical
+      # to a fresh bundle of the Markdown. Fail-closed 0/1/2. python3 + py3-yaml above.
+      - bash scripts/check-loop-library.sh
+      # 2026-10-17 — NodePorts ONLY (AGENTS.md): no port-forward command or instruction in docs, scripts, manifests or
+      # code (kubectl port-forward, IntelliJ Forward Ports, the Python client's portforward). Prose that rejects it
+      # passes; docs/backlog.md history is not scanned. Fail-closed 0/1/2 (scanning nothing is 2). python3 above.
+      - bash scripts/check-no-port-forward.sh
+      # 2026-10-19 (B223) — no config or code may name an Anthropic model that is retired, or deprecated with its
+      # retirement inside 30 days (scripts/anthropic-models.json, from Anthropic's deprecations page; file:line +
+      # replacement on failure). Docs, history, tests and notebook outputs are not scanned. The running gateways are
+      # checked nightly by the anthropic-model-watch CronJob. Fail-closed 0/1/2. python3 above.
+      - bash scripts/check-model-deprecations.sh
+      - bash scripts/check-maps.sh   # B189: every pipeline step on the CI map, every LikeC4 external on the Platform Map
+
+  # ── 1b2. Port IaC coverage (B137) ───────────────────────────────────────────
+  # SEPARATE from repo-guards because it is the only guard here that talks to a live API and needs
+  # credentials. repo-guards is deliberately pure file analysis with no secrets, and mixing the two
+  # would hand every one of those checks a token they have no use for.
+  #
+  # WHAT IT CATCHES that nothing else can: Port schema created in the UI. On 2026-08-22 the live org
+  # held 51 blueprints / 8 scorecards / 4 integrations while tofu/port/ described 13 / 0 / 0 — and
+  # `tofu plan` reported no drift the entire time, because plan compares the code to the resources
+  # TOFU KNOWS ABOUT and a UI-created blueprint is not one of them. The gap opened one click at a
+  # time over two months and was found by accident.
+  #
+  # BLOCKING, same posture as repo-guards. It shipped `failure: ignore` for exactly as long as it took
+  # to create the two secrets below (`port_client_id` / `port_client_secret` on edtbl76/weyland-lab,
+  # events cron+manual — a secret that does not cover the triggering event is a whole-config PARSE
+  # error, not a failed step). An advisory guard left advisory is how fifteen diagrams rotted.
+  - name: port-iac-coverage
+    image: alpine:latest
+    environment:
+      PORT_CLIENT_ID:
+        from_secret: port_client_id
+      PORT_CLIENT_SECRET:
+        from_secret: port_client_secret
+    commands:
+      - apk add --no-cache bash curl python3 >/dev/null
+      - bash scripts/check-port-iac-coverage.sh
+
+  # ── 1b3. DoD Pillar 5 — backlog/Linear reconciliation (B148 follow-on) ──────
+  # SEPARATE from repo-guards for the same reason as the step above: it needs a credential, and
+  # repo-guards is deliberately pure file analysis. Its own step rather than folded into
+  # port-iac-coverage, because the two tokens address different SaaS and a step should hold only the
+  # secret it uses.
+  #
+  # WHAT IT CATCHES that nothing else can: DoD Pillar 5 was the ONE pillar with no checker. Every
+  # other has one — check-mermaid, check-doc-counts, check-cron-freshness-budgets, the bats suite,
+  # eyes on a UI — so here the tick WAS the work and recorded intent rather than outcome. On
+  # 2026-08-26 the B148 close-out claimed "Linear EMA-207, backlog flipped" with NO Linear call ever
+  # made; the issue sat in Backlog. Checking then found B143 open two days after shipping and three
+  # open issues with no project at all — invisible to every filtered view, because this team runs two
+  # products (Weyland Lab / Stud.IO) and project is the only separator.
+  #
+  # UNLIKE check-secret-placeholders.sh and check-servicemonitor-coverage.sh, this one CAN live in
+  # CI: those need cluster read (`woodpecker:default` cannot list secrets, ServiceMonitors, Services
+  # or workloads) and granting that permanently to run a periodic lint is not worth it. This makes
+  # one outbound HTTPS call with a READ-scoped token. Different trade, different answer.
+  #
+  # NEEDS the `linear_api_key` secret on edtbl76/weyland-lab, events cron+manual — a secret that does
+  # not cover the triggering event is a whole-config PARSE error, not a failed step (learned when
+  # port_client_id shipped). Read scope is sufficient; the guard has no write path.
+  - name: linear-sync
+    image: alpine:latest
+    environment:
+      LINEAR_API_KEY:
+        from_secret: linear_api_key
+    commands:
+      - apk add --no-cache bash curl python3 py3-yaml >/dev/null
+      # REPORT-ONLY in a ship's own pipeline (`ship-images.sh` passes --var SHIP_RUN=1; 2026-10-22). Tracking drift says
+      # nothing about the images, and another session's half-written backlog entry stopped a dbt fix from shipping.
+      # Every other run (push, the lean manual run, cron) still BLOCKS on it, exit 1 and exit 2 alike.
+      - bash scripts/check-linear-sync.sh || { rc=$?; if [ "$SHIP_RUN" = "1" ]; then echo "REPORT-ONLY in a ship run - linear-sync exit $rc, fix it on main where CI blocks on it"; else exit $rc; fi; }
+
+  # ── 1b4. B190 — issue readiness (LEAN CI ONLY, ADVISORY) ────────────────────
+  # The check that replaced SpecBot. AGENTS.md requires every issue an agent drafts to be implementation-ready (beyond
+  # Why/Scope: Technical context, Acceptance criteria, Edge cases & failure modes, Out of scope — per kind, the Linear
+  # templates). This checks every open High issue in project Weyland Lab against that standard, by rule (no model —
+  # an LLM readiness score was dropped on evidence: docs/concepts/issue-readiness.md), and keeps ONE comment per issue
+  # naming what is missing. Under a second; nothing on the GPU.
+  #
+  # MANUAL ONLY: it writes Linear comments, and the lean run is the one the owner triggers after a push.
+  # ADVISORY (`failure: ignore`): a non-compliant issue shows red here without blocking images. Exit 2 (Linear
+  # unreachable) is also red — never a silent pass.
+  #
+  # NEEDS secret `linear_comment_key` (WRITE scope — it posts comments; `linear_api_key` is read-only) on
+  # edtbl76/weyland-lab, events cron+manual+push — a secret that does not cover the triggering event is a whole-config
+  # PARSE error.
+  - name: issue-readiness
+    when: [{event: manual, evaluate: 'SMOKE_ONLY != "smoke"'}]
+    image: alpine:latest
+    failure: ignore
+    environment:
+      LINEAR_API_KEY:
+        from_secret: linear_comment_key
+    commands:
+      - apk add --no-cache bash python3 >/dev/null
+      - bash scripts/issue-readiness.sh --sweep
+
+  # ── 1c. shellcheck the shell surface ────────────────────────────────────────
+  # --severity=warning on purpose. At `note` the repo has 3 findings, and two of them are noise that
+  # can never be fixed: SC2016 fires on the deliberately-single-quoted node heredoc in
+  # check-mermaid.sh, and SC1091 cannot follow scripts/.env because it is gitignored. Gating at
+  # warning gives a clean zero today while still catching real defects (unquoted expansions that
+  # word-split, unreachable code, bad test operators). There is no .shellcheckrc — the severity flag
+  # is the whole policy, kept visible here rather than hidden in a dotfile.
+  - name: shellcheck
+    image: koalaman/shellcheck-alpine:stable
+    commands:
+      - shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh scripts/ci/*.sh scripts/integration/*.sh scripts/perf/*.sh eval/coding-agents/tasks/*/grade.sh eval/sdd-bakeoff/*.sh eval/sdd-bakeoff/quality/*.sh
+      # B230 (2026-10-19) — the shell scripts that live INSIDE k8s ConfigMaps (pr-staleness, port-pr-reconcile,
+      # cron-freshness, image-provenance, the scan-suite + sonar-scan-repos runners, …) were never linted: the glob
+      # above sees only scripts/**. Extract each ConfigMap `*.sh` key and check it at the same severity. Fail-closed 0/1/2.
+      - apk add --no-cache python3 py3-yaml bash >/dev/null
+      - bash scripts/check-configmap-shellcheck.sh
+
+  # ── 1c2. shell tests ────────────────────────────────────────────────────────
+  # B131/B135 — the repo's FIRST shell test harness. shellcheck above catches malformed shell; it
+  # cannot tell you that a gate predicate returns the wrong answer. `ship-images.sh` merges PRs on
+  # main and syncs the live cluster, so its decisions are exactly the kind that must not be verified
+  # by running them.
+  #
+  # Every external binary (git/gh/woodpecker-cli/argocd/kubectl/curl) is stubbed onto PATH by
+  # scripts/tests/helper.bash — this step reaches nothing outside its own container. The staleness
+  # tests additionally extract the CronJob's decision logic straight out of its ConfigMap, so the
+  # cluster runs the same text the suite exercises.
+  - name: shell-tests
+    image: bats/bats:latest
+    commands:
+      # python3 + pyyaml are NOT in bats/bats:latest. check-cron-freshness-budgets.sh needs them
+      # to read CronJob manifests and the PrometheusRule, and its end-to-end tests exercise the
+      # real guard rather than a stub (the whole point — a stubbed guard would only confirm the
+      # stub). Same packages repo-guards installs; keep the two steps in step if either changes.
+      #
+      # `jq` ADDED 2026-08-26 (found during B148). It is not in the image either, and WITHOUT IT 8
+      # of port-pr-reconcile.bats's cases fail — every one that reaches `main`, because the script
+      # under test parses the Port and GitHub responses with jq. Measured, not inferred: 197/197
+      # pass with jq present and 189/197 without, and `command -v jq` in a bare bats/bats:latest
+      # returns nothing. This step has therefore been failing since port-pr-reconcile.bats landed
+      # with B144 on 2026-08-25 — a one-day-old red that a green local run would not reveal, because
+      # a dev box has jq. (Why it went unread was not investigated; the fix does not depend on it.)
+      #
+      # `git` ADDED 2026-08-28 (found while building B88's lane runner). ship-images.bats's
+      # commit_iso cases shell out to `git show -s --format=%aI` to resolve a git-<sha> tag to its
+      # author date. They landed with the EMA-172 DORA work on 2026-08-27 and have been RED in CI
+      # ever since, because bats/bats:latest has no git. Measured, not inferred: 4 failures without
+      # git, 0 with it. This is the SECOND time this exact step has been silently red for a missing
+      # tool — jq was the first, two days earlier. A green local run hides both, because a dev box
+      # has git and jq.
+      - apk add --no-cache python3 py3-yaml jq git prometheus >/dev/null   # prometheus = promtool, for alert-rules.bats (B199)
+      - bats scripts/tests/
+
+  # ── 1c. complexity triage (B162) — GATING ───────────────────────────────────
+  # How the lab READS complexity (deep vs tangled vs shallow): length only NOMINATES, structure + a
+  # codebase-relative z-score decide, the inverse over-split smell is caught in the other direction. The
+  # DEGREE is the gating decision, made autonomously per finding: `--gate` BLOCKS the build on the clearly-bad
+  # findings (high-confidence TANGLED + any SHALLOW); medium/low TANGLED stay advisory (a human glance). Tune
+  # the bar in scripts/complexity-triage.json. Engine (lizard + tree-sitter) + wrapper have their own suites in
+  # the python/shell lanes; this step RUNS the reading + gate over the real code every build.
+  - name: complexity-triage
+    image: python:3.12-slim
+    commands:
+      - pip install --quiet -r scripts/requirements-test.txt
+      - bash scripts/check-complexity.sh --gate
+
+  # ── 1d. unit tests ──────────────────────────────────────────────────────────
+  # The repo had ONE test suite and CI had never run it. Worse, it was orphaned: the tests lived in
+  # services/weyland-tool-server/tests/ while the code they import moved to services/weyland-guard/
+  # when B70 extracted the shared guard service. 5 of 8 files could not even be collected
+  # (ModuleNotFoundError) and the suite had clearly not been run since the extraction. Tests moved to
+  # weyland-guard/tests/, the stale assertions repaired against the current API, and
+  # test_llm_guard.py replaced by test_safety_validators.py (its `llm_guard` backend was retired in
+  # B117). 28 tests, all green.
+  #
+  # No image build needed: guardrails/ imports only dataclasses + enum from stdlib, and conftest.py
+  # supplies DB fakes — so pytest + prometheus_client on a slim base is the entire dependency set.
+  # Deliberately NOT building the weyland-guard image to test it; that would pull transformers,
+  # presidio and spaCy for a suite that stubs all three.
+  # ── 1d. per-language test lanes (B88) ───────────────────────────────────────
+  # REPLACES a hardcoded `cd services/weyland-guard && pytest`. That named ONE service by path, so a
+  # suite added anywhere else was never executed and sat green by absence. scripts/run-lang-tests.sh
+  # discovers suites by TEST FILE and resolves each to its owning project root.
+  #
+  # EVERY LANE SHIPS A HELLO-WORLD FIXTURE under tests/lang/<lang>/. A language with no production
+  # code yet (Go, Rust) would otherwise have nothing to run, and "nothing to run" is one careless
+  # line from "green". The fixture means every lane always executes a real test, so the image,
+  # toolchain, discovery and runner are continuously proven.
+  #
+  # EXIT CODES ARE NOT INTERCHANGEABLE:
+  #   0  fixture passed and every discovered project passed
+  #   1  a REAL project failed                      -> the estate has a defect
+  #   2  the FIXTURE failed, or the lane could not do its job -> the LANE is broken
+  # A broken runner must never read like broken code.
+  #
+  # --self-check runs each fixture's DELIBERATELY FAILING test and asserts the runner propagates it.
+  # A lane never seen failing is not a lane; without this a runner that swallowed failures would
+  # report green forever. It runs FIRST in each lane, deliberately.
+  #
+  # Each lane pins its own toolchain image rather than installing into one — the roadie convention
+  # from STUD.io: tests run in a controlled environment, off host/base-image drift.
+
+  # ── 1c3. Gatekeeper Rego (B88 Phase 3) ──────────────────────────────────────
+  # kubeconform SKIPS Gatekeeper CRDs — it has no schema for them — so before this step NOTHING
+  # validated the Rego. A policy with a syntax error or inverted logic would ship, be applied, and
+  # silently admit everything; "the file exists" was the only check it got. This compiles every
+  # ConstraintTemplate and EXERCISES the signature constraint against real admission payloads,
+  # because a policy that compiles can still be backwards.
+  - name: rego-policies
+    image: python:3.12-slim
+    commands:
+      - pip install --quiet pyyaml
+      - sh scripts/ci/apt-install.sh -qq curl >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /usr/local/bin/opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
+      - chmod +x /usr/local/bin/opa
+      - sh scripts/ci/check-rego-policies.sh
+
+  - name: test-python
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
+    image: python:3.12-slim
+    environment:
+      # B189: every NORMAL lane run leaves JUnit under reports/junit/<lang>/ for the trunk-upload step (the
+      # workspace is shared across steps). Self-check never reports. See scripts/run-lang-tests.sh § JUnit.
+      LANG_JUNIT_DIR: reports/junit
+    commands:
+      - pip install --quiet --no-cache-dir -r scripts/ci/requirements-lang-tests.txt   # frozen tooling (B227 follow-on)
+      - bash scripts/run-lang-tests.sh python --self-check
+      - bash scripts/run-lang-tests.sh python
+      # B88 gap #1 — coverage RATCHET: fails ONLY if a project's coverage drops vs the committed
+      # baseline (tests/lang/coverage-baseline.tsv). weyland-guard sits at 74% today; this stops it
+      # sliding, without an 80% floor that would fail the mostly-fixture lanes on day one.
+      - bash scripts/coverage-ratchet.sh run python
+
+  - name: test-shell
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
+    image: bats/bats:latest
+    # B189: the ONLY step that reports scripts/tests to Trunk. shell-tests runs the same suite; reporting both
+    # would count every bats result twice against the span budget.
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+    commands:
+      # Same package set as the shell-tests step above; keep them in step if either changes.
+      - apk add --no-cache python3 py3-yaml jq git bash prometheus >/dev/null   # prometheus = promtool (alert-rules.bats)
+      - bash scripts/run-lang-tests.sh shell --self-check
+      - bash scripts/run-lang-tests.sh shell
+
+  - name: test-java
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
+    # temurin-21: the Java golden paths (B153 fixtures) target release 21 and their Dockerfiles build on
+    # this exact image; JDK 21 also compiles the real Flink modules' release-17 target fine (backward-compat)
+    # and their tests are pure JUnit (arithmetic extracted out of the operators — no MiniCluster, no JVM sensitivity).
+    image: maven:3.9-eclipse-temurin-21
+    volumes:
+      - ci-cache-maven:/root/.m2/repository   # B88 #6 — persist downloaded maven plugins/deps
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+    commands:
+      # Java 17 matches the Flink modules' maven.compiler.source/target. B88 added JUnit 5 +
+      # Surefire to both modules — before that `mvn test` ran zero tests and exited 0.
+      - bash scripts/run-lang-tests.sh java --self-check
+      - bash scripts/run-lang-tests.sh java
+      # Coverage ratchet — jacoco. The Flink modules sit at 9.8% / 33.3% (main() is untested
+      # topology wiring); the ratchet protects those floors rather than demanding they rise.
+      - bash scripts/coverage-ratchet.sh run java
+
+  - name: scan-java
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
+    image: maven:3.9-eclipse-temurin-21   # match test-java: JDK 21 for the release-21 golden paths (see above)
+    volumes:
+      - ci-cache-maven:/root/.m2/repository   # B88 #6 — same maven cache as test-java
+    commands:
+      - bash scripts/run-lang-scan.sh java
+
+  # ── 1f. INTEGRATION tier (B88 gap #2) — black-box the LIVE services in-cluster ────
+  # The first test tier above unit. The unit lanes above prove a module in isolation; nothing until
+  # now asserted that a request actually CROSSES a service boundary and comes back correct. These
+  # steps run IN-CLUSTER (k8s-backend pods), so cluster-DNS service names resolve; the mesh default
+  # is PERMISSIVE (only Postgres is STRICT), so an un-meshed caller reaches the targets in plaintext
+  # — verified against the manifests, not assumed.
+  #
+  # ⚠ NO `failure: ignore`, for the same reason as the scan lanes. Each script uses the same
+  # three-outcome contract: 0 pass · 1 the service is REACHABLE but MISBEHAVED (a real regression the
+  # author must see) · 2 the target could not be reached / the lane could not run. Exit 2 must stay
+  # visible — a "could not reach it" that read as green would be the exact absence-as-success this
+  # whole effort removes.
+
+  # Guard: POSTs real payloads to weyland-guard and asserts the deterministic enforcing verdict
+  # (actorless act BLOCKED by policy.gate) plus the route/pipeline contract on the SHADOW model hooks
+  # — reaching app.py, the HTTP layer un-importable in the unit lane (0% there). Curl-only, no jq.
+  - name: test-integration-guard
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
+    image: alpine:latest
+    commands:
+      - apk add --no-cache bash curl >/dev/null
+      - bash scripts/integration/guard-blackbox.sh
+
+  # DataHub<->Redpanda: asserts DataHub is actually CONSUMING from the Redpanda it was repointed onto
+  # (2026-08-29) — the MAE/MCE consumer groups are Stable and the topic spine exists. DataHub serves
+  # its catalog from Postgres+OpenSearch, so a severed event bus is invisible in the UI; only the
+  # broker shows it. Uses the deployed redpanda image so rpk matches the broker version.
+  - name: test-integration-datahub
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    commands:
+      - bash scripts/integration/datahub-redpanda-blackbox.sh
+
+  # NOTE: a Keploy API-regression step was TESTED here (pipeline #115, --var KEPLOY=true) and REMOVED:
+  # keploy needs Docker (its installer refuses without it — "Docker not found, please install docker" —
+  # and on Linux keploy runs its agent inside a docker container). A k3s step pod has no docker daemon,
+  # so keploy cannot run here. It runs ON-DEMAND on the rogueone host instead (`scripts/keploy-verify.sh`,
+  # proven 7/7); the CI path, if ever wanted, is a local-backend workflow on rogueone — see
+  # docs/runbooks/woodpecker-step-menu.md "Off-menu".
+
+  # ── 1g. SonarQube quality gate (B138) — ENFORCE the CaYC gate on THIS change ──────────────────
+  # The weekly sonar-scan (k8s/sonarqube/sonar-scan.yaml) only REPORTS; this step BLOCKS. It re-analyses the
+  # current checkout against the in-cluster SonarQube with `sonar.qualitygate.wait=true`: a RED gate — new-code
+  # coverage < 80%, any new bug/vuln/violation, an unreviewed new hotspot — makes the scanner exit non-zero, which
+  # fails the pipeline, which skips deploy-handoff (`when: status: success`), so the change never reaches a deploy
+  # PR. Reuses the python coverage.xml (test-python) + the compiled Flink classes (test-java) already in the shared
+  # workspace, so no extra build. Needs a `sonar_token` Woodpecker secret = the sonarqube-scan-token SONAR_TOKEN.
+  # SCOPE lives ONCE in sonar-project.properties at the repo root — sonar-scanner auto-reads it (default baseDir =
+  # cwd = the workspace root here), shared with the weekly CronJob so the two cannot drift. This step adds ONLY the
+  # gate-WAIT flags (its enforcing behavior); the CronJob adds nothing and just reports.
+  - name: sonar-gate
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke"'}]
+    image: sonarsource/sonar-scanner-cli:latest
+    environment:
+      SONAR_HOST_URL: http://sonarqube.weyland.svc.cluster.local:9000
+      SONAR_TOKEN:
+        from_secret: sonar_token
+    # The JS/TS sensor discovers every tsconfig.json under baseDir to build a TypeScript program graph — a step
+    # that `sonar.exclusions` does NOT govern (exclusions gate issue REPORTING, not program loading). With Node's
+    # embedded runtime that is the analysis's memory peak, and the default 2Gi step-pod cap OOM-killed the scanner
+    # mid-sensor (log dies at "Sensor JavaScript/TypeScript..." with no gate verdict). Same OOMKilled class the
+    # `build` step below already fixed with a 4Gi limit; mirror it here. MEMORY ONLY — no cpu request (cpu is
+    # compressible and never triggers an OOM kill; a request would add to mother's cpu-requests wall).
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 4Gi
+    commands:
+      # Shared-workspace leak: test-swift-tokamak ran `swift build` earlier in this same workspace, leaving a
+      # vendored `.build/checkouts/JavaScriptKit` (a TS Runtime with its own tsconfig) that a fresh clone — the
+      # weekly sonar-scan.yaml CronJob — never has. Removing it restores this step's tsconfig set to the same
+      # committed source the weekly scans. (java.binaries points at flink target/classes, so DON'T prune target/.)
+      - rm -rf golden-paths/mobile/swift-tokamak/.build
+      # Scope (projectKey/sources/exclusions/java.binaries/coverage) is read from sonar-project.properties at the
+      # repo root. Only the gate-WAIT is here: a red gate makes the scanner exit non-zero → this step fails.
+      - sonar-scanner -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
+
+  # ── test results → Trunk Flaky Tests (B189; one upload per workflow since B200) ──────────────────────────
+  # Uploads this workflow's JUnit (reports/junit/<source>/) to Trunk, after a failure too. platform's lanes
+  # always run (shell-tests has no gate), so a run with no report at all is red, as before the split.
+  # trunk-upload.sh judges each upload from the CLI's printed output. Runbook: docs/runbooks/trunk-flaky-tests.md.
+  - name: trunk-upload
+    image: alpine:3.20
+    when:
+      - status: [success, failure]
+    environment:
+      TRUNK_API_TOKEN:
+        from_secret: trunk_org_token
+      TRUNK_COLLECTION_ID: ZuFEh5e5
+      TRUNK_CLI_VERSION: 0.16.1
+      TRUNK_CLI_SHA256: 8c34f99a41d4b3151f711aca05d01478b2f707dd698d3980d2524646021af5f2
+    commands:
+      - apk add --no-cache bash curl git >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/trunk-cli.tgz "https://github.com/trunk-io/analytics-cli/releases/download/$TRUNK_CLI_VERSION/trunk-analytics-cli-x86_64-unknown-linux.tar.gz"
+      - echo "$TRUNK_CLI_SHA256  /tmp/trunk-cli.tgz" | sha256sum -c -
+      - tar -xzf /tmp/trunk-cli.tgz -C /usr/local/bin trunk-analytics-cli
+      - bash scripts/ci/trunk-upload.sh reports/junit

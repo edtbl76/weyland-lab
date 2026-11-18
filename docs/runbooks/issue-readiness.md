@@ -10,7 +10,7 @@ Run it before delegating an issue — it must print READY. Why it is rules and n
 | Piece | Where |
 |---|---|
 | Check | `scripts/issue_readiness.py` (logic) · `scripts/issue-readiness.sh` (wrapper: reads `scripts/.env`) |
-| CI | `.woodpecker.yml` step `issue-readiness` — LEAN (manual) runs only, advisory (`failure: ignore`), secret `linear_comment_key` (write) |
+| CI | `.woodpecker/platform.yml` step `issue-readiness` — LEAN (manual) runs only, advisory (`failure: ignore`), secret `linear_comment_key` (write) |
 | Standard | `REQUIRED` in `scripts/issue_readiness.py` ⇄ the Linear templates (snapshot: `scripts/tests/fixtures/issue-readiness/linear-templates.json`) |
 | Tests | `scripts/tests/test_issue_readiness.py` (pytest) · `scripts/tests/issue-readiness.bats` |
 

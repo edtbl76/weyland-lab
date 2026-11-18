@@ -143,7 +143,7 @@ attest() {
     "configSource": {
       "uri": "git+https://github.com/edtbl76/weyland-lab",
       "digest": { "sha1": "${CI_COMMIT_SHA:-unknown}" },
-      "entryPoint": ".woodpecker.yml"
+      "entryPoint": ".woodpecker/deliver.yml"
     }
   },
   "metadata": { "buildInvocationId": "${CI_PIPELINE_NUMBER:-unknown}" }

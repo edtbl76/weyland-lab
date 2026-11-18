@@ -1,0 +1,22 @@
+{
+ "number": 683,
+ "status": "failure",
+ "workflows": [
+  {
+   "name": "bad",
+   "state": "failure"
+  },
+  {
+   "name": "deliver",
+   "state": "skipped"
+  },
+  {
+   "name": "finish",
+   "state": "success"
+  },
+  {
+   "name": "ok",
+   "state": "success"
+  }
+ ]
+}

@@ -136,7 +136,7 @@ s=pol['spec']; assert s['podSelector']['matchLabels']=={'app':'buildkitd'} and s
 (src,)=rule['from']; assert set(src)=={'podSelector'}, src   # same namespace only, no namespaceSelector
 (expr,)=src['podSelector']['matchExpressions']
 assert expr=={'key':'woodpecker-ci.org/step','operator':'In','values':['build','golden-path-smoke']}, expr
-steps={s['name'] for s in yaml.safe_load(open('$BATS_TEST_DIRNAME/../../.woodpecker.yml'))['steps']}
+import glob; steps={s['name'] for f in glob.glob('$BATS_TEST_DIRNAME/../../.woodpecker/*.yml') for s in yaml.safe_load(open(f))['steps']}
 missing={'build','golden-path-smoke'}-steps
 assert not missing, f'pipeline has no step named {missing}: the policy would lock CI out of buildkitd'
 print('ok')"
@@ -420,9 +420,10 @@ def admitted_steps(f, name):
                 if e["key"] == "woodpecker-ci.org/step" and e["operator"] == "In":
                     steps |= set(e["values"])
     return steps
-pipe = yaml.safe_load(open(f"{root}/.woodpecker.yml"))
+sys.path.insert(0, f"{root}/scripts/lib")
+import woodpecker_pipeline as wpl            # .woodpecker/*.yml since B200 (2026-11-18)
 bad, dialing = [], []
-for step in pipe["steps"]:
+for _, step in wpl.steps(f"{root}/.woodpecker"):
     text = "\n".join(str(c) for c in step.get("commands") or [])
     for script in set(re.findall(r"scripts/[\w./-]+\.(?:sh|py)", text)):
         if os.path.isfile(f"{root}/{script}"):
@@ -433,7 +434,7 @@ for step in pipe["steps"]:
             if step["name"] not in admitted_steps(f, name):
                 bad.append(f"CI step {step['name']} dials {pat} but {name} doesn't admit woodpecker-ci.org/step={step['name']}")
 print("dialing:", sorted(dialing))
-assert dialing, "no CI step dials a policied store: the scan isn't reading .woodpecker.yml or its scripts"
+assert dialing, "no CI step dials a policied store: the scan isn't reading .woodpecker/ or its scripts"
 assert not bad, bad
 PY
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }

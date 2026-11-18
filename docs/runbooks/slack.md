@@ -91,7 +91,7 @@ Expected: `HTTP/2.0 200 OK`, and a `[DEGRADED] n8n` test message in `#deploys` (
 
 ## Woodpecker → `#deploys`
 
-Step `notify-slack` in `.woodpecker.yml` runs only when the pipeline fails, and posts
+Step `notify-slack` in `.woodpecker/finish.yml` runs only when the pipeline fails, and posts
 `[CI FAILED] <repo> #<n> on <branch>` with the pipeline link. The URL is the repo secret `slack_webhook_deploys`
 ([woodpecker.md](woodpecker.md) § repo secrets); it must exist before any config that references it, or the whole
 config fails to parse. It is proven by the next red pipeline. A deliberate failure is not run just to test it.

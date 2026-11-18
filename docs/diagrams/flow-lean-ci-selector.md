@@ -16,8 +16,8 @@ flowchart TD
     C -- yes --> D{any changed file?}
     D -- "no: an empty diff is ambiguous" --> R1
     D -- yes --> E[for each changed file]
-    E --> F{is it .woodpecker.yml?}
-    F -- yes --> G{merge-base copy readable AND both copies parse AND both have a RUN_FIXTURES-gated step?}
+    E --> F{is it a .woodpecker/ workflow file or the deleted .woodpecker.yml?}
+    F -- yes --> G{merge-base and current pipeline both readable AND parseable AND each has a RUN_FIXTURES-gated step?}
     G -- no --> R1
     G -- yes --> H{top-level keys or gated steps differ? anchors resolved}
     H -- yes --> R1
@@ -29,7 +29,11 @@ flowchart TD
     E -- all files checked --> R0[print 0: production lanes only]
 ```
 
-## Why `.woodpecker.yml` is compared by content
+## Why `.woodpecker/` is compared by content
+
+Since B200 (2026-11-18) the pipeline is the `.woodpecker/` directory, one file per workflow; the selector compares
+the whole directory (merge-base vs HEAD), and a change to any workflow file, or the deletion of the old
+`.woodpecker.yml`, is a pipeline change. The history below predates the split.
 
 It defines the fixture lanes, so it must be a trigger. As a whole-file trigger it was too blunt: pipeline **#382**
 (2026-10-16) ran the full matrix for hours because one line was added to `repo-guards`, a step every lean run executes
@@ -54,7 +58,7 @@ eval-safe assignments, and each fixture lane gates on its own key.
 ```mermaid
 flowchart TD
     A[the 0/1 decision] -->|0| P0[RUN_FIXTURES=0: production lanes only]
-    A -->|1| B{every fixture change is golden-paths/a/b/... or lane steps in .woodpecker.yml, top level unchanged?}
+    A -->|1| B{every fixture change is golden-paths/a/b/... or lane steps in .woodpecker/fixtures-*.yml, top level unchanged?}
     B -->|no: a runner, tests/lang, the manifest, the smoke step, a top-level key| F[RUN_FIXTURES=1, FIXTURE_LANES empty: every lane]
     B -->|yes| C[read each lane's own discovery: run-lang-tests.sh lang --list-roots]
     C -->|discovery failed| F
@@ -83,7 +87,7 @@ sequenceDiagram
 | `golden-paths/swift/vapor-app/…` only | `FIXTURE_LANES='swift'`, `GOLDEN_PATH_ONLY='swift/vapor-app'` |
 | `golden-paths/mobile/swift-ios/…` (a project the swift lane discovers, no Dockerfile) | `FIXTURE_LANES='swift'`, `GOLDEN_PATH_ONLY=''` (smoke skips) |
 | `golden-paths/python/flask/…` (python is a production lane) | `FIXTURE_LANES='none'`, `GOLDEN_PATH_ONLY='python/flask'` |
-| `test-swift` image bump in `.woodpecker.yml` + the swift golden path | `FIXTURE_LANES='swift'` (the #413 push, replayed) |
+| `test-swift` image bump in `.woodpecker/fixtures-*.yml` + the swift golden path | `FIXTURE_LANES='swift'` (the #413 push, replayed) |
 | Any shared trigger alongside | full: `FIXTURE_LANES=''` |
 
 ## Related

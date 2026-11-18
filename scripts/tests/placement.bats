@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # B198 — the repo-guards entrypoint for the placement inventory. The decisions are covered in
 # test_placement_check.py; these prove the wrapper passes arguments through and does not swallow exit codes, since
-# `.woodpecker.yml` reads only its status.
+# `.woodpecker/platform.yml` reads only its status.
 
 setup() {
   load helper

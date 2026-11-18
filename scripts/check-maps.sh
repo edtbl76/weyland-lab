@@ -5,9 +5,10 @@
 # (LikeC4, Mermaid), not maps, so B184, U14 and B189 each shipped without one. This guard gives the maps an owner.
 #
 # Checks:
-#   1. every step in .woodpecker.yml is named on docs/ci-architecture-map.html as a step card (class="name") or a
+#   1. every step in the pipeline (.woodpecker/*.yml, one file per workflow since B200) is named on docs/ci-architecture-map.html as a step card (class="name") or a
 #      lane chip (class="n"). Prose mentions do not count: a step must be ON the map, not merely in a sentence.
-#   2. the CI map's "<N>-step" claim equals the real step count.
+#   2. the CI map's "<N>-step" claim equals the real count of DISTINCT step names (trunk-upload runs in several
+#      workflows but is one step on the map).
 #   3. every top-level LikeC4 external (`id = ext "…"`) has a row tagged data-c4="<id>" on docs/platform-map.html.
 #
 # EXIT: 0 clean · 1 drift (every miss named) · 2 could not check (a file missing, or nothing to check — an empty
@@ -17,26 +18,32 @@
 set -uo pipefail
 
 . "$(dirname "$0")/lib/common.sh"
-PIPELINE="${CHECK_MAPS_PIPELINE:-$REPO_ROOT/.woodpecker.yml}"
+PIPELINE="${CHECK_MAPS_PIPELINE:-$REPO_ROOT/.woodpecker}"   # a directory of workflows, or one file (test seam)
 CI_MAP="${CHECK_MAPS_CI_MAP:-$REPO_ROOT/docs/ci-architecture-map.html}"
 LIKEC4="${CHECK_MAPS_LIKEC4:-$REPO_ROOT/docs/architecture/weyland.likec4}"
 PLATFORM_MAP="${CHECK_MAPS_PLATFORM_MAP:-$REPO_ROOT/docs/platform-map.html}"
 
-for f in "$PIPELINE" "$CI_MAP" "$LIKEC4" "$PLATFORM_MAP"; do
+[ -e "$PIPELINE" ] || { echo "check-maps: $PIPELINE not found" >&2; exit 2; }
+for f in "$CI_MAP" "$LIKEC4" "$PLATFORM_MAP"; do
   [ -f "$f" ] || { echo "check-maps: $f not found" >&2; exit 2; }
 done
 command -v python3 >/dev/null 2>&1 || { echo "check-maps: python3 not found on PATH" >&2; exit 2; }
 
-python3 - "$PIPELINE" "$CI_MAP" "$LIKEC4" "$PLATFORM_MAP" <<'PY'
+PIPELINE_LIB="$REPO_ROOT/scripts/lib" python3 - "$PIPELINE" "$CI_MAP" "$LIKEC4" "$PLATFORM_MAP" <<'PY'
+import os
 import re
 import sys
 
-import yaml
+sys.path.insert(0, os.environ["PIPELINE_LIB"])
+import woodpecker_pipeline as wp
 
 pipeline, ci_map, likec4, platform_map = sys.argv[1:5]
 
-steps = yaml.safe_load(open(pipeline)).get("steps") or []
-names = [s["name"] for s in steps] if isinstance(steps, list) else list(steps)
+try:
+    names = list(dict.fromkeys(s["name"] for _, s in wp.steps(pipeline)))   # distinct, in pipeline order
+except wp.PipelineError as exc:
+    print(f"check-maps: {exc}", file=sys.stderr)
+    sys.exit(2)
 if not names:
     print(f"check-maps: no steps in {pipeline}", file=sys.stderr)
     sys.exit(2)

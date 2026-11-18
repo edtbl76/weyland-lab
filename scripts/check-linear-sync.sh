@@ -92,7 +92,7 @@
 #   BACKLOG_FILE          defaults to docs/backlog.md
 #   REPOS_FILE            defaults to repos.yaml — the active-repo <-> linear_project SoT for check G
 #
-# HOW IT RUNS: **blocking in CI** — `.woodpecker.yml` step `linear-sync` (its own step, because
+# HOW IT RUNS: **blocking in CI** — `.woodpecker/platform.yml` step `linear-sync` (its own step, because
 # `repo-guards` is deliberately secret-free), secret `linear_api_key`, events cron+manual. Also run by
 # hand at close-out. Unlike `check-secret-placeholders.sh` and `check-servicemonitor-coverage.sh` this
 # one CAN live in CI: those need cluster read, this makes one outbound HTTPS call that NEEDS only read

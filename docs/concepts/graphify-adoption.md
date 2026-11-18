@@ -212,7 +212,7 @@ rejected options were rejected for reasons, not by default.
 and an empty answer is not evidence of no impact. A CI step over advisory output has only two shapes,
 and both are bad — it blocks the pipeline on a finding that may be a known blind spot, or it is
 allowed to fail and therefore never read. This repo already learned that: an advisory guard left
-advisory *"is how fifteen diagrams rotted"* (`.woodpecker.yml`, port-iac-coverage). It would also need
+advisory *"is how fifteen diagrams rotted"* (`.woodpecker/platform.yml`, port-iac-coverage). It would also need
 python < 3.13 in the image plus a ~16s graph build on every run, to produce something no gate can act
 on.
 

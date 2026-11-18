@@ -51,7 +51,7 @@ its own bats case, until both were removed with B233).
      compositors), since an Istio rule can't name an unmeshed caller. Find the callers first: the code, the manifests,
      and `istio_requests_total{destination_app="<app>"}` over 14 days. An unlisted caller breaks silently.
      **Mesh metrics never show a CI step** (an unmeshed Woodpecker pod that exists only during a pipeline): grep
-     `.woodpecker.yml` and the scripts its steps run for the host, and admit a step by `woodpecker-ci.org/step`. The
+     `.woodpecker/*.yml` and the scripts its steps run for the host, and admit a step by `woodpecker-ci.org/step`. The
      bats test "every CI step that dials a policied store" fails on one you miss (CI #363's `test-integration-datahub`).
      A short-lived pod that dials **in its first second** can be refused even when admitted (CI #364/#365, with the
      policy live and correct: k3s admits a new pod's IP a few seconds after it starts; CI #366 was refused on the first

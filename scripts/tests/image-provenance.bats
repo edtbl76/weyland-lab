@@ -185,7 +185,7 @@ JSON
 # --- CI step images (2026-11-15) ----------------------------------------------------------------------------------
 # CI step pods run in the `woodpecker` namespace, so the in-cluster enumerator and the Gatekeeper audit judge their
 # images whenever a run overlaps a step. Eight CI images were in no reviewed list: invisible until a provenance run
-# happened to overlap the R lane. The git scan now judges .woodpecker.yml's step images too, at merge time.
+# happened to overlap the R lane. The git scan now judges the pipeline's step images too (.woodpecker/ since B200), at merge time.
 
 _ci_fixture() {  # <pipeline yaml> -> sets MROOT (one reviewed manifest) and PIPE (the pipeline file)
   MROOT="$BATS_TEST_TMPDIR/k8s"; mkdir -p "$MROOT"

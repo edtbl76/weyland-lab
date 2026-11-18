@@ -192,9 +192,10 @@ EOF
   run python3 - "$REPO_ROOT" <<'PY'
 import os, re, sys, yaml
 root = sys.argv[1]
-wp = yaml.safe_load(open(f"{root}/.woodpecker.yml"))
+sys.path.insert(0, f"{root}/scripts/lib")
+import woodpecker_pipeline as wpl            # the pipeline is .woodpecker/*.yml since B200 (2026-11-18)
 trig = yaml.safe_load(open(f"{root}/ci-langs.yaml"))["fixture_trigger_paths"]
-gated = [s for s in wp["steps"] if 'RUN_FIXTURES != "0"' in str(s.get("when", ""))]
+gated = [s for _, s in wpl.steps(f"{root}/.woodpecker") if 'RUN_FIXTURES != "0"' in str(s.get("when", ""))]
 if not gated:
     sys.exit("no lean-gated steps found — the guard is checking nothing")
 scripts = set()
@@ -209,7 +210,14 @@ while todo:                                   # follow `. "$(dirname "$0")/lib/x
     seen.add(f)
     for m in re.findall(r'^\s*(?:\.|source)\s+"?\$\(dirname "\$(?:0|\{BASH_SOURCE\[0\]\})"\)/([\w./-]+)"?', open(f"{root}/{f}").read(), re.M):
         todo.append(os.path.normpath(os.path.join(os.path.dirname(f), m)))
-missing = sorted(f for f in seen if not any(f.startswith(t) for t in trig))
+# A script an UNGATED step also runs is exercised by every lean run anyway (since B200, scripts/ci/trunk-upload.sh:
+# platform's trunk-upload is ungated, the sample-app workflows' copies are gated), so it needs no trigger path.
+ungated_scripts = set()
+for _, s in wpl.steps(f"{root}/.woodpecker"):
+    if 'RUN_FIXTURES != "0"' not in str(s.get("when", "")):
+        for c in s.get("commands") or []:
+            ungated_scripts.update(re.findall(r"(scripts/[\w./-]+\.sh)", str(c)))
+missing = sorted(f for f in seen if not any(f.startswith(t) for t in trig) and f not in ungated_scripts)
 print(f"{len(gated)} lean-gated steps, {len(seen)} scripts checked")
 if missing:
     print("NOT a trigger path (a change here would skip the step that runs it):", missing); sys.exit(1)
@@ -303,12 +311,13 @@ plan() {  # plan <changed files>
   [ "$FIXTURE_LANES" = "swift" ]
 }
 
-@test "the REAL .woodpecker.yml: every fixture lane gates on its OWN lane key, and the smoke step on its scope" {
-  python3 - "$REPO_ROOT/.woodpecker.yml" <<'PY'
-import re, sys, yaml
-d = yaml.safe_load(open(sys.argv[1]))
+@test "the REAL pipeline: every fixture lane gates on its OWN lane key, and the smoke step on its scope" {
+  python3 - "$REPO_ROOT" <<'PY'
+import re, sys
+sys.path.insert(0, f"{sys.argv[1]}/scripts/lib")
+import woodpecker_pipeline as wpl            # .woodpecker/*.yml since B200 (2026-11-18)
 bad = []
-for s in d["steps"]:
+for wf, s in wpl.steps(f"{sys.argv[1]}/.woodpecker"):
     w = str(s.get("when", ""))
     if "RUN_FIXTURES" not in w:
         continue
@@ -317,10 +326,40 @@ for s in d["steps"]:
         if "GOLDEN_PATH_ONLY" not in w or "FIXTURE_LANES" not in w:
             bad.append(f"{name}: must gate on FIXTURE_LANES + GOLDEN_PATH_ONLY")
         continue
+    if name == "trunk-upload":
+        continue                                 # checked by the next test: it gates on its workflow's lane keys
     key = re.sub(r"^(test|scan)-", "", name)
     if f'" {key} "' not in w or "FIXTURE_LANES" not in w:
-        bad.append(f"{name}: evaluate must test FIXTURE_LANES for \" {key} \"")
+        bad.append(f"{wf}/{name}: evaluate must test FIXTURE_LANES for \" {key} \"")
 print("\n".join(bad)); sys.exit(1 if bad else 0)
+PY
+}
+
+# B200 (2026-11-18): each sample-app workflow uploads its own JUnit, and its trunk-upload is gated exactly like its lanes
+# so it runs when at least one of them ran (and is then fail-closed on a missing report). If a lane moves to another
+# workflow, or a lane is added, without the upload gate following, a lane could run with nobody uploading its results
+# (or the upload could run with no lane and go red). The gate must name EXACTLY its workflow's lane keys.
+@test "the REAL pipeline: each workflow's trunk-upload gates on exactly that workflow's lane keys" {
+  python3 - "$REPO_ROOT" <<'PY'
+import re, sys
+sys.path.insert(0, f"{sys.argv[1]}/scripts/lib")
+import woodpecker_pipeline as wpl
+bad, checked = [], 0
+for wf, doc in wpl.workflows(f"{sys.argv[1]}/.woodpecker"):
+    lanes = {re.sub(r"^(test|scan)-", "", s["name"]) for s in doc["steps"]
+             if re.match(r"^(test|scan)-", s.get("name", "")) and "RUN_FIXTURES" in str(s.get("when", ""))}
+    uploads = [s for s in doc["steps"] if s.get("name") == "trunk-upload"]
+    if not lanes:
+        continue
+    checked += 1
+    if len(uploads) != 1:
+        bad.append(f"{wf}: has fixture lanes {sorted(lanes)} but {len(uploads)} trunk-upload step(s)"); continue
+    named = set(re.findall(r'contains " ([a-z0-9-]+) "', str(uploads[0].get("when", ""))))
+    if named != lanes:
+        bad.append(f"{wf}: trunk-upload gates on {sorted(named)}, its lanes are {sorted(lanes)}")
+if checked == 0:
+    bad.append("no workflow with fixture lanes found: the check is checking nothing")
+print(f"{checked} workflow(s) checked"); print("\n".join(bad)); sys.exit(1 if bad else 0)
 PY
 }
 

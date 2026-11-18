@@ -6,7 +6,7 @@ detects flaky and broken tests, and files them as Linear issues in project **Wey
 
 | | |
 |---|---|
-| What runs | Woodpecker step `trunk-upload` (`.woodpecker.yml` § 5b), after every pipeline, green or red |
+| What runs | Woodpecker step `trunk-upload`, once per workflow with lanes (`.woodpecker/platform.yml` and the four `.woodpecker/fixtures-*.yml`, the sample-app ones gated like their lanes), after its lanes, green or red |
 | Script | `scripts/ci/trunk-upload.sh <junit-root>` (tests: `scripts/tests/trunk-upload.bats`) |
 | Uploader | `trunk-analytics-cli` **0.16.1**, downloaded each run from GitHub releases, sha256 `8c34f99a41d4b3151f711aca05d01478b2f707dd698d3980d2524646021af5f2` checked before it runs |
 | Where results come from | `reports/junit/<source>/` in the shared workspace. Each `<source>` is one Trunk **variant** |
