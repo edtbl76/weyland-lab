@@ -197,6 +197,17 @@ steps:
       PATH: /cache/cargo/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
       - ci-cache-cargo-tb:/cache/cargo
+    # Killed with exit 137 after 13 s in CI #689 (2026-11-18, B200 step 3), the first run on timberback: its new cargo
+    # cache (ci-cache-cargo-tb) was cold, so `cargo install` compiled cargo-audit + cargo-deny from source, on a 32-thread
+    # node, under the namespace's default 2Gi limit. On mother the warm cache meant nothing compiled. Same class and
+    # fix as test-rust above (#253): an explicit memory request and limit. MEMORY ONLY — no cpu request.
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 4Gi
     commands:
       - rustup component add clippy rustfmt >/dev/null 2>&1 || true
       - cargo install cargo-audit cargo-deny --locked >/dev/null 2>&1 || true
