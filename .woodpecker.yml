@@ -28,6 +28,9 @@
 # `--output 'go-template={{range .}}...{{end}}'` (the payload is a slice). See docs/runbooks/ship-images.md.
 labels:
   backend: kubernetes
+  # B200 step 1 (2026-11-18): run on mother's agent pool. Without this, the timberback pool (also backend=kubernetes)
+  # could take this workflow, and its steps mount the ci-cache-* volumes that live on mother (the CI #676 hang).
+  node: mother
 # ONE pipeline, two modes, selected by the SMOKE_ONLY pipeline variable:
 #   full   (cron, or `pipeline create` with no var) — every lane + golden-path-smoke + integration + CD.
 #   smoke  (`pipeline create --var SMOKE_ONLY=smoke --var GOLDEN_PATH_ONLY='<paths>'`) — ONLY golden-path-smoke

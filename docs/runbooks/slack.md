@@ -69,7 +69,7 @@ fires `AlertmanagerFailedToSendAlerts`.
 Config: `k8s/argocd/argocd-values.yaml` § `notifications` (Argo CD is installed by `helm upgrade`, not by Argo; see
 [argocd.md](argocd.md)). The generic `webhook` service named `slack-deploys`; URL `$slack-webhook-deploys` from the
 sealed `argocd/argocd-notifications-secret`. Default subscription for every app: `on-sync-failed`,
-`on-health-degraded`. **Not `on-deployed`**: every app tracks `main`, so each push gives ~85 apps a new revision and
+`on-health-degraded`. **Not `on-deployed`**: every app tracks `main`, so each push gives ~86 apps a new revision and
 would post ~83 messages.
 
 Apply a change (the owner; the secret must exist first, see [secrets.md](secrets.md) § Slack webhooks):

@@ -378,6 +378,38 @@ chosen `woodpecker.sqlite` over `/data/woodpecker.sqlite` and DELETES `woodpecke
 → `argocd app set woodpecker --sync-policy automated --self-heal --auto-prune --grpc-web`. Verify with
 `woodpecker-cli repo ls` (both repos) and `woodpecker-cli repo cron ls edtbl76/weyland-lab` (`nightly-images`).
 
+## Agent pools — which node a workflow runs on (B200, 2026-11-18)
+
+Two kubernetes-backend agent pools, chosen by label. An agent takes a workflow only if it carries **every** label the
+workflow lists; an agent's extra labels do not matter.
+
+| Pool | Where defined | Labels | Workflow slots | Step pods pinned to |
+|---|---|---|---|---|
+| mother | Helm chart, `k8s/woodpecker/woodpecker-values.yaml` (`woodpecker-agent`, 2 replicas) | `node=mother` | 1 per agent | mother (`WOODPECKER_BACKEND_K8S_POD_NODE_SELECTOR`) |
+| timberback | `k8s/woodpecker/agent-timberback.yaml` (Argo app `woodpecker-agent-timberback`, 1 replica) | `node=timberback` | 6 (`WOODPECKER_MAX_WORKFLOWS`) | timberback |
+
+A workflow picks its pool with `labels: { backend: kubernetes, node: <mother|timberback> }`. **A workflow whose steps mount
+a node-local volume must name its `node`**: one that names only `backend` matches both pools, and on timberback a step that
+mounts a `ci-cache-*` volume (on mother) cannot schedule. weyland-lab names `node: mother`. Algopedia and
+emangini-tailwind-nextjs-contentlayer name only `backend: kubernetes` and mount no volumes (checked 2026-11-18), so they
+may run on either pool. The other repos run on rogueone's `backend: local` agents. That was CI #676: killed after 3 h with "0/2 nodes ... PersistentVolume's node affinity".
+A step pod's workspace volume is created on its pod's node, so pinning the pod pins the volume too.
+
+**Sizing the timberback pool:** slots = the workflows that should run at once, capped by measured memory. Steps within a
+workflow run one at a time, so a workflow needs about its biggest step (CI #675: 2.96 / 2.90 / 2.63 GiB at most).
+Six slots is ~18 GiB worst case on a node with 85.5 GiB allocatable. Too few slots shows as queue time (workflow
+created to started); too many shows as timberback free memory under ~20 GiB during a full run.
+
+List the agents with their labels and slots (from the REST API; the CLI has no agent command, and the response carries
+each agent's token, so print only these fields):
+
+[rogueone]
+```
+set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a && curl -sS -m 30 "$WOODPECKER_SERVER/api/agents?perPage=50" -H "Authorization: Bearer $WOODPECKER_TOKEN" | python3 -c 'import json,sys; [print(a["id"], a["name"], a["backend"], "capacity", a["capacity"], "labels", a["custom_labels"], "last_contact", a["last_contact"]) for a in json.load(sys.stdin) if a["backend"] == "kubernetes"]'
+```
+
+The newest `last_contact` rows are the live agents: each restart registers a new row because the agents keep no state.
+
 ## Toolchain caches (B88 #6)
 
 Five persistent PVCs (`k8s/woodpecker/ci-caches.yaml`, ns `woodpecker`, RWO local-path, **hand-applied**; unlike

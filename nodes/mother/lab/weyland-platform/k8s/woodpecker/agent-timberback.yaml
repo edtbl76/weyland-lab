@@ -1,0 +1,54 @@
+# B200 step 1 (2026-11-18) — a second Woodpecker kubernetes-backend agent pool, on timberback.
+# The Helm chart runs ONE agent StatefulSet (mother's, k8s/woodpecker/woodpecker-values.yaml); this is the same agent,
+# copied from the live mother spec (image, service account and its RBAC, the agent secret, fsGroup, backend env), with
+# three differences:
+#   - WOODPECKER_AGENT_LABELS node=timberback: a workflow lands here only if it asks for `node: timberback`. An agent
+#     must carry every label a workflow lists, so the weyland-lab workflow (labels backend + node: mother) never does.
+#   - WOODPECKER_BACKEND_K8S_POD_NODE_SELECTOR timberback: every step pod of a workflow it runs is scheduled there, so
+#     the workflow's local-path workspace volume and its caches share one node (CI #676 died of a split).
+#   - WOODPECKER_MAX_WORKFLOWS 6: workflow slots. Sized from CI #675: the biggest steps peaked at 2.96 / 2.90 / 2.63 GiB
+#     and steps within a workflow run one at a time, so 6 workflows at their heaviest is ~18 GiB of timberback's
+#     85.5 GiB. Tune from queue time (too few) and node free memory (too many; keep >= ~20 GiB free).
+# Nothing selects this pool until a workflow asks for `node: timberback` (B200 step 3). Runbook: docs/runbooks/woodpecker.md.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: woodpecker-agent-timberback
+  namespace: woodpecker
+  labels: { app.kubernetes.io/name: woodpecker-agent-timberback, app.kubernetes.io/part-of: woodpecker }
+spec:
+  replicas: 1
+  serviceName: woodpecker-agent-timberback
+  selector:
+    matchLabels: { app.kubernetes.io/name: woodpecker-agent-timberback }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: woodpecker-agent-timberback, app.kubernetes.io/part-of: woodpecker }
+    spec:
+      serviceAccountName: woodpecker-agent        # the chart's agent SA: Role to create step pods + PVCs in ns woodpecker
+      nodeSelector:
+        kubernetes.io/hostname: timberback
+      securityContext: { fsGroup: 1000 }
+      containers:
+        - name: agent
+          image: docker.io/woodpeckerci/woodpecker-agent:v3.18.0   # same version as mother's agents (chart 3.7.2)
+          ports:
+            - { name: http, containerPort: 3000, protocol: TCP }
+          envFrom:
+            - secretRef: { name: woodpecker-default-agent-secret }
+          env:
+            - { name: WOODPECKER_SERVER, value: "woodpecker-server:9000" }
+            - { name: WOODPECKER_BACKEND, value: kubernetes }
+            - { name: WOODPECKER_BACKEND_K8S_NAMESPACE, value: woodpecker }
+            - { name: WOODPECKER_BACKEND_K8S_NAMESPACE_PER_ORGANIZATION, value: "false" }
+            - { name: WOODPECKER_BACKEND_K8S_STORAGE_CLASS, value: local-path }
+            - { name: WOODPECKER_BACKEND_K8S_STORAGE_RWX, value: "false" }
+            - { name: WOODPECKER_BACKEND_K8S_VOLUME_SIZE, value: 5G }
+            - { name: WOODPECKER_BACKEND_K8S_SERVICE_ACCOUNT_NAME_ALLOW_FROM_STEP, value: "true" }
+            - { name: WOODPECKER_CONNECT_RETRY_COUNT, value: "3" }
+            - { name: WOODPECKER_BACKEND_K8S_POD_NODE_SELECTOR, value: '{"kubernetes.io/hostname":"timberback"}' }
+            - { name: WOODPECKER_AGENT_LABELS, value: "node=timberback" }
+            - { name: WOODPECKER_MAX_WORKFLOWS, value: "6" }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }   # mother's agents peaked at 41-43 MiB over 7 days (one workflow each)

@@ -124,6 +124,27 @@ spec:
   syncPolicy:
     automated: { selfHeal: true, prune: true }
 ---
+# B200 step 1 (2026-11-18) — the timberback Woodpecker agent pool (labels node=timberback, 6 workflow slots, step pods
+# pinned to timberback). Raw manifest in the woodpecker helm dir; include-glob so it does NOT collide with the helm app.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: woodpecker-agent-timberback
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/edtbl76/weyland-lab.git
+    targetRevision: main
+    path: nodes/mother/lab/weyland-platform/k8s/woodpecker
+    directory:
+      include: 'agent-timberback.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: woodpecker
+  syncPolicy:
+    automated: { selfHeal: true, prune: true }
+---
 # B201 (2026-10-05) — nightly backup of Woodpecker's SQLite state (users, repos, CI secrets, the nightly cron, history).
 # Raw manifest in the woodpecker helm dir; include-glob so it does NOT collide with the helm `woodpecker` Application.
 apiVersion: argoproj.io/v1alpha1

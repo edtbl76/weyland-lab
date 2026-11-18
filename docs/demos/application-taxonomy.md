@@ -46,7 +46,7 @@ Expected: **64 components**. For the tofu lane's own coverage check see
 ```
 bash scripts/check-app-registry.sh
 ```
-Expected: `✅ every deployed Argo app is accounted for in the registry` (85 apps).
+Expected: `✅ every deployed Argo app is accounted for in the registry` (86 apps).
 
 ## Teardown
 

@@ -3699,7 +3699,7 @@ Blocked by **B134** (EMA-195, the hardware). Relates B177 (lean trigger), B199 (
    balanced into its own), `golden-path`, `finish` (sonar-gate, notify-port/slack after all). Lean gating stays the
    pipeline variables, now at workflow level; `trunk-upload` runs per workflow (Sonar reads no cross-workflow files).
 3. Move the sample-app and golden-path workflows to the timberback pool.
-   **3a BUILT 2026-11-17, deploys after the in-flight CI run (it uses buildkitd): buildkitd moves to timberback** (12 GiB, `buildkitd-cache-tb`, image pinned by digest). On
+   **3a DONE 2026-11-18: buildkitd on timberback** (deployed 0daca487; proven by full CI #678, success in 100 min: `golden-path-smoke` 1,477 s against 1,814 s on mother in #675, `build` 302 s; buildkitd peak 3.90 GiB of 12 against 5.34 of 6 on mother; no alert fired) (12 GiB, `buildkitd-cache-tb`, image pinned by digest). On
    mother it peaked at 5.34 of 6 GiB with one golden-path stream. Proven first with the exact image and flags on a
    timberback local-path volume (btrfs): a COPY + RUN + apk build exported a 6.2 MB OCI image. A registry build cache
    was considered and rejected for golden paths: they build cold by design (#92/#93 cross-contamination).

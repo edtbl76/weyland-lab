@@ -16,6 +16,9 @@ agent:
     # timeout killed it (CI #676: test-java, 0/2 nodes "didn't match PersistentVolume's node affinity"). Pinning every
     # step pod keeps the workspace and the caches on one node. Running CI on timberback too is B200's job.
     WOODPECKER_BACKEND_K8S_POD_NODE_SELECTOR: '{"kubernetes.io/hostname":"mother"}'
+    # B200 step 1 (2026-11-18): the agent pools are chosen by label. An agent must carry every label a workflow lists,
+    # so a workflow asking for `node: mother` lands here and never on the timberback pool (agent-timberback.yaml).
+    WOODPECKER_AGENT_LABELS: 'node=mother'
     # B153 — let a step opt into a dedicated ServiceAccount via backend_options.kubernetes.serviceAccountName.
     # OFF by default (privilege-escalation vector in MULTI-tenant clusters); safe here — this is a solo,
     # single-repo build farm. The golden-path-smoke step uses it to run as `golden-path-runner` instead of
