@@ -3689,13 +3689,13 @@ Blocked by **B134** (EMA-195, the hardware). Relates B177 (lean trigger), B199 (
 
 **Plan (2026-11-17, approved step by step; measured on CI #675: 71 steps, 104 min, sample-app lanes ~62 min, golden-path
 30 min, platform ~12 min).** Each step pushed and proven alone:
-1. A timberback agent pool: agents labeled `node=timberback` with `POD_NODE_SELECTOR` timberback and their own
+1. **DONE 2026-11-18 (ff23179f; CI #680 success in 89 min, every step pod on mother, the workflow taken by a `node=mother` agent).** A timberback agent pool: agents labeled `node=timberback` with `POD_NODE_SELECTOR` timberback and their own
    `ci-cache-*-tb` volumes; mother's agents labeled `node=mother`. Workflows pick a pool by label, so a workflow's
    workspace and caches share one node by design (CI #676 died of exactly that split, below). **Sizing:** slots = the
    workflows that should run at once (6-7 on timberback, 2 on mother), capped by measured peaks (biggest steps 2.96 /
    2.90 / 2.63 GiB; timberback 85.5 GiB allocatable, 15% used), start at one agent with `MAX_WORKFLOWS=6`, then tune
    from queue time (too few) and node free memory (too many; keep >= ~20 GiB free).
-2. Split `.woodpecker.yml` into workflows, all still on mother: `platform`, 3-4 sample-app groups (scan-haskell's 12 min
+2. **Pre-test DONE 2026-11-18 (#681/#682, throwaway branch `b200-var-test`):** a workflow-level `when` never sees a `--var` on v3.18 (not even the first workflow; the old note was wrong), a workflow-level evaluate on a built-in works, a STEP-level gate sees the var in any workflow, and an all-skipped workflow still clones (~8 s) and succeeds. So the split keeps today's step gates unchanged. Split `.woodpecker.yml` into workflows, all still on mother: `platform`, 3-4 sample-app groups (scan-haskell's 12 min
    balanced into its own), `golden-path`, `finish` (sonar-gate, notify-port/slack after all). Lean gating stays the
    pipeline variables, now at workflow level; `trunk-upload` runs per workflow (Sonar reads no cross-workflow files).
 3. Move the sample-app and golden-path workflows to the timberback pool.

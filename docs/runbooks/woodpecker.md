@@ -88,9 +88,12 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
   Proven #133/#134 (~1 min for one path, ~15 min for all 9 B164 paths). Notes hard-won building this:
   - **The sentinel is the STRING `smoke`, never a boolean.** `--var SMOKE_ONLY=true` is YAML-coerced to a bool and the
     string compare then errors → the pipeline is filtered empty (server returns HTTP 204, CLI prints `error: EOF`).
-  - **It's ONE workflow (step-level gate), not two files.** Woodpecker feeds a `--var` only to the FIRST workflow's
-    `when`, so a `.woodpecker/`-split second workflow can't gate on it (also 204/EOF). A single workflow shares the
-    var with every step. (`pipeline deploy`/`deployment`-event selection is a 403 for this token — permission-walled.)
+  - **Gate on `--var` at the STEP, never the workflow.** Re-tested on v3.18 (2026-11-18, B200, throwaway branch
+    `b200-var-test`, #681/#682): a workflow-level `when: evaluate` NEVER sees a `--var`, not even in the first workflow
+    (both var-gated workflows were filtered out with `B200_TEST=go`: HTTP 204, CLI `error: EOF`). A workflow-level
+    `evaluate` on a built-in (`CI_PIPELINE_EVENT`) works, and a STEP-level `evaluate` sees the var in any workflow of a
+    split. A workflow whose steps are all skipped still runs its clone (~8 s) and reports success. (The older note said
+    "only the FIRST workflow's `when`"; that was wrong, not merely out of date.) (`pipeline deploy`/`deployment`-event selection is a 403 for this token — permission-walled.)
   - A plain `create` with no var, and the nightly cron, still run the **full** pipeline (manual-full preserved).
 - **Lean language matrix (B177) — skip the ~46 fixture-language lanes when you didn't touch them.** CI steps run
   SEQUENTIALLY (RWO workspace), so a full run is ~30 min of golden-path lanes on the RAM-tight node. When a change

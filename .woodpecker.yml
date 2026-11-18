@@ -35,9 +35,9 @@ labels:
 #   full   (cron, or `pipeline create` with no var) — every lane + golden-path-smoke + integration + CD.
 #   smoke  (`pipeline create --var SMOKE_ONLY=smoke --var GOLDEN_PATH_ONLY='<paths>'`) — ONLY golden-path-smoke
 #          runs (build+serve just those paths, ~minutes); every heavy lane carries `when: *skip_on_smoke`
-#          (`SMOKE_ONLY != "smoke"`) so it is skipped. This is on ONE workflow on purpose: Woodpecker only
-#          feeds a `--var` to the FIRST workflow's gate, so a two-file split can't gate a second workflow on
-#          it (that returned an empty pipeline / HTTP 204). A single workflow shares the var with every step.
+#          (`SMOKE_ONLY != "smoke"`) so it is skipped. Gates on a `--var` live on STEPS, never on a workflow's
+#          `when`: on v3.18 a workflow-level evaluate never sees a `--var` (re-tested 2026-11-18, B200 #681/#682,
+#          HTTP 204), while a step-level evaluate sees it in any workflow, so a .woodpecker/ split keeps them.
 #   notify-port is NOT gated (the CI-reliability signal posts in every mode). golden-path-smoke runs in
 #   SMOKE mode and in a FULL/nightly run, but is lean-gated (B177): it SKIPS when RUN_FIXTURES=0.
 when:
