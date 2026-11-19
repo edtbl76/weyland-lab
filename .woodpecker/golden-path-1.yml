@@ -1,0 +1,91 @@
+# golden-path-1 — build and serve shard 1/3 of the golden paths through buildkitd (golden-path-smoke).
+# One of 10 workflows (B200, 2026-11-18): the pipeline that was .woodpecker.yml, split so independent work runs in
+# parallel. golden-path-1..3 are IDENTICAL except their shard number (pipeline-layout.bats checks that), each
+# exercising a round-robin third of the paths (scripts/run-golden-path-jobs.sh GOLDEN_PATH_SHARD). Layout and
+# rules: .woodpecker/README.md.
+labels:
+  backend: kubernetes
+  node: timberback    # the agent pool (B200 step 3: sample-app and golden-path work runs on timberback). See README.md.
+when:
+  - event: manual
+  - event: cron
+steps:
+
+  # ── 1e-bis. golden-path ephemeral smoke (B153) — build each golden path via buildkitd and run its
+  # run-to-completion Job (start image · curl /ready + /hello · exit 0 · tear down) in the dedicated
+  # golden-paths namespace. This is the leg the unit lanes above can't cover: it proves every golden
+  # path is a buildable, runnable image ON THE PLATFORM, not just a passing test. Reuses the exact
+  # exerciser you run by hand (scripts/run-golden-path-jobs.sh) + the same persistent buildkitd the
+  # image pipeline uses. RBAC is least-privilege: k8s/golden-paths/golden-paths-rbac.yaml grants a
+  # DEDICATED SA (golden-path-runner, not `default`) Job management ONLY in the golden-paths namespace;
+  # the step runs as that SA via serviceAccountName below (allowed by the agent's
+  # WOODPECKER_BACKEND_K8S_SERVICE_ACCOUNT_NAME_ALLOW_FROM_STEP). Binding `default` is forbidden by the
+  # B95 automount hardening + check-sa-automount-collisions.sh.
+  #
+  # ⚠ NO `failure: ignore` — same fail-closed contract as the scan/integration lanes: the script
+  # exits 2 on a build/apply failure and 1 on a smoke failure, and both must stay visible.
+  - name: golden-path-smoke
+    # B177: runs in SMOKE mode (scoped by GOLDEN_PATH_ONLY) OR a full/nightly run (RUN_FIXTURES unset → "" != "0");
+    # SKIPS in a lean run (RUN_FIXTURES=0), where only production code changed and rebuilding all ~44 golden
+    # paths is wasted (and fragile — a flaky apt mirror in one path's Docker build fails the whole step).
+    when:
+      - event: [manual, cron]
+        evaluate: 'SMOKE_ONLY == "smoke" || (RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || GOLDEN_PATH_ONLY != ""))'
+    image: moby/buildkit:latest
+    environment:
+      BUILDKIT_ADDR: tcp://buildkitd:1234       # step runs in ns woodpecker, so the bare service name resolves
+      # B211: push through the authenticated push host (registry.weyland.lab takes GET/HEAD only); Jobs pull by the
+      # usual name. A missing secret fails this step at start rather than mid-push.
+      GOLDEN_PATH_PUSH_REGISTRY: registry-push.weyland.lab
+      REGISTRY_PUSH_AUTH:
+        from_secret: registry_push_auth
+      # B189: one JUnit test case per golden path, for the trunk-upload step (variant golden-path).
+      GOLDEN_PATH_JUNIT: reports/junit/golden-path/golden-path.xml
+      # B200 step 4: this workflow's share of the paths (round-robin over the sorted list), and where an empty
+      # shard says so for the trunk-upload below.
+      GOLDEN_PATH_SHARD: 1/3
+      GOLDEN_PATH_EMPTY_MARKER: reports/golden-path-shard-empty
+    backend_options:
+      kubernetes:
+        serviceAccountName: golden-path-runner  # dedicated SA (ns woodpecker) with the golden-paths Job RBAC
+        resources:
+          requests:
+            memory: 512Mi
+          limits:
+            memory: 1Gi
+    commands:
+      # buildctl ships in moby/buildkit; add bash (the script uses arrays) + kubectl (apply/wait/logs/delete).
+      - apk add --no-cache bash curl >/dev/null 2>&1
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && chmod +x /usr/local/bin/kubectl
+      # Scope by the GOLDEN_PATH_ONLY pipeline variable: unset = ALL 21 (the cron/full-regression default);
+      # set = only those path(s), so a language under development builds+smokes in seconds instead of rebuilding
+      # every path cold. Pass it on a manual trigger, e.g.:
+      #   woodpecker-cli pipeline create --branch main --var GOLDEN_PATH_ONLY=dotnet/aspnet edtbl76/weyland-lab
+      # Multiple: --var GOLDEN_PATH_ONLY='dotnet/aspnet go/echo'. Unquoted so empty → no arg → all paths.
+      - bash scripts/run-golden-path-jobs.sh $GOLDEN_PATH_ONLY
+
+  # ── test results → Trunk Flaky Tests (B189; one upload per workflow since B200) ──────────────────────────
+  # This shard's JUnit (reports/junit/golden-path/, variant golden-path) to Trunk, after a failure too. Gated exactly
+  # like golden-path-smoke above, so it runs when the smoke step ran. Fail-closed: a run with no report is red, EXCEPT
+  # an empty shard (a smoke run of fewer paths than shards), which the smoke step records with the marker file.
+  # (B200 step 2 dropped this upload for golden paths by mistake, #687-#691; scripts/tests/pipeline-layout.bats now
+  # fails any workflow whose steps write JUnit without a trunk-upload.) Runbook: docs/runbooks/trunk-flaky-tests.md.
+  - name: trunk-upload
+    image: alpine:3.20
+    when:
+      - event: [manual, cron]
+        status: [success, failure]
+        evaluate: 'SMOKE_ONLY == "smoke" || (RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || GOLDEN_PATH_ONLY != ""))'
+    environment:
+      TRUNK_API_TOKEN:
+        from_secret: trunk_org_token
+      TRUNK_COLLECTION_ID: ZuFEh5e5
+      TRUNK_CLI_VERSION: 0.16.1
+      TRUNK_CLI_SHA256: 8c34f99a41d4b3151f711aca05d01478b2f707dd698d3980d2524646021af5f2
+    commands:
+      - if [ -f reports/golden-path-shard-empty ]; then echo "this shard had no golden path to run, so there is nothing to upload"; exit 0; fi
+      - apk add --no-cache bash curl git >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/trunk-cli.tgz "https://github.com/trunk-io/analytics-cli/releases/download/$TRUNK_CLI_VERSION/trunk-analytics-cli-x86_64-unknown-linux.tar.gz"
+      - echo "$TRUNK_CLI_SHA256  /tmp/trunk-cli.tgz" | sha256sum -c -
+      - tar -xzf /tmp/trunk-cli.tgz -C /usr/local/bin trunk-analytics-cli
+      - bash scripts/ci/trunk-upload.sh reports/junit

@@ -14,6 +14,8 @@
 #          --dry-run   print the images + Jobs it would build/apply, change nothing
 #
 #          GOLDEN_PATH_JUNIT=<file>   also write one JUnit test case per path there (B189, for Trunk Flaky Tests)
+#          GOLDEN_PATH_SHARD=k/n      exercise only this shard: the k-th, k+n-th, ... of the sorted paths (B200; CI runs
+#                                     three shards as golden-path-1..3). Empty shard = exit 0 + GOLDEN_PATH_EMPTY_MARKER.
 #
 # EXIT: 0 all exercised paths' smoke passed · 1 a smoke failed (named) · 2 could not run (build/apply).
 # Every path is attempted: a build or apply failure is recorded and the loop moves on; the exit is decided at the end.
@@ -64,6 +66,27 @@ else
       -o -type f -name Dockerfile -print 2>/dev/null | sort)
 fi
 [ "${#paths[@]}" -gt 0 ] || { echo "no golden paths found under $GP_DIR" >&2; exit 2; }
+
+# B200 step 4 (2026-11-18): GOLDEN_PATH_SHARD=k/n keeps this run's share of the paths, so n parallel CI workflows
+# (golden-path-1..n) each build and smoke a third. Round-robin over the sorted list (the k-th, k+n-th, ... path):
+# disjoint, together complete, and the languages spread. A malformed value is exit 2. An empty shard (a smoke run of
+# fewer paths than shards) exits 0 and writes GOLDEN_PATH_EMPTY_MARKER, so its trunk-upload can tell "nothing to run
+# here" from "the reports went missing" and stay fail-closed for the second.
+if [ -n "${GOLDEN_PATH_SHARD:-}" ]; then
+  [[ "$GOLDEN_PATH_SHARD" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] && [ "${BASH_REMATCH[1]}" -le "${BASH_REMATCH[2]}" ] || {
+    echo "GOLDEN_PATH_SHARD '$GOLDEN_PATH_SHARD' is not k/n with 1 <= k <= n" >&2; exit 2; }
+  shard_k="${BASH_REMATCH[1]}"; shard_n="${BASH_REMATCH[2]}"; total="${#paths[@]}"; mine=()
+  for i in "${!paths[@]}"; do [ $(( i % shard_n )) -eq $(( shard_k - 1 )) ] && mine+=("${paths[$i]}"); done
+  if [ "${#mine[@]}" -eq 0 ]; then
+    echo "shard $GOLDEN_PATH_SHARD has no golden path ($total selected, $shard_n shards): nothing to build or smoke."
+    if [ "$DRY" -eq 0 ] && [ -n "${GOLDEN_PATH_EMPTY_MARKER:-}" ]; then
+      mkdir -p "$(dirname "$GOLDEN_PATH_EMPTY_MARKER")" && : > "$GOLDEN_PATH_EMPTY_MARKER"
+    fi
+    exit 0
+  fi
+  paths=("${mine[@]}")
+  echo "shard $GOLDEN_PATH_SHARD: ${#paths[@]} of $total golden path(s): ${paths[*]}"
+fi
 
 if [ "$DRY" -eq 0 ] && [ "$PUSH_REGISTRY" != "$REGISTRY" ]; then
   . "$(dirname "$0")/ci/registry-auth.sh"

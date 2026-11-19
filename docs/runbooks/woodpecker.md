@@ -85,6 +85,9 @@ tags. Steps: `detect-changes → build → kubeconform → deploy-handoff`.
   ```
   `SMOKE_ONLY=smoke` makes every heavy lane skip (they carry `when: *skip_on_smoke` = `SMOKE_ONLY != "smoke"`); only
   `golden-path-smoke` runs, scoped by `GOLDEN_PATH_ONLY` (space-separated `<lang>/<framework>`; unset = all ~44).
+  Since B200 step 4 the smoke runs as three workflows, `golden-path-1..3`, each on a round-robin third of the selected
+  paths (`GOLDEN_PATH_SHARD`). A smoke run of one path builds it in one shard; the other two report "no golden path
+  in this shard" and pass.
   Proven #133/#134 (~1 min for one path, ~15 min for all 9 B164 paths). Notes hard-won building this:
   - **The sentinel is the STRING `smoke`, never a boolean.** `--var SMOKE_ONLY=true` is YAML-coerced to a bool and the
     string compare then errors → the pipeline is filtered empty (server returns HTTP 204, CLI prints `error: EOF`).
@@ -393,12 +396,12 @@ workflow lists; an agent's extra labels do not matter.
 | Pool | Where defined | Labels | Workflow slots | Step pods pinned to |
 |---|---|---|---|---|
 | mother | Helm chart, `k8s/woodpecker/woodpecker-values.yaml` (`woodpecker-agent`, 2 replicas) | `node=mother` | 1 per agent | mother (`WOODPECKER_BACKEND_K8S_POD_NODE_SELECTOR`) |
-| timberback | `k8s/woodpecker/agent-timberback.yaml` (Argo app `woodpecker-agent-timberback`, 1 replica) | `node=timberback` | 6 (`WOODPECKER_MAX_WORKFLOWS`) | timberback |
+| timberback | `k8s/woodpecker/agent-timberback.yaml` (Argo app `woodpecker-agent-timberback`, 1 replica) | `node=timberback` | 7 (`WOODPECKER_MAX_WORKFLOWS`; 6 until step 4) | timberback |
 
 A workflow picks its pool with `labels: { backend: kubernetes, node: <mother|timberback> }`. **A workflow whose steps mount
 a node-local volume must name its `node`**: one that names only `backend` matches both pools, and on timberback a step that
 mounts a `ci-cache-*` volume (on mother) cannot schedule. weyland-lab's `platform`, `deliver` and `finish` name
-`node: mother`; `fixtures-haskell`, `fixtures-a/-b/-c` and `golden-path` name `node: timberback` (B200 step 3), and
+`node: mother`; `fixtures-haskell`, `fixtures-a/-b/-c` and `golden-path-1/-2/-3` name `node: timberback` (B200 steps 3-4), and
 `fixtures-b` mounts timberback's own caches (`ci-cache-{npm,cargo,go}-tb`, `k8s/woodpecker/ci-caches-timberback.yaml`).
 `scripts/tests/pipeline-layout.bats` fails if a workflow mounts a cache that lives on the other pool's node. Algopedia and
 emangini-tailwind-nextjs-contentlayer name only `backend: kubernetes` and mount no volumes (checked 2026-11-18), so they
@@ -407,7 +410,7 @@ A step pod's workspace volume is created on its pod's node, so pinning the pod p
 
 **Sizing the timberback pool:** slots = the workflows that should run at once, capped by measured memory. Steps within a
 workflow run one at a time, so a workflow needs about its biggest step (CI #675: 2.96 / 2.90 / 2.63 GiB at most).
-Six slots is ~18 GiB worst case on a node with 85.5 GiB allocatable. Too few slots shows as queue time (workflow
+Seven slots is ~21 GiB worst case on a node with 85.5 GiB allocatable (CI #691 never took it below 70 GiB available). Too few slots shows as queue time (workflow
 created to started); too many shows as timberback free memory under ~20 GiB during a full run.
 
 List the agents with their labels and slots (from the REST API; the CLI has no agent command, and the response carries

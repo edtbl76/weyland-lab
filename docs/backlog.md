@@ -3703,7 +3703,7 @@ Blocked by **B134** (EMA-195, the hardware). Relates B177 (lean trigger), B199 (
    mother it peaked at 5.34 of 6 GiB with one golden-path stream. Proven first with the exact image and flags on a
    timberback local-path volume (btrfs): a COPY + RUN + apk build exported a 6.2 MB OCI image. A registry build cache
    was considered and rejected for golden paths: they build cold by design (#92/#93 cross-contamination).
-4. Parallel golden-path groups; measure buildkitd's peak with 2 before trying 3. The step-name NetworkPolicy
+4. **BUILT 2026-11-18 (proof run pending):** `golden-path` is now three identical workflows, `golden-path-1..3`, each running `golden-path-smoke` on a round-robin third of the paths (`GOLDEN_PATH_SHARD=k/3` in `run-golden-path-jobs.sh`, test-first; 15/15/14 of 44). Same step name, so the buildkitd NetworkPolicy and the CI map are unchanged. Each shard has its own `trunk-upload` (an empty shard says so with a marker), which also fixes a step-2 regression: golden-path JUnit had no upload since #687. `pipeline-layout.bats` now fails a workflow that writes JUnit without a trunk-upload, and shards that drift apart or skip/repeat a number. The timberback pool goes to 7 slots (4 fixtures + 3 shards) and buildkitd to a 20Gi limit until the 3-stream peak is measured. Parallel golden-path groups; measure buildkitd's peak with 2 before trying 3. The step-name NetworkPolicy
    (`buildkitd-ci-build-steps-only`) and `write-surface-netpol.bats` change with the new step names.
 5. Measure and close on two full on-demand runs (proposed wording change from "two consecutive nightly runs": the DoD
    never waits on a scheduled run).

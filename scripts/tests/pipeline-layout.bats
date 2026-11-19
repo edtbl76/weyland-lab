@@ -7,7 +7,10 @@
 #   - deliver not waiting on everything: images ship from a red run;
 #   - finish not waiting on everything: it reads a still-running workflow (#686);
 #   - a workflow-level gate on a --var: Woodpecker never shows it the var, so the workflow is filtered out (#681);
-#   - notify trusting $CI_PIPELINE_STATUS: it sees only its own workflow (#683).
+#   - notify trusting $CI_PIPELINE_STATUS: it sees only its own workflow (#683);
+#   - a workflow whose steps write JUnit but has no trunk-upload: its results never reach Trunk (step 2 lost the
+#     golden-path uploads that way for #687-#691);
+#   - golden-path shards that drift apart, or a shard missing or used twice (step 4: golden-path-1..N).
 # Every rule runs against the real pipeline AND against a copy broken on purpose, so no rule can pass by checking nothing.
 # The checker is one inline python program; LAYOUT_DIR is the directory it reads.
 
@@ -54,6 +57,25 @@ if "finish" in flows:
         text = "\n".join(map(str, s.get("commands") or []))
         if "CI_PIPELINE_STATUS" in text or "pipeline-status.sh" not in text:
             bad.append(f"finish/{s.get('name')}: must read the status from scripts/ci/pipeline-status.sh, never $CI_PIPELINE_STATUS")
+for name, doc in flows.items():
+    writes = any(isinstance(s.get("environment"), dict) and ({"LANG_JUNIT_DIR", "GOLDEN_PATH_JUNIT"} & set(s["environment"]))
+                 for s in doc.get("steps") or [])
+    if writes and not any(s.get("name") == "trunk-upload" for s in doc.get("steps") or []):
+        bad.append(f"{name}: its steps write JUnit but it has no trunk-upload, so those results never reach Trunk")
+shards = sorted(n for n in flows if re.match(r"^golden-path-\d+$", n))
+if shards:
+    texts = {}
+    for n in shards:
+        raw = open(f"{d}/{n}.yml").read().split("\n")
+        m = re.search(r"GOLDEN_PATH_SHARD: (\d+)/(\d+)", "\n".join(raw))
+        if not m:
+            bad.append(f"{n}: sets no GOLDEN_PATH_SHARD k/n"); continue
+        texts[n] = ("\n".join(raw[1:]).replace(m.group(0), "GOLDEN_PATH_SHARD: K/N"), (int(m.group(1)), int(m.group(2))))
+    if len({t for t, _ in texts.values()}) > 1:
+        bad.append(f"golden-path shards differ beyond their header and shard number: {shards}")
+    got = sorted(k for _, (k, _) in texts.values())
+    if got != list(range(1, len(shards) + 1)) or any(n_ != len(shards) for _, (_, n_) in texts.values()):
+        bad.append(f"golden-path shards must be 1/{len(shards)}..{len(shards)}/{len(shards)}, each once: got {sorted(v for _, v in texts.values())}")
 print("\n".join(bad) if bad else f"OK - {len(flows)} workflow(s) follow the layout rules")
 sys.exit(1 if bad else 0)
 PY
@@ -66,7 +88,7 @@ check() { run python3 "$CHECK" "$1"; }
 @test "the real pipeline follows every layout rule" {
   check "$REPO/.woodpecker"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  [[ "$output" == *"8 workflow(s)"* ]] || { echo "$output"; return 1; }
+  [[ "$output" == *"10 workflow(s)"* ]] || { echo "$output"; return 1; }
 }
 
 @test "a workflow with no node label is refused" {
@@ -124,4 +146,27 @@ PY
 @test "an empty pipeline directory is refused, never a pass" {
   check "$BATS_TEST_TMPDIR/nothing-here"
   [ "$status" -eq 1 ] && [[ "$output" == *"no workflow"* ]] || { echo "$output"; return 1; }
+}
+
+@test "a workflow that writes JUnit without a trunk-upload is refused (step 2 lost the golden-path uploads that way)" {
+  python3 - "$COPY/golden-path-2.yml" <<'PY'
+import sys, yaml
+p = sys.argv[1]; d = yaml.safe_load(open(p))
+d["steps"] = [s for s in d["steps"] if s["name"] != "trunk-upload"]
+yaml.safe_dump(d, open(p, "w"))
+PY
+  check "$COPY"
+  [ "$status" -eq 1 ] && [[ "$output" == *"golden-path-2: its steps write JUnit but it has no trunk-upload"* ]] || { echo "$output"; return 1; }
+}
+
+@test "golden-path shards that drift apart are refused" {
+  sed -i 's/memory: 1Gi/memory: 2Gi/' "$COPY/golden-path-3.yml"
+  check "$COPY"
+  [ "$status" -eq 1 ] && [[ "$output" == *"golden-path shards differ"* ]] || { echo "$output"; return 1; }
+}
+
+@test "a golden-path shard used twice (and one missing) is refused" {
+  sed -i 's|GOLDEN_PATH_SHARD: 3/3|GOLDEN_PATH_SHARD: 2/3|' "$COPY/golden-path-3.yml"
+  check "$COPY"
+  [ "$status" -eq 1 ] && [[ "$output" == *"golden-path shards must be 1/3..3/3, each once"* ]] || { echo "$output"; return 1; }
 }

@@ -13,14 +13,14 @@ B200 split it so independent work runs in parallel. Runbook: [docs/runbooks/wood
 | `fixtures-a.yml` (timberback) | sample-app lanes: ada, swift, elixir | — |
 | `fixtures-b.yml` (timberback) | sample-app lanes: node, react-native, flutter, dart, rust, go, c, cpp, lua, php (every lane on the npm, cargo or go cache) | — |
 | `fixtures-c.yml` (timberback) | sample-app lanes: swift-tokamak, kotlin, julia, ruby, scala, perl, dotnet, r, clojure, erlang | — |
-| `golden-path.yml` (timberback) | `golden-path-smoke`: build and serve every golden path through buildkitd | — |
-| `deliver.yml` (mother) | `detect-changes` → `build` → `kubeconform` → `deploy-handoff` (the image build and tag-bump PR) | all six above; **skipped if any failed** |
+| `golden-path-1.yml` … `golden-path-3.yml` (timberback) | `golden-path-smoke` on one round-robin third of the golden paths each (`GOLDEN_PATH_SHARD`), plus its own `trunk-upload`. The three files are identical except their shard number (enforced) | — |
+| `deliver.yml` (mother) | `detect-changes` → `build` → `kubeconform` → `deploy-handoff` (the image build and tag-bump PR) | all seven work workflows above (platform, the four fixtures-*, the three golden-path shards); **skipped if any failed** |
 | `finish.yml` (mother) | `notify-port`, `notify-slack` with the pipeline's true status | everything, `deliver` included, on success **or** failure |
 
 ## Rules every workflow follows
 
 1. **Name the agent pool.** `labels: { backend: kubernetes, node: <mother|timberback> }`: `platform`, `deliver` and
-   `finish` run on mother; the `fixtures-*` and `golden-path` workflows on timberback (B200 step 3). A cache volume
+   `finish` run on mother; the `fixtures-*` and `golden-path-*` workflows on timberback (B200 steps 3-4). A cache volume
    lives on one node, so `fixtures-b` mounts timberback's `-tb` copies. An agent takes a workflow only if it carries
    every label the workflow lists, and a workflow whose steps mount a node-local volume (`ci-cache-*`) must run on the
    node that holds it (CI #676 hung 3 h on that split). Agent pools: runbook § Agent pools.

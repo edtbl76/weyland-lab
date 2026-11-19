@@ -9,7 +9,7 @@ when:
     status: [success, failure]
   - event: cron
     status: [success, failure]
-depends_on: [platform, fixtures-haskell, fixtures-a, fixtures-b, fixtures-c, golden-path, deliver]
+depends_on: [platform, fixtures-haskell, fixtures-a, fixtures-b, fixtures-c, golden-path-1, golden-path-2, golden-path-3, deliver]
 steps:
   # ── the pipeline's TRUE status (B200) ─────────────────────────────────────────────────────────────────
   # Inside a workflow, $CI_PIPELINE_STATUS and `when: status` see only THAT workflow (proven on the throwaway branch

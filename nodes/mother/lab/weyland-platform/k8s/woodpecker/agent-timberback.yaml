@@ -6,7 +6,7 @@
 #     must carry every label a workflow lists, so the weyland-lab workflow (labels backend + node: mother) never does.
 #   - WOODPECKER_BACKEND_K8S_POD_NODE_SELECTOR timberback: every step pod of a workflow it runs is scheduled there, so
 #     the workflow's local-path workspace volume and its caches share one node (CI #676 died of a split).
-#   - WOODPECKER_MAX_WORKFLOWS 6: workflow slots. Sized from CI #675: the biggest steps peaked at 2.96 / 2.90 / 2.63 GiB
+#   - WOODPECKER_MAX_WORKFLOWS 7 (6 until B200 step 4 split golden-path into 3 shards): workflow slots. Sized from CI #675: the biggest steps peaked at 2.96 / 2.90 / 2.63 GiB
 #     and steps within a workflow run one at a time, so 6 workflows at their heaviest is ~18 GiB of timberback's
 #     85.5 GiB. Tune from queue time (too few) and node free memory (too many; keep >= ~20 GiB free).
 # Nothing selects this pool until a workflow asks for `node: timberback` (B200 step 3). Runbook: docs/runbooks/woodpecker.md.
@@ -48,7 +48,7 @@ spec:
             - { name: WOODPECKER_CONNECT_RETRY_COUNT, value: "3" }
             - { name: WOODPECKER_BACKEND_K8S_POD_NODE_SELECTOR, value: '{"kubernetes.io/hostname":"timberback"}' }
             - { name: WOODPECKER_AGENT_LABELS, value: "node=timberback" }
-            - { name: WOODPECKER_MAX_WORKFLOWS, value: "6" }
+            - { name: WOODPECKER_MAX_WORKFLOWS, value: "7" }   # 4 fixtures-* + 3 golden-path shards at once (B200 step 4; was 6)
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 256Mi }   # mother's agents peaked at 41-43 MiB over 7 days (one workflow each)

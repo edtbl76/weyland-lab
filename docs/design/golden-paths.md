@@ -107,7 +107,7 @@ same `buildctl` invocation and `registry.insecure=true`/buildcache flags as `scr
 applies a run-to-completion Job that starts the image, curls `/ready` + `/hello`, asserts exit 0, and
 deletes it. Fail-closed: a build/apply failure is exit 2, a smoke failure exit 1.
 
-**It runs in CI, not by hand.** `.woodpecker/golden-path.yml`'s `golden-path-smoke` step invokes it (in a
+**It runs in CI, not by hand.** the `golden-path-smoke` step of `.woodpecker/golden-path-1..3.yml` (one round-robin third of the paths each, `GOLDEN_PATH_SHARD`) invokes it (in a
 `moby/buildkit` step pod that also installs `kubectl`), so the golden paths are built + smoked
 in-cluster on every pipeline run. The Jobs run in a dedicated **`golden-paths`** namespace (no istio
 injection → no sidecar blocking completion), and `k8s/golden-paths/golden-paths-rbac.yaml` grants a

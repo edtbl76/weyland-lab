@@ -7,7 +7,7 @@ when you'd want it. The operational runbook (deploy, triggers, gotchas, secrets)
 ## How the kitchen runs (read first)
 
 - **Eight workflows, `backend: kubernetes` (B200, 2026-11-18).** `platform`, `fixtures-haskell`, `fixtures-a/-b/-c`
-  and `golden-path` run in parallel; `deliver` waits for all six and is skipped if any failed; `finish` waits for
+  and `golden-path-1/-2/-3` (the smoke split three ways, B200 step 4) run in parallel; `deliver` waits for all of them and is skipped if any failed; `finish` waits for
   everything and posts the true status. Every step is a pod; each workflow names its agent pool (`node: mother`
   for `platform`/`deliver`/`finish`, `node: timberback` for the sample-app and golden-path work) and is pinned to the k8s backend so it can't land on the rogueone **local-backend** agents (those are
   STUD.io's, B57b). Which step lives in which file: `.woodpecker/README.md`. A step that needs the host (privileged, eBPF, docker-in-docker) can

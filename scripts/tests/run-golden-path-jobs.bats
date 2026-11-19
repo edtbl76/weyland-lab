@@ -266,3 +266,72 @@ mkpath() {
   [ "$status" -eq 0 ]
   [ ! -e "$GP/golden-path.xml" ]
 }
+
+
+# B200 step 4 (2026-11-18): GOLDEN_PATH_SHARD=k/n splits the paths across n parallel CI workflows (golden-path-1..n), each
+# running the same step on its share. Round-robin over the SORTED list (shard k takes the k-th, k+n-th, ... path), so the
+# shards are disjoint, together cover every path, and spread the languages. An empty shard (a smoke run of fewer paths
+# than shards) is not an error: it exits 0, says so, and writes GOLDEN_PATH_EMPTY_MARKER so its trunk-upload can tell
+# "nothing to run here" from "the reports went missing".
+
+five_paths() { for p in a/one b/two c/three d/four e/five; do mkpath "$p"; done; }
+planned() { printf '%s\n' "$output" | grep -o 'would build [^ ]*' | sed 's/would build //' | tr '\n' ' '; }
+
+@test "GOLDEN_PATH_SHARD=1/3 plans the 1st and 4th path of the sorted list" {
+  five_paths
+  GOLDEN_PATH_SHARD=1/3 run bash "$EX" --dry-run
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"a/one"* && "$output" == *"d/four"* ]] || { echo "$output"; return 1; }
+  [[ "$output" != *"b/two"* && "$output" != *"c/three"* && "$output" != *"e/five"* ]] || { echo "$output"; return 1; }
+  [[ "$output" == *"shard 1/3: 2 of 5"* ]] || { echo "$output"; return 1; }
+}
+
+@test "the three shards are disjoint and together cover every path" {
+  five_paths
+  all=""
+  for k in 1 2 3; do
+    GOLDEN_PATH_SHARD=$k/3 run bash "$EX" --dry-run
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    for p in a/one b/two c/three d/four e/five; do [[ "$output" == *"$p"* ]] && all="$all $p"; done
+  done
+  [ "$(echo $all | tr ' ' '\n' | sort | tr '\n' ' ')" = "a/one b/two c/three d/four e/five " ] || { echo "covered:$all"; return 1; }
+}
+
+@test "the shard applies to explicit targets too (a smoke run of chosen paths)" {
+  five_paths
+  GOLDEN_PATH_SHARD=2/2 run bash "$EX" --dry-run a/one c/three e/five
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"c/three"* && "$output" != *"a/one"* && "$output" != *"e/five"* ]] || { echo "$output"; return 1; }
+}
+
+@test "an empty shard exits 0, says so, and writes the empty marker" {
+  mkpath a/one
+  GOLDEN_PATH_SHARD=2/3 GOLDEN_PATH_EMPTY_MARKER="$GP/out/empty" run bash "$EX"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"shard 2/3 has no golden path"* ]] || { echo "$output"; return 1; }
+  [ -f "$GP/out/empty" ] || { echo "no marker written"; return 1; }
+}
+
+@test "a non-empty shard never writes the empty marker" {
+  mkpath a/one
+  GOLDEN_PATH_SHARD=1/3 GOLDEN_PATH_EMPTY_MARKER="$GP/out/empty" run bash "$EX" --dry-run
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [ ! -e "$GP/out/empty" ] || { echo "marker written for a non-empty shard"; return 1; }
+}
+
+@test "a malformed GOLDEN_PATH_SHARD fails closed with a reason (exit 2)" {
+  mkpath a/one
+  for bad in 0/3 4/3 abc 1/0 /3 2/ 1/3/2; do
+    GOLDEN_PATH_SHARD="$bad" run bash "$EX" --dry-run
+    [ "$status" -eq 2 ] || { echo "$bad: status $status: $output"; return 1; }
+    [[ "$output" == *"GOLDEN_PATH_SHARD"* ]] || { echo "$bad: $output"; return 1; }
+  done
+}
+
+@test "without GOLDEN_PATH_SHARD every path is planned, as before" {
+  five_paths
+  run bash "$EX" --dry-run
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  for p in a/one b/two c/three d/four e/five; do [[ "$output" == *"$p"* ]] || { echo "missing $p"; return 1; }; done
+  [[ "$output" != *"shard"* ]] || { echo "$output"; return 1; }
+}
