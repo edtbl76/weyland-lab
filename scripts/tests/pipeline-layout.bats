@@ -10,7 +10,9 @@
 #   - notify trusting $CI_PIPELINE_STATUS: it sees only its own workflow (#683);
 #   - a workflow whose steps write JUnit but has no trunk-upload: its results never reach Trunk (step 2 lost the
 #     golden-path uploads that way for #687-#691);
-#   - golden-path shards that drift apart, or a shard missing or used twice (step 4: golden-path-1..N).
+#   - golden-path shards that drift apart, or a shard missing or used twice (step 4: golden-path-1..N);
+#   - a trunk-upload that runs when every JUnit writer in its workflow was gated off: no report, so it goes red (smoke
+#     run #693: platform's ungated upload ran while test-python/-shell/-java skipped on SMOKE_ONLY).
 # Every rule runs against the real pipeline AND against a copy broken on purpose, so no rule can pass by checking nothing.
 # The checker is one inline python program; LAYOUT_DIR is the directory it reads.
 
@@ -62,6 +64,17 @@ for name, doc in flows.items():
                  for s in doc.get("steps") or [])
     if writes and not any(s.get("name") == "trunk-upload" for s in doc.get("steps") or []):
         bad.append(f"{name}: its steps write JUnit but it has no trunk-upload, so those results never reach Trunk")
+    def conjuncts(step):
+        ev = " ".join(str(w.get("evaluate", "")) for w in (step.get("when") or []) if isinstance(w, dict))
+        return {c.strip() for c in ev.split("&&") if c.strip() and not c.strip().startswith("(")}
+    writers = [s for s in doc.get("steps") or [] if isinstance(s.get("environment"), dict)
+               and ({"LANG_JUNIT_DIR", "GOLDEN_PATH_JUNIT"} & set(s["environment"]))]
+    uploads = [s for s in doc.get("steps") or [] if s.get("name") == "trunk-upload"]
+    if writers and uploads:
+        shared = set.intersection(*(conjuncts(w) for w in writers))
+        missing = sorted(shared - conjuncts(uploads[0]))
+        if missing:
+            bad.append(f"{name}: trunk-upload runs when every JUnit writer is gated off; its gate lacks {missing}")
 shards = sorted(n for n in flows if re.match(r"^golden-path-\d+$", n))
 if shards:
     texts = {}
@@ -169,4 +182,17 @@ PY
   sed -i 's|GOLDEN_PATH_SHARD: 3/3|GOLDEN_PATH_SHARD: 2/3|' "$COPY/golden-path-3.yml"
   check "$COPY"
   [ "$status" -eq 1 ] && [[ "$output" == *"golden-path shards must be 1/3..3/3, each once"* ]] || { echo "$output"; return 1; }
+}
+
+@test "a trunk-upload broader than its JUnit writers is refused (#693: platform's upload ran in smoke mode with no report)" {
+  python3 - "$COPY/platform.yml" <<'PY'
+import sys, yaml
+p = sys.argv[1]; d = yaml.safe_load(open(p))
+for s in d["steps"]:
+    if s["name"] == "trunk-upload":
+        s["when"] = [{"status": ["success", "failure"]}]
+yaml.safe_dump(d, open(p, "w"))
+PY
+  check "$COPY"
+  [ "$status" -eq 1 ] && [[ "$output" == *"platform: trunk-upload runs when every JUnit writer is gated off"* ]] || { echo "$output"; return 1; }
 }

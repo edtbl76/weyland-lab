@@ -10,20 +10,12 @@
 # stay Pending on a missing PVC.
 #
 # MOTHER'S caches (B200, 2026-11-18): local-path volumes live on mother, so only workflows on the mother agent pool may
-# mount them. Since step 3 those are maven (platform: test/scan-java) and trivy (deliver: build). cargo, go and npm are
-# still here but no workflow mounts them any more: fixtures-b moved to timberback with its own copies
-# (ci-caches-timberback.yaml, `-tb`, Argo-managed). scripts/tests/pipeline-layout.bats enforces the node match.
+# mount them: maven (platform: test/scan-java) and trivy (deliver: build). The cargo, go and npm caches moved to
+# timberback with fixtures-b (ci-caches-timberback.yaml, `-tb`, Argo-managed) and were removed from here at the B200
+# close-out (2026-11-19). scripts/tests/pipeline-layout.bats enforces the node match.
 #
 # RWO + local-path: each cache is mounted by ONE workflow, whose steps run in order, so one writer at a time keeps
 # each cache intact (concurrent writers would corrupt a shared cargo/maven dir). Node-local, on mother's disk.
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata: { name: ci-cache-cargo, namespace: woodpecker }
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path
-  resources: { requests: { storage: 4Gi } }
----
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata: { name: ci-cache-maven, namespace: woodpecker }
@@ -35,22 +27,6 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata: { name: ci-cache-trivy, namespace: woodpecker }
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path
-  resources: { requests: { storage: 2Gi } }
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata: { name: ci-cache-go, namespace: woodpecker }
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: local-path
-  resources: { requests: { storage: 4Gi } }
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata: { name: ci-cache-npm, namespace: woodpecker }
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: local-path

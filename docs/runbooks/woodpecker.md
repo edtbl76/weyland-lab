@@ -413,6 +413,12 @@ workflow run one at a time, so a workflow needs about its biggest step (CI #675:
 Seven slots is ~21 GiB worst case on a node with 85.5 GiB allocatable (CI #691 never took it below 70 GiB available). Too few slots shows as queue time (workflow
 created to started); too many shows as timberback free memory under ~20 GiB during a full run.
 
+**When timberback is down** its agent goes with it, so its seven workflows queue with no pod at all (`PodUnschedulable`
+never fires for a pod that was never created) until the 3-hour pipeline timeout. Two existing alerts catch it instead,
+both warnings routed to Slack and Telegram after 15 minutes: `KubeNodeNotReady` (the node) and
+`KubeStatefulSetReplicasMismatch` (`woodpecker-agent-timberback` not ready). Stop the pipeline rather than wait out the timeout
+(`woodpecker-cli pipeline stop edtbl76/weyland-lab <number>`); nothing on mother is affected.
+
 List the agents with their labels and slots (from the REST API; the CLI has no agent command, and the response carries
 each agent's token, so print only these fields):
 
@@ -425,14 +431,14 @@ The newest `last_contact` rows are the live agents: each restart registers a new
 
 ## Toolchain caches (B88 #6)
 
-Five persistent PVCs (`k8s/woodpecker/ci-caches.yaml`, ns `woodpecker`, RWO local-path, **hand-applied**; unlike
+Toolchain cache PVCs: mother's two (`maven`, `trivy`) in `k8s/woodpecker/ci-caches.yaml` (RWO local-path, **hand-applied**), timberback's three `-tb` copies (cargo, go, npm) in `ci-caches-timberback.yaml` (Argo); unlike
 `buildkitd-cache-tb`, which Argo manages in `buildkitd.yaml`) are mounted per-lane in `.woodpecker/*.yml` via the step-level `volumes: [<pvc>:<path>]` key, each
 with the matching cache env var: `ci-cache-cargo` → `CARGO_HOME=/cache/cargo` (+ a **literal** `PATH` incl.
 `/cache/cargo/bin`, so `command -v cargo-llvm-cov` finds the cached binary — never `$PATH` in YAML); `ci-cache-maven`
 → `/root/.m2/repository`; `ci-cache-trivy` → `TRIVY_CACHE_DIR`; `ci-cache-go` → `GOMODCACHE`/`GOCACHE`; `ci-cache-npm`
 → `npm_config_cache`. Warm-vs-cold: `cargo install` stops recompiling (scan-rust 125s→6s), the 109 MB trivy DB stops
 re-downloading (build 682s→370s) — ~9 min/run. RWO is correct: each cache is mounted by ONE workflow only (on mother: maven by `platform`, trivy by `deliver`;
-on timberback: the `-tb` cargo/go/npm copies by `fixtures-b`, since B200 step 3; mother's cargo/go/npm are now unused), whose steps run in order, so there is one writer at a time, which the caches need anyway
+on timberback: the `-tb` cargo/go/npm copies by `fixtures-b`, since B200 step 3; mother's cargo/go/npm were removed at the B200 close-out), whose steps run in order, so there is one writer at a time, which the caches need anyway
 (`scripts/tests/pipeline-layout.bats` fails if a second workflow mounts one). **Apply the PVCs before the run** or step pods hang Pending.
 
 ## Gotchas (hard-won)

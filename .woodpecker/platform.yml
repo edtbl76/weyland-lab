@@ -487,13 +487,16 @@ steps:
       - sonar-scanner -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
 
   # ── test results → Trunk Flaky Tests (B189; one upload per workflow since B200) ──────────────────────────
-  # Uploads this workflow's JUnit (reports/junit/<source>/) to Trunk, after a failure too. platform's lanes
-  # always run (shell-tests has no gate), so a run with no report at all is red, as before the split.
+  # Uploads this workflow's JUnit (reports/junit/<source>/) to Trunk, after a failure too. Gated like the steps that
+  # write it (test-python, test-shell, test-java: SMOKE_ONLY != "smoke"), so it runs exactly when they ran, and a run
+  # with no report is then red (fail closed). shell-tests writes none. Smoke run #693 failed on the ungated version.
   # trunk-upload.sh judges each upload from the CLI's printed output. Runbook: docs/runbooks/trunk-flaky-tests.md.
   - name: trunk-upload
     image: alpine:3.20
     when:
-      - status: [success, failure]
+      - event: [manual, cron]
+        status: [success, failure]
+        evaluate: 'SMOKE_ONLY != "smoke"'
     environment:
       TRUNK_API_TOKEN:
         from_secret: trunk_org_token
