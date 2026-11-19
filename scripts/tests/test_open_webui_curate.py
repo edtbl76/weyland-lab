@@ -128,13 +128,37 @@ def test_audio_points_stt_at_the_in_cluster_whisper_service():
 
 def test_audio_keeps_every_other_stt_and_tts_field_and_drops_realtime():
     cur = _audio()
+    cur["tts"]["SPLIT_ON"] = "punctuation"
     out = oc.desired_audio(cur)
-    assert out["tts"] == cur["tts"]                     # TTS untouched (B246's job)
+    assert out["tts"]["SPLIT_ON"] == "punctuation"      # only the engine, URL, key, model and voice are curated
     assert out["stt"]["ALLOWED_EXTENSIONS"] == ["wav", "webm"] and out["stt"]["WHISPER_MODEL"] == "base"
     assert set(out) == {"tts", "stt"}                   # realtime is optional in the update form; never resent
 
 
 def test_audio_check_flags_the_old_ct_url_and_passes_the_new_one():
-    assert oc.audio_ok(_audio()) is False
-    assert oc.audio_ok(_audio(stt_url=oc.WHISPER_URL)) is True
-    assert oc.audio_ok(_audio(stt_url=oc.WHISPER_URL, engine="")) is False   # local in-app whisper is not the lab's
+    assert oc.stt_ok(_audio()) is False
+    assert oc.stt_ok(_audio(stt_url=oc.WHISPER_URL)) is True
+    assert oc.stt_ok(_audio(stt_url=oc.WHISPER_URL, engine="")) is False   # local in-app whisper is not the lab's
+
+
+# ---- text-to-speech (B246, 2026-11-19): the read-aloud button speaks through the lab's Kokoro, never OpenAI's cloud ----
+# Live 0.12 default (read 2026-11-19): ENGINE "" (the browser's own voice) and OPENAI_API_BASE_URL api.openai.com.
+
+def test_audio_points_tts_at_the_in_cluster_kokoro_service():
+    out = oc.desired_audio(_audio())
+    tts = out["tts"]
+    assert tts["ENGINE"] == "openai" and tts["OPENAI_API_BASE_URL"] == "http://kokoro.weyland.svc.cluster.local:8880/v1"
+    assert tts["MODEL"] == "kokoro" and tts["VOICE"] == "af_heart"
+    assert tts["OPENAI_API_KEY"]                        # Kokoro ignores it, but the client sends one
+
+
+def test_tts_check_flags_openai_cloud_and_the_browser_voice_and_passes_kokoro():
+    assert oc.tts_ok(_audio()) is False                                   # the 0.12 default: browser voice, OpenAI URL
+    kokoro = oc.desired_audio(_audio())
+    assert oc.tts_ok(kokoro) is True
+    cloud = {**kokoro, "tts": {**kokoro["tts"], "OPENAI_API_BASE_URL": "https://api.openai.com/v1"}}
+    assert oc.tts_ok(cloud) is False
+    browser = {**kokoro, "tts": {**kokoro["tts"], "ENGINE": ""}}
+    assert oc.tts_ok(browser) is False
+    no_voice = {**kokoro, "tts": {**kokoro["tts"], "VOICE": "alloy"}}     # an OpenAI voice name Kokoro does not have
+    assert oc.tts_ok(no_voice) is False

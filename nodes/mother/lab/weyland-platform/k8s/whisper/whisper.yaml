@@ -86,7 +86,10 @@ spec:
         - name: whisper-server
           image: registry.weyland.lab/whisper-cuda:1.9.5-3
           imagePullPolicy: IfNotPresent
-          args: ["-m", "/models/ggml-large-v3.bin", "--host", "0.0.0.0", "--port", "8080", "-t", "4"]
+          # -nfa (2026-11-19): flash attention is ON by default in v1.9.5. With it, the same request decoded differently
+          # run to run on this GPU (8 calls, 4 transcripts, one saying "do not ask"); the same commit on CPU gave 12/12
+          # identical. Proof after a change: scripts/whisper-stability-check.sh (runbook § Stability check).
+          args: ["-m", "/models/ggml-large-v3.bin", "--host", "0.0.0.0", "--port", "8080", "-t", "4", "-nfa"]
           ports:
             - { name: inference, containerPort: 8080 }
           securityContext:

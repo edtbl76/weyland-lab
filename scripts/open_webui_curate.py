@@ -19,6 +19,9 @@ What "curated" means:
   - the Lab Status preset (qwen3:30b-a3b + the fleet tools)
   - speech-to-text: the OpenAI engine at the in-cluster whisper service on timberback (B134, 2026-11-14); the
     deployment's AUDIO_STT_* env vars only seed a fresh volume, the database copy is what Open WebUI uses
+  - text-to-speech (B246, 2026-11-19): the OpenAI engine at the in-cluster Kokoro, model kokoro, voice af_heart; the
+    0.12 default is the browser's own voice with api.openai.com as the URL, so read-aloud never left the lab before
+    either, but it did not use the lab's voice
 
 Not done here, by design: the primary admin (the first account) cannot be deleted through 0.12 at all; MFA settings
 need a human admin session (an API key gets 403), so this script never sends them.
@@ -55,6 +58,8 @@ MODEL_UPDATE = "/api/v1/models/model/update"
 MODEL_CREATE = "/api/v1/models/create"
 AUDIO_CONFIG = "/api/v1/audio/config"
 WHISPER_URL = "http://whisper.weyland.svc.cluster.local:9000/v1"
+KOKORO_URL = "http://kokoro.weyland.svc.cluster.local:8880/v1"
+KOKORO_VOICE = "af_heart"
 MFA_FIELDS = ("ENABLE_MFA", "MFA_ALLOW_OAUTH_BYPASS", "MFA_ALLOW_TRUSTED_HEADER_BYPASS")
 LAB_STATUS_SYSTEM = (
     "You answer questions about the weyland lab's current state: what is running, what is failing, what is alerting, "
@@ -141,16 +146,24 @@ def hidden_entry(model_id, existing, name):
 
 
 def desired_audio(cur):
-    """STT at the lab's whisper (OpenAI engine); everything else as it is. `realtime` is optional in 0.12's update form,
-    so it is never resent (an omitted block is left alone)."""
+    """STT at the lab's whisper and TTS at the lab's Kokoro (both OpenAI engine); every other field as it is.
+    `realtime` is optional in 0.12's update form, so it is never resent (an omitted block is left alone)."""
     stt = {**cur["stt"], "ENGINE": "openai", "MODEL": "whisper-1", "OPENAI_API_BASE_URL": WHISPER_URL,
            "OPENAI_API_KEY": cur["stt"].get("OPENAI_API_KEY") or "sk-local-whisper"}   # the shim ignores the key
-    return {"tts": cur["tts"], "stt": stt}
+    tts = {**cur["tts"], "ENGINE": "openai", "MODEL": "kokoro", "VOICE": KOKORO_VOICE, "OPENAI_API_BASE_URL": KOKORO_URL,
+           "OPENAI_API_KEY": cur["tts"].get("OPENAI_API_KEY") or "sk-local-kokoro"}    # Kokoro ignores the key
+    return {"tts": tts, "stt": stt}
 
 
-def audio_ok(cur):
+def stt_ok(cur):
     stt = cur.get("stt") or {}
     return stt.get("ENGINE") == "openai" and stt.get("OPENAI_API_BASE_URL") == WHISPER_URL
+
+
+def tts_ok(cur):
+    tts = cur.get("tts") or {}
+    return (tts.get("ENGINE") == "openai" and tts.get("OPENAI_API_BASE_URL") == KOKORO_URL
+            and tts.get("MODEL") == "kokoro" and tts.get("VOICE") == KOKORO_VOICE)
 
 
 def drift(want, have):
@@ -221,8 +234,9 @@ def check(c):
     all_models = {m["id"]: m for m in c.call("GET", "/api/v1/models/all")}  # /models/list returns presets only
     out += _check_models(all_models, c.call("GET", MODELS_CONFIG))
     out += _check_tool_servers(c.call("GET", TOOL_SERVERS)["TOOL_SERVER_CONNECTIONS"])
-    out.append(("speech-to-text = OpenAI engine at the in-cluster whisper (timberback)",
-                audio_ok(c.call("GET", AUDIO_CONFIG))))
+    audio = c.call("GET", AUDIO_CONFIG)
+    out.append(("speech-to-text = OpenAI engine at the in-cluster whisper (timberback)", stt_ok(audio)))
+    out.append((f"text-to-speech = OpenAI engine at the in-cluster Kokoro, voice {KOKORO_VOICE}", tts_ok(audio)))
     return out
 
 

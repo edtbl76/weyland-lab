@@ -79,6 +79,18 @@ spec:
               value: sk-local-whisper           # shim ignores it; present to satisfy the client
             - name: AUDIO_STT_MODEL
               value: whisper-1
+            # --- Voice output (TTS) -> Kokoro (k8s app kokoro, CPU), OpenAI-compatible /v1/audio/speech (B246) ---
+            # Seeds only, like the STT block: the live values are in the database and open_webui_curate.py owns them.
+            - name: AUDIO_TTS_ENGINE
+              value: openai
+            - name: AUDIO_TTS_OPENAI_API_BASE_URL
+              value: http://kokoro.weyland.svc.cluster.local:8880/v1
+            - name: AUDIO_TTS_OPENAI_API_KEY
+              value: sk-local-kokoro            # Kokoro ignores it; present to satisfy the client
+            - name: AUDIO_TTS_MODEL
+              value: kokoro
+            - name: AUDIO_TTS_VOICE
+              value: af_heart
             - name: WEBUI_NAME
               value: "Weyland AI"
             # --- B1.1 Keycloak SSO (OIDC) — pure env, the clean cutover ---

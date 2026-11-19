@@ -106,6 +106,7 @@ appears once **Admin Panel → Settings → Authentication → API Keys** is on 
 | Tool servers | `agent-memory` → `/mcp-memory`; **`lab-fleet` → `/mcp-fleet`**, 13 read-only tools | both `system_oauth`: the signed-in person's own Keycloak token, so the MCP gateway audits every call as them (`path=/mcp-fleet actor=open-webui user=<you>`) |
 | **Lab Status** preset | `qwen3:30b-a3b` + `lab-fleet` on by default, builtin tools off, a read-only system prompt that knows where alerts live | live lab status from chat; answered "only Watchdog is firing" in ~12 s (2026-11-12) |
 | Speech-to-text | engine `openai`, model `whisper-1`, base URL `http://whisper.weyland.svc.cluster.local:9000/v1` | the lab's whisper on timberback's GPU (B134, 2026-11-14; was CT 103 at `.246`). The deployment's `AUDIO_STT_*` env vars only seed a fresh volume: the database copy is what runs, so a URL change in the env var alone does nothing |
+| Text-to-speech | engine `openai`, model `kokoro`, voice `af_heart`, base URL `http://kokoro.weyland.svc.cluster.local:8880/v1` | the lab's Kokoro (CPU, [kokoro.md](kokoro.md); B246, 2026-11-19). Same rule as STT: the `AUDIO_TTS_*` env vars only seed a fresh volume, the database copy is what runs |
 
 **Gotchas found doing it (0.12.5):**
 - An API key **cannot send MFA fields**: a `POST /api/v1/auths/admin/config` carrying `ENABLE_MFA` or `MFA_*` gets 403
@@ -126,5 +127,5 @@ appears once **Admin Panel → Settings → Authentication → API Keys** is on 
   applied, and it never returned): test chat behaviour in the browser.
 - The browser loads the tool-server list once per page: **reload** after adding a connection.
 
-**Text-to-speech is not configured** (speech-to-text is whisper): a local TTS engine is deferred until the new hardware
-is in service — **B246**.
+**Text-to-speech is the lab's Kokoro** (B246, 2026-11-19): see the Text-to-speech row above. Before B246 it was the
+0.12 default, the browser's own voice.

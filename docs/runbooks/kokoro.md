@@ -10,7 +10,9 @@ B239 (2026-11-08), which found no runbook for operating it.
 - **Deployment** `kokoro` (ns `weyland`), image `ghcr.io/remsky/kokoro-fastapi-cpu` pinned by digest, manifest
   `k8s/kokoro/kokoro.yaml`. Service `kokoro:8880`, ingress `kokoro.weyland.lab`. CPU only, memory limit 3Gi.
 - **Model:** Kokoro (~82M parameters, Apache-2.0); 68 voices on 2026-11-08 (for example `af_heart`).
-- **Callers** reach it through Bifrost as the custom provider `kokoro/kokoro` ([mcp-gateway.md](mcp-gateway.md)).
+- **Callers** reach it through Bifrost as the custom provider `kokoro/kokoro` ([mcp-gateway.md](mcp-gateway.md)),
+  and **Open WebUI** calls the service directly for Read Aloud (`http://kokoro.weyland.svc.cluster.local:8880/v1`,
+  voice `af_heart`; B246, curated by `scripts/open_webui_curate.py`, [open-webui.md](open-webui.md)).
 - **The image is pinned by digest** (`@sha256:2ff7f4d5…`, B239, 2026-11-08: the digest that was running, with health
   and synthesis verified on it). It was `:latest` before, so a restart could pull a different version. To upgrade,
   smoke-test a new digest and change the pin.

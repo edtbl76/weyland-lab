@@ -1,8 +1,8 @@
-# Demo — Voice Chat (Open WebUI + whisper STT)
+# Demo — Voice Chat (Open WebUI + whisper STT + Kokoro TTS)
 
 Speak into the browser, have on-LAN whisper.cpp transcribe it, and chat with a local Ollama model —
 zero cloud STT, all on the lab. Open WebUI uses **Ollama for chat** and the **whisper shim for
-voice-in** via its OpenAI-compatible Audio→STT setting.
+voice-in** via its OpenAI-compatible Audio→STT setting, and **Kokoro for read-aloud** (Audio→TTS, B246).
 
 Grounded in [runbooks/transcription-whisper.md](../runbooks/transcription-whisper.md) and
 [diagrams/flow-voice-chat.md](../diagrams/flow-voice-chat.md).
@@ -17,12 +17,15 @@ sequenceDiagram
     participant Shim as whisper shim /v1/audio/transcriptions
     participant WS as whisper-server /inference
     participant OLL as Ollama /v1
+    participant KOK as Kokoro /v1/audio/speech
     U->>Shim: mic audio (OpenAI STT call)
     Shim->>WS: forward (multipart)
     WS-->>Shim: transcript
     Shim-->>U: {text}
     U->>OLL: chat with transcribed text
     OLL-->>U: response
+    U->>KOK: read aloud (OpenAI TTS call, model kokoro, voice af_heart)
+    KOK-->>U: mp3 audio
 ```
 
 ## Prerequisites
@@ -44,6 +47,10 @@ sequenceDiagram
    Open WebUI POSTs the audio to the shim's `/v1/audio/transcriptions`; the transcript fills the
    composer.
 4. Send it — the model answers over the local Ollama endpoint.
+5. Confirm TTS is wired: **Settings → Audio → Text-to-Speech (TTS)** shows engine OpenAI, base URL
+   **`http://kokoro.weyland.svc.cluster.local:8880/v1`**, model `kokoro`, voice `af_heart` (B246; `--check` reports
+   it as curated). Under the answer, click **Read Aloud** (the speaker icon): the reply is spoken in Kokoro's voice.
+   Long replies are split at punctuation, so the first sentence plays while the rest is synthesized.
 
 ## CLI walkthrough
 
@@ -64,9 +71,14 @@ Verify the native whisper-server path the shim forwards to (port 30881):
 curl -s http://192.168.1.233:30881/inference -F file=@/home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/services/whisper-cuda/jfk.wav -F response_format=json
 ```
 
-Expect a `{"text": ...}` JSON reply with the speech as two segments. Called bare like this, with none of the shim's
-request parameters, the native path decoded the second half wrongly on 2026-11-17 ("but what your country can do for
-you"). The shim path above is the one consumers use, and it is correct.
+Expect a `{"text": ...}` JSON reply with the known words. The 2026-11-17 wrong decode here ("but what your country can
+do for you") was not about the missing shim parameters: on 2026-11-19 BOTH paths decoded the same request differently
+run to run on the GPU. Prove it is stable with the runbook's check (30 runs, every one right):
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/whisper-stability-check.sh http://192.168.1.233:30881/inference 30
+```
 
 Confirm the pod is up on timberback (both containers, `whisper-server` and the shim):
 
@@ -89,6 +101,7 @@ Confirm the chat backend (Ollama) is reachable from the LAN:
   you..."}` (the shim builds the JSON itself so Open WebUI never sees shape drift).
 - In the browser, spoken input becomes composer text, and the local model replies — the voice→text→
   chat loop closes with nothing leaving the LAN.
+- Read Aloud speaks the reply in the `af_heart` voice from the lab's Kokoro, not the browser's built-in voice.
 
 ## Cleanup / teardown
 

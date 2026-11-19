@@ -62,6 +62,22 @@ Expect (measured 2026-11-14 on timberback, 0.18-0.31 s for the 11 s clip; CT 103
 The words match CT 103 exactly. CT 103 returned the same text split into three segments, so its plain text has
 `\n` line breaks; the GPU decodes the clip as one segment. Compare words, not bytes.
 
+### Stability check
+
+One good answer does not prove the decode is right: on 2026-11-19 the same request decoded differently run to run on
+the GPU (8 shim calls, 4 transcripts, one saying "do not ask"; 9/10 right on the native path), while the same
+whisper.cpp commit on CPU gave 12/12 identical. Turning off the temperature fallback (`temperature_inc=0`) did not help
+(13/20 right); the server now runs with flash attention off (`-nfa` in `k8s/whisper/whisper.yaml`). Run this after any
+change to the image, the model or the server flags:
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/whisper-stability-check.sh http://192.168.1.233:30881/inference 30
+```
+
+Expect `stable: 30/30 runs have the known words` and exit 0. `UNSTABLE` (exit 1) lists every distinct transcript with
+its count; exit 2 means a call failed, which is no verdict. Tests: `scripts/tests/whisper-stability-check.bats`.
+
 ## Consumers
 
 ### Open WebUI (recommended) — B13
