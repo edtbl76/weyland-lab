@@ -46,3 +46,39 @@ scratch `config.db`.
 3. After Argo rolls it: every MCP client `healthy` (`bifrost-mcp-watchdog` run on demand), the ship transaction
    (`scripts/bifrost-fleet-txn.py`) OK, one `wl-default` call through LiteLLM, the Prompt/Skills counts unchanged.
 4. Roll back: revert the pin in git and restore the manual backup (the restore section of the runbook).
+
+## 2.5 re-evaluation (B249, in progress since 2026-11-19)
+
+B249 re-asks B212's questions on 2.5.x and adds the 2.4/2.5 agent features (Relays, agents declared in config,
+agent-mode governance, caller identity on logs). Same method: a throwaway instance on rogueone first, production only
+read, then the upgrade as its own change.
+
+**Versions (read 2026-11-19).** Releases after 2.3.1: 2.3.2 (10-20), 2.4.0 (10-29), 2.5.0 (11-06), 2.5.1 (11-10),
+2.6.0 (11-19). Under the 14-day rule 2.5.0 qualifies on 2026-11-20 and 2.5.1 on 2026-11-24; 2.5.1 fixes gateway
+crashes (a panic in a provider stream or a hook took the gateway down; an empty `messages` request crashed it).
+Digests (Docker Hub, `maximhq/bifrost`): v2.5.0 `sha256:b5258c5f11c79064fc8280e49513f54c0b1da81c78bd11d3b4c1f62f8926d1ab`,
+v2.5.1 `sha256:5ec9873acaf1687556b6e4dd854b92b539d9debf87a5a683b66338648b84d3c8`.
+
+**From the release notes, before testing:**
+- **A2A 0.3 is still not accepted.** No release from 2.3.2 to 2.6.0 adds it; 2.6.0 says "Valid A2A v1 agent cards
+  register". B212's first Agent Gateway blocker most likely stands; the throwaway test confirms it against the Realm's
+  real card. Nothing in the notes changes the private-destination rule (`a2a_private_allowlist`).
+- **Breaking in 2.4.0:** GitHub Copilot keys set up through the GitHub App are refused (a PAT or OAuth token is
+  needed), and each provider gets a passthrough-route allowlist. The repo and the harness configs use neither: the
+  harnesses reach Bifrost only on `/mcp` and the skills marketplace. Production's provider list lives in Bifrost's
+  database, so it is read once before the upgrade (no Copilot provider means the first change does not apply).
+- **One-way migrations:** 2.4.0 adds the passthrough-allowlist column and the relay, relay-route, relay-grant and
+  relay-log tables; 2.5.0 adds relay-log columns. All additive (older binaries ignore them), none reversible: a
+  rollback is a backup restore, never an image downgrade.
+- **Agents in config (2.4.0):** declare a grant on the agent (`agents[].virtual_key_ids`), not on the key; a grant
+  naming something not yet stored is now skipped with a warning instead of failing startup.
+
+**Relays candidates (inventory 2026-11-19, from the key names in `scripts/.env` and the code that reads them):**
+
+| API with a stored key | Called by | Candidate? |
+|---|---|---|
+| TypeSafe Jev (`api.typesafe.ai`) | the operator's decision-model shadow (`decide.py`, after every incident sweep; paid, ~$0.0001 a sweep, owner-approved) | **Yes, the strongest:** an agent's paid call, which a relay would log per call and charge to the operator's virtual key. To test on 2.5 |
+| FRED | a Dagster finance asset | Weak: a free API called by a pipeline, not an agent |
+| Clockify | `scripts/owner_time.py` | Weak, and B235 may replace it |
+| Runware, Runway, Replicate, ElevenLabs, Perplexity, Cohere, Fireworks | already in Bifrost as providers or MCP clients | No: already governed |
+| `QASPHERE_API_KEY` | nothing (no code reads it) | Not a relay: an unused credential, left from a past evaluation, to revoke |
