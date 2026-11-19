@@ -27,6 +27,28 @@ Four checks: reachable · every note on disk is in the index · a note written o
 as a plain file is searchable within 60 s. Exit 0 pass · 1 a check failed (named) · 2 **unreachable** — the store is
 down, NOT empty. `--read-only` runs the first two only (what the watchdog uses).
 
+## Recall probe (does a natural question find its note?)
+
+B250 (2026-11-19): asked "How does Weyland manage ADRs?", Lab Recall answered "Actionable Design Reviews". The memory
+search had returned `hardware-topology`, `weyland-guard-b70` and `prompt-federation-b103`: the word "Weyland" dominated
+the query, and the ADR note never said "weyland". The probe asks each question in `scripts/memory-recall-cases.tsv`
+the way Open WebUI and the operator do (a **semantic** search, which the MCP compositor rewrites every memory search
+to) against the same index, and fails when the expected note is not in the top 3:
+
+[rogueone]
+```
+cd /home/edwardmangini/IdeaProjects/weyland && ~/.local/bin/uv run -q --with mcp python scripts/memory-recall-probe.py
+```
+
+Expect `OK — all N question(s) found their note in the top 3` and exit 0. **1** = a miss, each named with what came
+back instead: reword the note (title, description and first line in the words people ask with; name "weyland" if the
+question will), then run it again. **2** = the store did not answer, or a search errored or came back empty, which is
+never a pass. Run it after rewriting a note, and add a line to the cases file whenever a recall miss is found and fixed,
+so it stays fixed. Tests: `scripts/tests/test_memory_recall_probe.py`.
+
+**Measured 2026-11-19:** before the rewrite of `adr-log-b248`, 1 of 3 missed (and the note was not in the top 15 for
+the "Weyland" question); after it, 3 of 3 at #1, also through the fleet gateway's `memory_search_notes`.
+
 ## Install / reinstall
 
 Basic Memory 0.23.2 depends on `fastmcp==4.0.0b1` (a pre-release). Install from the **frozen** list, never with a bare

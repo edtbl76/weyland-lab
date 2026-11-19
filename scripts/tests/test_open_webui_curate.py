@@ -56,6 +56,29 @@ def test_tool_servers_replaces_lab_fleet_and_keeps_others():
     assert len(fleet) == 1 and fleet[0]["config"]["function_name_filter_list"].split(",") == oc.FLEET_TOOLS
 
 
+# B250 (2026-11-19): Lab Recall gets the docs corpus, and ONLY the docs corpus: a second connection to the same
+# /mcp-fleet gateway whose allowlist is the one docs-search tool, so Lab Recall cannot reach the live-status tools.
+
+def test_tool_servers_add_a_docs_only_connection_for_lab_recall():
+    stale_docs = {"url": "x/mcp-fleet", "info": {"id": "lab-docs"}, "config": {"function_name_filter_list": "k8s_pods_get"}}
+    out = oc.desired_tool_servers([stale_docs])
+    docs = [c for c in out if c["info"]["id"] == "lab-docs"]
+    assert len(docs) == 1
+    d = docs[0]
+    assert d["url"].endswith("/mcp-fleet") and d["auth_type"] == "system_oauth"
+    assert d["config"]["function_name_filter_list"] == "context_context_search"   # full compositor name: suffix match
+
+
+def test_check_flags_a_docs_connection_with_extra_tools():
+    good = oc.desired_tool_servers([])
+    labels = dict(oc._check_tool_servers(good))
+    assert labels["tool server lab-docs = /mcp-fleet, system_oauth, docs search only"] is True
+    widened = [c if c["info"]["id"] != "lab-docs" else
+               {**c, "config": {**c["config"], "function_name_filter_list": "context_context_search,k8s_pods_get"}}
+               for c in good]
+    assert dict(oc._check_tool_servers(widened))["tool server lab-docs = /mcp-fleet, system_oauth, docs search only"] is False
+
+
 def test_fleet_allowlist_has_no_oncall_tool_and_no_memory_duplicates():
     assert "grafana_list_alert_groups" not in oc.FLEET_TOOLS  # Grafana OnCall is not run here: 404
     assert not any(t.startswith("memory_") for t in oc.FLEET_TOOLS)  # agent-memory covers memory
@@ -72,15 +95,32 @@ def test_models_config_sets_defaults_and_keeps_unknown_keys():
 
 
 def test_lab_recall_only_switches_off_the_unbacked_capabilities():
-    cur = {"id": "lab-recall", "params": {"system": "keep me"},
+    cur = {"id": "lab-recall", "params": {"system": "old prompt", "temperature": 0.2},
            "meta": {"toolIds": ["server:mcp:agent-memory"],
                     "capabilities": {"web_search": True, "image_generation": True, "terminal": True, "vision": True}}}
     out = oc.desired_lab_recall(cur)
     caps = out["meta"]["capabilities"]
     assert caps["web_search"] is caps["image_generation"] is caps["terminal"] is False
     assert caps["vision"] is True and caps["builtin_tools"] is False
-    assert out["params"]["system"] == "keep me"
-    assert out["meta"]["toolIds"] == ["server:mcp:agent-memory"]
+    assert out["params"]["temperature"] == 0.2                     # other params kept
+
+
+def test_lab_recall_gets_memory_and_docs_and_a_prompt_that_falls_back_and_never_guesses():
+    out = oc.desired_lab_recall({"id": "lab-recall", "params": {"system": "old prompt"}, "meta": {}})
+    assert out["meta"]["toolIds"] == ["server:mcp:agent-memory", "server:mcp:lab-docs"]
+    system = out["params"]["system"]
+    assert system == oc.LAB_RECALL_SYSTEM
+    assert "agent-memory_search_notes" in system and "lab-docs_context_context_search" in system
+    assert "acronym" in system and "Lab Status" in system
+
+
+def test_lab_recall_check_wants_both_tools_and_the_prompt():
+    good = oc.desired_lab_recall({"id": "lab-recall", "params": {}, "meta": {}})
+    assert oc.lab_recall_ok(good) is True
+    memory_only = {**good, "meta": {**good["meta"], "toolIds": ["server:mcp:agent-memory"]}}
+    assert oc.lab_recall_ok(memory_only) is False
+    old_prompt = {**good, "params": {"system": "old prompt"}}
+    assert oc.lab_recall_ok(old_prompt) is False
 
 
 def test_lab_status_preset_shape():

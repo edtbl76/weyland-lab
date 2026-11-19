@@ -1,0 +1,5 @@
+# memory-recall-probe.py cases (B250, 2026-11-19): a question people actually ask, TAB, the note that must be in the
+# top 3 of a semantic search. Add a line when a recall miss is found and fixed, so it stays fixed.
+How does Weyland manage ADRs	adr-log-b248
+what is our decision log	adr-log-b248
+where are architecture decisions recorded	adr-log-b248

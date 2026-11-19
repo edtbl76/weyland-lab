@@ -16,6 +16,20 @@ setup() {
   adr 0001 "first-decision" "accepted"
   adr 0002 "second-decision" "accepted"
   index
+  # B250: the missing-ADR check reads a backlog; by default a fixture with no post-cutoff verdict, so the format tests
+  # above it are about the format alone. The real backlog is checked by "the real ADR log is valid".
+  export BACKLOG="$T/backlog.md"
+  backlog '- **B100** — **an old spike** — **DONE 2026-10-01 — DON'"'"'T ADOPT** (Low).'
+}
+
+# backlog <line>... — a backlog fixture made of these item lines
+backlog() {
+  printf '%s\n' "# Backlog" "" "$@" >"$BACKLOG"
+}
+
+# more_info <adr-file> <text> — add a "## More Information" section naming the decision's sources
+more_info() {
+  printf '\n## More Information\n\n%s\n' "$2" >>"$T/adr/$1"
 }
 
 teardown() {
@@ -65,7 +79,7 @@ index() {
 }
 
 @test "the real ADR log is valid" {
-  unset ADR_DIR
+  unset ADR_DIR BACKLOG
   run bash "$GUARD"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
   [[ "$output" == *"adr: "*" ADR(s) valid"* ]]
@@ -146,4 +160,89 @@ index() {
   run bash "$GUARD"
   [ "$status" -eq 2 ]
   [[ "$output" == *"no ADRs"* ]]
+}
+
+# ---- B250 (2026-11-19): a verdict with no ADR fails -------------------------------------------------------------------
+# AGENTS.md: a spike that reaches an ADOPT or DON'T ADOPT verdict gets an ADR. Items closed after 2026-11-13 (when B248
+# seeded the log) must have an ADR that names their B-number under "## More Information". The verdict is read from the
+# item's "DONE <date> — ..." status only, so prose elsewhere never counts. Fixture lines copy real backlog shapes.
+
+@test "a post-cutoff DON'T ADOPT with no ADR fails, naming the item" {
+  backlog '- **B900** — **Spike: some tool** — **DONE 2026-11-20 — DON'"'"'T ADOPT** (MEDIUM, Linear EMA-900).'
+  run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"B900"*"DONE 2026-11-20"*"no ADR"* ]]
+}
+
+@test "it passes once an ADR names the item under More Information" {
+  backlog '- **B900** — **Spike: some tool** — **DONE 2026-11-20 — DON'"'"'T ADOPT** (MEDIUM, Linear EMA-900).'
+  more_info 0002-second-decision.md "Spike: [backlog B900](../backlog.md)."
+  run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"1 with a verdict"* ]]
+}
+
+@test "naming the item anywhere but More Information does not count" {
+  backlog '- **B900** — **Spike: some tool** — **DONE 2026-11-20 — DON'"'"'T ADOPT** (MEDIUM).'
+  sed -i 's/^Why a decision was needed.$/Why a decision was needed (B900)./' "$T/adr/0002-second-decision.md"
+  run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"B900"* ]]
+}
+
+@test "a pre-cutoff verdict with no ADR passes (B248 seeded those)" {
+  backlog '- **B901** — **old** — **DONE 2026-11-12 — DON'"'"'T ADOPT** (Low).'
+  run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "a lowercase past-tense verdict counts (B248 and B247's real wording)" {
+  backlog '### B902 — x — **DONE 2026-11-14 — the `adr` plugin; `git-adr` rejected** (Medium).' \
+          '- **B903** — y — **DONE 2026-11-15 — adaptive depth adopted; decomposition lost** (MEDIUM).'
+  run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"B902"* && "$output" == *"B903"* ]]
+}
+
+@test "WON'T DO and KEPT are verdicts too" {
+  backlog '- **B904** — z — **DONE 2026-11-16 — WON'"'"'T DO** (Low).' \
+          '- **B905** — w — **DONE 2026-11-17: scratch vault KEPT as a habit** (Low).'
+  run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"B904"* && "$output" == *"B905"* ]]
+}
+
+@test "a post-cutoff close with no verdict word needs no ADR" {
+  backlog '- **B906** — **build a thing** — **DONE 2026-11-19 (Linear EMA-906)** (Low).'
+  run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "closed items with no verdict among them are reported, not silent" {
+  backlog '- **B906** — **build a thing** — **DONE 2026-11-19 (Linear EMA-906)** (Low).'
+  run bash "$GUARD"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"1 closed since 2026-11-13, 0 with a verdict"* ]]
+}
+
+@test "verdict prose outside the DONE status does not count" {
+  backlog '- **B907** — **build** — **DONE 2026-11-19** (Low). We considered and rejected two designs along the way.'
+  run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "a missing backlog is exit 2, never a pass" {
+  export BACKLOG="$T/no-backlog.md"
+  run bash "$GUARD"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"backlog"* ]]
+}
+
+@test "AGENTS.md and the runbook must state the same ADR trigger" {
+  cp "$REPO_ROOT/AGENTS.md" "$T/AGENTS.md"
+  sed -i 's/^  - (b) we choose between two or more options.*/  - (b) we pick something./' "$T/AGENTS.md"
+  export AGENTS_MD="$T/AGENTS.md"
+  run bash "$GUARD"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"trigger"*"(b)"* ]]
 }

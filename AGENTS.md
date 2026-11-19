@@ -36,7 +36,11 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
   design record, concept verdict or runbook it came from), with `docs/backlog.md` and `docs/concepts/*` verdict tables
   holding the detail. **Check them before proposing anything** — re-proposing a rejected option (e.g. KEDA, Cyrus)
   wastes the owner's time. A new decision gets an ADR (`docs/runbooks/adr.md`; `/adr:new` in Claude Code, the template
-  by hand elsewhere); `scripts/check-adr.sh` (CI) checks every one.
+  by hand elsewhere); `scripts/check-adr.sh` (CI) checks every one, and fails a verdict that has no ADR.
+  **A decision gets an ADR when:**
+  - (a) a spike or investigation reaches an ADOPT or DON'T ADOPT verdict;
+  - (b) we choose between two or more options for a tool, component or pattern that would be costly to reverse;
+  - (c) an existing ADR is reversed: supersede it, never edit it in place.
 
 ## Operational just-dos (do these without asking; don't improvise a substitute)
 - **Every operational task has ONE canonical command — it lives in a `docs/runbooks/*.md`.** Find it and use it

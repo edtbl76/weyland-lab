@@ -15,7 +15,9 @@ What "curated" means:
     and Lab Status (2026-11-19: taken for the operator, it invented the lab's status)
   - default model Lab Recall; a fixed picker order; default context num_ctx 16384 (Ollama's 4096 default cut every
     chat with tools selected down to ~2,050 tokens, so the model never saw most tool definitions)
-  - Lab Recall: no web search / image generation / terminal buttons (nothing is configured behind them)
+  - Lab Recall: no web search / image generation / terminal buttons (nothing is configured behind them); its tools are
+    agent-memory and lab-docs (the docs search alone, B250) and its prompt searches memory, then docs, and never
+    guesses what an acronym means
   - tool servers: agent-memory (/mcp-memory) and lab-fleet (/mcp-fleet, 13 read-only status tools), both
     system_oauth = each person's own Keycloak token, so every call is audited as them at the MCP gateway
   - the Lab Status preset (qwen3:30b-a3b + the fleet tools)
@@ -71,6 +73,20 @@ WHISPER_URL = "http://whisper.weyland.svc.cluster.local:9000/v1"
 KOKORO_URL = "http://kokoro.weyland.svc.cluster.local:8880/v1"
 KOKORO_VOICE = "af_heart"
 MFA_FIELDS = ("ENABLE_MFA", "MFA_ALLOW_OAUTH_BYPASS", "MFA_ALLOW_TRUSTED_HEADER_BYPASS")
+DOCS_TOOL = "context_context_search"   # full compositor name: function_name_filter_list matches by suffix
+LAB_RECALL_TOOLS = ["server:mcp:agent-memory", "server:mcp:lab-docs"]
+# B250 (2026-11-19): asked "How does Weyland manage ADRs?", Lab Recall (memory only) found no note and expanded ADR as
+# "Actionable Design Reviews". Memory first, then the docs; never guess an acronym.
+LAB_RECALL_SYSTEM = (
+    "You answer questions about how the weyland lab works and what was decided, learned or recorded. You have two "
+    "sources. First call agent-memory_search_notes, then agent-memory_read_note on the best match. If no note answers "
+    "the question, call lab-docs_context_context_search with the question: it searches the lab's docs, runbooks and "
+    "decision records (docs/adr/). Answer only from what you read, and name the note or document. Never guess what an "
+    "acronym or term stands for: if a search for it finds nothing, search again with its expansion only if the lab's "
+    "own material gives it, and otherwise say the term was not found in the lab's memory or docs. If a tool is "
+    "unavailable or returns an error, say which source could not be reached. Never describe a note or document you did "
+    "not read. For the lab's current state (what is running, failing or alerting), point to the Lab Status model."
+)
 LAB_STATUS_SYSTEM = (
     "You answer questions about the weyland lab's current state: what is running, what is failing, what is alerting, "
     "and what the metrics and logs show. Use the Lab fleet tools to look; answer only from what they returned, name "
@@ -117,8 +133,18 @@ def fleet_connection():
             "spec_type": "url", "spec": ""}
 
 
+def docs_connection():
+    """Lab Recall's docs corpus (B250, 2026-11-19): the same /mcp-fleet gateway, as the signed-in person, allowlisted to
+    the ONE docs-search tool, so Lab Recall can read the docs (and docs/adr/) but not the live-status tools."""
+    return {**fleet_connection(),
+            "config": {"enable": True, "function_name_filter_list": DOCS_TOOL, "access_grants": []},
+            "info": {"id": "lab-docs", "name": "Lab docs",
+                     "description": "Search the lab's docs, runbooks and decision records (docs/adr/) — as you (B250)"}}
+
+
 def desired_tool_servers(cur):
-    return [c for c in cur if (c.get("info") or {}).get("id") != "lab-fleet"] + [fleet_connection()]
+    return ([c for c in cur if (c.get("info") or {}).get("id") not in ("lab-fleet", "lab-docs")]
+            + [fleet_connection(), docs_connection()])
 
 
 def desired_models_config(cur):
@@ -130,7 +156,14 @@ def desired_lab_recall(cur):
     meta = dict(cur.get("meta") or {})
     caps = dict(meta.get("capabilities") or {})
     caps.update(dict.fromkeys(LAB_RECALL_OFF, False), builtin_tools=False)
-    return {**cur, "meta": {**meta, "capabilities": caps}}
+    return {**cur, "params": {**(cur.get("params") or {}), "system": LAB_RECALL_SYSTEM},
+            "meta": {**meta, "capabilities": caps, "toolIds": LAB_RECALL_TOOLS}}
+
+
+def lab_recall_ok(entry):
+    entry = entry or {}
+    return (_meta(entry).get("toolIds") == LAB_RECALL_TOOLS
+            and (entry.get("params") or {}).get("system") == LAB_RECALL_SYSTEM)
 
 
 def desired_lab_status(base_caps):
@@ -227,6 +260,8 @@ def _check_models(all_models, mc):
     caps = _meta(all_models.get("lab-recall")).get("capabilities") or {}
     out.append(("Lab Recall: web search / image generation / terminal off",
                 all(caps.get(x) is False for x in LAB_RECALL_OFF)))
+    out.append(("Lab Recall: agent-memory + lab-docs tools, recall prompt (memory, then docs; no guessed acronyms)",
+                lab_recall_ok(all_models.get("lab-recall"))))
     out.append((f"guarded chat named '{GUARDED_NAME}'", guarded_chat_ok(all_models.get(GUARDED_ID))))
     ls = all_models.get("lab-status") or {}
     params = ls.get("params") or {}
@@ -239,11 +274,15 @@ def _check_models(all_models, mc):
 def _check_tool_servers(conns):
     by_id = {(x.get("info") or {}).get("id"): x for x in conns}
     fleet = by_id.get("lab-fleet") or {}
+    docs = by_id.get("lab-docs") or {}
     allow = (fleet.get("config") or {}).get("function_name_filter_list", "").split(",")
     return [("tool server agent-memory present", "agent-memory" in by_id),
             ("tool server lab-fleet = /mcp-fleet, system_oauth, 13-tool allowlist",
              fleet.get("url") == f"{GATEWAY}/mcp-fleet" and fleet.get("auth_type") == "system_oauth"
-             and allow == FLEET_TOOLS)]
+             and allow == FLEET_TOOLS),
+            ("tool server lab-docs = /mcp-fleet, system_oauth, docs search only",
+             docs.get("url") == f"{GATEWAY}/mcp-fleet" and docs.get("auth_type") == "system_oauth"
+             and (docs.get("config") or {}).get("function_name_filter_list") == DOCS_TOOL)]
 
 
 def check(c):
