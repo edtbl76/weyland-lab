@@ -101,7 +101,12 @@ spec:
           # B202, 2026-10-09), before that v1.6.7 (sha256:bf220897…). Rollback = revert this line in git (selfHeal reverts a
           # `kubectl rollout undo`) + restore config.db from bifrost-backup if the v2 migration damaged it
           # (docs/runbooks/mcp-gateway.md § Bifrost backup + restore).
-          image: maximhq/bifrost@sha256:fe323e244998e1a40b87be87f60d023746eae40dd69baae8f7f42728a5e16149   # v2.3.1
+          # v2.5.1 (B249, 2026-11-19): proven first on a throwaway (setup-token lock and private MCP targets unchanged;
+          # docs/concepts/bifrost-2-3-evaluation.md § 2.5 re-evaluation). Its 2.4.0/2.5.0 migrations (relay tables,
+          # passthrough column) are additive but ONE-WAY: rollback = revert this line AND restore the pre-upgrade
+          # bifrost-backup, never just the image. 2.4.0's Copilot-key change does not apply (no Copilot provider, read
+          # 2026-11-19). Was v2.3.1 (sha256:fe323e24…, B231, 2026-10-19).
+          image: maximhq/bifrost@sha256:5ec9873acaf1687556b6e4dd854b92b539d9debf87a5a683b66338648b84d3c8   # v2.5.1
           envFrom:                       # B111 key-sealing: provider API keys as env, from the bifrost-provider-keys
             - secretRef:                 # SealedSecret. Each provider's key is set to `env.VAR` (register_bifrost_providers.py)
                 name: bifrost-provider-keys
