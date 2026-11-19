@@ -347,6 +347,19 @@ Pass: `gms 200`, `bifrost 200`, `trino-8443 200`, and `trino-8080` NOT 200 (503:
 `istio_requests_total{source_workload="timberback-canary", destination_workload="datahub-datahub-gms", reporter="destination"}`
 carries `connection_security_policy="mutual_tls"`.
 
+## Host sysctl
+
+`nodes/timberback/host/sysctl.d/99-weyland-ci.conf` raises `fs.inotify.max_user_instances` from the Ubuntu default
+of 128 to 8192, the value mother has run since 2026-08 (`99-weyland-buildkit.conf`). Six CI workflows at once
+exhausted the default on 2026-11-18: CI #690's `test-scala` failed with "User limit of inotify instances reached or
+too many open files". The nightly host check (`placement_check.py --hosts`) fails while the installed copy differs
+from the repo. Install it, then confirm the live value:
+
+[rogueone]
+```
+rsync -a /home/edwardmangini/IdeaProjects/weyland/nodes/timberback/host/sysctl.d/99-weyland-ci.conf emangini@timberback:/tmp/ && ssh -t emangini@timberback 'sudo install -m 0644 /tmp/99-weyland-ci.conf /etc/sysctl.d/99-weyland-ci.conf && sudo sysctl --system >/dev/null && sysctl fs.inotify.max_user_instances'
+```
+
 ## k3s agent
 
 Apply a changed config from the repo:
