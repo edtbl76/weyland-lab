@@ -116,9 +116,9 @@ def test_lab_recall_gets_memory_and_docs_and_a_prompt_that_falls_back_and_never_
     # asked term appearing in it, and run the tools NATIVELY (Open WebUI's default mode allows one tool round)
     assert "agent-memory_read_note on the first result" in system and "singular or plural" in system
     assert out["params"]["function_calling"] == "native"
-    # owner, 2026-11-19 ("yes, switch Lab Recall to qwen3:30b-a3b"): same eval, final prompt, real tool schemas —
-    # qwen2.5:7b-operator ADR 5/5 QZR 3/5 (never tried docs); qwen3:30b-a3b ADR 5/5 QZR 5/5 (docs searched 5/5)
-    assert out["base_model_id"] == "qwen3:30b-a3b"
+    # owner, 2026-11-19 ("Can we make it toggle-able?"): Lab Recall is the FAST one (the 7B, seconds); the thorough
+    # one is a second preset on qwen3:30b-a3b (about a minute, 10/10 on the eval)
+    assert out["base_model_id"] == "qwen2.5:7b-operator"
 
 
 def test_lab_recall_check_wants_both_tools_and_the_prompt():
@@ -130,8 +130,8 @@ def test_lab_recall_check_wants_both_tools_and_the_prompt():
     assert oc.lab_recall_ok(old_prompt) is False
     default_mode = {**good, "params": {"system": good["params"]["system"]}}   # no function_calling: one tool round
     assert oc.lab_recall_ok(default_mode) is False
-    old_model = {**good, "base_model_id": "qwen2.5:7b-operator"}
-    assert oc.lab_recall_ok(old_model) is False
+    wrong_model = {**good, "base_model_id": "qwen3:30b-a3b"}
+    assert oc.lab_recall_ok(wrong_model) is False
 
 
 def test_lab_status_preset_shape():
@@ -222,7 +222,7 @@ def test_tts_check_flags_openai_cloud_and_the_browser_voice_and_passes_kokoro():
 
 def test_picker_puts_lab_recall_and_lab_status_before_the_guarded_chat():
     order = oc.MODEL_ORDER
-    assert order[:2] == ["lab-recall", "lab-status"]
+    assert order[:3] == ["lab-recall", "lab-recall-thorough", "lab-status"]
     assert order.index("weyland-operator") > order.index("lab-status")
 
 
@@ -247,3 +247,47 @@ def test_guarded_chat_check_wants_the_name():
     assert oc.guarded_chat_ok(None) is False                                    # no entry: the raw id shows
     assert oc.guarded_chat_ok({"name": "weyland-operator"}) is False
     assert oc.guarded_chat_ok(oc.desired_guarded_chat(None)) is True
+
+
+# ---- the toggle (owner, 2026-11-19: "Can we make it toggle-able?") --------------------------------------------------
+# Same tools, prompt and native tool calls; only the model, name and description differ. Measured: the 7B answers in
+# 4-15 s but can invent a meaning for a term it does not find; qwen3:30b-a3b took 60-120 s and scored 10/10.
+
+def test_thorough_recall_is_the_same_preset_on_the_30b():
+    fast = oc.desired_lab_recall({}, "lab-recall")
+    deep = oc.desired_lab_recall({}, "lab-recall-thorough")
+    assert deep["id"] == "lab-recall-thorough" and deep["name"] == "Lab Recall (thorough)"
+    assert deep["base_model_id"] == "qwen3:30b-a3b" and fast["base_model_id"] == "qwen2.5:7b-operator"
+    for k in ("system", "function_calling"):
+        assert deep["params"][k] == fast["params"][k]
+    assert deep["meta"]["toolIds"] == fast["meta"]["toolIds"] == oc.LAB_RECALL_TOOLS
+    assert deep["meta"]["capabilities"]["builtin_tools"] is False
+    assert deep["access_grants"] == [{"principal_type": "user", "principal_id": "*", "permission": "read"}]
+
+
+def test_each_description_says_the_trade_off():
+    fast = oc.desired_lab_recall({}, "lab-recall")["meta"]["description"]
+    deep = oc.desired_lab_recall({}, "lab-recall-thorough")["meta"]["description"]
+    assert "seconds" in fast and "thorough" in fast.lower()      # it points to the other one
+    assert "minute" in deep
+
+
+def test_an_existing_entry_keeps_its_own_fields_and_grants():
+    cur = {"id": "lab-recall", "name": "Lab Recall", "user_id": "u1",
+           "access_grants": [{"id": "g1", "principal_type": "user", "principal_id": "*", "permission": "read"}],
+           "meta": {"tags": [{"name": "t"}]}, "params": {"temperature": 0.2}}
+    out = oc.desired_lab_recall(cur, "lab-recall")
+    assert out["user_id"] == "u1" and out["access_grants"] == cur["access_grants"]
+    assert out["meta"]["tags"] == [{"name": "t"}] and out["params"]["temperature"] == 0.2
+
+
+def test_picker_lists_both_recall_presets_first_and_fast_is_the_default():
+    assert oc.MODEL_ORDER[:3] == ["lab-recall", "lab-recall-thorough", "lab-status"]
+    assert oc.desired_models_config({})["DEFAULT_MODELS"] == "lab-recall"
+
+
+def test_the_check_covers_both_presets():
+    deep = oc.desired_lab_recall({}, "lab-recall-thorough")
+    assert oc.lab_recall_ok(deep, "lab-recall-thorough") is True
+    assert oc.lab_recall_ok({**deep, "base_model_id": "qwen2.5:7b-operator"}, "lab-recall-thorough") is False
+    assert oc.lab_recall_ok(None, "lab-recall-thorough") is False

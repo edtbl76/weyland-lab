@@ -44,7 +44,7 @@ NEMO_URL = "http://nemo-guardrails.weyland.svc.cluster.local:8080/v1"
 GATEWAY = "http://weyland-mcp-gateway.weyland.svc.cluster.local:8080"
 HIDDEN_MODELS = ["nomic-embed-text:latest", "gpt-oss:20b-judge", "qwen2.5:7b-operator", "qwen3-coder:30b-32k"]
 LAB_STATUS_BASE = "qwen3:30b-a3b"
-MODEL_ORDER = ["lab-recall", "lab-status", "weyland-operator", LAB_STATUS_BASE, "qwen3:14b", "gpt-oss:20b",
+MODEL_ORDER = ["lab-recall", "lab-recall-thorough", "lab-status", "weyland-operator", LAB_STATUS_BASE, "qwen3:14b", "gpt-oss:20b",
                "mistral-small3.2:24b", "qwen3-coder:30b", "devstral:latest", "deepseek-coder-v2:16b",
                "qwen2.5vl:latest", "qwen2.5:7b", "llama3.2:3b"]
 NUM_CTX = 16384
@@ -75,10 +75,20 @@ KOKORO_VOICE = "af_heart"
 MFA_FIELDS = ("ENABLE_MFA", "MFA_ALLOW_OAUTH_BYPASS", "MFA_ALLOW_TRUSTED_HEADER_BYPASS")
 DOCS_TOOL = "context_context_search"   # full compositor name: function_name_filter_list matches by suffix
 LAB_RECALL_TOOLS = ["server:mcp:agent-memory", "server:mcp:lab-docs"]
-# Owner, 2026-11-19 ("yes, switch Lab Recall to qwen3:30b-a3b"), from the same eval (final prompt, real tool schemas,
-# 5 runs per question): qwen2.5:7b-operator ADR 5/5, unknown term 3/5 (one invented expansion, never tried the docs);
-# qwen3:30b-a3b ADR 5/5, unknown term 5/5, docs searched before every not-found. Slower; Lab Status already runs it.
-LAB_RECALL_BASE = "qwen3:30b-a3b"
+# Two Lab Recall presets, picked per chat in the model menu (owner, 2026-11-19: "Can we make it toggle-able?"). Same
+# tools, prompt and native tool calls; only the model differs. Measured on the real model and tools, 5 runs per question
+# (docs/runbooks/shared-agent-memory.md § the Lab Recall preset): qwen2.5:7b-operator 4-15 s, right on recorded topics,
+# but invented a meaning for an unrecorded term about half the time; qwen3:30b-a3b 60-120 s (half on the CPU), 10/10.
+LAB_RECALLS = {
+    "lab-recall": {
+        "name": "Lab Recall", "base": "qwen2.5:7b-operator",
+        "description": "Fast (seconds): the lab's memory and docs. Can guess at a term it does not find, so check the note "
+                       "it names; for a careful answer use Lab Recall (thorough)."},
+    "lab-recall-thorough": {
+        "name": "Lab Recall (thorough)", "base": "qwen3:30b-a3b",
+        "description": "Careful (about a minute): the lab's memory and docs, checked before it answers; says plainly when "
+                       "a term is not recorded."},
+}
 # B250 (2026-11-19): asked "How does Weyland manage ADRs?", Lab Recall (memory only) found no note and expanded ADR as
 # "Actionable Design Reviews". This prompt was chosen by measurement on the real model and tools (qwen2.5:7b-operator,
 # native tool calls, 5 runs per question): the first loose prompt scored 1/10 (it skipped reading, trusted any
@@ -163,18 +173,22 @@ def desired_models_config(cur):
             "DEFAULT_MODEL_PARAMS": {**(cur.get("DEFAULT_MODEL_PARAMS") or {}), "num_ctx": NUM_CTX}}
 
 
-def desired_lab_recall(cur):
+def desired_lab_recall(cur, rid="lab-recall"):
+    """One Lab Recall preset (LAB_RECALLS[rid]); an existing entry keeps its other fields, grants and tags."""
+    spec = LAB_RECALLS[rid]
+    cur = dict(cur or {})
     meta = dict(cur.get("meta") or {})
     caps = dict(meta.get("capabilities") or {})
     caps.update(dict.fromkeys(LAB_RECALL_OFF, False), builtin_tools=False)
-    return {**cur, "base_model_id": LAB_RECALL_BASE,
+    return {**cur, "id": rid, "name": spec["name"], "base_model_id": spec["base"], "is_active": True,
             "params": {**(cur.get("params") or {}), "system": LAB_RECALL_SYSTEM, "function_calling": "native"},
-            "meta": {**meta, "capabilities": caps, "toolIds": LAB_RECALL_TOOLS}}
+            "meta": {**meta, "capabilities": caps, "toolIds": LAB_RECALL_TOOLS, "description": spec["description"]},
+            "access_grants": cur.get("access_grants") or PUBLIC_READ}
 
 
-def lab_recall_ok(entry):
+def lab_recall_ok(entry, rid="lab-recall"):
     entry = entry or {}
-    return (entry.get("base_model_id") == LAB_RECALL_BASE and _meta(entry).get("toolIds") == LAB_RECALL_TOOLS
+    return (entry.get("base_model_id") == LAB_RECALLS[rid]["base"] and _meta(entry).get("toolIds") == LAB_RECALL_TOOLS
             and (entry.get("params") or {}).get("system") == LAB_RECALL_SYSTEM
             and (entry.get("params") or {}).get("function_calling") == "native")
 
@@ -273,8 +287,9 @@ def _check_models(all_models, mc):
     caps = _meta(all_models.get("lab-recall")).get("capabilities") or {}
     out.append(("Lab Recall: web search / image generation / terminal off",
                 all(caps.get(x) is False for x in LAB_RECALL_OFF)))
-    out.append(("Lab Recall: qwen3:30b-a3b, native tools agent-memory + lab-docs, recall prompt (no guessed acronyms)",
-                lab_recall_ok(all_models.get("lab-recall"))))
+    for rid, spec in LAB_RECALLS.items():
+        out.append((f"{spec['name']}: {spec['base']}, native tools agent-memory + lab-docs, recall prompt",
+                    lab_recall_ok(all_models.get(rid), rid)))
     out.append((f"guarded chat named '{GUARDED_NAME}'", guarded_chat_ok(all_models.get(GUARDED_ID))))
     ls = all_models.get("lab-status") or {}
     params = ls.get("params") or {}
@@ -326,7 +341,9 @@ def apply(c):
     c.call("POST", TOOL_SERVERS,
            {"TOOL_SERVER_CONNECTIONS": desired_tool_servers(c.call("GET", TOOL_SERVERS)["TOOL_SERVER_CONNECTIONS"])})
     lr = c.call("GET", "/api/v1/models/model?id=lab-recall")
-    c.call("POST", MODEL_UPDATE, desired_lab_recall(lr))
+    for rid in LAB_RECALLS:
+        c.call("POST", MODEL_UPDATE if rid in all_models else MODEL_CREATE,
+               desired_lab_recall(all_models.get(rid), rid))
     ls = desired_lab_status((lr.get("meta") or {}).get("capabilities") or {})
     c.call("POST", MODEL_UPDATE if "lab-status" in all_models else MODEL_CREATE, ls)
     c.call("POST", MODEL_UPDATE if GUARDED_ID in all_models else MODEL_CREATE,

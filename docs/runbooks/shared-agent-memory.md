@@ -231,7 +231,7 @@ compare ([open-webui.md](open-webui.md) § Curated workspace). Since B250 (2026-
 | Field | Value |
 |---|---|
 | Name / ID | `Lab Recall` / `lab-recall` |
-| Base model | `qwen3:30b-a3b` (was `qwen2.5:7b-operator` until 2026-11-19; see below) |
+| Base model | **two presets, picked per chat** (owner, 2026-11-19: "Can we make it toggle-able?"): **Lab Recall** = `qwen2.5:7b-operator` (seconds; the default) and **Lab Recall (thorough)** = `qwen3:30b-a3b` (about a minute). Same tools, prompt and settings; each description in the menu says the trade-off |
 | Tools | **Agent memory** + **Lab docs** (`lab-docs`: the docs search alone) |
 | Function calling | **native**: Open WebUI's default mode gives the model one tool round, so it could not search, read, then fall back |
 | Capabilities | **Builtin Tools OFF** — Open WebUI's own `search_notes` (Notes), `search_knowledge_files`, `search_memories` otherwise shadow ours |
@@ -243,7 +243,7 @@ compare ([open-webui.md](open-webui.md) § Curated workspace). Since B250 (2026-
 docs backends, 5 runs per question ("How does Weyland manage ADRs?", and the made-up "QZRs"): the first new prompt
 scored 1/10; the final prompt on `qwen2.5:7b-operator` scored ADR 5/5 but unknown-term 3/5 (it invented an expansion
 once and never tried the docs); on `qwen3:30b-a3b` it scored 5/5 and 5/5, searching the docs before every not-found.
-The owner switched the model (2026-11-19). It answers more slowly than the 7B. Earlier history: with its Keycloak
+The 30B ran 60-120 s a question (about 20 GB, so half on rogueone's CPU), too slow for everyday use, and no model tried was both fast and accurate (`qwen3:14b`, `gpt-oss:20b`, thinking off: all scored 4-5/10). So both stay, as two presets: the fast 7B by default, the thorough 30B when a careful answer matters. Earlier history: with its Keycloak
 token expired, the tool failed and the old model invented a note ("Operator Sweep Procedures"), which is why the prompt
 says to name the source that could not be reached.
 
