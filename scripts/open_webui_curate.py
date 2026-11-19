@@ -75,17 +75,28 @@ KOKORO_VOICE = "af_heart"
 MFA_FIELDS = ("ENABLE_MFA", "MFA_ALLOW_OAUTH_BYPASS", "MFA_ALLOW_TRUSTED_HEADER_BYPASS")
 DOCS_TOOL = "context_context_search"   # full compositor name: function_name_filter_list matches by suffix
 LAB_RECALL_TOOLS = ["server:mcp:agent-memory", "server:mcp:lab-docs"]
+# Owner, 2026-11-19 ("yes, switch Lab Recall to qwen3:30b-a3b"), from the same eval (final prompt, real tool schemas,
+# 5 runs per question): qwen2.5:7b-operator ADR 5/5, unknown term 3/5 (one invented expansion, never tried the docs);
+# qwen3:30b-a3b ADR 5/5, unknown term 5/5, docs searched before every not-found. Slower; Lab Status already runs it.
+LAB_RECALL_BASE = "qwen3:30b-a3b"
 # B250 (2026-11-19): asked "How does Weyland manage ADRs?", Lab Recall (memory only) found no note and expanded ADR as
-# "Actionable Design Reviews". Memory first, then the docs; never guess an acronym.
+# "Actionable Design Reviews". This prompt was chosen by measurement on the real model and tools (qwen2.5:7b-operator,
+# native tool calls, 5 runs per question): the first loose prompt scored 1/10 (it skipped reading, trusted any
+# search hit, and invented "Quality Zone Reports"); forcing the read alone made it claim the top note mentioned the
+# term; reading AND gating each source on the asked term appearing in it scored 10/10, twice.
 LAB_RECALL_SYSTEM = (
-    "You answer questions about how the weyland lab works and what was decided, learned or recorded. You have two "
-    "sources. First call agent-memory_search_notes, then agent-memory_read_note on the best match. If no note answers "
-    "the question, call lab-docs_context_context_search with the question: it searches the lab's docs, runbooks and "
-    "decision records (docs/adr/). Answer only from what you read, and name the note or document. Never guess what an "
-    "acronym or term stands for: if a search for it finds nothing, search again with its expansion only if the lab's "
-    "own material gives it, and otherwise say the term was not found in the lab's memory or docs. If a tool is "
-    "unavailable or returns an error, say which source could not be reached. Never describe a note or document you did "
-    "not read. For the lab's current state (what is running, failing or alerting), point to the Lab Status model."
+    "You answer questions about the weyland lab from its own records. Do these steps in order, every time:\n"
+    "1. Call agent-memory_search_notes with the user's question.\n"
+    "2. Call agent-memory_read_note on the first result.\n"
+    "3. Check the note you read: does it contain the term the user asked about (singular or plural, for example "
+    "\"ADR\" or \"ADRs\")? If yes, answer from that note. If no, ignore that note and call "
+    "lab-docs_context_context_search with the question.\n"
+    "4. Check the docs results the same way. If no note or document you read contains the term, reply only that you "
+    "could not find it, for example: \"I could not find XYZ in the lab's memory or docs.\" and stop.\n"
+    "Rules: answer only with facts written in what you read, and name the note or file. Never claim a note says "
+    "something it does not say. If the text you read spells out an acronym, copy that spelling exactly; if it does "
+    "not, do not expand the acronym at all. If a tool fails, say which source could not be reached. For the lab's "
+    "current state (what is running, failing or alerting), point to the Lab Status model."
 )
 LAB_STATUS_SYSTEM = (
     "You answer questions about the weyland lab's current state: what is running, what is failing, what is alerting, "
@@ -156,14 +167,16 @@ def desired_lab_recall(cur):
     meta = dict(cur.get("meta") or {})
     caps = dict(meta.get("capabilities") or {})
     caps.update(dict.fromkeys(LAB_RECALL_OFF, False), builtin_tools=False)
-    return {**cur, "params": {**(cur.get("params") or {}), "system": LAB_RECALL_SYSTEM},
+    return {**cur, "base_model_id": LAB_RECALL_BASE,
+            "params": {**(cur.get("params") or {}), "system": LAB_RECALL_SYSTEM, "function_calling": "native"},
             "meta": {**meta, "capabilities": caps, "toolIds": LAB_RECALL_TOOLS}}
 
 
 def lab_recall_ok(entry):
     entry = entry or {}
-    return (_meta(entry).get("toolIds") == LAB_RECALL_TOOLS
-            and (entry.get("params") or {}).get("system") == LAB_RECALL_SYSTEM)
+    return (entry.get("base_model_id") == LAB_RECALL_BASE and _meta(entry).get("toolIds") == LAB_RECALL_TOOLS
+            and (entry.get("params") or {}).get("system") == LAB_RECALL_SYSTEM
+            and (entry.get("params") or {}).get("function_calling") == "native")
 
 
 def desired_lab_status(base_caps):
@@ -260,7 +273,7 @@ def _check_models(all_models, mc):
     caps = _meta(all_models.get("lab-recall")).get("capabilities") or {}
     out.append(("Lab Recall: web search / image generation / terminal off",
                 all(caps.get(x) is False for x in LAB_RECALL_OFF)))
-    out.append(("Lab Recall: agent-memory + lab-docs tools, recall prompt (memory, then docs; no guessed acronyms)",
+    out.append(("Lab Recall: qwen3:30b-a3b, native tools agent-memory + lab-docs, recall prompt (no guessed acronyms)",
                 lab_recall_ok(all_models.get("lab-recall"))))
     out.append((f"guarded chat named '{GUARDED_NAME}'", guarded_chat_ok(all_models.get(GUARDED_ID))))
     ls = all_models.get("lab-status") or {}

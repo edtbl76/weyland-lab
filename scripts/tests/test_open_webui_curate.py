@@ -112,6 +112,13 @@ def test_lab_recall_gets_memory_and_docs_and_a_prompt_that_falls_back_and_never_
     assert system == oc.LAB_RECALL_SYSTEM
     assert "agent-memory_search_notes" in system and "lab-docs_context_context_search" in system
     assert "acronym" in system and "Lab Status" in system
+    # measured 2026-11-19 on the real model and tools (10/10 vs 1/10): read the top note, gate every source on the
+    # asked term appearing in it, and run the tools NATIVELY (Open WebUI's default mode allows one tool round)
+    assert "agent-memory_read_note on the first result" in system and "singular or plural" in system
+    assert out["params"]["function_calling"] == "native"
+    # owner, 2026-11-19 ("yes, switch Lab Recall to qwen3:30b-a3b"): same eval, final prompt, real tool schemas —
+    # qwen2.5:7b-operator ADR 5/5 QZR 3/5 (never tried docs); qwen3:30b-a3b ADR 5/5 QZR 5/5 (docs searched 5/5)
+    assert out["base_model_id"] == "qwen3:30b-a3b"
 
 
 def test_lab_recall_check_wants_both_tools_and_the_prompt():
@@ -119,8 +126,12 @@ def test_lab_recall_check_wants_both_tools_and_the_prompt():
     assert oc.lab_recall_ok(good) is True
     memory_only = {**good, "meta": {**good["meta"], "toolIds": ["server:mcp:agent-memory"]}}
     assert oc.lab_recall_ok(memory_only) is False
-    old_prompt = {**good, "params": {"system": "old prompt"}}
+    old_prompt = {**good, "params": {**good["params"], "system": "old prompt"}}
     assert oc.lab_recall_ok(old_prompt) is False
+    default_mode = {**good, "params": {"system": good["params"]["system"]}}   # no function_calling: one tool round
+    assert oc.lab_recall_ok(default_mode) is False
+    old_model = {**good, "base_model_id": "qwen2.5:7b-operator"}
+    assert oc.lab_recall_ok(old_model) is False
 
 
 def test_lab_status_preset_shape():

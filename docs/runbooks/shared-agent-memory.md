@@ -224,24 +224,28 @@ calling and a context window that fits the tool schemas — `qwen2.5:7b-operator
 with ~2K per request and Ollama silently cuts the prompt (operator.md § the prompt must fit). Ask: *"Search the agent
 memory: what caused the rogueone GPU freeze?"* → the answer cites `rogueone-gpu-freeze-vram` (a kernel bug).
 
-**The `Lab Recall` preset (the recommended way, 2026-10-05).** Workspace → Models → **+**; it lives in `webui.db`
-(nightly `open-webui-backup`), so recreate it from here after a fresh install:
+**The `Lab Recall` preset (the recommended way).** It lives in `webui.db` (nightly `open-webui-backup`), and
+`scripts/open_webui_curate.py` is its one recorded definition: run it to recreate or repair the preset, `--check` to
+compare ([open-webui.md](open-webui.md) § Curated workspace). Since B250 (2026-11-19):
 
 | Field | Value |
 |---|---|
 | Name / ID | `Lab Recall` / `lab-recall` |
-| Base model | `qwen2.5:7b-operator` |
-| Tools | **Agent memory** ticked |
+| Base model | `qwen3:30b-a3b` (was `qwen2.5:7b-operator` until 2026-11-19; see below) |
+| Tools | **Agent memory** + **Lab docs** (`lab-docs`: the docs search alone) |
+| Function calling | **native**: Open WebUI's default mode gives the model one tool round, so it could not search, read, then fall back |
 | Capabilities | **Builtin Tools OFF** — Open WebUI's own `search_notes` (Notes), `search_knowledge_files`, `search_memories` otherwise shadow ours |
 | Access | **Public** (or a grant) — a private custom model with no grant is hidden from the chat picker |
+| System prompt | `LAB_RECALL_SYSTEM` in `open_webui_curate.py`: search memory, read the top note, use a source only if it contains the asked term, then the docs, else "I could not find …"; never expand an acronym the text does not spell out |
 
-System prompt (verbatim):
-```
-You answer questions about the weyland lab. For anything the team decided, learned or recorded before, call agent-memory_search_notes, then agent-memory_read_note on the best match, and answer from that note. Say so if no note matches. If the agent-memory tool is unavailable or returns an error, say that shared memory could not be reached. Never describe a note you did not read.
-```
-The last two sentences exist because, with its Keycloak token expired, the tool failed to connect and the model
-invented a note ("Operator Sweep Procedures") and a reason. Checked 2026-10-05: a question with no matching note
-("…the lab's coffee machine?") answers "no note matches".
+**How the prompt and model were chosen (B250).** Asked "How does Weyland manage ADRs?", the memory-only preset answered
+"Actionable Design Reviews". A local eval ran the real model with the real tool schemas against the real memory and
+docs backends, 5 runs per question ("How does Weyland manage ADRs?", and the made-up "QZRs"): the first new prompt
+scored 1/10; the final prompt on `qwen2.5:7b-operator` scored ADR 5/5 but unknown-term 3/5 (it invented an expansion
+once and never tried the docs); on `qwen3:30b-a3b` it scored 5/5 and 5/5, searching the docs before every not-found.
+The owner switched the model (2026-11-19). It answers more slowly than the 7B. Earlier history: with its Keycloak
+token expired, the tool failed and the old model invented a note ("Operator Sweep Procedures"), which is why the prompt
+says to name the source that could not be reached.
 
 **Who searched:** the gateway writes one `mcp-gateway-audit` line per request (runbooks/mcp-gateway.md § Audit) —
 query Loki (7-day retention): `{namespace="weyland", container="weyland-mcp-gateway"} |= "mcp-gateway-audit" | logfmt | path="/mcp-memory"`. Every call also reaches the memory compositor with `X-Forwarded-Consumer: open-webui` and

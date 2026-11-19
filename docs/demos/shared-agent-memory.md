@@ -142,8 +142,8 @@ after the service started: identical.
    green and updates every ~15 min.
 4. **Open WebUI** — `https://chat.weyland.lab`, signed in through Keycloak. **Admin Panel → Settings → External Tools**:
    `agent-memory`, URL `http://weyland-mcp-gateway.weyland.svc.cluster.local:8080/mcp-memory`, auth **OAuth**. **Workspace →
-   Models → Lab Recall**: base `qwen2.5:7b-operator`, **Agent memory** ticked, **Builtin Tools** off, the system prompt
-   from the runbook. **Admin → Settings → Authentication → JWT Expiration** = `10h`.
+   Models → Lab Recall**: base `qwen3:30b-a3b`, **Agent memory** and **Lab docs** ticked, **Builtin Tools** off,
+   function calling native, the system prompt from `open_webui_curate.py` (B250; `--check` reports all of it). **Admin → Settings → Authentication → JWT Expiration** = `10h`.
 5. **Lab Recall chat** — ask *"What caused the rogueone GPU freeze?"*: confirm a **View Result from
    agent-memory_search_notes** block appears and the answer says **a kernel bug (conclusive 2026-08-13)**. Ask about
    something memory does not hold (*"…the lab's coffee machine?"*): it must say no note matches, not invent one.
