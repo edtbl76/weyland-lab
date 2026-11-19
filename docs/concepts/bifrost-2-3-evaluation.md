@@ -82,3 +82,21 @@ v2.5.1 `sha256:5ec9873acaf1687556b6e4dd854b92b539d9debf87a5a683b66338648b84d3c8`
 | Clockify | `scripts/owner_time.py` | Weak, and B235 may replace it |
 | Runware, Runway, Replicate, ElevenLabs, Perplexity, Cohere, Fireworks | already in Bifrost as providers or MCP clients | No: already governed |
 | `QASPHERE_API_KEY` | nothing (no code reads it) | Not a relay: an unused credential, left from a past evaluation, to revoke |
+
+### Throwaway results on v2.5.1 (2026-11-19)
+
+`maximhq/bifrost` v2.5.1 by digest on rogueone: host network bound to `127.0.0.1:18080` only (`APP_HOST`/`APP_PORT`;
+the bridge cannot reach Basic Memory through rogueone's firewall), scratch data, its own setup token, no production
+state. The Realm ran from its production image (`realm-of-agents:git-1cef29b5`) on `127.0.0.1:18090`. Everything was
+removed afterwards.
+
+| Question | Result |
+|---|---|
+| Setup-token lock | Unchanged from 2.3.1: no token 401, a wrong one 403, the right one 200. Fresh-database migrations ran clean |
+| Private MCP targets | Unchanged: Agent_Memory at its production URL `http://192.168.1.230:8765/mcp` registered with the setup token and came up `healthy`, 21 tools; without the token 401 "send the setup token". (The in-cluster fleet compositor is checked by the MCP watchdog after the production upgrade) |
+| Agent Gateway, blocker 2 (private destinations) | **Solved by configuration.** The card fetch was refused ("blocked connection to non-public address … add it to the Private Network Allowlist"); with `client_config.a2a_private_allowlist` set it went through |
+| Agent Gateway, blocker 1 (A2A version) | **Still there.** With the allowlist set, the Realm's real 0.3.0 card is refused: "upstream agent card has no strict A2A v1 interface the gateway can proxy". The gateway's rule (`core/agent/manager.go`, `isStrictV1Interface`): a `supportedInterfaces` entry with the A2A v1 protocol version and a JSON-RPC or HTTP+JSON binding |
+| What A2A v1 would cost the Realm | Measured with a separate v1-shaped stub card pointing at the unchanged Realm (the Realm's cards were not touched): the gateway registered it (it also needs `credential_origins` when the card and the endpoint differ in origin) and, with a granted virtual key, forwarded a v1 `SendMessage` call to the Realm, which answered "Method not found: SendMessage" (its own error; it knows only 0.3's `message/send`). The gateway speaks only v1 to callers (`message/send` refused at the gateway). So the cost is the Realm accepting v1: a `supportedInterfaces` entry in `cards.py` and `SendMessage` with v1 message parts in `a2a.py` (69 and 78 lines today), kept alongside 0.3 for the a2a-inspector. Production also needs the External Client URL set (unset, the agent endpoints answer 503) |
+| Relays | **Work as described.** A relay to a local echo stub standing in for `api.typesafe.ai`: routes must be declared (an undeclared path is 404); no virtual key is 401; a granted key reaches the upstream with `Authorization: Bearer <stored credential>` and the caller's key is not forwarded; both calls (the refused one too) are in the relay logs with route, status, latency and the virtual key's id and name. A relay accepted a private base URL with no allowlist. A relay update must resend the credential |
+| Caller identity on logs | Email is recorded only for signed-in users, so agent traffic (virtual keys, dashboard auth off) has none; the virtual key's name already identifies the caller. `capture_client_ip` is a startup log-store setting (`logs_store`, `framework/logstore/config.go`); production has no `config.json` (its config is in the database) and the addresses would mostly be in-cluster proxies. **Leave it off** |
+| Agent mode / code mode governance | Nothing in the lab asks Bifrost to run tools in agent mode or code mode (LiteLLM sends some model traffic through Bifrost; the harnesses use `/mcp`). Nothing to turn on; confirmed on real traffic after the upgrade |
