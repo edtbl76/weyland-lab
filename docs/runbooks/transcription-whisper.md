@@ -67,8 +67,9 @@ The words match CT 103 exactly. CT 103 returned the same text split into three s
 One good answer does not prove the decode is right: on 2026-11-19 the same request decoded differently run to run on
 the GPU (8 shim calls, 4 transcripts, one saying "do not ask"; 9/10 right on the native path), while the same
 whisper.cpp commit on CPU gave 12/12 identical. Turning off the temperature fallback (`temperature_inc=0`) did not help
-(13/20 right); the server now runs with flash attention off (`-nfa` in `k8s/whisper/whisper.yaml`). Run this after any
-change to the image, the model or the server flags:
+(13/20 right); the server now runs with flash attention off (`-nfa` in `k8s/whisper/whisper.yaml`). **Fixed, measured
+2026-11-19 after the rollout (pod `whisper-558bdf5674`):** native path 30/30 right and identical, shim path 20/20,
+latency unchanged (0.27-0.31 s for the 11 s clip). Run this after any change to the image, the model or the server flags:
 
 [rogueone]
 ```
