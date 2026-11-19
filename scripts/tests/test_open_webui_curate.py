@@ -162,3 +162,37 @@ def test_tts_check_flags_openai_cloud_and_the_browser_voice_and_passes_kokoro():
     assert oc.tts_ok(browser) is False
     no_voice = {**kokoro, "tts": {**kokoro["tts"], "VOICE": "alloy"}}     # an OpenAI voice name Kokoro does not have
     assert oc.tts_ok(no_voice) is False
+
+
+# ---- the guarded chat lane (2026-11-19): named for what it is, below the lab models ----------------------------------
+# It is NeMo Guardrails over plain gpt-oss:20b, no tools and no lab context. Listed first as "weyland-operator", it was
+# taken for the operator and asked for the lab's status, which it invented. Live (read 2026-11-19): no DB entry, so the
+# picker showed the connection's raw id.
+
+def test_picker_puts_lab_recall_and_lab_status_before_the_guarded_chat():
+    order = oc.MODEL_ORDER
+    assert order[:2] == ["lab-recall", "lab-status"]
+    assert order.index("weyland-operator") > order.index("lab-status")
+
+
+def test_guarded_chat_entry_is_named_for_what_it_is_and_public():
+    e = oc.desired_guarded_chat(None)
+    assert e["id"] == "weyland-operator" and e["base_model_id"] is None and e["is_active"] is True
+    assert e["name"] == "Guarded chat (no lab access)"
+    assert "Lab Status" in e["meta"]["description"]
+    assert e["access_grants"] == [{"principal_type": "user", "principal_id": "*", "permission": "read"}]
+
+
+def test_guarded_chat_entry_keeps_existing_meta_and_grants():
+    existing = {"id": "weyland-operator", "name": "old", "base_model_id": None, "is_active": True, "params": {},
+                "meta": {"tags": [{"name": "t"}]}, "access_grants": [{"principal_id": "*", "permission": "read",
+                                                                     "principal_type": "user", "id": "g1"}]}
+    e = oc.desired_guarded_chat(existing)
+    assert e["name"] == "Guarded chat (no lab access)" and e["meta"]["tags"] == [{"name": "t"}]
+    assert e["access_grants"] == existing["access_grants"]
+
+
+def test_guarded_chat_check_wants_the_name():
+    assert oc.guarded_chat_ok(None) is False                                    # no entry: the raw id shows
+    assert oc.guarded_chat_ok({"name": "weyland-operator"}) is False
+    assert oc.guarded_chat_ok(oc.desired_guarded_chat(None)) is True

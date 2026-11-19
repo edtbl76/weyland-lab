@@ -167,8 +167,18 @@ reads `/v1/models`).
 dialog/topical flow** — would **NOT fire** (v1 + v2 both answered off-topic; NeMo's embedding-based dialog matching is its
 finickiest feature, and it failed the B32 trial the same way), whereas `self check input` blocks reliably (it caught the
 jailbreak first try). So topicality moved into the self-check prompt, and `config/rails.co` overrides the blocked-message
-to a **custom operator refusal** ("I'm the weyland lab operator — I only handle lab operations…") instead of NeMo's
+to a **custom operator refusal** ("I'm the lab's guarded chat. I only handle lab operations…") instead of NeMo's
 generic default. Reliable > elegant.
+
+**It cannot see the lab, and says so (2026-11-19).** The model behind the rails is plain `gpt-oss:20b` with no tools and
+no lab context. Asked "what is the lab's status?" (on-topic, so the rail let it through), it invented one ("as of late
+2024 ... genetic-engineering experiments", Weyland-Yutani from its training data). `config/config.yml` now carries a
+NeMo `instructions` block: it has no live access, must never state a lab fact, and points to **Lab Status** (current
+state) and **Lab Recall** (docs and decisions). The refusal says the same. Open WebUI lists it as **"Guarded chat (no lab
+access)"**, after Lab Recall and Lab Status (`scripts/open_webui_curate.py`); its connection id stays `weyland-operator`.
+Measured on a local build of the image: the status question 3/3 pointed to Lab Status with no invented facts, and an
+engineering question (CrashLoopBackOff) was still answered in full. The refusal keeps the phrase "I only handle lab
+operations", which `ship-images.sh`'s post-deploy check matches.
 
 **Verified 2026-08-03:** off-topic (e.g. "write me a haiku") → the operator refusal; on-topic (a lab-ops question) →
 answered through the operator brain; a jailbreak → blocked. Design: `../design/guardrails-platform.md`.

@@ -1,7 +1,8 @@
 # Colang 1.0 — override the message NeMo speaks when `self check input` blocks a message (jailbreak OR off-topic),
-# so a blocked request gets the conversational operator refusal instead of NeMo's generic default. This replaces the
+# so a blocked request gets a refusal that says what this model is and where to go instead of NeMo's generic default.
+# Keep the phrase "I only handle lab operations": scripts/ship-images.sh's post-deploy check matches it (2026-11-19). This replaces the
 # earlier `define user/bot/flow` topical rail, which did not fire (NeMo's embedding-based dialog matching is finicky
 # and answered off-topic anyway); the topicality decision now lives in the `self check input` prompt (config.yml).
 
 define bot refuse to respond
-  "I'm the weyland lab operator — I only handle lab operations (status, pipelines, queries, infra). I can't help with that."
+  "I'm the lab's guarded chat. I only handle lab operations (status, pipelines, queries, infra) and engineering questions, and I cannot see the lab itself: for its current state use the Lab Status model, and for how it works or what was decided use Lab Recall."

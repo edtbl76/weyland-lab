@@ -11,6 +11,8 @@ What "curated" means:
   - connections: the only OpenAI-style connection is the guarded nemo-guardrails lane (no api.openai.com)
   - community sharing off (chats are never shared to openwebui.com); Arena evaluation model off
   - non-chat models hidden from the picker (an embedder, the eval judge, the operator's own variant, a duplicate)
+  - the guarded lane (connection id weyland-operator) named "Guarded chat (no lab access)", listed after Lab Recall
+    and Lab Status (2026-11-19: taken for the operator, it invented the lab's status)
   - default model Lab Recall; a fixed picker order; default context num_ctx 16384 (Ollama's 4096 default cut every
     chat with tools selected down to ~2,050 tokens, so the model never saw most tool definitions)
   - Lab Recall: no web search / image generation / terminal buttons (nothing is configured behind them)
@@ -40,10 +42,18 @@ NEMO_URL = "http://nemo-guardrails.weyland.svc.cluster.local:8080/v1"
 GATEWAY = "http://weyland-mcp-gateway.weyland.svc.cluster.local:8080"
 HIDDEN_MODELS = ["nomic-embed-text:latest", "gpt-oss:20b-judge", "qwen2.5:7b-operator", "qwen3-coder:30b-32k"]
 LAB_STATUS_BASE = "qwen3:30b-a3b"
-MODEL_ORDER = ["weyland-operator", "lab-recall", "lab-status", LAB_STATUS_BASE, "qwen3:14b", "gpt-oss:20b",
+MODEL_ORDER = ["lab-recall", "lab-status", "weyland-operator", LAB_STATUS_BASE, "qwen3:14b", "gpt-oss:20b",
                "mistral-small3.2:24b", "qwen3-coder:30b", "devstral:latest", "deepseek-coder-v2:16b",
                "qwen2.5vl:latest", "qwen2.5:7b", "llama3.2:3b"]
 NUM_CTX = 16384
+# The guarded lane (B115): NeMo Guardrails over plain gpt-oss:20b, no tools, no lab context. Its connection id stays
+# `weyland-operator`; this entry gives it a name that says what it is (2026-11-19: taken for the operator, it invented
+# the lab's status).
+GUARDED_ID = "weyland-operator"
+GUARDED_NAME = "Guarded chat (no lab access)"
+GUARDED_DESCRIPTION = ("General engineering chat behind the lab's guardrails. It cannot see the lab: for its current "
+                       "state use Lab Status, for how it works and what was decided use Lab Recall.")
+PUBLIC_READ = [{"principal_type": "user", "principal_id": "*", "permission": "read"}]
 LAB_RECALL_OFF = ["web_search", "image_generation", "terminal"]
 # Full compositor tool names: Open WebUI's function_name_filter_list matches by SUFFIX, so a prefix like "memory_"
 # cannot exclude anything; list what is allowed instead. memory_* is covered by agent-memory; grafana OnCall
@@ -145,6 +155,17 @@ def hidden_entry(model_id, existing, name):
             "access_grants": [], "is_active": True}
 
 
+def desired_guarded_chat(existing):
+    """The guarded lane's model entry: its name and description; existing meta and grants kept, public read if none."""
+    e = existing or {"id": GUARDED_ID, "base_model_id": None, "params": {}, "is_active": True}
+    return {**e, "name": GUARDED_NAME, "meta": {**(e.get("meta") or {}), "description": GUARDED_DESCRIPTION},
+            "access_grants": e.get("access_grants") or PUBLIC_READ}
+
+
+def guarded_chat_ok(entry):
+    return bool(entry) and entry.get("name") == GUARDED_NAME
+
+
 def desired_audio(cur):
     """STT at the lab's whisper and TTS at the lab's Kokoro (both OpenAI engine); every other field as it is.
     `realtime` is optional in 0.12's update form, so it is never resent (an omitted block is left alone)."""
@@ -206,6 +227,7 @@ def _check_models(all_models, mc):
     caps = _meta(all_models.get("lab-recall")).get("capabilities") or {}
     out.append(("Lab Recall: web search / image generation / terminal off",
                 all(caps.get(x) is False for x in LAB_RECALL_OFF)))
+    out.append((f"guarded chat named '{GUARDED_NAME}'", guarded_chat_ok(all_models.get(GUARDED_ID))))
     ls = all_models.get("lab-status") or {}
     params = ls.get("params") or {}
     out.append(("Lab Status preset (qwen3:30b-a3b, fleet tools, prompt)",
@@ -255,6 +277,8 @@ def apply(c):
     c.call("POST", MODEL_UPDATE, desired_lab_recall(lr))
     ls = desired_lab_status((lr.get("meta") or {}).get("capabilities") or {})
     c.call("POST", MODEL_UPDATE if "lab-status" in all_models else MODEL_CREATE, ls)
+    c.call("POST", MODEL_UPDATE if GUARDED_ID in all_models else MODEL_CREATE,
+           desired_guarded_chat(all_models.get(GUARDED_ID)))
     c.call("POST", MODELS_CONFIG, desired_models_config(c.call("GET", MODELS_CONFIG)))
     c.call("POST", AUDIO_CONFIG + "/update", desired_audio(c.call("GET", AUDIO_CONFIG)))
 

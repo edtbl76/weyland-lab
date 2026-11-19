@@ -18,7 +18,7 @@ sequenceDiagram
     NR->>OLL: self check input — is this a lab-ops request? (LLM judge)
     OLL-->>NR: Yes (block) | No (allow)
     alt off-topic / jailbreak (block)
-        NR-->>NG: "I'm the weyland lab operator — I only handle lab operations…"
+        NR-->>NG: "I'm the lab's guarded chat. I only handle lab operations…"
     else on-topic (allow)
         NR->>OLL: main completion
         OLL-->>NR: answer
