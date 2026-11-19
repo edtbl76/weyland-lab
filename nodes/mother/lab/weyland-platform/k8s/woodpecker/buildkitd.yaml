@@ -8,7 +8,7 @@
 #
 # ON TIMBERBACK since 2026-11-17 (B200 step 3a). On mother it peaked at 5.34 GiB of its 6 GiB limit over 7 days with ONE
 # golden-path stream, on a node at 78% memory, so parallel golden-path groups had nowhere to go. timberback has the
-# headroom: the limit was 12 GiB, and 20 GiB since B200 step 4 (three golden-path shards at once). Proven before the move with this exact image, flags and a local-path volume on
+# headroom: the limit is 12 GiB (three golden-path shards at once peaked 3.56 GiB, CI #692). Proven before the move with this exact image, flags and a local-path volume on
 # timberback (btrfs, subvol @rancher): overlayfs worked, a COPY + RUN + apk build exported a 6.2 MB OCI image.
 # The cache volume is new (buildkitd-cache-tb, created on timberback by WaitForFirstConsumer); Argo prunes the old
 # buildkitd-cache on mother. Only nightly-images uses the cache; golden-path builds are cold by design
@@ -69,8 +69,8 @@ spec:
             periodSeconds: 20
           resources:
             requests: { cpu: 100m, memory: 128Mi }
-            limits: { memory: 20Gi }      # B200 step 4: three golden-path shards build at once (one stream peaked 3.9 GiB on
-                                          # timberback, CI #678); 20Gi leaves room until the 3-stream peak is measured, then tune
+            limits: { memory: 12Gi }      # measured: one golden-path stream peaked 3.9 GiB (CI #678), three shards at once
+                                          # 3.56 GiB (CI #692, B200 step 4). 12Gi is >3x either; it was 20Gi for that one run
           volumeMounts:
             - { name: cache, mountPath: /var/lib/buildkit }
       volumes:
