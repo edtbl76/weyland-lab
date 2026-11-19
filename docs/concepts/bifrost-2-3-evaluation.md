@@ -100,3 +100,16 @@ removed afterwards.
 | Relays | **Work as described.** A relay to a local echo stub standing in for `api.typesafe.ai`: routes must be declared (an undeclared path is 404); no virtual key is 401; a granted key reaches the upstream with `Authorization: Bearer <stored credential>` and the caller's key is not forwarded; both calls (the refused one too) are in the relay logs with route, status, latency and the virtual key's id and name. A relay accepted a private base URL with no allowlist. A relay update must resend the credential |
 | Caller identity on logs | Email is recorded only for signed-in users, so agent traffic (virtual keys, dashboard auth off) has none; the virtual key's name already identifies the caller. `capture_client_ip` is a startup log-store setting (`logs_store`, `framework/logstore/config.go`); production has no `config.json` (its config is in the database) and the addresses would mostly be in-cluster proxies. **Leave it off** |
 | Agent mode / code mode governance | Nothing in the lab asks Bifrost to run tools in agent mode or code mode (LiteLLM sends some model traffic through Bifrost; the harnesses use `/mcp`). Nothing to turn on; confirmed on real traffic after the upgrade |
+
+### Verdicts on 2.5 (owner, 2026-11-19) — [ADR-0014](../adr/0014-dont-adopt-bifrost-agent-gateway-or-relays.md)
+
+| Feature | Verdict | Why |
+|---|---|---|
+| Upgrade 2.3.1 → 2.5.1 | **Yes, as its own change** | The setup-token lock and private MCP targets behave as on 2.3.1; the migrations are additive but one-way (a rollback is a backup restore). Before it: read production's provider names to rule out the 2.4.0 Copilot-key change |
+| Agent Gateway as the Realm's front door | **DON'T ADOPT** | The A2A version mismatch stands (fixable for ~150 lines in the Realm), but the Realm's callers are already pinned to three in-cluster services by a NetworkPolicy and traced in Langfuse; per-caller keys alone don't justify another gateway |
+| Relays (TypeSafe, FRED, Clockify) | **Skip all three** | TypeSafe: one consumer, a temporary experiment, capped by prepaid credit and alerted, key in git; in Bifrost it would live only in its database. FRED and Clockify: no agent calls them |
+| Caller identity on logs (`capture_client_ip`) | **Leave off** | Virtual-key names already identify agent callers; client IPs here are mostly in-cluster proxies; it would need a `config.json` |
+| Agent-mode and code-mode governance | **Nothing to turn on** | No lab client uses Bifrost's agent or code mode |
+
+Found along the way: `QASPHERE_API_KEY` in `scripts/.env` is read by nothing (left from a past evaluation): revoke it
+at QA Sphere.
