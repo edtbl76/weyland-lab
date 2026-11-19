@@ -28,6 +28,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import Counter
 
 # Plain HTTP on purpose — the NodePort is the ONLY machine path: the HTTPS ingress (sonarqube.weyland.lab) is behind
 # Keycloak forward-auth and answers an API call with a 307 to the browser login. LAN-only; reviewed SAFE in Sonar.
@@ -269,22 +270,27 @@ def _changed_lines(paths: list) -> dict:
 def _split_reviewed(hotspots: list) -> tuple:
     """(new, already reviewed SAFE, already open TO_REVIEW) against the real project. A scratch project knows no
     review history, so a hotspot reviewed SAFE on weyland-lab comes back every time, and one still TO_REVIEW there is
-    old code, not this change's (11 on one service, 2026-10-13). Lines move, so the match is file + rule + message;
-    a second identical hotspot added to the same file is masked here, and the CI gate still sees it."""
+    old code, not this change's (11 on one service, 2026-10-13). Lines move, so the match is file + rule + message,
+    and it is COUNTED: N reviewed on the project cover at most N in this scan, and the rest are new (2026-11-19: a 4th
+    http:// URL in a file with 3 reviewed passed this check and failed CI #696's gate). Which of several identical
+    ones is reported as new is by line order, since lines do not identify them."""
     if not hotspots:
         return [], [], []
     files = ",".join(sorted({_path(h) for h in hotspots}))
 
-    def keys(params):
-        return {(_path(h), h.get("ruleKey"), h.get("message"))
-                for h in get(HOTSPOTS, {"projectKey": PROJECT, "files": files, "ps": 500, **params}).get("hotspots", [])}
-    safe, to_review = keys({"status": "REVIEWED", "resolution": "SAFE"}), keys({"status": "TO_REVIEW"})
+    def counts(params):
+        return Counter((_path(h), h.get("ruleKey"), h.get("message"))
+                       for h in get(HOTSPOTS, {"projectKey": PROJECT, "files": files, "ps": 500, **params})
+                       .get("hotspots", []))
+    safe, to_review = counts({"status": "REVIEWED", "resolution": "SAFE"}), counts({"status": "TO_REVIEW"})
     new, known, open_ = [], [], []
-    for h in hotspots:
+    for h in sorted(hotspots, key=lambda h: (_path(h), h.get("line") or 0)):
         k = (_path(h), h.get("ruleKey"), h.get("message"))
-        if k in safe:
+        if safe[k] > 0:
+            safe[k] -= 1
             known.append(h)
-        elif k in to_review:
+        elif to_review[k] > 0:
+            to_review[k] -= 1
             open_.append(h)
         else:
             new.append(h)

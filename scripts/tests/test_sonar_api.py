@@ -243,6 +243,39 @@ def test_precheck_does_not_count_a_hotspot_already_reviewed_safe_on_the_real_pro
     assert "precheck: FINDINGS (2 files scanned, 0 issues, 1 hotspots, 1 already reviewed)" in out
 
 
+def test_precheck_counts_a_second_identical_hotspot_in_the_same_file_as_new(tmp_path, monkeypatch, capsys):
+    # Found 2026-11-19 (CI #696 failed the gate after a clean precheck): open_webui_curate.py had 3 http:// URLs
+    # reviewed SAFE and B246 added a 4th (Kokoro). Matching by file + rule + message only, the 4th looked "already
+    # reviewed". The match is now counted: N reviewed cover at most N in the scan, and the rest are new.
+    monkeypatch.setenv("SONAR_ADMIN_PW", "pw")
+    files = _src(tmp_path, monkeypatch)
+    http = "Using http protocol is insecure. Use https instead"
+    scratch = {"paging": {"total": 2}, "hotspots": [
+        {"vulnerabilityProbability": "LOW", "line": 10, "ruleKey": "python:S5332", "message": http,
+         "component": "weyland-lab-precheck-1:b.py"},
+        {"vulnerabilityProbability": "LOW", "line": 11, "ruleKey": "python:S5332", "message": http,
+         "component": "weyland-lab-precheck-1:b.py"}]}
+    one_reviewed = {"paging": {"total": 1}, "hotspots": [
+        {"line": 9, "ruleKey": "python:S5332", "message": http, "component": "weyland-lab:b.py"}]}
+    none = {"paging": {"total": 0}, "hotspots": []}
+    _serve(monkeypatch, _precheck_routes())
+    real = sa.get
+
+    def get(p, q):
+        if p != "hotspots/search":
+            return real(p, q)
+        if q.get("projectKey") != sa.PROJECT:
+            return scratch
+        return one_reviewed if q.get("status") == "REVIEWED" else none
+    monkeypatch.setattr(sa, "get", get)
+    monkeypatch.setattr(sa, "_run_scanner", Scanner())
+    assert sa.main(["precheck", *files]) == 1
+    out = capsys.readouterr().out
+    assert "already reviewed SAFE on weyland-lab: b.py:10" in out
+    assert "LOW b.py:11" in out
+    assert "precheck: FINDINGS (2 files scanned, 0 issues, 1 hotspots, 1 already reviewed)" in out
+
+
 def test_precheck_scanner_failure_is_exit_2_not_clean(tmp_path, monkeypatch, capsys):
     # Observed 2026-10-12: without host networking the scanner could not resolve mother.weyland.lab, exited 1, and a
     # naive read of issues/search would have said "0 issues".

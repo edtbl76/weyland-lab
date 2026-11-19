@@ -142,7 +142,10 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   has no new-code period, so that gate passed with a CRITICAL issue open); and findings `weyland-lab` already has for
   the same file (same rule and message; lines move) are listed but not counted: open issues and TO_REVIEW hotspots as
   `already open`, hotspots reviewed SAFE as `already reviewed`. Without that, a 3-line change to a big file reported
-  all 30 of the file's old findings (B207, 2026-10-13), and the rule could never be met. **Except on a line the change
+  all 30 of the file's old findings (B207, 2026-10-13), and the rule could never be met. **The hotspot match is counted
+  (2026-11-19):** N hotspots reviewed on `weyland-lab` cover at most N identical ones in the scan, and the rest are new.
+  Matched by kind alone, a 4th `http://` URL added to `open_webui_curate.py` (3 already reviewed) read as "already
+  reviewed", and CI #696's gate failed on it. **Except on a line the change
   edits (2026-10-16):** CI's gate counts an edited line as new code, so an already-open finding there fails it. CI #387
   and #388 both failed on an S1192 (a literal duplicated 4×) that the precheck had listed as already open, each time
   because the edit touched a line carrying one copy. The precheck now reads `git diff -U0 origin/main`
