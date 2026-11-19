@@ -225,6 +225,15 @@ RBAC (`KSV-0046`) → `/.trivyignore` (each documented). See [[cve-remediation-m
 **Accepted residuals:** `KSV-0118`/`KSV-0014` (readOnlyRootFilesystem, ~195 high) + `run-as-non-root` on root
 third-party images — systemic, blanket-applying breaks writers; documented, not per-item fixed.
 
+**2026-11-19 triage (B200 DoD, scan `2026-11-19T04-57-46Z` diff vs `2026-11-17T19-45-23Z`, weyland-lab; critical/high
+only):** trivy, semgrep, bandit, hadolint, gitleaks 0 new; osv 0 new, 9 gone. **kubescape +11:** 5 on the new
+`woodpecker/agent-timberback.yaml` StatefulSet (C-0009/C-0050/C-0270 CPU limits, C-0211 security context, C-0237 image
+signature), the house pattern, accepted and noted in the manifest; 6 on `nodes/timberback/checks/minio-replica-drill.yaml`
+(B134), already triaged in that file on 11-17 but committed after the baseline scan ran. **trivy-images +394 / -223:**
+advisories published since 11-17 against base-image packages of images B200 did not change (weyland-jupyter's
+`linux-libc-dev`, scan-suite's `openjdk-21-jre-headless`, Go `stdlib` CVE-2026-97054 in minio-client, scan-suite and
+dagster-user-code, openssl/libc across the python-slim images); left to the routine image refresh, not a B200 finding.
+
 **2026-10-12 triage (B179 DoD, scan `2026-10-12T20-56-49Z` diff vs `2026-10-12T02-29-39Z`, weyland-lab; critical/high only):**
 trivy 88 → 84 (0 new; the `x/net` fix); semgrep, bandit, gitleaks, hadolint, shellcheck 0 new. **osv +92 / -25:**
 - **92 are Go stdlib advisories on `golden-paths/go/{echo,gin}`**, a side effect of the `x/net` bump: `go get` raised

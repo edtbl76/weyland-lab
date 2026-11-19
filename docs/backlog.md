@@ -3633,7 +3633,18 @@ DB header). Lowering connections can starve the UI/API — measure. A Postgres o
 
 **Out of scope.** Parallel CI on more agents (B200, hardware). The B199 memory stalls (node-level; separate cause).
 
-### B200 — Parallel CI across more build agents on new hardware — **IN PROGRESS 2026-11-17** — HIGH (↑ Low→High 2026-11-14 rebalance: CI runs take ~80 min, more agents pay back on every push; UNHELD 2026-11-14: the hardware landed (timberback, ADR-0012); Linear `parked:held` removed) — was LOW, HELD FOR HARDWARE (2026-10-03, Linear EMA-286)
+### B200 — Parallel CI across more build agents on new hardware — **DONE 2026-11-19 (Linear EMA-286)** — HIGH (↑ Low→High 2026-11-14 rebalance: CI runs take ~80 min, more agents pay back on every push; UNHELD 2026-11-14: the hardware landed (timberback, ADR-0012); Linear `parked:held` removed) — was LOW, HELD FOR HARDWARE (2026-10-03, Linear EMA-286)
+
+**DONE 2026-11-19.** A full run takes about 18 min (#692: 17 min 37 s), down from 89-101; every acceptance criterion is ticked on EMA-286 with its evidence (criteria 1 and 4 reworded: "full on-demand runs", "no slower than before the split"). DoD:
+1. **Docs:** arch.md §10m and the timberback inventory, `runbooks/woodpecker.md` (agent pools, caches, the `--var` and status notes), `.woodpecker/README.md`, `woodpecker-step-menu.md`, schedules.md, dr.md, timberback runbook "Host sysctl".
+2. **Diagrams:** `flow-ci-workflows.md` (new), ci-architecture-map.html workflows band, platform-map.html, likec4.
+3. **Demo:** `demos/parallel-ci.md`, ledger row 129; the smoke caught #693 and re-ran green as #694 (4 min 56 s).
+4. **Cleanup:** `.woodpecker.yml` deleted; mother's unused `ci-cache-{cargo,go,npm}` PVCs deleted by the owner.
+5. **Tracking:** this flip, EMA-286 Done with a completion comment; `check-linear-sync` passes.
+6. **Ops:** timberback down is covered by KubeNodeNotReady and KubeStatefulSetReplicasMismatch; `finish` reports an unknown status as failure.
+7. **Scan:** `2026-11-19T04-57-46Z` vs `2026-11-17T19-45-23Z`: the only new finding from B200 is the agent StatefulSet's house-pattern kubescape controls, accepted (manifest and `runbooks/code-quality.md`).
+8. **Cascade:** check-maps, image provenance, select-fixtures, supply-chain, and the bats suites now read `.woodpecker/`; `pipeline-layout.bats` guards the layout.
+9. **DR:** no new state; the `-tb` caches are rebuildable.
 
 **Why.** A full CI run is **68 steps, ~86 min, strictly sequential** (#241: sum of step time = wall clock, 5,202 s).
 weyland-lab is ONE workflow pinned `labels: {backend: kubernetes}`, so it uses one of mother's 2 k8s agents, and the

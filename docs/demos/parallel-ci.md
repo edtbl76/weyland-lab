@@ -52,7 +52,11 @@ ran their ungated guards only (deliver's steps all gate on smoke); `finish` post
 **Run 2026-11-19, #693:** the shards behaved exactly as above, but the pipeline FAILED: `platform`'s `trunk-upload` was
 ungated, ran in smoke mode with no report (its writers skip on `SMOKE_ONLY`) and exited 2. A regression of the B200
 split (step 2), found by this demo. Fixed by gating it like its writers; `scripts/tests/pipeline-layout.bats` now fails
-any `trunk-upload` broader than its workflow's JUnit writers. The re-run after the fix is recorded below.
+any `trunk-upload` broader than its workflow's JUnit writers.
+
+**Re-run 2026-11-19, #694 (after the fix, 900c206e): `success` in 4 min 56 s.** golden-path-1 built and uploaded
+`go/gin`; shards 2 and 3 had nothing to run and passed; `platform` ran its guards and its `trunk-upload` correctly
+skipped; `finish` posted `success`.
 
 A full run for comparison (about 18 minutes): `woodpecker-cli pipeline create edtbl76/weyland-lab --branch main`.
 **#692 (2026-11-19):** green in 17 min 37 s; golden-path-1/2/3 took 8.0-8.6 min each, platform 14.5, fixtures-haskell

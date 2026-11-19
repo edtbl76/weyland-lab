@@ -10,6 +10,10 @@
 #     and steps within a workflow run one at a time, so 6 workflows at their heaviest is ~18 GiB of timberback's
 #     85.5 GiB. Tune from queue time (too few) and node free memory (too many; keep >= ~20 GiB free).
 # Nothing selects this pool until a workflow asks for `node: timberback` (B200 step 3). Runbook: docs/runbooks/woodpecker.md.
+#
+# SCAN TRIAGE (2026-11-19, B200 DoD): the code-scan-suite reads this file, and kubescape flags C-0009/C-0050/C-0270 (CPU
+# limits), C-0211 (security context: only the pod-level fsGroup, as on mother's chart-managed agent this copies) and
+# C-0237 (image signature): the house pattern recorded in docs/runbooks/code-quality.md, accepted.
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
