@@ -101,16 +101,39 @@ repos:
       ci: "activated in Woodpecker (repo 8, B245, 2026-11-11) and running; stays false only because the secret-free coverage guard cannot verify a PRIVATE repo anonymously (it would exit 2). Proof: woodpecker-cli repo ls"
 
   - name: MyBodyGraph
-    visibility: private          # PRIVATE since 2026-11-08 on the owner's instruction (public at the 2026-09-15 tofu import) — Port/scan/CI tokens need access
+    visibility: private          # the NEW MyBodyGraph (health metrics), recreated 2026-11-20 under the old name; parked like OJayFloyd
     status: active
-    linear_project: "MyBodyGraph"
+    linear_project: "MyBodyGraph"  # the NEW project (P-EMA-14); the old one is "MyBodyGraph-2026-archive"
     backup_path: ~/IdeaProjects/MyBodyGraph
     lanes: { iac: true, ci: false, scan: true, pr: true, catalog: true, backup: true }
     except:
-      ci: "activated in Woodpecker (repo 7, B245, 2026-11-11) and running; stays false only because the secret-free coverage guard cannot verify a PRIVATE repo anonymously (it would exit 2). Proof: woodpecker-cli repo ls"
-    # scan: central scan-suite + sonarqube + an in-repo .coderabbit.yaml only. No .deepsource.toml or .sourcery.yaml
-    # (decided 2026-11-08): both tools are free only for public repos, Sourcery is Python-only, and this repo is a
-    # private TypeScript app on a $0 budget.
+      ci: "no CI yet: the new repo has no code (parked). The old repo's Woodpecker activation (repo 7) was removed when it was retired"
+    # The other lanes kept the name "MyBodyGraph" through the swap on purpose: they now follow the new repo.
+    # The local checkout at backup_path is the NEW repo once the old one moves to ~/IdeaProjects/MyBodyGraph-2026-archive.
+
+  - name: Skeets
+    visibility: private          # created private 2026-11-20 on the owner's instruction (personal-data handling; same as MyBodyGraph)
+    status: active               # the time-and-goals personal assistant — restarted from scratch, superseding the old MyBodyGraph app
+    linear_project: "Skeets"
+    backup_path: ~/IdeaProjects/Skeets
+    lanes: { iac: true, ci: false, scan: true, pr: true, catalog: true, backup: true }
+    except:
+      ci: "no CI yet: the repo holds only a loose spec. Add a .woodpecker.yml and activate it in Woodpecker when code lands, then flip this"
+    # scan: like MyBodyGraph — central scan-suite + sonarqube + an in-repo .coderabbit.yaml only (private repo, $0 budget:
+    # DeepSource and Sourcery are free only for public repos).
+
+  - name: MyBodyGraph-2026-archive
+    visibility: private
+    status: archived             # retired 2026-11-20 on the owner's instruction: renamed + archived (read-only), NOT deleted.
+                                 # Superseded by Skeets (time-and-goals assistant) + the new, parked MyBodyGraph. Not active,
+                                 # so no Linear project check (its old project is renamed "MyBodyGraph-2026-archive", canceled).
+    lanes: { iac: true, ci: false, scan: false, pr: false, catalog: false, backup: false }
+    except:
+      ci: "archived 2026-11-20: read-only, no CI (Woodpecker repo 7 removed)"
+      scan: "archived 2026-11-20: read-only, out of the scan/review rotation"
+      pr: "archived 2026-11-20: read-only, no PR flow"
+      catalog: "archived 2026-11-20: dropped from the Port integration selectors"
+      backup: "archived 2026-11-20: GitHub keeps the history; the local checkout moves to ~/IdeaProjects/MyBodyGraph-2026-archive"
 
   - name: OJayFloyd
     visibility: public           # created public via `gh repo create` 2026-09-24

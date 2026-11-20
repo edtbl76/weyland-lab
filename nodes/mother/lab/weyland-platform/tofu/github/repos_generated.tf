@@ -181,8 +181,12 @@ resource "github_repository" "freejack" {
   web_commit_signoff_required = false
 }
 
-resource "github_repository" "MyBodyGraph" {
-  name                        = "MyBodyGraph"
+# The original MyBodyGraph, retired 2026-11-20 on the owner's instruction: renamed and archived (read-only), NOT
+# deleted. It is superseded by Skeets (the time-and-goals assistant) and a NEW, parked MyBodyGraph (health metrics),
+# which reuses the name. The `moved` block below keeps this the same resource, so the plan is an in-place rename +
+# archive with 0 to destroy.
+resource "github_repository" "MyBodyGraph_2026_archive" {
+  name                        = "MyBodyGraph-2026-archive"
   visibility                  = "private" # made private 2026-11-08 on the owner's instruction (was public at import)
   vulnerability_alerts        = true
   allow_auto_merge            = false
@@ -191,7 +195,7 @@ resource "github_repository" "MyBodyGraph" {
   allow_rebase_merge          = true
   allow_squash_merge          = true
   allow_update_branch         = false
-  archived                    = false
+  archived                    = true # retired 2026-11-20 (read-only; history and PRs kept)
   auto_init                   = false
   delete_branch_on_merge      = false
   has_discussions             = false
@@ -210,6 +214,10 @@ resource "github_repository" "MyBodyGraph" {
     secret_scanning_push_protection { status = "enabled" }
   }
 }
+
+# (The `moved { from = github_repository.MyBodyGraph ... }` block was applied 2026-11-20 and then removed: the address
+# github_repository.MyBodyGraph is reused below by the NEW MyBodyGraph repo, and a moved block may not point from a
+# declared resource.)
 
 resource "github_repository" "OJayFloyd" {
   name                        = "OJayFloyd"
@@ -271,4 +279,61 @@ resource "github_repository" "grkit" {
     secret_scanning { status = "enabled" }
     secret_scanning_push_protection { status = "enabled" }
   }
+}
+
+# 2026-11-20: the two repos created after the MyBodyGraph retirement. Settings below are the LIVE values read from the
+# GitHub API at creation (not guessed); the import plan must show "2 to import, 0 to change". No security_and_analysis
+# block: GitHub reports none for these private repos on the free plan (secret scanning is unavailable there).
+resource "github_repository" "Skeets" {
+  name                        = "Skeets"
+  description                 = "Personal assistant for one person: manage time, hit goals."
+  visibility                  = "private"
+  vulnerability_alerts        = true
+  allow_auto_merge            = false
+  allow_forking               = true
+  allow_merge_commit          = true
+  allow_rebase_merge          = true
+  allow_squash_merge          = true
+  allow_update_branch         = false
+  archived                    = false
+  auto_init                   = false
+  delete_branch_on_merge      = false
+  has_discussions             = false
+  has_issues                  = true
+  has_projects                = true
+  has_wiki                    = true
+  is_template                 = false
+  merge_commit_message        = "PR_TITLE"
+  merge_commit_title          = "MERGE_MESSAGE"
+  squash_merge_commit_message = "COMMIT_MESSAGES"
+  squash_merge_commit_title   = "COMMIT_OR_PR_TITLE"
+  topics                      = []
+  web_commit_signoff_required = false
+}
+
+resource "github_repository" "MyBodyGraph" {
+  name                        = "MyBodyGraph"
+  description                 = "Parked: connects food/nutrition, fitness/workouts and body metrics. Mobile first."
+  visibility                  = "private"
+  vulnerability_alerts        = true
+  allow_auto_merge            = false
+  allow_forking               = true
+  allow_merge_commit          = true
+  allow_rebase_merge          = true
+  allow_squash_merge          = true
+  allow_update_branch         = false
+  archived                    = false
+  auto_init                   = false
+  delete_branch_on_merge      = false
+  has_discussions             = false
+  has_issues                  = true
+  has_projects                = true
+  has_wiki                    = true
+  is_template                 = false
+  merge_commit_message        = "PR_TITLE"
+  merge_commit_title          = "MERGE_MESSAGE"
+  squash_merge_commit_message = "COMMIT_MESSAGES"
+  squash_merge_commit_title   = "COMMIT_OR_PR_TITLE"
+  topics                      = []
+  web_commit_signoff_required = false
 }
