@@ -79,6 +79,27 @@ of it was B253's evaluation. The judge (`gpt-oss:20b-judge`) averaged 1,181 (lar
 evaluators 2,266-4,236. The operator and the tool-server RAG made no traced calls in the window (idle), and Open WebUI
 is not traced, so those three are measured by replaying their real prompt and tools against Ollama instead.
 
+**Replayed on the real model (2026-11-20):** each surface's real system prompt and tool schemas, built inside the
+operator pod from the live fleet, sent to the surface's model with a 1-token answer; the count is Ollama's
+`prompt_eval_count` (what the model received). Open WebUI adds a little wrapper text of its own, so its rows are lower
+bounds.
+
+| Surface | Model | Window | Tool schemas | Prompt before any conversation | Share |
+|---|---|---|---|---|---|
+| Operator, system prompt only | qwen2.5:7b-operator | 32,768 | 0 | 303 | 1% |
+| Operator, local brain (curated) | qwen2.5:7b-operator | 32,768 | 21 | 5,850 | 18% |
+| Operator, sweep brain (no Realm) | qwen2.5:7b-operator | 32,768 | 20 | 5,633 | 17% |
+| Operator, full fleet (what Haiku gets) | qwen2.5:7b-operator | 32,768 | 107 | 27,742 | **85%** |
+| Lab Status | qwen3:30b-a3b | 16,384 | 13 | 4,321 | 26% |
+| Lab Recall | qwen2.5:7b-operator | 16,384 | 8 | 3,481 | 21% |
+| Lab Recall (thorough) | qwen3:30b-a3b | 16,384 | 8 | 3,483 | 21% |
+
+The full-fleet row is the B45 failure in numbers: 85% of the window gone before a message. **A tool result can overflow
+a preset:** one `k8s_pods_list_in_namespace` for `weyland` is 15,097 tokens (37,858 characters), so "which pods are
+running?" in Lab Status builds about 19,400 tokens against a 16,384 window, and Ollama silently cuts part of it. The
+operator already caps each tool result for its local brain (`LOCAL_TOOL_RESULT_CAP`, 12,000 characters, about 3,000
+tokens); Open WebUI's presets have no cap.
+
 ## Industry survey (2026-11-20)
 
 Primary sources, fetched 2026-11-20 by a research agent; the claims marked **checked** were re-read on the source page
