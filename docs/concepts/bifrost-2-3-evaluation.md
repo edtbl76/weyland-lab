@@ -113,3 +113,14 @@ removed afterwards.
 
 Found along the way: `QASPHERE_API_KEY` in `scripts/.env` is read by nothing (left from a past evaluation): revoke it
 at QA Sphere.
+
+### Production upgrade to v2.5.1 (2026-11-19)
+
+Done as its own change, the B231 way: a manual backup first (`20261119T220453Z`, the rollback point, pinned outside
+the rotation), then the digest pin in `k8s/bifrost/bifrost.yaml` (commit `6b9adcfd`). Argo rolled it in place: about a
+minute of 503s (22:08:47 → 22:09:48 UTC). After it: the pod runs `sha256:5ec9873a…` (v2.5.1); `bifrost-fleet-txn.py`
+`TXN_OK`; the MCP watchdog `checked 11 MCP client(s): 0 alert(s) fired`; one `wl-default` call answered through
+`bifrost.weyland.svc.cluster.local:8080` (LiteLLM's `x-litellm-model-api-base`); and a post-upgrade backup
+(`20261120T015222Z`) has the same counts as the pre-upgrade one: providers 21, virtual keys 6, prompts 280, skills 591,
+MCP clients 11, prompt versions 289. Rollback = revert the pin AND restore the pinned backup (the migrations are
+one-way).

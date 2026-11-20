@@ -372,7 +372,7 @@ dashboard auth" stays off by decision (the setup token, B202, 2026-10-08), so "I
 | Piece | Where |
 |---|---|
 | The token | `BIFROST_SETUP_TOKEN` in `scripts/.env` (64 chars, generated 2026-10-08), sealed as `weyland/bifrost-setup-token` |
-| Bifrost | env `BIFROST_SETUP_TOKEN` on the `bifrost` container (`k8s/bifrost/bifrost.yaml`, with the v2.3.1 digest pin since B231) |
+| Bifrost | env `BIFROST_SETUP_TOKEN` on the `bifrost` container (`k8s/bifrost/bifrost.yaml`, with the v2.5.1 digest pin since B249, 2026-11-19) |
 | Callers | env `BIFROST_SETUP_TOKEN` on `dagster-user-code` (registrations, `sync_prompts.py`), `realm-of-agents` (live role-prompt reads) and `weyland-guard` (the pod the register scripts are piped into); each sends `X-Bifrost-Setup-Token` when the variable is set |
 | Guard | `scripts/tests/test_bifrost_setup_token.py` finds every Python file that calls a Bifrost `/api` path and fails if one does not send the header |
 
@@ -438,9 +438,18 @@ manifest.
 
 **Pinned backups (kept outside the rotation).** `sqlite_backup.py --keep 7` prunes everything in `/backup/bifrost/`, so a
 backup that must outlive a week (an upgrade's rollback point) is copied to `/backup/bifrost-pinned/<ts>` on the same PVC,
-which the rotation never reads. Pinned now: `20261019T190603Z`, the Bifrost 2.2.6 state before the 2.3.1 upgrade
-(B231). Delete a pin when its upgrade is no longer a rollback candidate. To restore from a pin, use its path in the
+which the rotation never reads. Pinned now: `20261119T220453Z`, the Bifrost 2.3.1 state before the 2.5.1 upgrade
+(B249, pinned 2026-11-19), and `20261019T190603Z`, the 2.2.6 state before the 2.3.1 upgrade (B231), which can go once
+2.5.1 has run a while. Delete a pin when its upgrade is no longer a rollback candidate. To restore from a pin, use its path in the
 destructive restore below.
+
+**Pin a backup** (written 2026-11-19, B249: no command existed). Set `TS` to the backup's timestamp. A one-off pod
+(uid 10001, no sidecar) copies `/backup/bifrost/$TS` to `/backup/bifrost-pinned/$TS` and fails unless the copy's
+`config.db` has the same SHA-256 and passes `pragma integrity_check`:
+```
+TS=20261119T220453Z && kubectl -n weyland run bifrost-pin --restart=Never --image=python:3.12-alpine --overrides='{"metadata":{"labels":{"sidecar.istio.io/inject":"false"}},"spec":{"automountServiceAccountToken":false,"securityContext":{"runAsUser":10001,"runAsGroup":10001,"runAsNonRoot":true},"containers":[{"name":"pin","image":"python:3.12-alpine","command":["python3","-c","import hashlib,os,shutil,sqlite3,sys; ts=sys.argv[1]; src=\"/backup/bifrost/\"+ts; dst=\"/backup/bifrost-pinned/\"+ts; os.makedirs(\"/backup/bifrost-pinned\",exist_ok=True); shutil.copytree(src,dst,dirs_exist_ok=True); h=lambda f: hashlib.sha256(open(f,\"rb\").read()).hexdigest(); same=h(src+\"/config.db\")==h(dst+\"/config.db\"); ok=sqlite3.connect(dst+\"/config.db\").execute(\"pragma integrity_check\").fetchone()[0]; print(\"pinned\",dst,\"sha256-equal\",same,\"integrity\",ok); sys.exit(0 if same and ok==\"ok\" else 1)","'"$TS"'"],"volumeMounts":[{"name":"b","mountPath":"/backup"}]}],"volumes":[{"name":"b","persistentVolumeClaim":{"claimName":"bifrost-backup"}}]}}' >/dev/null && kubectl -n weyland wait --for=jsonpath='{.status.phase}'=Succeeded pod/bifrost-pin --timeout=180s >/dev/null; kubectl -n weyland logs bifrost-pin; kubectl -n weyland delete pod bifrost-pin
+```
+Pass = `pinned /backup/bifrost-pinned/<ts> sha256-equal True integrity ok`.
 
 **Restore (destructive).** Argo selfHeal reverts a scale-down, so pause the `bifrost` app first:
 `argocd app set bifrost --sync-policy none --grpc-web` → `kubectl -n weyland scale deploy/bifrost --replicas=0` → a
