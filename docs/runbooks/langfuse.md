@@ -131,6 +131,15 @@ The ONLINE eval lane, complementing the offline B84 MLflow suite; shared fixture
   `LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST` on web+worker (NOT `LANGFUSE_UNSAFE_TRUSTED_PRIVATE_IPS`, which is a no-op —
   langfuse#13097). The codified judge doesn't need it. Memory: `langfuse-session-tracking` neighbours; design doc above.
 
+## Context size per surface (B255, 2026-11-20)
+
+Input tokens per LLM call, grouped by trace name and model, over the last N days (default 7): how big each AI surface's
+context is in real requests. Prints counts only; the ClickHouse password is read from the Secret and never shown.
+
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/langfuse-context-tokens.sh 7
+```
+
 ## Ops & security
 
 - **Uptime Kuma monitor** (manual UI step — monitors are UI-managed): add `langfuse.weyland.lab` to the board.
