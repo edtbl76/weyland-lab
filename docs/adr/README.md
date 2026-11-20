@@ -25,6 +25,7 @@ checks every ADR's sections and status, the numbering, and this index.
 | [0013](./0013-keep-mlflow-on-mother.md) | Keep MLflow on mother | accepted | 2026-11-17 |
 | [0014](./0014-dont-adopt-bifrost-agent-gateway-or-relays.md) | Don't adopt Bifrost's Agent Gateway or Relays | superseded by [0015](./0015-adopt-bifrost-agent-gateway-for-the-realm.md) | 2026-11-19 |
 | [0015](./0015-adopt-bifrost-agent-gateway-for-the-realm.md) | Adopt Bifrost's Agent Gateway for the Realm (Relays stay out) | accepted | 2026-11-19 |
+| [0016](./0016-simplify-the-realm-on-the-free-lane.md) | Simplify the Realm of Agents on the free lane | accepted | 2026-11-20 |
 
 ## Status Legend
 

@@ -13,7 +13,10 @@ from realms import run_lead
 from agents import run_solo
 from roster import BY_KEY, ROSTER, AgentSpec
 
-_CATALOG = "\n".join(f"- {a.key}: {a.god} ({a.realm}/{a.role}) — {a.what}" for a in ROSTER)
+# Gná is the dispatcher, not a destination: she has no tools and no specialty, so she is left off her own menu
+# (B253, 2026-11-20: she picked herself in 18 of 99 evaluated dispatches and answered as a generic persona).
+_ROUTABLE = {a.key: a for a in ROSTER if a.key != "gna"}
+_CATALOG = "\n".join(f"- {a.key}: {a.god} ({a.realm}/{a.role}) — {a.what}" for a in _ROUTABLE.values())
 _CLASSIFY = (
     "You are Gná, the dispatcher for the weyland Realm of Agents. Choose the ONE agent best suited to the task. "
     "Reply with ONLY its key (the token before the colon), nothing else.\n\nAgents:\n" + _CATALOG
@@ -34,7 +37,7 @@ async def classify(task: str) -> str:
     try:
         resp = await brain("wl-speed").ainvoke([("system", _CLASSIFY), ("user", task)], lf_config())
         key = (resp.content or "").strip().split()[0].strip(".,:`\"'").lower()
-        if key in BY_KEY:
+        if key in _ROUTABLE:
             log(f"Gná routed → {key}")
             return key
     except Exception as exc:

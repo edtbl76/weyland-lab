@@ -71,3 +71,16 @@ def test_dispatch_uses_a_given_session_id(monkeypatch):
     asyncio.run(router.dispatch("q", None, session_id="ctx-7"))
     asyncio.run(router.dispatch("q", None))
     assert seen[0] == "ctx-7" and seen[1] and seen[1] != "ctx-7"
+
+
+# --- B253 (2026-11-20): Gná never routes to herself --------------------------------------------------------------
+# The evaluation found Gná picking `gna` in 18 of 99 dispatches: the dispatcher, with no tools and no specialty,
+# then answered as a generic persona. She is not on her own menu, and a reply naming her fails safe like any unknown key.
+def test_gna_is_not_on_her_own_menu():
+    assert "- gna:" not in router._CLASSIFY
+    assert "- odin:" in router._CLASSIFY and "- saga:" in router._CLASSIFY
+
+
+def test_a_reply_naming_gna_fails_safe_to_odin(monkeypatch):
+    monkeypatch.setattr(router, "brain", _brain_returning("gna"))
+    assert asyncio.run(router.classify("write a semver parser")) == "odin"
