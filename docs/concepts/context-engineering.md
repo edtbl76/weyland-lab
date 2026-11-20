@@ -72,8 +72,12 @@ what a summary drops (standing instructions, mid-item decisions, open threads).
 
 ### Service surfaces
 
-To be measured from Langfuse: the operator, the Realm (B253 data: the single agent 26.7k a call, the specialists
-~3.7k-3.9k a call, on a 32,768-token window), Open WebUI's Lab Recall and Lab Status presets, the tool-server RAG.
+**Langfuse, last 7 days (2026-11-20, `scripts/langfuse-context-tokens.sh 7`):** the free lane (`qwen2.5:7b-operator`,
+`wl-local`) took 1,565 calls averaging 9,445 input tokens, 95th percentile 27,396, **largest 31,868 against a 32,768
+window**: the calls nearest the ceiling were probably truncated (Ollama drops the oldest messages silently). Nearly all
+of it was B253's evaluation. The judge (`gpt-oss:20b-judge`) averaged 1,181 (largest 5,349); Langfuse's online
+evaluators 2,266-4,236. The operator and the tool-server RAG made no traced calls in the window (idle), and Open WebUI
+is not traced, so those three are measured by replaying their real prompt and tools against Ollama instead.
 
 ## Industry survey (2026-11-20)
 

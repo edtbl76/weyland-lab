@@ -72,7 +72,11 @@ standard deviation 0.07 to 0.12), so three runs were enough to separate the arms
    tools or specialty, then answered as a generic persona), and she sent 35% of all tasks to Verðandi, including a
    Postgres lookup and a design question.
 4. **The single agent's weakness is context bloat.** Every call carries about 26,000 tokens of tool schemas (mean 26,682
-   input tokens a call, the largest 29,634, under the 32,768 window, so no truncation). On the two pure-reasoning tasks
+   input tokens a call, averaged per run). **Correction (B255, 2026-11-20):** per-call figures from Langfuse show the
+   free lane's largest call at 31,868 input tokens and the 95th percentile at about 27,400, against a 32,768 window. The
+   earlier "no truncation" read per-run averages and was wrong to rule it out: the calls nearest the ceiling were
+   probably truncated by Ollama (it drops the oldest messages without an error), which would have hurt the single arm
+   most. The verdict stands (the single arm won despite it), but its margin may be understated. On the two pure-reasoning tasks
    with no tool to call (v-simplify, w-faithfulness) it returned an empty answer every time. This is the problem B255
    (context engineering) takes on: picking the few relevant tool schemas per request would likely keep the single
    agent's advantage on tool tasks without the bloat.
