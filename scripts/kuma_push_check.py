@@ -25,7 +25,7 @@ RUNBOOK = os.path.join(REPO_ROOT, "docs", "runbooks", "uptime-kuma.md")
 SECTION = "## Push monitors"
 ROW_RE = re.compile(r"^\|\s*`([^`]+)`\s*\|[^|]*\|[^|]*\|\s*\*\*(\d+)\s*s\*\*")
 QUERY = "select id,name,active,interval,retry_interval,maxretries from monitor where type='push';"
-# Read-only: sqlite3 -readonly inside the Kuma pod; kubectl runs on mother (feedback: kubectl-on-mother).
+# Read-only: sqlite3 -readonly inside the Kuma pod.
 READ_CMD = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "emangini@mother",
             "KUBECONFIG=$HOME/.kube/config kubectl -n weyland exec deploy/uptime-kuma -- "
             f"sqlite3 -readonly /app/data/kuma.db \"{QUERY}\""]
