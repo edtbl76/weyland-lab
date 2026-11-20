@@ -18,6 +18,10 @@ They live only in `config.db`, so this script restores them after a rebuild. Run
   registers with an MCP server's OAuth (dynamic client registration). Unset, Bifrost uses the request Host header, and
   register_bifrost_mcp_clients.py runs in-cluster, so Jam got a `bifrost.weyland.svc.cluster.local` callback no browser
   can reach. A DCR client registered under a wrong base needs `POST /api/mcp/client/{id}/reregister` once this is set.
+- The Agent Gateway's two settings (B249, 2026-11-19), for the Realm behind Bifrost: `a2a_private_allowlist` includes
+  the Realm's in-cluster Service (the gateway refuses a private destination otherwise: "blocked connection to non-public
+  address"), and `a2a_external_client_url` is the IN-CLUSTER base (unset, every agent endpoint answers 503). The
+  gateway's callers are in-cluster (the operator), and the public host is behind Keycloak forward-auth.
 
 PUT /api/config copies many client_config fields unconditionally (booleans included), so a partial body would reset
 them. This reads the FULL client_config, changes only the owned fields, sends nothing else (framework_config and
@@ -28,9 +32,13 @@ import os
 
 BASE_ENV = "BIFROST_URL"   # required, passed by the runbook command; no default, so a missing URL fails loudly
 PUBLIC_URL = "https://bifrost.weyland.lab"
-LIST_FIELDS = {"whitelisted_routes": ["/metrics"], "allowed_origins": [PUBLIC_URL]}
+IN_CLUSTER_URL = "http://bifrost.weyland.svc.cluster.local:8080"
+REALM_HOST = "realm-of-agents.weyland.svc.cluster.local"
+LIST_FIELDS = {"whitelisted_routes": ["/metrics"], "allowed_origins": [PUBLIC_URL],
+               "a2a_private_allowlist": [REALM_HOST]}
 FLAG_FIELDS = {"enforce_auth_on_inference": True}
-VALUE_FIELDS = {"skills_external_client_url": PUBLIC_URL, "mcp_external_client_url": PUBLIC_URL}
+VALUE_FIELDS = {"skills_external_client_url": PUBLIC_URL, "mcp_external_client_url": PUBLIC_URL,
+                "a2a_external_client_url": IN_CLUSTER_URL}
 
 
 def _read(client) -> dict:

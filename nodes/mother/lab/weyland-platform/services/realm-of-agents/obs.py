@@ -33,6 +33,12 @@ def set_session(session_id: str) -> None:
     _session.set(session_id)
 
 
+def current_session() -> str | None:
+    """The current dispatch's session id, or None outside a dispatch. fleet.py sends it to Bifrost as
+    `x-bf-session-id`, so Bifrost's Agent Logs join a conversation's tool calls to it (B249)."""
+    return _session.get()
+
+
 def lf_config(base: dict | None = None) -> dict:
     """Merge the Langfuse callback + `langfuse_session_id` metadata into a LangChain run config. Fail-safe: with
     Langfuse off, returns `base` unchanged, so every ainvoke/astream_events call site is a no-op drop-in."""

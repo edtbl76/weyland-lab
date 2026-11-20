@@ -79,6 +79,11 @@ spec:
             #   kubectl -n weyland create secret generic realm-of-agents-secret --from-literal=BIFROST_VK=<agents-read VK>
             - name: BIFROST_VK
               valueFrom: { secretKeyRef: { name: realm-of-agents-secret, key: BIFROST_VK, optional: true } }
+            # B249 (2026-11-19) — Bifrost's Agent Gateway sends this token on every call it forwards to the Realm (the
+            # registration's runtime_auth). The A2A binding honours `allow_paid` ONLY with it (a2a.py); without the
+            # Secret (optional) every A2A call stays free-only. Sealed: seal_realm_gateway.sh.
+            - name: REALM_GATEWAY_TOKEN
+              valueFrom: { secretKeyRef: { name: realm-gateway-token, key: REALM_GATEWAY_TOKEN, optional: true } }
             # Bifrost endpoints — default the LAN ingress (CoreDNS forwards *.weyland.lab). To skip TLS to the self-signed
             # ingress, repoint BIFROST_MCP_URL/BIFROST_API_URL at the in-cluster Bifrost Service (plain http). To verify
             # the ingress cert instead, mount the lab CA and set BIFROST_CA_BUNDLE (never disable verification).

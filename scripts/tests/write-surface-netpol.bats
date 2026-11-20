@@ -92,9 +92,9 @@ print('ok')"
   [[ "$output" == *"expected"* ]]
 }
 
-@test "the Realm admits only its six callers, on 8080" {
+@test "the Realm admits only its seven callers, on 8080 (Bifrost's Agent Gateway added by B249)" {
   run check weyland realm-of-agents-front-door-only realm-of-agents 8080 \
-    app=weyland-operator app=dagster-user-code app=a2a-inspector \
+    app=weyland-operator app=dagster-user-code app=a2a-inspector app=bifrost \
     "ns=kube-system,app.kubernetes.io/name=traefik" "ns=monitoring,app.kubernetes.io/name=prometheus" \
     "ns=monitoring,app=api-drift"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
@@ -105,6 +105,15 @@ print('ok')"
 import yaml
 d=[x for x in yaml.safe_load_all(open('$P/monitoring/api-drift.yaml')) if x and x.get('kind')=='CronJob'][0]
 assert d['spec']['jobTemplate']['spec']['template']['metadata']['labels'].get('app')=='api-drift'
+print('ok')"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "Bifrost's pods carry the label the Realm's policy admits (B249)" {
+  run python3 -c "
+import yaml
+d=[x for x in yaml.safe_load_all(open('$P/bifrost/bifrost.yaml')) if x and x.get('kind')=='Deployment' and x['metadata']['name']=='bifrost'][0]
+assert d['spec']['template']['metadata']['labels'].get('app')=='bifrost'
 print('ok')"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }

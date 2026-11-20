@@ -97,6 +97,14 @@ kubectl -n weyland exec deploy/realm-of-agents -c realm-of-agents -- python3 -c 
 kubectl -n weyland exec deploy/realm-of-agents -c realm-of-agents -- python3 -c "import http.client,json;c=http.client.HTTPConnection('localhost',8080,timeout=180);c.request('POST','/agents/saga/message',json.dumps({'message':'List the Trino catalogs and their schemas.'}),{'content-type':'application/json'});print(c.getresponse().read().decode())"
 ```
 
+**Through Bifrost's Agent Gateway, as the operator calls it (B249)** — a free-lane A2A v1 `SendMessage` from the
+operator's pod with its own virtual key (no paid call):
+```
+kubectl -n weyland exec deploy/weyland-operator -c weyland-operator -- python -c 'import os,uuid,httpx; b={"jsonrpc":"2.0","id":"1","method":"SendMessage","params":{"message":{"messageId":uuid.uuid4().hex,"role":"ROLE_USER","parts":[{"text":"In one sentence, what is the Realm of Agents?"}],"metadata":{"allow_paid":False}}}}; r=httpx.post(os.environ["REALM_GATEWAY_URL"],json=b,headers={"x-bf-vk":os.environ["REALM_GATEWAY_VK"],"A2A-Version":"1.0"},timeout=240); j=r.json(); m=(j.get("result") or {}).get("message") or {}; print(r.status_code, j.get("error"), m.get("contextId"), m.get("metadata"), ((m.get("parts") or [{}])[0].get("text") or "")[:200])'
+```
+Then open Bifrost > Agents > Logs: the call is there under key `realm-operator` with the printed context id, and the
+MCP logs for the same session show which tools the answer used.
+
 **Watch the live delegation trace:**
 ```
 kubectl -n weyland logs -f --tail=5 deploy/realm-of-agents

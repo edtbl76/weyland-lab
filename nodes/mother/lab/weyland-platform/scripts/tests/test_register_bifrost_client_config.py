@@ -13,11 +13,14 @@ import register_bifrost_client_config as r
 
 BASE_CC = {"drop_excess_requests": True, "disable_content_logging": False, "prometheus_labels": [],
            "mcp_server_auth_mode": "headers", "whitelisted_routes": None, "allowed_origins": None,
-           "enforce_auth_on_inference": False, "skills_external_client_url": "", "mcp_external_client_url": ""}
+           "enforce_auth_on_inference": False, "skills_external_client_url": "", "mcp_external_client_url": "",
+           "a2a_private_allowlist": None, "a2a_external_client_url": ""}
 LIVE = {"client_config": BASE_CC, "framework_config": {"pricing_url": "x"}, "auth_config": {"is_enabled": False}}
 DONE = {"whitelisted_routes": ["/metrics"], "allowed_origins": ["https://bifrost.weyland.lab"],
         "enforce_auth_on_inference": True, "skills_external_client_url": "https://bifrost.weyland.lab",
-        "mcp_external_client_url": "https://bifrost.weyland.lab"}
+        "mcp_external_client_url": "https://bifrost.weyland.lab",
+        "a2a_private_allowlist": ["realm-of-agents.weyland.svc.cluster.local"],
+        "a2a_external_client_url": "http://bifrost.weyland.svc.cluster.local:8080"}
 
 
 class _Resp:
@@ -140,3 +143,23 @@ def test_a_different_marketplace_url_is_corrected():
     fake = _Fake([_with(**{**DONE, "skills_external_client_url": "http://localhost:8080"}), _with(**DONE)])
     r.ensure_settings(fake)
     assert fake.puts[0]["client_config"]["skills_external_client_url"] == "https://bifrost.weyland.lab"
+
+
+# ---- B249 (2026-11-19): the Agent Gateway's settings, for the Realm behind Bifrost ----------------------------------
+# The gateway refuses a private destination unless it is on a2a_private_allowlist (the Realm is an in-cluster Service),
+# and with a2a_external_client_url unset every agent endpoint answers 503. Its callers are in-cluster (the operator),
+# and the public host is behind Keycloak forward-auth, so the advertised base is the in-cluster Service.
+
+def test_the_agent_gateway_admits_the_realm_and_advertises_the_in_cluster_base():
+    fake = _Fake([_with(), _with(**DONE)])
+    r.ensure_settings(fake)
+    cc = fake.puts[0]["client_config"]
+    assert cc["a2a_private_allowlist"] == ["realm-of-agents.weyland.svc.cluster.local"]
+    assert cc["a2a_external_client_url"] == "http://bifrost.weyland.svc.cluster.local:8080"
+
+
+def test_an_existing_allowlist_entry_is_kept():
+    fake = _Fake([_with(a2a_private_allowlist=["10.0.0.5"]),
+                  _with(**{**DONE, "a2a_private_allowlist": ["10.0.0.5", "realm-of-agents.weyland.svc.cluster.local"]})])
+    r.ensure_settings(fake)
+    assert fake.puts[0]["client_config"]["a2a_private_allowlist"] == ["10.0.0.5", "realm-of-agents.weyland.svc.cluster.local"]

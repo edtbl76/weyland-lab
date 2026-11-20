@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: weyland-operator-realm
+  namespace: weyland
+spec:
+  encryptedData:
+    REALM_GATEWAY_VK: AgBi8yAGQ6VjSTOJ4ajZZ+IiE/wv2HRXuDJSyLcVAv45iT1DtqdMcrGvJKINH+orysNusHP+VmC3n9AuAkXpzMdSZM+JVi+FyI0qhHL4PUJ0WqBpuNhHV2BhGDyenicxyE740Z2rlFU8huEQ+9KpJx92WTXutLMKG9EGAyqZzGmHfLmnbb+kDvHj0UpqlDcuGsf/crJDlF8TboRfZziX48yPVfNzi/7sllTwQFVo0DmNz8GBh8/a/DB4ROVfMUTnjbv8J7sg1KCv1Qq23JuCMLSXgDorSSWZoCUqf4XxWyPyBUkNQoD6X7VikEa0pg749eDMcDgRSoVltyjrlclCTzgmSkILlmrJthB7p4yxdHTRkn6k2OWG47JTbA73JxDL3NrwG0eK0H28kRDLOV07J0LTqVbfkZnmO356oXI/HsaN4wtzd5ioqYYHn68VVVEYGzecfe3d8m1iCgBVR3tyBEoMq9Gb+0w+rNs1z2zEm1NQ8HB73R8GjwMsZNuZv+C8YmWQua8c9vMwrAsZcfMJxtk/VO+lZqhjYW4j9uQ2vgjuRugwuXyoO+ITBkp5iNq1ZEdMRmwmLMve15JvWu6cM1gVwB01g7Z2Jk8N0VEhaHlIc34KF6rvt/OUn6HzGIojf0fyBuIO7aD+375SNOSlogCiWiDNS4TAEKi26njoOc08EMGvThIlbmrrN6FDI/Xjx/Iz4mGISXy5g6TnCa9gX6eMt1XxeMKobKfKJtsUvwOYw8T7UAI3QPWz31M=
+  template:
+    metadata:
+      name: weyland-operator-realm
+      namespace: weyland

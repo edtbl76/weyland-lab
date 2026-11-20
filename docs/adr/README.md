@@ -23,7 +23,8 @@ checks every ADR's sections and status, the numbering, and this index.
 | [0011](./0011-dont-adopt-sentry-saas.md) | Don't adopt Sentry SaaS | accepted | 2026-11-13 |
 | [0012](./0012-timberback-bare-metal-ubuntu-on-btrfs.md) | Run timberback as a bare-metal Ubuntu k3s worker on btrfs, not under Proxmox | accepted | 2026-11-14 |
 | [0013](./0013-keep-mlflow-on-mother.md) | Keep MLflow on mother | accepted | 2026-11-17 |
-| [0014](./0014-dont-adopt-bifrost-agent-gateway-or-relays.md) | Don't adopt Bifrost's Agent Gateway or Relays | accepted | 2026-11-19 |
+| [0014](./0014-dont-adopt-bifrost-agent-gateway-or-relays.md) | Don't adopt Bifrost's Agent Gateway or Relays | superseded by [0015](./0015-adopt-bifrost-agent-gateway-for-the-realm.md) | 2026-11-19 |
+| [0015](./0015-adopt-bifrost-agent-gateway-for-the-realm.md) | Adopt Bifrost's Agent Gateway for the Realm (Relays stay out) | accepted | 2026-11-19 |
 
 ## Status Legend
 

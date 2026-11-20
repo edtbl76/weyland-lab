@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: realm-gateway-token
+  namespace: weyland
+spec:
+  encryptedData:
+    REALM_GATEWAY_TOKEN: AgBwrpO9j7BsIBTbPDrqnBZ+gKYhD3rSQD4RVhdDietc2VBvZLuJAEJohKKIg/iElNnKAi9lYz6671xwu0WZrp3KZZPAzeKd3vc8S1oOEZqaUfIdHthrm11BiuW7VJx9l4CkIm/UpXYtz4w0dMffA9VTtPxjuBCXEnIw3yAss7pcAUD8cBun5dctZhTsiCkEFNnsYNoBUUxMoRy/z+S4DfCLFKZCwAOsKQ0CYLNXfYUrk1vHllu7YPYwn4IDvUuK8N0n+Vdeaf7y5prbwv6V3cxP1n/DOa2epxmudbWl3FO/eN/adbsp1xIO9VskCCzrPoXQ29sv3NMbzeKUuBVxfxdjt05HtR9dW92d5Zc5aX75+16dsnAJX3V9O/nuZHGWHT0IhqUyzZoHkvIS8YkiQp3amnRNc2LRdQv4y+9RO4RSdRnsnVdLaeOhru+UgVD6i35LwZHyE6oLHLbOj1hzapyrPVzvmG78twNeGlICOekOxmJkIsOFcNXbZ4wJAKY1BUXZUf8zJpLDXb0yzzGLawABRGULmGKUzUAsH7cC0cmwFGgHant5oH1F21bd1VjA9GiW5qI7YSjSVlHejfeA9D8G/9nawfpwHFBXEVEQVUgcXTTbtYIWgd0ZxxoEaD5BpUGFqikAElV3ccWkFT22rtjMVODROwffdE/CCt1LPmQbrfxLV8Sl9xR/hCZkNwlibtDU2omDwtBr0DQrOQAIkd4Usak61oMM8xAtt1UjAR0NL7S1jFnO4c0J3J8D
+  template:
+    metadata:
+      name: realm-gateway-token
+      namespace: weyland

@@ -20,7 +20,9 @@ _CLASSIFY = (
 )
 
 
-async def run_agent(spec: AgentSpec, task: str, history: list | None = None) -> str:
+async def run_agent(spec: AgentSpec, task: str, history: list | None = None, session_id: str | None = None) -> str:
+    if session_id:
+        set_session(session_id)   # a direct per-agent A2A call: its conversation id is the session (B249)
     log(f"running {spec.god} ({'lead' if spec.lead else 'solo'})")
     if spec.lead:
         return await run_lead(spec, task, history)
@@ -40,8 +42,9 @@ async def classify(task: str) -> str:
     return "odin"
 
 
-async def dispatch(task: str, history: list | None = None) -> tuple[str, str]:
-    """Classify → run. Returns (chosen_key, answer)."""
-    set_session(str(uuid.uuid4()))   # one dispatch = one Langfuse session (covers /route + the A2A binding)
+async def dispatch(task: str, history: list | None = None, session_id: str | None = None) -> tuple[str, str]:
+    """Classify → run. Returns (chosen_key, answer). `session_id`: an A2A caller's conversation id (B249), so
+    Langfuse and Bifrost's Agent Logs key the conversation alike; otherwise a fresh one."""
+    set_session(session_id or str(uuid.uuid4()))   # one dispatch = one session (covers /route + the A2A binding)
     key = await classify(task)
     return key, await run_agent(BY_KEY[key], task, history)

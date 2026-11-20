@@ -60,3 +60,21 @@ def test_root_card_advertises_every_agent_as_a_skill():
     assert rc["name"] == "Realm of Agents"
     assert len(rc["skills"]) == len(roster.ROSTER)
     assert rc["provider"]["organization"] == "weyland"
+
+
+# ---- A2A v1 interface for Bifrost's Agent Gateway (B249, 2026-11-19) ------------------------------------------------
+# The gateway accepts a card only with a `supportedInterfaces` entry at protocol version "1.0" with a JSON-RPC binding
+# (Bifrost core/agent/manager.go isStrictV1Interface). The 0.3 fields stay for direct callers (the a2a-inspector).
+
+def test_root_card_advertises_a_v1_jsonrpc_interface_and_keeps_0_3():
+    c = cards.root_card(base="http://realm:8080")
+    assert c["supportedInterfaces"] == [{"url": "http://realm:8080/a2a", "protocolBinding": "JSONRPC",
+                                         "protocolVersion": "1.0"}]
+    assert c["url"] == "http://realm:8080/a2a" and c["protocolVersion"] == config.A2A_PROTOCOL_VERSION
+
+
+def test_agent_card_advertises_its_own_v1_endpoint():
+    spec = roster.BY_KEY["odin"]
+    c = cards.card(spec, base="http://realm:8080/")
+    assert c["supportedInterfaces"] == [{"url": "http://realm:8080/a2a/odin", "protocolBinding": "JSONRPC",
+                                         "protocolVersion": "1.0"}]

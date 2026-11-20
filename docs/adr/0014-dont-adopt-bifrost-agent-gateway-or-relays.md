@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+Superseded by [ADR-0015](./0015-adopt-bifrost-agent-gateway-for-the-realm.md)
 
 Date: 2026-11-19
 

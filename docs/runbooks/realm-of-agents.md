@@ -9,13 +9,16 @@ forward-auth). Design: `docs/design/a2a-agent-roster.md`; map: `docs/realm-of-ag
 
 - **Deployment** `realm-of-agents` (ns `weyland`, 1 replica), manifests `k8s/realm-of-agents/`, code
   `services/realm-of-agents/`. FastAPI on 8080 behind Service `realm-of-agents` and the ingress.
-- **Reachable only through Traefik** (and Prometheus for metrics): the NetworkPolicy
-  `realm-of-agents-front-door-only` admits nothing else, so in-cluster callers use the ingress too.
-- **Model:** every agent turn goes to LiteLLM as `REALM_MODEL=wl-agentic` (Claude Haiku, routed through Bifrost).
-  **Each dispatch is a paid call.** Tools come through Bifrost with the `agents-read` virtual key
+- **Who can reach it:** the NetworkPolicy `realm-of-agents-front-door-only` admits Traefik (people, through
+  Keycloak), the operator, Dagster, the a2a-inspector, Bifrost's Agent Gateway and Prometheus; nothing else
+  (the header of `k8s/realm-of-agents/netpol.yaml` lists why each one is there).
+- **Model:** a paid turn goes to LiteLLM as `REALM_MODEL=wl-agentic` (Claude Haiku, routed through Bifrost); a
+  free-only turn stays on the local models. **A2A calls are free-only unless they come through the Agent Gateway and
+  ask for paid** (§ Through Bifrost's Agent Gateway). Tools come through Bifrost with the `agents-read` virtual key
   (`BIFROST_VK` from Secret `realm-of-agents-secret`, sealed). Runs are traced to Langfuse (sessions) and MLflow.
 - **Surface:** `/` (UI), `/.well-known/agent-card.json` (the realm's card, 24 skills), `/agents` and
-  `/agents/{key}/card` (per-agent cards), `/a2a` and `/a2a/{key}` (JSON-RPC `message/send`), `/route` and
+  `/agents/{key}/card` (per-agent cards), `/a2a` and `/a2a/{key}` (JSON-RPC: A2A v1 `SendMessage` and 0.3
+  `message/send`; the cards advertise v1 in `supportedInterfaces`), `/route` and
   `/route/stream` (dispatch through the supervisor), `/health`, `/ready`, `/metrics`.
 - **Image:** `registry.weyland.lab/realm-of-agents:git-<sha>`, set by CI and shipped with `scripts/ship-images.sh`.
 
@@ -45,6 +48,88 @@ Expected: `Realm of Agents 24 skills`.
 **A real dispatch** (`/route`, or a message in the UI) is the only end-to-end test, and it costs a Haiku call per
 agent turn. Use the UI for one message when you need it; the A2A Inspector (`inspector.weyland.lab`) validates the
 A2A surface without dispatching.
+
+## Through Bifrost's Agent Gateway (B249, 2026-11-19)
+
+The operator calls the Realm through Bifrost's Agent Gateway (decision:
+[ADR-0015](../adr/0015-adopt-bifrost-agent-gateway-for-the-realm.md)):
+
+```
+weyland-operator --SendMessage + x-bf-vk (realm-operator)--> Bifrost /agents/a2a/realm/json-rpc
+Bifrost --SendMessage + X-Realm-Gateway-Token--> realm-of-agents /a2a
+```
+
+- **Grant:** the agent `realm` is granted to one virtual key, `realm-operator` (`allow_by_default` off). Bifrost
+  refuses every other key. The caller's key is not forwarded; the Realm's agents use their own `agents-read` key for
+  tools.
+- **Paid lane:** a call runs paid only when it asks (`metadata.allow_paid: true`) AND carries
+  `X-Realm-Gateway-Token` equal to the Realm's `REALM_GATEWAY_TOKEN`. Bifrost adds the header to every call it
+  forwards (runtime auth `env.REALM_GATEWAY_TOKEN`), so **every key granted the Realm can spend**: granting another
+  caller is a new decision. The 0.3 path and direct calls are free-only.
+- **One id per conversation:** the A2A `contextId` is the Realm's dispatch session, and the Realm's MCP calls send it
+  as `x-bf-session-id`. Bifrost's Agent Logs (UI Agents > Logs, `/api/agents/history`) show it next to the caller's
+  key, and the MCP logs carry the same session id.
+- **Where it lives:** the registration and the key are only in Bifrost's `config.db`;
+  `scripts/register_bifrost_realm_agent.py` is their definition in git and rebuilds them. Secrets:
+  `realm-gateway-token` (read by Bifrost and the Realm) and `weyland-operator-realm` (the operator's key), both sealed
+  by `scripts/seal_realm_gateway.sh` from the gitignored `scripts/.env`.
+- **When Bifrost is down,** delegation fails: the operator does not fall back to `/route` after a gateway error. It
+  uses `/route` only when `REALM_GATEWAY_URL` or `REALM_GATEWAY_VK` is unset.
+
+**Set it up or rebuild it**, in order:
+
+1. The gateway settings (the private allowlist and the External Client URL; idempotent):
+
+```bash
+kubectl -n weyland exec -i deploy/weyland-guard -c weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_client_config.py
+```
+
+2. The operator's key, appended to `scripts/.env`. It prints only `REALM_GATEWAY_VK=...`, so never run it without the
+   redirect. `REALM_GATEWAY_TOKEN` must already be in the same file (any random value of 32 bytes or more):
+
+```bash
+kubectl -n weyland exec -i deploy/weyland-guard -c weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - ensure-vk < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_realm_agent.py >> /home/edwardmangini/IdeaProjects/weyland/scripts/.env
+```
+
+3. Seal both secrets (writes `k8s/sealed-secrets/sealed/weyland__realm-gateway-token.yaml` and
+   `weyland__weyland-operator-realm.yaml`), then push them. Bifrost, the Realm and the operator read them on their
+   next start:
+
+```bash
+bash /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/seal_realm_gateway.sh
+```
+
+4. Once the Realm serves the v1 card, register the agent:
+
+```bash
+kubectl -n weyland exec -i deploy/weyland-guard -c weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - register < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_realm_agent.py
+```
+
+5. Check it. Read-only; exit 1 names any drift, including a grant to any key other than `realm-operator`:
+
+```bash
+kubectl -n weyland exec -i deploy/weyland-guard -c weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - check < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_realm_agent.py
+```
+
+Expected: `OK: realm → http://realm-of-agents.weyland.svc.cluster.local:8080/.well-known/agent-card.json, granted to
+realm-operator only, gateway token from env.REALM_GATEWAY_TOKEN`.
+
+**Verify the path (free; no paid call):** one free-lane `SendMessage` from the operator's pod, with its own key:
+
+```bash
+kubectl -n weyland exec deploy/weyland-operator -c weyland-operator -- python -c 'import os,uuid,httpx; b={"jsonrpc":"2.0","id":"1","method":"SendMessage","params":{"message":{"messageId":uuid.uuid4().hex,"role":"ROLE_USER","parts":[{"text":"In one sentence, what is the Realm of Agents?"}],"metadata":{"allow_paid":False}}}}; r=httpx.post(os.environ["REALM_GATEWAY_URL"],json=b,headers={"x-bf-vk":os.environ["REALM_GATEWAY_VK"],"A2A-Version":"1.0"},timeout=240); j=r.json(); m=(j.get("result") or {}).get("message") or {}; print(r.status_code, j.get("error"), m.get("contextId"), m.get("metadata"), ((m.get("parts") or [{}])[0].get("text") or "")[:200])'
+```
+
+Expected: `200 None <contextId> {'routed_to': ..., 'realm': ...} <an answer>`. Bifrost UI > Agents > Logs then shows
+the call under key `realm-operator` with the same context id. A JSON-RPC error naming the agent or the key means a
+missing grant (run `check`); a 503 means the gateway settings are missing (step 1).
+
+| Symptom | Likely cause | Check and fix |
+|---|---|---|
+| the operator's delegation fails with a gateway error | Bifrost down, or the agent not registered | Bifrost health ([mcp-gateway.md](mcp-gateway.md)); `check` above |
+| the gateway answers 503 to every A2A call | `a2a_external_client_url` unset | step 1 |
+| a task the operator sent as paid is answered by the free models | the token is missing on one side, or `runtime_auth` drifted | both pods have a non-empty `REALM_GATEWAY_TOKEN`; `check` |
+| `check` says `DRIFT: granted to ...` | another key was granted in the UI | decide it; otherwise `register` puts the grant back to `realm-operator` only |
 
 ## What broke? Symptom to cause
 
@@ -79,4 +164,4 @@ Prometheus scrapes `/metrics` (ServiceMonitor `realm-of-agents`): `realm_request
 ## Related
 
 - Who calls it: the B66 operator over A2A ([operator.md](operator.md)). Model routing: [model-gateway.md](model-gateway.md).
-- Restore: stateless. The roster and prompts are in the image; its one secret is rebuildable (`docs/dr.md`).
+- Restore: stateless. The roster and prompts are in the image; its secrets are rebuildable, and its Bifrost registration is rebuilt by `register_bifrost_realm_agent.py` (`docs/dr.md`).

@@ -47,7 +47,7 @@ scratch `config.db`.
    (`scripts/bifrost-fleet-txn.py`) OK, one `wl-default` call through LiteLLM, the Prompt/Skills counts unchanged.
 4. Roll back: revert the pin in git and restore the manual backup (the restore section of the runbook).
 
-## 2.5 re-evaluation (B249, in progress since 2026-11-19)
+## 2.5 re-evaluation (B249, 2026-11-19)
 
 B249 re-asks B212's questions on 2.5.x and adds the 2.4/2.5 agent features (Relays, agents declared in config,
 agent-mode governance, caller identity on logs). Same method: a throwaway instance on rogueone first, production only
@@ -101,7 +101,7 @@ removed afterwards.
 | Caller identity on logs | Email is recorded only for signed-in users, so agent traffic (virtual keys, dashboard auth off) has none; the virtual key's name already identifies the caller. `capture_client_ip` is a startup log-store setting (`logs_store`, `framework/logstore/config.go`); production has no `config.json` (its config is in the database) and the addresses would mostly be in-cluster proxies. **Leave it off** |
 | Agent mode / code mode governance | Nothing in the lab asks Bifrost to run tools in agent mode or code mode (LiteLLM sends some model traffic through Bifrost; the harnesses use `/mcp`). Nothing to turn on; confirmed on real traffic after the upgrade |
 
-### Verdicts on 2.5 (owner, 2026-11-19) — [ADR-0014](../adr/0014-dont-adopt-bifrost-agent-gateway-or-relays.md)
+### Verdicts on 2.5 (owner, 2026-11-19) — [ADR-0014](../adr/0014-dont-adopt-bifrost-agent-gateway-or-relays.md), superseded for the Agent Gateway by [ADR-0015](../adr/0015-adopt-bifrost-agent-gateway-for-the-realm.md) (see § Adopted)
 
 | Feature | Verdict | Why |
 |---|---|---|
@@ -144,7 +144,7 @@ the API and only as the Realm's inbound front door.
 
 | Item | What it is | Verdict for the lab today |
 |---|---|---|
-| Agent Catalog, inbound (the Realm behind Bifrost) | register the Realm; callers use `/agents/a2a/<name>/json-rpc` with a virtual key | Tested on the throwaway (above). Cost: A2A v1 in the Realm (~150 lines) plus gateway settings. Value, corrected: per-caller keys AND **Agent Logs that follow one conversation across its A2A turns, LLM calls and MCP calls** when the Realm sends the two correlation headers on its own Bifrost calls (its MCP tools already go through Bifrost; Langfuse sees only its LLM calls). Decision returned to the owner |
+| Agent Catalog, inbound (the Realm behind Bifrost) | register the Realm; callers use `/agents/a2a/<name>/json-rpc` with a virtual key | Tested on the throwaway (above). Cost: A2A v1 in the Realm (~150 lines) plus gateway settings. Value, corrected: per-caller keys AND **Agent Logs that follow one conversation across its A2A turns, LLM calls and MCP calls** when the Realm sends the two correlation headers on its own Bifrost calls (its MCP tools already go through Bifrost; Langfuse sees only its LLM calls). **ADOPTED** (owner, 2026-11-19; § Adopted below) |
 | Agent Catalog, outbound (lab agents calling outside A2A agents through Bifrost) | the same registration for a third-party agent | Nothing to front: no lab agent calls an outside A2A agent today |
 | Push Configurations | A2A push: an agent's long task sends updates through Bifrost to a caller's callback URL; Bifrost stores registrations and pending deliveries durably | Not applicable: needs an agent that runs long tasks and supports A2A push. The Realm answers `message/send` synchronously |
 | Agent Settings | External Client URL (unset, agent endpoints answer 503), the private allowlist, raw request capture | Exercised on the throwaway; only needed if an agent is registered |
@@ -153,3 +153,28 @@ the API and only as the Realm's inbound front door.
 routes it to a model tier; its default classifier is TypeSafe's paid decision model, and the alternatives add an LLM
 or embedding call per request. Model routing in the lab lives in LiteLLM by decision (`wl-*` lanes; gateway-lane
 separation), so **leave it off**; the per-subagent change only matters once it is on.
+
+### Adopted: the Realm behind the Agent Gateway (owner, 2026-11-19) — [ADR-0015](../adr/0015-adopt-bifrost-agent-gateway-for-the-realm.md)
+
+Owner: "Adopt. As part of B249. Just do it. It's a single person show." What was built:
+
+| Piece | Where |
+|---|---|
+| A2A v1 next to 0.3: `SendMessage`, v1 cards (`supportedInterfaces`, `protocolBinding: JSONRPC`, `protocolVersion: 1.0`) | `services/realm-of-agents/a2a.py`, `cards.py` |
+| Paid only with `metadata.allow_paid: true` AND `X-Realm-Gateway-Token` (constant-time compare); both A2A methods free-only otherwise. Closes the old gap where the A2A path always ran paid | `a2a.py` (`_paid`) |
+| `contextId` becomes the dispatch session; the Realm's MCP calls send it as `x-bf-session-id` (an httpx request hook) | `router.py`, `obs.py`, `fleet.py` |
+| The operator calls the gateway when `REALM_GATEWAY_URL` + `REALM_GATEWAY_VK` are set; a gateway error is not retried on `/route` | `services/weyland-operator/realm.py` |
+| Bifrost sends the token from its env (runtime auth `env.REALM_GATEWAY_TOKEN`); granted to `realm-operator` only; the caller's key not forwarded | `scripts/register_bifrost_realm_agent.py` (`ensure-vk`, `register`, `check`) |
+| Gateway settings: `a2a_private_allowlist`, `a2a_external_client_url` | `scripts/register_bifrost_client_config.py` |
+| Secrets `realm-gateway-token`, `weyland-operator-realm` | `scripts/seal_realm_gateway.sh`; manifests for Bifrost, the Realm, the operator; the Realm's NetworkPolicy admits Bifrost |
+
+**Proven locally before the push (2026-11-19):** the changed Realm image registered in a throwaway v2.5.1 with
+runtime auth from an env reference (201; the value reads back redacted with its `ref`); a free-lane `SendMessage`
+through the gateway returned a v1 message with `contextId` and metadata; the operator's real `_via_gateway` against an
+echo agent showed the token arriving, `allow_paid` preserved and the virtual key not forwarded; Agent Logs recorded both
+calls with `context_id` and the key's name. Tests: Realm 82, operator 131, register script 14, client config 15, seal
+script 4 (bats). Production rollout and its verification: [runbooks/realm-of-agents.md](../runbooks/realm-of-agents.md)
+§ Through Bifrost's Agent Gateway.
+
+Not used, and why: caller-IP restrictions (every caller is in-cluster), the complexity router (above), Push
+Configurations (the Realm answers synchronously), Relays (ADR-0014's reasoning stands).

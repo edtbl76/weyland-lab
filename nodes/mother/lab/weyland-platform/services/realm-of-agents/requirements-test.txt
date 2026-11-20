@@ -1,0 +1,6 @@
+# The Realm's test-only deps (scripts/run-lang-tests.sh installs this before pytest). Added 2026-11-19 (B249): the
+# tests drive the FastAPI app and the A2A binding through TestClient (fastapi, which needs httpx) and the MCP session
+# hook through httpx, but nothing declared them, so the CI lane passed only because another service's
+# requirements-test.txt installed fastapi into the shared container first. Pinned to requirements.txt.
+fastapi==0.141.1
+httpx==0.28.1

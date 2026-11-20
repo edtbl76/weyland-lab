@@ -18,6 +18,13 @@ def _base(base: str | None) -> str:
     return (base or PUBLIC_BASE_URL).rstrip("/")
 
 
+def _v1(url: str) -> list[dict]:
+    """The A2A v1 interface Bifrost's Agent Gateway requires (B249, 2026-11-19): a `supportedInterfaces` entry at
+    protocol version "1.0" with a JSON-RPC binding. The 0.3 fields (`url`, `preferredTransport`, `protocolVersion`)
+    stay alongside for direct 0.3 callers such as the a2a-inspector; a2a.py serves both methods on the same URL."""
+    return [{"url": url, "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}]
+
+
 def card(spec: AgentSpec, base: str | None = None) -> dict:
     """An A2A AgentCard for one agent. `base` is the request-derived origin (scheme://host[:port])."""
     b = _base(base)
@@ -30,6 +37,7 @@ def card(spec: AgentSpec, base: str | None = None) -> dict:
         "description": spec.what,
         "url": f"{b}/a2a/{spec.key}",
         "preferredTransport": "JSONRPC",
+        "supportedInterfaces": _v1(f"{b}/a2a/{spec.key}"),
         "version": VERSION,
         "provider": {"organization": "weyland", "url": b},   # A2A AgentProvider requires organization + url
         "capabilities": _CAPS,
@@ -59,6 +67,7 @@ def root_card(base: str | None = None) -> dict:
         "description": "24 corpus-backed agents in five groups (Valhalla, Vanaheim, Midgard, the Well) under the Operator.",
         "url": f"{b}/a2a",
         "preferredTransport": "JSONRPC",
+        "supportedInterfaces": _v1(f"{b}/a2a"),
         "version": VERSION,
         "provider": {"organization": "weyland", "url": b},   # A2A AgentProvider requires organization + url
         "capabilities": _CAPS,

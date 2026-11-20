@@ -186,14 +186,18 @@ See [runbooks/operator.md](runbooks/operator.md).
 
 Front door **`realm.weyland.lab`** (wildcard TLS, **Keycloak forward-auth since B209, 2026-10-14**; it was open to the
 LAN) · `realm-of-agents.weyland.svc:8080` in-cluster, admitted by a NetworkPolicy to the operator, `dagster-user-code`,
-the a2a-inspector, Traefik, Prometheus and the api-drift job (`k8s/realm-of-agents/netpol.yaml`). CORS admits only
+the a2a-inspector, Bifrost (its Agent Gateway, B249), Traefik, Prometheus and the api-drift job
+(`k8s/realm-of-agents/netpol.yaml`). CORS admits only
 `https://realm.weyland.lab`. It is a **conformant A2A server**: a JSON-RPC `message/send`
 binding (`/a2a`), spec-valid Agent Cards (`protocolVersion` + `preferredTransport` + `provider{organization,url}`),
 **request-derived `https` card URLs** (uvicorn `--proxy-headers`, so cards advertise whatever host reached them). One multiplexed pod hosting 24 corpus-backed specialists in 5 Norse-named groups.
 **Gná** routes a task to the best agent;
 realm **leads** act on their own tools or delegate to their members and reconcile. Every agent runs on **Claude Haiku**
 (`REALM_MODEL=wl-agentic` override via LiteLLM); tools via the **Bifrost VK**; every run is an **MLflow trace**
-(`realm-of-agents` experiment). The **operator** reaches it via its `delegate_to_realm` tool.
+(`realm-of-agents` experiment). The **operator** reaches it via its `delegate_to_realm` tool, **through Bifrost's
+Agent Gateway since B249** (2026-11-19): `POST http://bifrost.weyland.svc.cluster.local:8080/agents/a2a/realm/json-rpc`
+with `x-bf-vk` (key `realm-operator`, the only key granted) and `A2A-Version: 1.0`. Bifrost forwards it to `/a2a` with
+`X-Realm-Gateway-Token`. Runbook: [realm-of-agents.md § Through Bifrost's Agent Gateway](runbooks/realm-of-agents.md).
 
 | Route | Method | Purpose |
 |---|---|---|
@@ -202,8 +206,8 @@ realm **leads** act on their own tools or delegate to their members and reconcil
 | `/agents/{key}/card` (or `/agents/{key}/.well-known/agent-card.json`) | GET | one agent's A2A card |
 | `/agents/{key}/message` | POST | `{message, history?}` → run a specific agent (a lead delegates; a plain agent answers) |
 | `/route` | POST | `{message, history?, allow_paid?}` → Gná classifies and runs the best-fit agent; returns `{routed_to, god, role, realm, answer}`. `allow_paid` **defaults to false since B209** (2026-10-14; it was true): **free-only** unless the caller sends `true` (the operator's `delegate_to_realm` does). Free-only = the whole dispatch runs on the free local `wl-local` lane (`REALM_FREE_MODEL`; `wl-judge` until B222, 2026-10-22) with LiteLLM fallbacks disabled, never Haiku. Used by the ship-images Realm transaction. `502` = dispatch failed (also when the free brain is down) |
-| `/a2a` | POST | **A2A JSON-RPC** `message/send` → Gná dispatches; returns an A2A `Message`. This is the root card's `url` (what standard A2A clients POST to). |
-| `/a2a/{key}` | POST | **A2A JSON-RPC** `message/send` to one specific agent (a per-agent card's `url`) |
+| `/a2a` | POST | **A2A JSON-RPC**, two versions. **v1 `SendMessage`** (B249): `params.message {messageId, contextId?, role: "ROLE_USER", parts: [{text}], metadata?}` → `{"message": {messageId, contextId, role: "ROLE_AGENT", parts, metadata {routed_to, god, role, realm}}}`; the `contextId` (minted if absent) is the dispatch session. **0.3 `message/send`** (parts `{kind: "text"}`, kept for the a2a-inspector) → an A2A `Message`. Both are **free-only**; v1 runs paid only when `metadata.allow_paid` is `true` AND the request carries `X-Realm-Gateway-Token` equal to `REALM_GATEWAY_TOKEN` (Bifrost adds it). This is the root card's `url`, and its v1 `supportedInterfaces` entry. |
+| `/a2a/{key}` | POST | the same, to one specific agent (a per-agent card's `url`) |
 | `/route/stream` | POST | `{message, history?}` → **SSE** live execution stream (route · delegate hops · tool + LLM events · answer tokens) — powers the Console |
 | `/` | GET | the **Realm Console** — the show-off UI (live map + inline trace tree + streamed answer) |
 | `/health` `/ready` | GET | liveness / readiness |

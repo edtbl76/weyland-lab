@@ -103,6 +103,14 @@ spec:
             # B17 A2A — the Realm of Agents (24 specialists). delegate_to_realm posts here; Gná routes.
             - name: REALM_URL
               value: http://realm-of-agents.weyland.svc.cluster.local:8080
+            # B249 (2026-11-19) — delegate_to_realm goes THROUGH Bifrost's Agent Gateway (A2A v1, its own key), so every
+            # delegation is a governed, logged conversation (Bifrost Agent Logs). Both must be set, else the direct
+            # REALM_URL path above is used; a gateway error is reported, never retried directly (realm.py). The key is
+            # `realm-operator` (register_bifrost_realm_agent.py ensure-vk), sealed by seal_realm_gateway.sh.
+            - name: REALM_GATEWAY_URL
+              value: http://bifrost.weyland.svc.cluster.local:8080/agents/a2a/realm/json-rpc
+            - name: REALM_GATEWAY_VK
+              valueFrom: { secretKeyRef: { name: weyland-operator-realm, key: REALM_GATEWAY_VK, optional: true } }
             - name: MLFLOW_TRACKING_URI
               value: http://mlflow.weyland.svc.cluster.local:5000
             # B103 prompt federation — Langfuse prompt-linked tracing (alongside MLflow). Reuses the already-sealed

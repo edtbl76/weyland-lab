@@ -52,3 +52,22 @@ def test_classify_brain_error_fails_safe_to_odin(monkeypatch):
 def test_classify_takes_first_token_only(monkeypatch):
     monkeypatch.setattr(router, "brain", _brain_returning("odin — because it orchestrates"))
     assert asyncio.run(router.classify("x")) == "odin"
+
+
+# ---- B249: an A2A dispatch keeps the caller's conversation id as its session --------------------------------------
+def test_dispatch_uses_a_given_session_id(monkeypatch):
+    import asyncio
+    import router
+    seen = []
+    monkeypatch.setattr(router, "set_session", lambda sid: seen.append(sid))
+
+    async def classify(task):
+        return "odin"
+
+    async def run_agent(spec, task, history=None, session_id=None):
+        return "ok"
+    monkeypatch.setattr(router, "classify", classify)
+    monkeypatch.setattr(router, "run_agent", run_agent)
+    asyncio.run(router.dispatch("q", None, session_id="ctx-7"))
+    asyncio.run(router.dispatch("q", None))
+    assert seen[0] == "ctx-7" and seen[1] and seen[1] != "ctx-7"

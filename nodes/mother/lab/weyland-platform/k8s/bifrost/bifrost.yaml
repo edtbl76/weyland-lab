@@ -112,6 +112,11 @@ spec:
                 name: bifrost-provider-keys
                 optional: true           # optional → pod still boots if the Secret isn't applied yet (chicken-and-egg safe)
           env:
+            # B249 (2026-11-19) — the Agent Gateway sends this to the Realm on every call it forwards (the `realm`
+            # registration's runtime_auth `env.REALM_GATEWAY_TOKEN`, register_bifrost_realm_agent.py). Sealed:
+            # seal_realm_gateway.sh. Optional: without it the Realm sees no token and stays free-only.
+            - name: REALM_GATEWAY_TOKEN
+              valueFrom: { secretKeyRef: { name: realm-gateway-token, key: REALM_GATEWAY_TOKEN, optional: true } }
             # B202 — v2.2.6 setup lock: dashboard auth is off, so every non-public /api call needs this token
             # (X-Bifrost-Setup-Token). Callers read the same Secret (runbooks/mcp-gateway.md § Bifrost setup token).
             - name: BIFROST_SETUP_TOKEN

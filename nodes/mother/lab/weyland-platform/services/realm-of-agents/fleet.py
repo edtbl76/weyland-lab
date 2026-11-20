@@ -6,8 +6,30 @@ langchain-mcp-adapters (header `x-bf-vk`), then hand each agent only the tools w
 tool-less (it can still reason and answer). The MCP session is per-call (stateless), matching the operator's fleet loader."""
 import asyncio
 
+import httpx
+
 from config import BIFROST_MCP_URL, BIFROST_VK
-from obs import log
+from obs import current_session, log
+
+
+class _SessionAwareClient(httpx.AsyncClient):
+    """Adds the current dispatch session as `x-bf-session-id` to every request, read at send time. `send` is the one
+    path both `request()` and `stream()` take, so the MCP transport's streamed calls carry it too."""
+
+    async def send(self, request: httpx.Request, **kwargs) -> httpx.Response:
+        sid = current_session()
+        if sid:
+            request.headers["x-bf-session-id"] = sid
+        return await super().send(request, **kwargs)
+
+
+def session_aware_client(headers: dict | None = None, timeout: httpx.Timeout | None = None,
+                         auth: httpx.Auth | None = None) -> httpx.AsyncClient:
+    """httpx client for the Bifrost MCP connection (an `McpHttpClientFactory`). The tools are loaded once per process
+    with fixed headers, so the dispatch's session id is added per request: Bifrost's Agent Logs then join a
+    conversation's tool calls to it (`x-bf-session-id`, B249, 2026-11-19). No session, no header."""
+    return _SessionAwareClient(headers=headers, timeout=timeout if timeout is not None else httpx.Timeout(30.0),
+                               auth=auth, follow_redirects=True)
 
 _all_tools: list | None = None   # lazy, process-wide cache of the full VK tool set
 
@@ -23,7 +45,7 @@ async def _load_all() -> list:
         from langchain_mcp_adapters.client import MultiServerMCPClient
         client = MultiServerMCPClient({
             "bifrost": {"transport": "streamable_http", "url": BIFROST_MCP_URL,
-                        "headers": {"x-bf-vk": BIFROST_VK}},
+                        "headers": {"x-bf-vk": BIFROST_VK}, "httpx_client_factory": session_aware_client},
         })
         _all_tools = await client.get_tools()
         log(f"loaded {len(_all_tools)} VK tools from Bifrost")
