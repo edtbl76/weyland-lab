@@ -133,3 +133,31 @@ def test_cross_origin_requests_are_admitted_only_from_the_realm_host(client):
     assert ok.headers.get("access-control-allow-origin") == "https://realm.weyland.lab"
     bad = client.options("/route", headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "POST"})
     assert bad.headers.get("access-control-allow-origin") is None
+
+
+# --- B253: the evaluation endpoint ----------------------------------------------------------------------------------
+def test_eval_run_returns_the_arms_measurements(client, monkeypatch):
+    async def fake_run_arm(task, arm):
+        return {"arm": arm, "routed_to": "saga", "answer": "a", "seconds": 1.0, "input_tokens": 5, "output_tokens": 1,
+                "llm_calls": 1, "tool_calls": 0, "delegations": 0, "tools_used": [], "delegated_to": []}
+    monkeypatch.setattr(realm_app.evalrun, "run_arm", fake_run_arm)
+    r = client.post("/eval/run", json={"task": "q", "arm": "routed"})
+    assert r.status_code == 200 and r.json()["arm"] == "routed" and r.json()["routed_to"] == "saga"
+
+
+def test_eval_run_refuses_an_unknown_arm_with_400(client):
+    r = client.post("/eval/run", json={"task": "q", "arm": "swarm"})
+    assert r.status_code == 400 and "arm" in r.json()["detail"]
+
+
+def test_eval_run_failure_is_a_502_never_a_200(client, monkeypatch):
+    async def boom(task, arm):
+        raise RuntimeError("local model down")
+    monkeypatch.setattr(realm_app.evalrun, "run_arm", boom)
+    r = client.post("/eval/run", json={"task": "q", "arm": "single"})
+    assert r.status_code == 502 and "local model down" in r.json()["detail"]
+
+
+def test_eval_run_has_no_paid_switch():
+    props = realm_app.app.openapi()["components"]["schemas"]["EvalRequest"]["properties"]
+    assert set(props) == {"task", "arm"}   # free-only by construction: nothing a caller can send turns spending on

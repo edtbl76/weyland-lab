@@ -8,6 +8,7 @@ import asyncio
 
 import httpx
 
+from budget import is_free_only
 from config import BIFROST_MCP_URL, BIFROST_VK
 from obs import current_session, log
 
@@ -55,13 +56,23 @@ async def _load_all() -> list:
     return _all_tools
 
 
+# Tools that spend money per call whatever the model lane (Perplexity bills its provider key). A free-only request
+# promises to spend nothing, so it never gets them (B253, 2026-11-20; before, a free-only run reaching Ratatoskr could
+# still call Perplexity). The graph caches are keyed by free-only, so a free-only graph is built without them.
+PAID_TOOL_PREFIXES = ("perplexity",)
+
+
 async def tools_for(prefixes: tuple) -> list:
-    """Return the subset of VK tools whose names contain any of `prefixes` (substring match, robust to namespacing)."""
+    """Return the subset of VK tools whose names contain any of `prefixes` (substring match, robust to namespacing),
+    minus the paid tools inside a free-only request."""
     if not prefixes:
         return []
     everything = await _load_all()
     pref = tuple(p.lower() for p in prefixes)
-    return [t for t in everything if any(p in t.name.lower() for p in pref)]
+    picked = [t for t in everything if any(p in t.name.lower() for p in pref)]
+    if is_free_only():
+        picked = [t for t in picked if not any(p in t.name.lower() for p in PAID_TOOL_PREFIXES)]
+    return picked
 
 
 def tools_for_sync(prefixes: tuple) -> list:

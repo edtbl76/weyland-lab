@@ -212,6 +212,13 @@
       ]
     }
   ],
+  "supportedInterfaces": [
+    {
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0",
+      "url": "https://realm.weyland.lab/a2a"
+    }
+  ],
   "url": "https://realm.weyland.lab/a2a",
   "version": "0.3.5"
 }

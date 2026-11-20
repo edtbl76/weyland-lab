@@ -38,5 +38,8 @@ _stub("langgraph.prebuilt", create_react_agent=lambda *a, **k: None)
 _stub("agents", run_solo=lambda *a, **k: None)
 _stub("fleet", tools_for=lambda *a, **k: [], tools_for_sync=lambda *a, **k: [])
 _stub("llm", brain=lambda *a, **k: None)
-_stub("obs", lf_config=lambda *a, **k: {}, log=lambda *a, **k: None, set_session=lambda *a, **k: None)
+import contextlib  # noqa: E402
+
+_stub("obs", lf_config=lambda *a, **k: {}, log=lambda *a, **k: None, set_session=lambda *a, **k: None,
+      extra_callbacks=lambda *h: contextlib.nullcontext(), current_extra_callbacks=lambda: ())
 _stub("prompts", load_role=lambda spec: f"[role:{getattr(spec, 'key', '?')}]", load_prompt=lambda *a, **k: "")

@@ -2,6 +2,7 @@
 
 Until the streaming UI exists, this is how you 'hear the bytes move': every routing decision, every delegation, and
 every agent's start/finish prints the moment it happens (flushed). Run the request in one pane and tail logs in another."""
+import contextlib
 import contextvars
 import os
 import sys
@@ -39,10 +40,32 @@ def current_session() -> str | None:
     return _session.get()
 
 
+# Extra callbacks for the current request only (B253's eval counters). A contextvar like the session, so they follow
+# the delegation chain into every nested graph run and end with the request.
+_extra: contextvars.ContextVar[tuple] = contextvars.ContextVar("realm_extra_callbacks", default=())
+
+
+@contextlib.contextmanager
+def extra_callbacks(*handlers):
+    """Add `handlers` to every run config built by lf_config inside this block (and only inside it)."""
+    token = _extra.set(_extra.get() + handlers)
+    try:
+        yield
+    finally:
+        _extra.reset(token)
+
+
+def current_extra_callbacks() -> tuple:
+    return _extra.get()
+
+
 def lf_config(base: dict | None = None) -> dict:
-    """Merge the Langfuse callback + `langfuse_session_id` metadata into a LangChain run config. Fail-safe: with
-    Langfuse off, returns `base` unchanged, so every ainvoke/astream_events call site is a no-op drop-in."""
+    """Merge the Langfuse callback + `langfuse_session_id` metadata into a LangChain run config, plus any per-request
+    extra callbacks (extra_callbacks). Fail-safe: with Langfuse off and no extras, returns `base` unchanged, so every
+    ainvoke/astream_events call site is a no-op drop-in."""
     cfg = dict(base or {})
+    if _extra.get():
+        cfg["callbacks"] = [*cfg.get("callbacks", []), *_extra.get()]
     if _lf_handler is None:
         return cfg
     cfg["callbacks"] = [*cfg.get("callbacks", []), _lf_handler]

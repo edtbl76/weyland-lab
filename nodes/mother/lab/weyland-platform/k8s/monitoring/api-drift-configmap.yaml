@@ -454,10 +454,10 @@ data:
       - {id: weyland-guard, owner: weyland-guard, kind: openapi, status: published, version: "1.0", base: "http://weyland-guard.weyland.svc:8080", spec: docs/api/specs/weyland-guard.openapi.json, spec_source: "http://weyland-guard.weyland.svc:8080/openapi.json", consumers: [weyland-tool-server, weyland-agent, weyland-operator]}
       - {id: weyland-agent, owner: weyland-agent, kind: openapi, status: published, version: "1.0", base: "http://weyland-agent.weyland.svc:8080", spec: docs/api/specs/weyland-agent.openapi.json, spec_source: "http://weyland-agent.weyland.svc:8080/openapi.json", consumers: []}
       - {id: weyland-operator, owner: weyland-operator, kind: openapi, status: published, version: "1.1", base: "http://weyland-operator.weyland.svc:8080", spec: docs/api/specs/weyland-operator.openapi.json, spec_source: "http://weyland-operator.weyland.svc:8080/openapi.json", consumers: []}
-      - {id: realm-of-agents-http, owner: realm-of-agents, kind: openapi, status: published, version: "1.1", base: "https://realm.weyland.lab", spec: docs/api/specs/realm-of-agents.openapi.json, spec_source: "http://realm-of-agents.weyland.svc:8080/openapi.json", consumers: [weyland-operator]}
+      - {id: realm-of-agents-http, owner: realm-of-agents, kind: openapi, status: published, version: "1.2", base: "https://realm.weyland.lab", spec: docs/api/specs/realm-of-agents.openapi.json, spec_source: "http://realm-of-agents.weyland.svc:8080/openapi.json", consumers: [weyland-operator]}
 
       # ---- A2A contract (agent card captured) ----
-      - {id: realm-of-agents-a2a, owner: realm-of-agents, kind: a2a, status: published, version: "1.0", base: "https://realm.weyland.lab/a2a", spec: docs/api/specs/realm-of-agents.a2a-card.json, spec_source: "http://realm-of-agents.weyland.svc:8080/.well-known/agent-card.json", consumers: [weyland-operator, a2a-inspector]}
+      - {id: realm-of-agents-a2a, owner: realm-of-agents, kind: a2a, status: published, version: "1.1", base: "https://realm.weyland.lab/a2a", spec: docs/api/specs/realm-of-agents.a2a-card.json, spec_source: "http://realm-of-agents.weyland.svc:8080/.well-known/agent-card.json", consumers: [weyland-operator, a2a-inspector]}
 
       # ---- MCP contracts (tool-schema surfaces; schema-snapshot capture is a lifecycle follow-on) ----
       - {id: mcp-gateway, owner: mcp-gateway, kind: mcp, status: published, version: "1.0", base: "https://mcp.weyland.lab", consumers: [weyland-operator]}
@@ -690,15 +690,40 @@ data:
               ]
             }
           ],
+          "supportedInterfaces": [
+            {
+              "protocolBinding": "JSONRPC",
+              "protocolVersion": "1.0",
+              "url": "https://realm.weyland.lab/a2a"
+            }
+          ],
           "url": "https://realm.weyland.lab/a2a",
           "version": "0.3.5"
         },
-        "version": "1.0"
+        "version": "1.1"
       },
       "realm-of-agents-http": {
         "spec": {
           "components": {
             "schemas": {
+              "EvalRequest": {
+                "properties": {
+                  "arm": {
+                    "title": "Arm",
+                    "type": "string"
+                  },
+                  "task": {
+                    "title": "Task",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "task",
+                  "arm"
+                ],
+                "title": "EvalRequest",
+                "type": "object"
+              },
               "HTTPValidationError": {
                 "properties": {
                   "detail": {
@@ -1019,6 +1044,49 @@ data:
                 "summary": "Send Message"
               }
             },
+            "/eval/run": {
+              "post": {
+                "description": "Run one task in one arm of the B253 evaluation (the Realm as it is, routing only, or one agent with every tool),\nfree-only, and return the answer with its tokens, model calls, tool calls, delegations and seconds.",
+                "operationId": "eval_run_eval_run_post",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/EvalRequest"
+                      }
+                    }
+                  },
+                  "required": true
+                },
+                "responses": {
+                  "200": {
+                    "content": {
+                      "application/json": {
+                        "schema": {}
+                      }
+                    },
+                    "description": "Successful Response"
+                  },
+                  "400": {
+                    "description": "Unknown arm"
+                  },
+                  "422": {
+                    "content": {
+                      "application/json": {
+                        "schema": {
+                          "$ref": "#/components/schemas/HTTPValidationError"
+                        }
+                      }
+                    },
+                    "description": "Validation Error"
+                  },
+                  "502": {
+                    "description": "The run failed (the driver records it as a failure)"
+                  }
+                },
+                "summary": "Eval Run"
+              }
+            },
             "/health": {
               "get": {
                 "operationId": "health_health_get",
@@ -1163,7 +1231,7 @@ data:
             }
           }
         },
-        "version": "1.1"
+        "version": "1.2"
       },
       "weyland-agent": {
         "spec": {
@@ -2963,6 +3031,13 @@ data:
           ]
         }
       ],
+      "supportedInterfaces": [
+        {
+          "protocolBinding": "JSONRPC",
+          "protocolVersion": "1.0",
+          "url": "https://realm.weyland.lab/a2a"
+        }
+      ],
       "url": "https://realm.weyland.lab/a2a",
       "version": "0.3.5"
     }
@@ -2970,6 +3045,24 @@ data:
     {
       "components": {
         "schemas": {
+          "EvalRequest": {
+            "properties": {
+              "arm": {
+                "title": "Arm",
+                "type": "string"
+              },
+              "task": {
+                "title": "Task",
+                "type": "string"
+              }
+            },
+            "required": [
+              "task",
+              "arm"
+            ],
+            "title": "EvalRequest",
+            "type": "object"
+          },
           "HTTPValidationError": {
             "properties": {
               "detail": {
@@ -3288,6 +3381,49 @@ data:
               }
             },
             "summary": "Send Message"
+          }
+        },
+        "/eval/run": {
+          "post": {
+            "description": "Run one task in one arm of the B253 evaluation (the Realm as it is, routing only, or one agent with every tool),\nfree-only, and return the answer with its tokens, model calls, tool calls, delegations and seconds.",
+            "operationId": "eval_run_eval_run_post",
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/EvalRequest"
+                  }
+                }
+              },
+              "required": true
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                },
+                "description": "Successful Response"
+              },
+              "400": {
+                "description": "Unknown arm"
+              },
+              "422": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                },
+                "description": "Validation Error"
+              },
+              "502": {
+                "description": "The run failed (the driver records it as a failure)"
+              }
+            },
+            "summary": "Eval Run"
           }
         },
         "/health": {

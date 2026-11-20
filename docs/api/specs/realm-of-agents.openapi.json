@@ -1,6 +1,24 @@
 {
   "components": {
     "schemas": {
+      "EvalRequest": {
+        "properties": {
+          "arm": {
+            "title": "Arm",
+            "type": "string"
+          },
+          "task": {
+            "title": "Task",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task",
+          "arm"
+        ],
+        "title": "EvalRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -319,6 +337,49 @@
           }
         },
         "summary": "Send Message"
+      }
+    },
+    "/eval/run": {
+      "post": {
+        "description": "Run one task in one arm of the B253 evaluation (the Realm as it is, routing only, or one agent with every tool),\nfree-only, and return the answer with its tokens, model calls, tool calls, delegations and seconds.",
+        "operationId": "eval_run_eval_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Unknown arm"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "description": "The run failed (the driver records it as a failure)"
+          }
+        },
+        "summary": "Eval Run"
       }
     },
     "/health": {

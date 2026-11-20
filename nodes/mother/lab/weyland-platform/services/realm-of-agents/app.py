@@ -22,6 +22,7 @@ import mlflow
 
 import a2a
 import cards
+import evalrun
 from budget import free_only
 import router as gna
 import stream as realm_stream
@@ -153,6 +154,28 @@ async def route(req: TaskRequest):
     _LATENCY.labels("gna").observe(time.monotonic() - t0)
     _REQS.labels(key, "ok").inc()
     return {"routed_to": key, "god": BY_KEY[key].god, "role": BY_KEY[key].role, "realm": BY_KEY[key].realm, "answer": answer}
+
+
+# --- Evaluation (B253) ----------------------------------------------------------------------------------------------
+class EvalRequest(BaseModel):
+    task: str
+    arm: str   # realm | routed | single (evalrun.ARMS). No allow_paid: an evaluation run is free-only by construction.
+
+
+@app.post("/eval/run", responses={400: {"description": "Unknown arm"},
+                                  502: {"description": "The run failed (the driver records it as a failure)"}})
+async def eval_run(req: EvalRequest):
+    """Run one task in one arm of the B253 evaluation (the Realm as it is, routing only, or one agent with every tool),
+    free-only, and return the answer with its tokens, model calls, tool calls, delegations and seconds."""
+    if req.arm not in evalrun.ARMS:
+        raise HTTPException(400, f"unknown arm {req.arm!r}; one of {', '.join(evalrun.ARMS)}")
+    try:
+        out = await evalrun.run_arm(req.task, req.arm)
+    except Exception as exc:
+        _REQS.labels(f"eval-{req.arm}", "error").inc()
+        raise HTTPException(502, f"eval run failed: {exc}")
+    _REQS.labels(f"eval-{req.arm}", "ok").inc()
+    return out
 
 
 # --- Ops ---------------------------------------------------------------------------------------------------------

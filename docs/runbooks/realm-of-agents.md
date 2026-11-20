@@ -131,6 +131,38 @@ missing grant (run `check`); a 503 means the gateway settings are missing (step 
 | a task the operator sent as paid is answered by the free models | the token is missing on one side, or `runtime_auth` drifted | both pods have a non-empty `REALM_GATEWAY_TOKEN`; `check` |
 | `check` says `DRIFT: granted to ...` | another key was granted in the UI | decide it; otherwise `register` puts the grant back to `realm-operator` only |
 
+## Evaluation (B253, 2026-11-20)
+
+Does the Realm's shape (Gná's routing, then a lead delegating to members) beat simpler shapes of itself on the same
+free model? The deployed Realm runs three arms through `POST /eval/run {task, arm}`, always free-only (the local lane,
+LiteLLM fallbacks off, and no paid tools: free-only also drops Perplexity, `fleet.PAID_TOOL_PREFIXES`):
+
+| Arm | What runs |
+|---|---|
+| `realm` | Gná routes, and a lead delegates (the Realm as it is) |
+| `routed` | Gná routes, and the chosen agent answers alone with its own tools (routing without delegation) |
+| `single` | one agent holding every tool family the roster uses, no routing (the control) |
+
+Each run returns the answer with its tokens, model calls, tool calls, delegations and seconds (a per-request callback
+on the same hook as Langfuse). The 33 tasks, each with a rubric and the agents a correct router may pick, are in
+`services/weyland-dagster/weyland_pipeline/eval_sets/realm.json`; CI fails if any task's text appears in the RAG corpus.
+The judge is `wl-judge-oss` (gpt-oss:20b on rogueone, a different model from the one judged), blind to the arm, with
+LiteLLM fallbacks off. Results: `eval/realm-b253/` (results.jsonl, scores.jsonl, report.md); write-up
+`docs/concepts/realm-evaluation.md`.
+
+Run it from rogueone (`kubectl` reaches the cluster from there); each mode resumes where it stopped, so rerun it after
+any interruption. The full run (33 tasks x 3 arms x 3 reps) takes most of a night on rogueone's GPU:
+
+```bash
+bash /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/realm-eval.sh run
+bash /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/realm-eval.sh judge
+bash /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/realm-eval.sh report
+```
+
+`run` and `judge` exit 1 after two batches in a row make no progress (the Realm or the judge is down; the output says
+which), and `report` refuses while a successful run is unjudged. A failed run is recorded and scores 0, never dropped.
+Smaller runs: `REALM_EVAL_REPS=1`, or a different `REALM_EVAL_DIR`.
+
 ## What broke? Symptom to cause
 
 | Symptom | Likely cause | Check and fix |
