@@ -124,3 +124,32 @@ minute of 503s (22:08:47 → 22:09:48 UTC). After it: the pod runs `sha256:5ec98
 (`20261120T015222Z`) has the same counts as the pre-upgrade one: providers 21, virtual keys 6, prompts 280, skills 591,
 MCP clients 11, prompt versions 289. Rollback = revert the pin AND restore the pinned backup (the migrations are
 one-way).
+
+### Reopened checks (2026-11-19, after the owner reopened B249)
+
+B249 was closed too early: the "real requests" criterion had been ticked on repo searches, the complexity router was not
+looked at, and Bifrost's Agents section (Agent Catalog, Push Configurations, Agent Settings) had been tested only through
+the API and only as the Realm's inbound front door.
+
+**Production, read through the admin API (owner-run, read-only; field names, counts and flags only):**
+
+| Check | Result |
+|---|---|
+| Agent Catalog | 0 agents registered |
+| MCP clients with code mode | 11 clients, none with `is_code_mode_client`: the 2.5.0 agent-mode/code-mode governance has nothing to govern |
+| Complexity router | `state: disabled`, nothing loaded |
+| Real MCP log entries (`/api/mcp-logs`, latest 20) | each names its virtual key (`virtual_key_name`: `coding-agents`, `ship-txn`) and keeps `user_agent`; no email, no client IP. Fields: `app`, `arguments`, `created_at`, `latency`, `request_id`, `result`, `server_label`, `status`, `tool_name`, `user_agent`, `user_id`, `virtual_key_id`, `virtual_key_name`, plus team/customer/project ids |
+
+**The Agents section, in full:**
+
+| Item | What it is | Verdict for the lab today |
+|---|---|---|
+| Agent Catalog, inbound (the Realm behind Bifrost) | register the Realm; callers use `/agents/a2a/<name>/json-rpc` with a virtual key | Tested on the throwaway (above). Cost: A2A v1 in the Realm (~150 lines) plus gateway settings. Value, corrected: per-caller keys AND **Agent Logs that follow one conversation across its A2A turns, LLM calls and MCP calls** when the Realm sends the two correlation headers on its own Bifrost calls (its MCP tools already go through Bifrost; Langfuse sees only its LLM calls). Decision returned to the owner |
+| Agent Catalog, outbound (lab agents calling outside A2A agents through Bifrost) | the same registration for a third-party agent | Nothing to front: no lab agent calls an outside A2A agent today |
+| Push Configurations | A2A push: an agent's long task sends updates through Bifrost to a caller's callback URL; Bifrost stores registrations and pending deliveries durably | Not applicable: needs an agent that runs long tasks and supports A2A push. The Realm answers `message/send` synchronously |
+| Agent Settings | External Client URL (unset, agent endpoints answer 503), the private allowlist, raw request capture | Exercised on the throwaway; only needed if an agent is registered |
+
+**Complexity router (2.5.0: state per subagent):** disabled in production. It classifies each request's difficulty and
+routes it to a model tier; its default classifier is TypeSafe's paid decision model, and the alternatives add an LLM
+or embedding call per request. Model routing in the lab lives in LiteLLM by decision (`wl-*` lanes; gateway-lane
+separation), so **leave it off**; the per-subagent change only matters once it is on.
