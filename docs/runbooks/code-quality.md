@@ -136,7 +136,11 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   `weyland-lab-precheck-<pid>` and revokes the token. A scratch project uses the server default profiles and gate,
   which are what `weyland-lab` uses. **Exit 0** `precheck: clean`, or `precheck: nothing for Sonar to analyse` when every
   file is a type Sonar never indexes (`.sh` `.bats` `.md` `.txt` `.tsv` `.csv` `.service` `.timer` `.conf`; no scan) · **1** findings, each named (fix it, or for a hotspot
-  that is genuinely fine, `sonar_api.py review-safe <file> "<reason>"` after the push) · **2** could not scan (a missing
+  that is genuinely fine, `sonar_api.py review-safe <file> "<reason>"` after the push. Order matters: `review-safe`
+  finds a hotspot only once a CI analysis of the pushed commit exists, and the ship's own pipeline gates that same
+  analysis, so the first ship of a commit with a new hotspot fails `sonar-gate` (B249, 2026-11-19). Trigger a pipeline
+  first (`woodpecker-cli pipeline create edtbl76/weyland-lab --branch main`), run `review-safe` once it has analysed,
+  then ship) · **2** could not scan (a missing
   file, a scanner failure, a failed or timed-out analysis, 0 files analysed, or a cleanup that left something behind —
   never read as clean). Two deliberate choices: the verdict is the findings, never the scratch gate (a first analysis
   has no new-code period, so that gate passed with a CRITICAL issue open); and findings `weyland-lab` already has for
