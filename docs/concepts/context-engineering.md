@@ -75,9 +75,37 @@ what a summary drops (standing instructions, mid-item decisions, open threads).
 To be measured from Langfuse: the operator, the Realm (B253 data: the single agent 26.7k a call, the specialists
 ~3.7k-3.9k a call, on a 32,768-token window), Open WebUI's Lab Recall and Lab Status presets, the tool-server RAG.
 
-## Industry survey
+## Industry survey (2026-11-20)
 
-To be written: each technique in EMA-356's Scope 3 with its primary source, date, and an adopt / trial / reject verdict.
+Primary sources, fetched 2026-11-20 by a research agent; the claims marked **checked** were re-read on the source page
+by the main session. Recommendations are provisional: "trial" items are decided by the trials below, "adopt" items by
+the owner, and the final verdicts go in the ADR.
+
+| Technique | Source (date) | What it says | Applies to | Provisional call |
+|---|---|---|---|---|
+| Compaction timing | code.claude.com/docs/en/model-config (undated) | **checked:** 1M-window models compact at about 967K by default; `/autocompact 500k` (per model, saved), `autoCompactWindow`, `--autocompact`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`; minimum 100K | harness | trial an earlier window (e.g. 400-500K) |
+| Compaction content | code.claude.com/docs/en/hooks; /costs; /context-window (undated) | **checked:** PreCompact hook stdout becomes instructions for the compaction summary; also `/compact <focus>` and a `# Compact instructions` section in CLAUDE.md; PostCompact carries the summary; SessionStart `compact` re-injects context | harness | adopt: say what a summary must keep (open items, decisions, IDs, conversation-only instructions), and log the summaries |
+| What survives compaction | code.claude.com/docs/en/context-window (undated) | project CLAUDE.md, unscoped rules, auto memory and skill descriptions reload from disk; path-scoped rules and nested CLAUDE.md do not until touched | harness | design constraint: standing rules live in files that reload |
+| Long-task progress files | anthropic.com/engineering/effective-harnesses-for-long-running-agents (2025-11-26) | compaction alone is not sufficient; keep a progress file and a JSON task list, commit after each change | harness, services | adopt for long items |
+| Context editing (clear stale tool results) | platform.claude.com/docs/en/build-with-claude/context-editing (undated); LangChain `ContextEditingMiddleware` | replace old tool results with a placeholder past a threshold; "safest, lightest touch" (Anthropic, 2025-09-29) | services (7B, 32K) | trial on the operator and the Realm |
+| Tool search / deferred loading | platform.claude.com/.../tool-search-tool; anthropic.com/engineering/advanced-tool-use (2025-11-24) | ~85% fewer definition tokens; tool choice degrades past 30-50 tools; MCP eval accuracy up (Opus 4: 49% to 74%) | harness (already on), services | already adopted in Claude Code |
+| Tool retrieval for LangGraph | github.com/langchain-ai/langgraph-bigtool; RAG-MCP arXiv 2505.03275 (2025-05-06) | retrieve a few tools per step from embedded descriptions; RAG-MCP: tool-selection accuracy 43.13% vs 13.62%, prompt tokens down over 50% | services | trial on the Realm's single agent (B253 task set) |
+| MCP code mode | anthropic.com/engineering/code-execution-with-mcp (2025-11-04); blog.cloudflare.com/code-mode (2025-09-26); docs.getbifrost.ai/mcp/code-mode | tools called from code instead of many schemas; Anthropic: ~150K to ~2K tokens on one workflow; Bifrost (vendor): input tokens down 58-93% at 96-508 tools; no evidence for 7B models | services | trial cautiously; not for the harness (tool search covers it) |
+| Sub-agents for reading-heavy work | anthropic.com/engineering/multi-agent-research-system (2025-06-13) | isolate heavy reading, return 1-2K summaries; multi-agent uses ~15x the tokens of chat; poor fit for tightly coupled work | harness | adopt selectively (already used) |
+| Just-in-time retrieval | anthropic.com/engineering/effective-context-engineering-for-ai-agents (2025-09-29) | keep identifiers, load content when needed; hybrid with a small pre-loaded core | both | adopt: move detail out of always-loaded files |
+| Lean rule files, skills progressive disclosure | code.claude.com/docs/en/memory; /skills (undated) | **checked:** auto memory loads only the first 200 lines or 25KB; CLAUDE.md "target under 200 lines"; `@imports` do not reduce cost; skill listing budget is 1% of the window, least-used descriptions dropped past it | harness | adopt: cap `MEMORY.md` (now 18.9KB, 76% of the cap); scope or defer always-loaded rule files |
+| Context rot | trychroma.com/research/context-rot (2025-07-14); NoLiMa arXiv 2502.05167; RULER arXiv 2404.06654 | quality falls as context grows: NoLiMa 11 of 13 models below half their short-context score at 32K; RULER only half of models held at 32K | both | design constraint: small, focused contexts |
+| Truncation detection (Ollama) | docs.ollama.com/context-length; Ollama source `server/prompt.go` (2026-11-18) | over-long chats drop the oldest messages, logged only at DEBUG; detect via `prompt_eval_count` near `num_ctx`, or send `truncate:false` for a hard error | services | adopt the guard (Scope 6) |
+
+**Already true in the harness:** MCP tool schemas are deferred (0.7K of 61.1K). **Most direct lessons for how the owner
+works:** compaction fires late (~967K) and is steered by nothing today; each summary is ~4.4K; files, not summaries,
+carry the standing rules.
+
+## Changes applied
+
+| Date | Change | Approved | Token cost | How it is judged |
+|---|---|---|---|---|
+| 2026-11-20 | `# Compact instructions` section in the root `CLAUDE.md`: keep the active item and its state, owner decisions verbatim, conversation-only instructions, identifiers in use, open threads; drop raw tool output | owner: "yes, add the compact instructions" | `CLAUDE.md` 588 to 1,638 bytes (about +260 tokens, every session) | the next compaction summaries against the 35-summary baseline above (standing rules kept, active item and next step present) |
 
 ## Trials
 
