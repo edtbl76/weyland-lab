@@ -41,7 +41,7 @@ SKILLS = [
 The cluster is GitOps via **Argo CD** — you do NOT `kubectl apply` to deploy. The flow is:
 1. Edit the manifest in the repo (under `k8s/`).
 2. Commit and **push** — Argo detects the change and syncs (auto-sync, or the user syncs in the UI).
-3. Verify the rollout: `kubectl -n weyland rollout status deploy/<name>` (kubectl runs on **mother**).
+3. Verify the rollout: `kubectl -n weyland rollout status deploy/<name>`.
 
 Gotchas:
 - After editing manifests, always **remind the user to push** and name the exact file paths — an un-pushed manifest never deploys.
@@ -222,7 +222,7 @@ Runbook: `docs/runbooks/sdd-frameworks.md` § Pick a framework. Verdict and evid
 
 Key rule: **build the training/ray image ON rogueone, not mother** — rogueone's docker trusts the `registry.weyland.lab` mkcert CA; mother's build-docker does NOT (push → `x509: certificate signed by unknown authority`). k3s on mother PULLS fine (trust is separate). Do NOT rsync the repo to rogueone — it syncs itself via git.
 
-Flow: build+push the image on rogueone → bump the tag in `k8s/ray/ray-head.yaml` (Argo rolls the head) → submit from mother: `kubectl -n weyland exec deploy/ray-head -- ray job submit --address http://localhost:8265 -- python /home/ray/train_genre.py --source mart`. Env parity is everything for the native edge worker (patch-exact Python + pinned pyarrow/numpy/pandas/boto3). MLflow artifacts must write DIRECT to MinIO (`s3://` artifact_location), not through the serve-artifacts proxy (gunicorn timeout on large models)."""),
+Flow: build+push the image on rogueone → bump the tag in `k8s/ray/ray-head.yaml` (Argo rolls the head) → submit: `kubectl -n weyland exec deploy/ray-head -- ray job submit --address http://localhost:8265 -- python /home/ray/train_genre.py --source mart`. Env parity is everything for the native edge worker (patch-exact Python + pinned pyarrow/numpy/pandas/boto3). MLflow artifacts must write DIRECT to MinIO (`s3://` artifact_location), not through the serve-artifacts proxy (gunicorn timeout on large models)."""),
 
     # ============================ meta ============================
     ("weyland-conventions", "meta",
@@ -231,7 +231,6 @@ Flow: build+push the image on rogueone → bump the tag in `k8s/ray/ray-head.yam
 
 - **SSH** as user `emangini` (NOT `edwardmangini`). Refer to machines by **hostname** (`mother`, `rogueone`), never bare IPs, in commands you hand the user.
 - **Transfer files with `rsync`, never `scp`** — the user reacts strongly to scp.
-- **`kubectl` runs on mother.** Give mother-side commands; don't assume a repo checkout on rogueone.
 - **Commands: one line each, no backslash continuations, no placeholders** — resolve pod names/creds inline via `$(...)`. Put the runnable command LAST in your message.
 - **Provide commands; don't run** operational mutations the user should run themselves. Confirm before NEW changes (propose → yes → build); remove old/broken things FIRST.
 - **$0 budget** — free tiers + self-hosted only; no paid models/services unless explicitly funded.

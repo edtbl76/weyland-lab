@@ -73,7 +73,7 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
 - **Docker verification runs as the invoking user** (`--user "$(id -u):$(id -g)"`) or with `:ro` mounts — a root
   container writing into the repo breaks git for the owner.
 - **Commands handed to the owner:** absolute paths only (never relative), one step, the host label (`[rogueone]`,
-  `[mother]`) on its own line OUTSIDE the code fence. The agent session runs on **rogueone**; `kubectl` runs on mother.
+  `[mother]`) on its own line OUTSIDE the code fence. The agent session runs on **rogueone**.
 - **$0 budget.** Free tiers or self-hosted; cloud is fine only if genuinely free (not a trial).
 - **Ask before changing** anything non-trivial: propose, get a yes, then build. Ask one question at a time; lead with a
   recommendation, not a menu. Don't create records (issues, docs) you won't complete.
