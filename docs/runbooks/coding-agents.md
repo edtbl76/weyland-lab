@@ -275,6 +275,24 @@ as the native GPT-sub option. Clean tool protocols, real multi-step tool-use —
 variable, never the harness. Best driver = **ChatGPT-sub GPT-5.5** (Cline/Codex); best keyed-free = **Mistral / OpenRouter**
 (Gemini's 20 RPM 429s under an agent loop; Groq punted on a broken signup).
 
+## MCP servers turned off for this repo (B255, 2026-11-20)
+
+Every connected MCP server adds its instruction text to every Claude Code session here (about 6k tokens in all, measured
+with `/context`). These are off **for this repo only**; they stay on in other projects. If a task needs one and its
+tools are missing, turn it back on rather than finding a substitute:
+
+| Server | Why it is off here | Off via | Turn it back on |
+|---|---|---|---|
+| `serena` (repo `.mcp.json`) | unused here | `disabledMcpjsonServers` in `.claude/settings.local.json` | `/mcp` → enable for the session, or remove it from that list |
+| `context7`, direct (repo `.mcp.json`) | Bifrost already serves Context7 | `disabledMcpjsonServers` in `.claude/settings.local.json` | as above |
+| Figma plugin | Stud.IO work, not this repo | `enabledPlugins: {"figma@claude-plugins-official": false}` in `.claude/settings.local.json` | `/plugin`, or delete that entry |
+| `keploy` (user scope) | an evaluation, not in use | `/mcp` → disable (per project, stored in `~/.claude.json`) | `/mcp` → enable |
+| claude.ai Jam connector | Bifrost already serves Jam | `/mcp` → disable (per project) | `/mcp` → enable |
+
+`.claude/settings.local.json` is local to this machine (gitignored). `easel` is left on: it is a small registered mod
+with a one-line instruction and no documented switch. Already off before B255 (the same `/mcp` list): the plugin copies
+of context7, Playwright, chrome-devtools and Sentry, and a direct `github` server (Bifrost serves GitHub).
+
 ## Gotchas (all learned this build)
 
 - **Model hidden in TUI picker** → add a `"limit": { "context": …, "output": … }` block to the model entry.
