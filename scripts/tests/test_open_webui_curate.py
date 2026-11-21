@@ -291,3 +291,27 @@ def test_the_check_covers_both_presets():
     assert oc.lab_recall_ok(deep, "lab-recall-thorough") is True
     assert oc.lab_recall_ok({**deep, "base_model_id": "qwen2.5:7b-operator"}, "lab-recall-thorough") is False
     assert oc.lab_recall_ok(None, "lab-recall-thorough") is False
+
+
+# --- B255 (2026-11-20): the qwen3:30b-a3b presets run at a 32K window -------------------------------------------------
+# Measured: Lab Status asked "which pods are running?" built a 19,428-token prompt (one pod listing is ~15K tokens);
+# at the default 16K window Ollama kept 8,194 of it and the model answered from less than half the list. At 32K it
+# arrived whole (50 s instead of 24 s). Lab Recall (thorough) uses the same model, so it gets the same window: two
+# windows on one model load two copies and evict each other.
+def test_lab_status_runs_at_the_large_window():
+    assert oc.desired_lab_status({})["params"]["num_ctx"] == oc.LARGE_CTX == 32768
+
+
+def test_every_preset_on_the_status_model_shares_its_window():
+    deep = oc.desired_lab_recall({}, "lab-recall-thorough")
+    fast = oc.desired_lab_recall({}, "lab-recall")
+    assert oc.LAB_RECALLS["lab-recall-thorough"]["base"] == oc.LAB_STATUS_BASE
+    assert deep["params"]["num_ctx"] == oc.LARGE_CTX
+    assert "num_ctx" not in fast["params"]   # the 7B fast preset keeps the 16K default
+
+
+def test_the_drift_check_notices_a_lost_window():
+    good = oc.desired_lab_recall({}, "lab-recall-thorough")
+    assert oc.lab_recall_ok(good, "lab-recall-thorough")
+    bad = {**good, "params": {k: v for k, v in good["params"].items() if k != "num_ctx"}}
+    assert not oc.lab_recall_ok(bad, "lab-recall-thorough")

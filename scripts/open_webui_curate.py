@@ -49,6 +49,11 @@ MODEL_ORDER = ["lab-recall", "lab-recall-thorough", "lab-status", "weyland-opera
                "mistral-small3.2:24b", "qwen3-coder:30b", "devstral:latest", "deepseek-coder-v2:16b",
                "qwen2.5vl:latest", "qwen2.5:7b", "llama3.2:3b"]
 NUM_CTX = 16384
+# B255 (2026-11-20): presets on LAB_STATUS_BASE run at 32K. Measured: "which pods are running?" in Lab Status built a
+# 19,428-token prompt (one pod listing is ~15K tokens); at 16K Ollama kept 8,194 and the model answered from less than
+# half the list; at 32K it arrived whole (50 s instead of 24 s, 20.6 GiB with 9.7 on the GPU). Every preset on that
+# model gets the same window: two windows on one model load two copies that evict each other.
+LARGE_CTX = 32768
 # The guarded lane (B115): NeMo Guardrails over plain gpt-oss:20b, no tools, no lab context. Its connection id stays
 # `weyland-operator`; this entry gives it a name that says what it is (2026-11-19: taken for the operator, it invented
 # the lab's status).
@@ -182,7 +187,8 @@ def desired_lab_recall(cur, rid="lab-recall"):
     caps = dict(meta.get("capabilities") or {})
     caps.update(dict.fromkeys(LAB_RECALL_OFF, False), builtin_tools=False)
     return {**cur, "id": rid, "name": spec["name"], "base_model_id": spec["base"], "is_active": True,
-            "params": {**(cur.get("params") or {}), "system": LAB_RECALL_SYSTEM, "function_calling": "native"},
+            "params": {**(cur.get("params") or {}), "system": LAB_RECALL_SYSTEM, "function_calling": "native",
+                       **({"num_ctx": LARGE_CTX} if spec["base"] == LAB_STATUS_BASE else {})},
             "meta": {**meta, "capabilities": caps, "toolIds": LAB_RECALL_TOOLS, "description": spec["description"]},
             "access_grants": cur.get("access_grants") or PUBLIC_READ}
 
@@ -191,13 +197,14 @@ def lab_recall_ok(entry, rid="lab-recall"):
     entry = entry or {}
     return (entry.get("base_model_id") == LAB_RECALLS[rid]["base"] and _meta(entry).get("toolIds") == LAB_RECALL_TOOLS
             and (entry.get("params") or {}).get("system") == LAB_RECALL_SYSTEM
-            and (entry.get("params") or {}).get("function_calling") == "native")
+            and (entry.get("params") or {}).get("function_calling") == "native"
+            and (entry.get("params") or {}).get("num_ctx") == (LARGE_CTX if LAB_RECALLS[rid]["base"] == LAB_STATUS_BASE else None))
 
 
 def desired_lab_status(base_caps):
     return {
         "id": "lab-status", "name": "Lab Status", "base_model_id": LAB_STATUS_BASE, "is_active": True,
-        "params": {"system": LAB_STATUS_SYSTEM},
+        "params": {"system": LAB_STATUS_SYSTEM, "num_ctx": LARGE_CTX},
         "meta": {"description": "Live lab status from the read-only fleet tools (Kubernetes, alerts, metrics, logs, "
                                 "catalog), as you.",
                  "toolIds": ["server:mcp:lab-fleet"], "capabilities": {**base_caps, "builtin_tools": False},
@@ -294,9 +301,10 @@ def _check_models(all_models, mc):
     out.append((f"guarded chat named '{GUARDED_NAME}'", guarded_chat_ok(all_models.get(GUARDED_ID))))
     ls = all_models.get("lab-status") or {}
     params = ls.get("params") or {}
-    out.append(("Lab Status preset (qwen3:30b-a3b, fleet tools, prompt)",
+    out.append(("Lab Status preset (qwen3:30b-a3b, 32K window, fleet tools, prompt)",
                 ls.get("base_model_id") == LAB_STATUS_BASE and params.get("system") == LAB_STATUS_SYSTEM
-                and "think" not in params and _meta(ls).get("toolIds") == ["server:mcp:lab-fleet"]))
+                and "think" not in params and params.get("num_ctx") == LARGE_CTX
+                and _meta(ls).get("toolIds") == ["server:mcp:lab-fleet"]))
     return out
 
 

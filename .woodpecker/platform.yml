@@ -54,6 +54,7 @@ steps:
       - python3 scripts/check-doc-coverage.py
       # B241 — the weyland-capabilities skill (register_bifrost_skills.py) must match capabilities.yaml + repos.yaml.
       - python3 scripts/capabilities-skill.py --check
+      - python3 scripts/check-harness-budget.py
       # B138 — every repo-watching lane (pr-staleness, Port github integration, …) must match the canonical
       # repos.yaml SoT for its ENFORCED lanes, or a repo silently goes unwatched (found 1..6-repo divergence).
       # File analysis, plus the ci lane: an ANONYMOUS Woodpecker activation lookup (no secret, in-cluster svc).

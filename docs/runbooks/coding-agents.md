@@ -293,6 +293,19 @@ tools are missing, turn it back on rather than finding a substitute:
 with a one-line instruction and no documented switch. Already off before B255 (the same `/mcp` list): the plugin copies
 of context7, Playwright, chrome-devtools and Sentry, and a direct `github` server (Bifrost serves GitHub).
 
+## Always-loaded context budget (B255, 2026-11-20)
+
+Every Claude Code session here loads `CLAUDE.md` and its imports, the unscoped `.claude/rules/`, and the project skill
+and agent descriptions before you type anything. `scripts/check-harness-budget.py` (CI repo-guards) fails when they
+grow past their budgets (today's size plus ~15%). Over budget: move detail to something loaded on demand (a skill, a
+runbook, a rule with a `paths:` scope), or raise the budget in the script on purpose and say why. The memory index has
+its own 12 KB budget (`scripts/check-shared-memory.py`).
+
+[rogueone]
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/check-harness-budget.py
+```
+
 ## Gotchas (all learned this build)
 
 - **Model hidden in TUI picker** → add a `"limit": { "context": …, "output": … }` block to the model entry.
