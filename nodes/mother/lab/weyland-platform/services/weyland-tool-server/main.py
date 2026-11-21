@@ -282,7 +282,8 @@ def _span(name: str, span_type: str = "UNKNOWN"):
 
 @contextmanager
 def _lf_generation(name: str, model: str, input_messages, prompt_name: str,
-                   session_id: str | None = None, user_id: str | None = None, enabled: bool = True):
+                   session_id: str | None = None, user_id: str | None = None, enabled: bool = True,
+                   metadata: dict | None = None):
     """B103 — a fail-safe Langfuse generation LINKED to the Langfuse prompt version (SDK v4), running ALONGSIDE the
     MLflow span. Yields a generation handle (call `.update(output=...)`), or None if Langfuse is off/broken. A tracing
     failure never interrupts the request; flushes on exit so the trace lands on this request/response server. Setup and
@@ -304,8 +305,11 @@ def _lf_generation(name: str, model: str, input_messages, prompt_name: str,
                 prop_cm.__enter__()
             except Exception:
                 prop_cm = None
+        # metadata (B255): the online evaluators read the bare question and the context from here, so a judge prompt
+        # carries the chunks once instead of the whole message list (twice, for evaluators that map both).
         gen_cm = _lf.start_as_current_observation(as_type="generation", name=name, model=model,
-                                                  input=input_messages, prompt=prompt)
+                                                  input=input_messages, prompt=prompt,
+                                                  **({"metadata": metadata} if metadata else {}))
         gen = gen_cm.__enter__()
     except Exception:
         gen_cm = gen = None
@@ -786,13 +790,15 @@ def context_ask(request: AskRequest, actor: str | None = Depends(_actor)):
             if rspan is not None:
                 rspan.set_outputs({"num_chunks": len(chunks)})
         system_prompt = load_prompt("rag_system", RAG_SYSTEM_PROMPT)   # B100 P2 — live from the Prompt Registry (fail-safe)
+        context_text = _build_context(chunks)
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Context:\n{_build_context(chunks)}\n\nQuestion: {request.query}"},
+            {"role": "user", "content": f"Context:\n{context_text}\n\nQuestion: {request.query}"},
         ]
         with _span("generate", span_type="LLM") as gspan, \
              _lf_generation("rag-generate", model, messages, "rag_system",
-                            request.session_id or request_id, actor, enabled=request.langfuse) as lgen:   # B103 — Langfuse link + session, dual with MLflow
+                            request.session_id or request_id, actor, enabled=request.langfuse,
+                            metadata={"query": request.query, "context": context_text}) as lgen:   # B103 — Langfuse link + session, dual with MLflow
             if gspan is not None:
                 gspan.set_inputs({"model": model, "context_chunks": len(chunks), "prompt_version": loaded_version("rag_system")})
             try:

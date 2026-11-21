@@ -461,6 +461,7 @@ class _FakeLangfuse:
 
     def start_as_current_observation(self, **kw):
         self.observations.append(kw.get("name"))
+        self.kwargs = kw
         from contextlib import nullcontext
         return nullcontext(type("G", (), {"update": lambda self, **k: None})())
 
@@ -641,3 +642,18 @@ def test_the_measured_experimental_modes_are_gone(client, retired):
 
 def test_the_backends_are_exactly_the_four_stores():
     assert main.VALID_BACKENDS == set(main.SEARCH_FNS) == {"pgvector", "qdrant", "weaviate", "neo4j"}
+
+
+# --- B255 (2026-11-20): the online evaluators read the question and the context from metadata, not the whole input --
+# Every evaluator used to map `query` (and `context`) to the generation's Input: the full message list with all the
+# chunks inside the user message, so an evaluator mapping both got the chunks twice (a 10-chunk trace built a 10,596-
+# token judge prompt, over the judge's 8K window: Ollama cut it). The generation now carries the bare question and the
+# exact context text the model saw as metadata; langfuse_evaluators.py maps each evaluator to only what it needs.
+def test_rag_generate_carries_the_question_and_context_as_metadata(client, monkeypatch):
+    lf = _stub_ask(monkeypatch)
+    r = client.post("/context/ask", json={"query": "how are backups taken?", "backend": "pgvector"})
+    assert r.status_code == 200
+    md = lf.kwargs.get("metadata")
+    assert md == {"query": "how are backups taken?",
+                  "context": main._build_context([{"content": "c", "source": "s", "chunk_index": 0}])}
+    assert md["context"] in lf.kwargs["input"][1]["content"]   # the same text the model received, not a copy that drifts

@@ -121,8 +121,12 @@ The ONLINE eval lane, complementing the offline B84 MLflow suite; shared fixture
   Relevance/Helpfulness/Hallucination/Conciseness/Toxicity/Contextrelevance/Faithfulness — + the 2 custom). They run
   **live per-trace on Langfuse's engine** → Scores view. Rules have **no per-rule model** → all use the connection
   default (`wl-judge-oss`, $0). A Langfuse DB reset is rebuilt by materializing the asset. Add a criterion = a
-  `CATALOG` / `CUSTOM_EVALUATORS` entry. (Custom-evaluator variables must map to the observation; `context` maps to
-  Input since the RAG context+question are concatenated there.)
+  `CATALOG` / `CUSTOM_EVALUATORS` entry. **Mappings read metadata (B255, 2026-11-20):** the RAG services record the
+  bare question and the context text as `rag-generate` metadata (`{query, context}`), and each rule maps only what it
+  needs (`source: metadata`, `jsonPath: $.query` / `$.context`); Hallucination keeps the whole Input (its template has
+  no context variable). Before, every rule mapped the whole Input, so rules using both variables got the chunks twice:
+  a 10-chunk trace built a 10,596-token judge prompt and the 8K judge cut it. The script PATCHes a rule whose mapping
+  drifted (this Langfuse version needs `target` in the PATCH body) and creates missing ones.
 - **Datasets** — the eval-fixture SSOT is **git** (`weyland_pipeline/eval_sets/*.json`), mirrored to Langfuse Datasets
   by `scripts/langfuse_eval.py` (asset `langfuse_golden_dataset`). Langfuse holds a *copy*, never the source.
 - **Human Annotation** — a `quality` score-config + a queue (UI); score-configs are API-creatable and defined by the

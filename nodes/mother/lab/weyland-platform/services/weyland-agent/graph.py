@@ -39,7 +39,7 @@ if os.getenv("LANGFUSE_PUBLIC_KEY"):
 
 @contextmanager
 def _lf_generation(name: str, model: str, input_data, prompt_name: str,
-                   session_id: str | None = None, user_id: str | None = None):
+                   session_id: str | None = None, user_id: str | None = None, metadata: dict | None = None):
     """B103 — a fail-safe Langfuse generation LINKED to the Langfuse prompt version (SDK v4), alongside MLflow. Yields a
     handle (call `.update(output=...)`) or None if Langfuse is off/broken. Setup and yield are separated so a broken
     SDK call can't double-yield; flushes on exit. `session_id` groups the run's grade/reflect/generate into one session."""
@@ -60,8 +60,10 @@ def _lf_generation(name: str, model: str, input_data, prompt_name: str,
                 prop_cm.__enter__()
             except Exception:
                 prop_cm = None
+        # metadata (B255): the online evaluators read the bare question and the context from here, not the whole input
         gen_cm = _lf.start_as_current_observation(as_type="generation", name=name, model=model,
-                                                  input=input_data, prompt=prompt)
+                                                  input=input_data, prompt=prompt,
+                                                  **({"metadata": metadata} if metadata else {}))
         gen = gen_cm.__enter__()
     except Exception:
         gen_cm = gen = None
@@ -159,11 +161,13 @@ def reflect(state: AgentState) -> dict:
 
 
 def generate(state: AgentState) -> dict:
+    context_text = _fmt_context(state["chunks"])
     _msgs = [
         ("system", load_prompt("rag_system", RAG_SYSTEM_PROMPT)),
-        ("user", f"Context:\n{_fmt_context(state['chunks'])}\n\nQuestion: {state['original_query']}"),
+        ("user", f"Context:\n{context_text}\n\nQuestion: {state['original_query']}"),
     ]
-    with _lf_generation("rag-generate", OLLAMA_MODEL, _msgs, "rag_system", state.get("session_id")) as lgen:
+    with _lf_generation("rag-generate", OLLAMA_MODEL, _msgs, "rag_system", state.get("session_id"),
+                        metadata={"query": state["original_query"], "context": context_text}) as lgen:
         msg = _llm.invoke(_msgs)
         if lgen is not None:
             lgen.update(output=msg.content)

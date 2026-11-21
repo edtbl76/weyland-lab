@@ -7,11 +7,12 @@ which 404s; the earlier probe checked the wrong path). This reconciles, idempote
     have **no per-rule model** — all share the LLM connection's default (set to `wl-judge-oss` → $0). "All native on
     wl-judge-oss" was the chosen tier; per-criterion Haiku would need the old batch judge, which this REPLACES.
 
-Skips any evaluator/rule whose name already exists. Env: LANGFUSE_HOST + LANGFUSE_PUBLIC_KEY/SECRET_KEY.
+Creates a missing evaluator or rule; PATCHes a rule whose mapping drifted (B255). Env: LANGFUSE_HOST + LANGFUSE_PUBLIC_KEY/SECRET_KEY.
 Run: `kubectl -n weyland exec deploy/dagster-user-code -- python /app/scripts/langfuse_evaluators.py`
 (or the `langfuse_codified_evals` registrations asset). Fixtures/model live elsewhere: git `eval_sets/` (SSOT) + the
 Langfuse LLM connection.
 """
+import json
 import os
 
 import httpx
@@ -35,40 +36,60 @@ CUSTOM_EVALUATORS = [
                "guesses. Query: {{query}} Context: {{context}} Answer: {{generation}}"},
 ]
 
-_QG = [{"variable": "query", "source": "input"}, {"variable": "generation", "source": "output"}]
-_CTX = [{"variable": "query", "source": "input"}, {"variable": "context", "source": "input"}]
-_FAI = [{"variable": "context", "source": "input"}, {"variable": "answer", "source": "output"}]
+# B255 (2026-11-20): every rule used to map `query` (and `context`) to the generation's whole Input, the message list
+# with all the chunks inside, so a rule mapping both got the chunks twice: a 10-chunk trace built a 10,596-token judge
+# prompt, over the judge's 8K window, and Ollama cut it. The RAG services (tool-server /context/ask, weyland-agent) now
+# record the bare question and the context text as generation metadata; each rule reads only what it needs.
+_QUERY = {"variable": "query", "source": "metadata", "jsonPath": "$.query"}
+_CONTEXT = {"variable": "context", "source": "metadata", "jsonPath": "$.context"}
+_Q = [_QUERY, {"variable": "generation", "source": "output"}]
+# Hallucination's template has no context variable and needs the context: it keeps the whole Input (context once).
+_HAL = [{"variable": "query", "source": "input"}, {"variable": "generation", "source": "output"}]
+_CTX = [_QUERY, _CONTEXT]
+_FAI = [_CONTEXT, {"variable": "answer", "source": "output"}]
 _REF = _CTX + [{"variable": "generation", "source": "output"}]
 
-# (rule name, evaluator name, evaluator scope, variable mapping). Mapping must cover the evaluator's variables exactly once;
-# the RAG context+question are concatenated in the observation Input, so `context` maps to Input alongside `query`.
+# (rule name, evaluator name, evaluator scope, variable mapping). Mapping must cover the evaluator's variables exactly once.
 RULES = [
-    ("Relevance", "Relevance", "managed", _QG), ("Helpfulness", "Helpfulness", "managed", _QG),
-    ("Hallucination", "Hallucination", "managed", _QG), ("Conciseness", "Conciseness", "managed", _QG),
-    ("Toxicity", "Toxicity", "managed", _QG), ("Contextrelevance", "Contextrelevance", "managed", _CTX),
+    ("Relevance", "Relevance", "managed", _Q), ("Helpfulness", "Helpfulness", "managed", _Q),
+    ("Hallucination", "Hallucination", "managed", _HAL), ("Conciseness", "Conciseness", "managed", _Q),
+    ("Toxicity", "Toxicity", "managed", _Q), ("Contextrelevance", "Contextrelevance", "managed", _CTX),
     ("Faithfulness", "Faithfulness", "managed", _FAI),
-    ("citation", "citation", "project", _QG), ("refusal", "refusal", "project", _REF),
+    ("citation", "citation", "project", _Q), ("refusal", "refusal", "project", _REF),
 ]
+
+
+def _key(mapping) -> list:
+    """A mapping compared without regard to order or absent optional fields."""
+    return sorted(json.dumps({k: v for k, v in m.items() if v is not None}, sort_keys=True) for m in mapping or [])
+
+
+def reconcile(c) -> None:
+    have = {e["name"] for e in c.get(EV, params={"limit": 100}, timeout=30).json().get("data", [])}
+    for spec in CUSTOM_EVALUATORS:
+        if spec["name"] in have:
+            print("evaluator exists:", spec["name"]); continue
+        print("evaluator", spec["name"], c.post(EV, json=spec, timeout=60).status_code)
+    live = {r["name"]: r for r in c.get(RULE, params={"limit": 100}, timeout=30).json().get("data", [])}
+    for name, ev, scope, mapping in RULES:
+        if name in live:
+            if _key(live[name].get("mapping")) == _key(mapping):
+                print("rule current:", name); continue
+            # The only PATCH shape this Langfuse version accepts carries `target` (probed on a disabled rule, B255).
+            r = c.patch(f"{RULE}/{live[name]['id']}", json={"target": "observation", "mapping": mapping}, timeout=60)
+            print("rule mapping updated:", name, r.status_code); continue
+        body = {"name": name, "evaluator": {"name": ev, "scope": scope, "type": "llm_as_judge"},
+                "target": "observation", "enabled": True, "sampling": 1, "filter": FILTER, "mapping": mapping}
+        try:
+            print("rule", name, c.post(RULE, json=body, timeout=120).status_code)
+        except Exception as e:   # rule create can be slow (cold judge model) — don't let one stall the rest
+            print("rule", name, "ERR", type(e).__name__)
+    print(f"langfuse online evaluators reconciled: {len(RULES)} rules + {len(CUSTOM_EVALUATORS)} custom evaluators")
 
 
 def main():
     with httpx.Client(base_url=LF, auth=AUTH, timeout=120) as c:
-        have = {e["name"] for e in c.get(EV, params={"limit": 100}, timeout=30).json().get("data", [])}
-        for spec in CUSTOM_EVALUATORS:
-            if spec["name"] in have:
-                print("evaluator exists:", spec["name"]); continue
-            print("evaluator", spec["name"], c.post(EV, json=spec, timeout=60).status_code)
-        have = {r["name"] for r in c.get(RULE, params={"limit": 100}, timeout=30).json().get("data", [])}
-        for name, ev, scope, mapping in RULES:
-            if name in have:
-                print("rule exists:", name); continue
-            body = {"name": name, "evaluator": {"name": ev, "scope": scope, "type": "llm_as_judge"},
-                    "target": "observation", "enabled": True, "sampling": 1, "filter": FILTER, "mapping": mapping}
-            try:
-                print("rule", name, c.post(RULE, json=body, timeout=120).status_code)
-            except Exception as e:   # rule create can be slow (cold judge model) — don't let one stall the rest
-                print("rule", name, "ERR", type(e).__name__)
-    print(f"langfuse online evaluators reconciled: {len(RULES)} rules + {len(CUSTOM_EVALUATORS)} custom evaluators")
+        reconcile(c)
 
 
 if __name__ == "__main__":
