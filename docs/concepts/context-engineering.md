@@ -100,6 +100,21 @@ running?" in Lab Status builds about 19,400 tokens against a 16,384 window, and 
 operator already caps each tool result for its local brain (`LOCAL_TOOL_RESULT_CAP`, 12,000 characters, about 3,000
 tokens); Open WebUI's presets have no cap.
 
+**The tool-server RAG truncates in production (measured 2026-11-20).** `/context/ask` calls `gpt-oss:20b` through
+Ollama's `/v1/chat/completions` without a context size, and the stock model sets none, so it runs at Ollama's default
+for rogueone, **4,096 tokens** (`ollama ps`). Replayed from inside the tool-server pod with its own retrieval, context
+builder and system prompt (209 characters):
+
+| Question | Chunks | Prompt the model received at the default window | Same prompt at a 32,768 window |
+|---|---|---|---|
+| Postgres backups | 5 | 2,880 | 2,880 |
+| Postgres backups | 10 | **2,050** | **4,643** |
+| Bifrost vs LiteLLM (a comparison: B247's 2x depth) | 10 | 2,196 | 2,196 |
+
+At 10 chunks, the default window kept 2,050 of 4,643 tokens: more than half the retrieved context dropped with no error,
+and the reasoning tokens gpt-oss writes share the same 4,096. Whether a request truncates depends on chunk size, so B247's
+2x depth on comparisons and any `limit` above 5 can silently lose evidence.
+
 ## Industry survey (2026-11-20)
 
 Primary sources, fetched 2026-11-20 by a research agent; the claims marked **checked** were re-read on the source page
