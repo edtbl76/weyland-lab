@@ -20,14 +20,17 @@
   space. At `default` the re-point is a byte-identical no-op. (AIDLC's own stage
   resolver follows the active-space cursor directly and never needs this stub.)
 
-  Edit the METHOD at aidlc/spaces/default/memory/*, never here. If a new method
-  file is added there, add a matching @-line below.
+  Edit the METHOD at aidlc/spaces/default/memory/*, never here.
+
+  TRIMMED (B255, 2026-11-20, owner: "sure"): only team.md (the TDD posture) and
+  project.md (the lab's own corrections) load into every session. org.md (framework
+  defaults, ~4.3k tokens) and the four phases/*.md (~1.6k) were dropped from the
+  ambient import: an /aidlc run still gets every method file, because the engine
+  delivers them as rules_content in its load-steering directives, and nothing else
+  needs them in casual chat. The re-point above rewrites whichever @-lines exist, so a
+  shorter list is safe. To restore one, add its @-line back; the measurement is in
+  docs/concepts/context-engineering.md.
 -->
 
-@../../aidlc/spaces/default/memory/org.md
 @../../aidlc/spaces/default/memory/team.md
 @../../aidlc/spaces/default/memory/project.md
-@../../aidlc/spaces/default/memory/phases/ideation.md
-@../../aidlc/spaces/default/memory/phases/inception.md
-@../../aidlc/spaces/default/memory/phases/construction.md
-@../../aidlc/spaces/default/memory/phases/operation.md
