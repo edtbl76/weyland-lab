@@ -23,9 +23,17 @@ All commands below run on **rogueone** unless the label says otherwise.
 ```
 cd /home/edwardmangini/IdeaProjects/weyland && ~/.local/bin/uv run -q --with mcp python scripts/check-shared-memory.py
 ```
-Four checks: reachable · every note on disk is in the index · a note written over MCP lands as a file · a note written
-as a plain file is searchable within 60 s. Exit 0 pass · 1 a check failed (named) · 2 **unreachable** — the store is
-down, NOT empty. `--read-only` runs the first two only (what the watchdog uses).
+Five checks: the index files (below) · reachable · every note on disk is in the index · a note written over MCP lands
+as a file · a note written as a plain file is searchable within 60 s.
+
+**Two index files (B255, 2026-11-20).** `MEMORY.md` is the core every Claude Code session loads (working rules and
+starred notes); Claude Code loads only its first 25 KB / 200 lines and silently drops the rest, so the core has a
+**12 KB budget**. `MEMORY-catalog.md` lists every note by topic and is read on demand. A new note always gets a line in
+the catalog, and a line in `MEMORY.md` only if every session needs it. The index-files check fails, naming each, on a
+core over budget, a note linked from neither file, or a link to a note that does not exist (it found one at the
+split: an index link to a repo doc, `docs/concepts/data-contracts-odcs.md`). Over budget: move entries from `MEMORY.md`
+to the catalog. Exit 0 pass · 1 a check failed (named) · 2 **unreachable** — the store is
+down, NOT empty. `--read-only` runs the index-files check and the first two (what the watchdog uses).
 
 ## Recall probe (does a natural question find its note?)
 

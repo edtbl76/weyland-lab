@@ -160,6 +160,7 @@ carry the standing rules.
 |---|---|---|---|---|
 | 2026-11-20 | `# Compact instructions` section in the root `CLAUDE.md`: keep the active item and its state, owner decisions verbatim, conversation-only instructions, identifiers in use, open threads; drop raw tool output | owner: "yes, add the compact instructions" | `CLAUDE.md` 588 to 1,638 bytes (about +260 tokens, every session) | the next compaction summaries against the 35-summary baseline above (standing rules kept, active item and next step present) |
 | 2026-11-20 | RAG endpoints on `gpt-oss:20b-rag` (8K window, `nodes/rogueone/ollama/gpt-oss-20b-rag.Modelfile`): the tool-server's `/context/ask` and weyland-agent; hidden in Open WebUI | owner: "yes, fix it" | none in the prompt; 9.7 of 13.1 GiB on the GPU (same as the 8K judge variant); shares one loaded copy with `gpt-oss:20b-judge` | replay: the 10-chunk prompt now arrives whole (4,643 of 4,643; it was 2,050 at the 4,096 default) |
+| 2026-11-20 | Two-tier memory index: `MEMORY.md` = working rules and starred notes (the always-loaded core), `MEMORY-catalog.md` = every note by topic (read on demand); `check-shared-memory.py` checks both (core within 12 KB, every note linked, no dangling link) in every mode, the 15-min watchdog included; `AGENTS.md` and the runbook updated | owner: "yes, split it" | `MEMORY.md` 19,056 to 11,666 bytes (about -1,850 tokens every session; it was at 76% of Claude Code's 25 KB load cap) | the check passes on the real store (287 notes); it caught one dangling link at the split |
 
 ## Trials
 

@@ -81,14 +81,19 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
 
 ## Agent memory
 Durable lessons and decisions live in ONE shared store (B182, 2026-10-03): the Markdown notes in
-`/home/edwardmangini/agent-memory/weyland/` on rogueone — `MEMORY.md` is the index, one note per fact (frontmatter
+`/home/edwardmangini/agent-memory/weyland/` on rogueone, one note per fact (frontmatter
 `name` / `description` / `metadata.type`, `[[name]]` links). Claude Code's auto-memory path is a symlink to it, and
 **Basic Memory** serves the same files over MCP (`http://127.0.0.1:8765/mcp` on rogueone; `Agent_Memory-*` tools via
 Bifrost for the coding-agents key). The weyland-operator and Open WebUI READ it through the governed MCP gateway
-(`/mcp-fleet`, `/mcp-memory` — Open WebUI as the signed-in person, every request audited). Every harness:
-- **Read `MEMORY.md` and the notes it links before proposing work** — or search with `Agent_Memory-search_notes`.
+(`/mcp-fleet`, `/mcp-memory` — Open WebUI as the signed-in person, every request audited). **Two indexes (B255,
+2026-11-20):** `MEMORY.md` is the small core every session loads (working rules and starred notes, under 12 KB:
+Claude Code loads only its first 25 KB); `MEMORY-catalog.md` lists every note by topic. Every harness:
+- **Read `MEMORY.md` before proposing work, and `MEMORY-catalog.md` or a search (`Agent_Memory-search_notes`) when the
+  task touches a topic the core does not list.**
 - **Record a durable lesson as one note** (a file in that directory, or `Agent_Memory-write_note`), and add a one-line
-  pointer to `MEMORY.md`. Update an existing note rather than duplicating it.
+  pointer to `MEMORY-catalog.md`; add it to `MEMORY.md` too only if every session needs it. Update an existing note
+  rather than duplicating it. `scripts/check-shared-memory.py` (and its 15-min watchdog) fails on an unlinked note or a
+  core over budget.
 - **Never write a secret into memory** — a watchdog (`agent-memory-watch`, every 15 min) scans the notes with gitleaks
   and alerts.
 - **If the store does not answer, say so** — unreachable is not "no memory".

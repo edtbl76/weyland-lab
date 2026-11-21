@@ -9,9 +9,12 @@ This check is the B182 acceptance test and the demo:
   2. indexed    — every note on disk is in the index (index count == file count).
   3. mcp write  — a note written over MCP lands as a file in the directory, then is deleted.
   4. native     — a note written straight to disk (how Claude Code writes) is found by search within 60 s, then removed.
+  0. index files — (no server needed; every mode) the two-tier index (B255, 2026-11-20): MEMORY.md, the core every
+                  Claude Code session loads (Claude Code loads only its first 25 KB / 200 lines), is within its 12 KB
+                  budget; every note is linked from MEMORY.md or MEMORY-catalog.md; no link points at a missing note.
 
   usage: check-shared-memory.py [--url URL] [--dir DIR] [--timeout SECONDS] [--read-only]
-  --read-only runs checks 1-2 only (no probe notes written) — what the 15-min watchdog uses.
+  --read-only runs checks 0-2 only (no probe notes written) — what the 15-min watchdog uses.
   EXIT: 0 all pass · 1 a check failed (named) · 2 cannot reach / cannot read the store.
 """
 import argparse
@@ -29,6 +32,49 @@ DEFAULT_DIR = os.path.expanduser(os.environ.get("SHARED_MEMORY_DIR", "~/agent-me
 
 class CannotReach(Exception):
     pass
+
+
+CORE = "MEMORY.md"
+CATALOG = "MEMORY-catalog.md"
+CORE_BUDGET_BYTES = 12 * 1024   # half of the 25 KB Claude Code loads from MEMORY.md; the rest is silently dropped
+_LINK = re.compile(r"\]\(([^)\s]+)\)")
+
+
+def _targets(text: str) -> set:
+    """Note paths an index file links to, normalised to end in .md (some links omit it)."""
+    return {t if t.endswith(".md") else t + ".md" for t in _LINK.findall(text) if "://" not in t}
+
+
+def index_problems(directory: str, budget: int = CORE_BUDGET_BYTES) -> list:
+    """Problems with the two-tier index, named; [] when the core is within budget and every note is linked."""
+    notes = set(note_files(directory)) - {CORE, CATALOG}
+    if not notes:
+        return ["no notes found: the index check would pass vacuously"]
+    core_path, cat_path = os.path.join(directory, CORE), os.path.join(directory, CATALOG)
+    if not os.path.exists(core_path):
+        return [f"{CORE} is missing: Claude Code would load no memory index"]
+    problems = []
+    core = open(core_path, encoding="utf-8").read()
+    size = len(core.encode("utf-8"))
+    if size > budget:
+        problems.append(f"{CORE} is {size} bytes, over its {budget}-byte budget: move entries to {CATALOG}")
+    catalog = open(cat_path, encoding="utf-8").read() if os.path.exists(cat_path) else ""
+    for name, text in ((CORE, core), (CATALOG, catalog)):
+        for t in sorted(_targets(text) - notes - {CORE, CATALOG}):
+            problems.append(f"{name} links {t}, which does not exist")
+    linked = _targets(core) | _targets(catalog)
+    problems += [f"{n} is in neither {CORE} nor {CATALOG}" for n in sorted(notes - linked)]
+    return problems
+
+
+def step_index_files(directory: str) -> bool:
+    problems = index_problems(directory)
+    if problems:
+        print("0. index files FAIL — " + "; ".join(problems[:10]) + (f" (+{len(problems) - 10} more)" if len(problems) > 10 else ""))
+        return False
+    size = os.path.getsize(os.path.join(directory, CORE))
+    print(f"0. index files OK — {CORE} {size} of {CORE_BUDGET_BYTES} bytes; every note linked from {CORE} or {CATALOG}")
+    return True
 
 
 def note_files(directory: str) -> list:
@@ -139,7 +185,7 @@ async def run(url: str, directory: str, read_only: bool = False) -> int:
         return 1
     print(f"1. reachable OK — {len(tools)} tools at {url}")
 
-    results = {"indexed": await step_indexed(url, directory)}
+    results = {"index files": step_index_files(directory), "indexed": await step_indexed(url, directory)}
     if not read_only:
         tag = uuid.uuid4().hex[:10]
         results["mcp write"] = await step_mcp_write(url, directory, tag)
