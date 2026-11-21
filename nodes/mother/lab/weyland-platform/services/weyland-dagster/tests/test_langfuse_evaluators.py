@@ -8,10 +8,8 @@ context once. Reconcile used to skip any rule that existed, so a changed mapping
 a drifted rule with `target` + `mapping` (the shape this Langfuse version accepts; probed on a disabled rule).
 """
 import importlib.util
-import json
 import pathlib
 
-import httpx
 import pytest
 
 _PATH = pathlib.Path(__file__).resolve().parents[1] / "scripts" / "langfuse_evaluators.py"
@@ -57,15 +55,38 @@ def test_hallucination_keeps_the_full_input(le):
     assert q == {"variable": "query", "source": "input"}
 
 
+class _Resp:
+    def __init__(self, body, status=200):
+        self._body, self.status_code = body, status
+
+    def json(self):
+        return self._body
+
+
+class _Client:
+    """The three calls reconcile makes, recorded. A plain fake on purpose: another test in this suite replaces
+    `httpx` in sys.modules with a stub (test_ollama_auth.py), so httpx.MockTransport is not reliably there."""
+
+    def __init__(self, rules_live, calls):
+        self.rules_live, self.calls = rules_live, calls
+
+    def get(self, path, **kw):
+        self.calls.append(("GET", path, None))
+        if path.endswith("/evaluators"):
+            return _Resp({"data": [{"name": "citation"}, {"name": "refusal"}]})
+        return _Resp({"data": self.rules_live})
+
+    def post(self, path, json=None, **kw):
+        self.calls.append(("POST", path, json))
+        return _Resp({"id": "new"})
+
+    def patch(self, path, json=None, **kw):
+        self.calls.append(("PATCH", path, json))
+        return _Resp({"id": path.rsplit("/", 1)[-1]})
+
+
 def _client(rules_live, calls):
-    def handler(req):
-        calls.append((req.method, req.url.path, json.loads(req.content) if req.content else None))
-        if req.method == "GET" and req.url.path.endswith("/evaluators"):
-            return httpx.Response(200, json={"data": [{"name": "citation"}, {"name": "refusal"}]})
-        if req.method == "GET" and req.url.path.endswith("/evaluation-rules"):
-            return httpx.Response(200, json={"data": rules_live})
-        return httpx.Response(200, json={"id": "new"})
-    return httpx.Client(transport=httpx.MockTransport(handler), base_url="http://langfuse")
+    return _Client(rules_live, calls)
 
 
 def test_reconcile_patches_a_drifted_rule_leaves_a_current_one_and_creates_a_missing_one(le):
