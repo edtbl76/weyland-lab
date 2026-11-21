@@ -586,6 +586,36 @@ except Exception as e:
 ' 2>/dev/null
 }
 
+# Agent (B255, 2026-11-20 — joined images.tsv; it was hand-tagged until then and never picked up source changes): the
+# LangGraph RAG agent must ANSWER from retrieved context, not merely be Ready. /ready only says the retriever and the
+# graph loaded; one real /agent/ask (max_attempts 1) must return a non-empty answer AND non-empty sources, which proves
+# the ONNX embedder, the vector DB, the grade node and generation on gpt-oss:20b-rag all work. About a minute of local
+# GPU per agent ship (rare: only when services/weyland-agent changes). Shape observed live:
+# {"query", "answer", "sources": [...], "attempts", "backend_used", "backend_history"}.
+txn_agent() {
+  local pod="${1:?usage: txn_agent <pod>}"
+  kubectl -n weyland exec "$pod" -- python3 -c '
+import json, urllib.request
+B = "http://weyland-agent.weyland.svc.cluster.local:8080"
+try:
+    if json.load(urllib.request.urlopen(B + "/ready", timeout=25)).get("status") != "ready":
+        print("TXN_FAIL /ready is not ready"); raise SystemExit
+    body = {"query": "How does the lab back up its core Postgres databases?", "max_attempts": 1}
+    r = urllib.request.Request(B + "/agent/ask", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    out = json.load(urllib.request.urlopen(r, timeout=300))
+    if not (out.get("sources") or []):
+        print("TXN_FAIL /agent/ask returned no sources (retrieval empty)")
+    elif not (out.get("answer") or "").strip():
+        print("TXN_FAIL /agent/ask returned an empty answer")
+    else:
+        print("TXN_OK")
+except SystemExit:
+    pass
+except Exception as e:
+    print("TXN_FAIL " + type(e).__name__ + " " + str(e)[:120])
+' 2>/dev/null
+}
+
 # Guard (2026-10-14, B207 — joined images.tsv): the black-box contract (scripts/integration/guard-blackbox.sh), asked
 # post-deploy. `/health` must list a NON-EMPTY validator set: an empty one is a guard that answers allow to everything
 # while `/ready` is green. `/guard/input` must return a real decision (allow|block), proving the pipeline runs. Shape
@@ -1178,6 +1208,7 @@ txn_ok() {
       weyland-dagster-user-code|weyland-dagster-base) verdict="$(txn_dagster "$pod")" ;;
       feast-server)              verdict="$(txn_feast "$pod")" ;;
       weyland-tool-server)       verdict="$(txn_tool_server "$pod")" ;;
+      weyland-agent)             verdict="$(txn_agent "$pod")" ;;
       weyland-guard)             verdict="$(txn_guard "$pod")" ;;
       weyland-mlflow)            verdict="$(txn_mlflow "$pod")" ;;
       guardrails-structure)      verdict="$(txn_guardrails_structure "$pod")" ;;

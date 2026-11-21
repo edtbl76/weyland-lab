@@ -12,7 +12,8 @@
 # built locally by `docker compose up --build` from scripts/clef-flash.sh at each start and pushed nowhere — deployed
 # nowhere in k8s — so it is intentionally omitted too (runbooks/decision-models.md § Compare Clef-flash).
 # a2a-inspector (B17) is hand-tagged vN: v1 was built from github.com/a2aproject/a2a-inspector by hand; v2+ is the patch
-# layer services/a2a-inspector/Dockerfile (FROM v1 by digest), built + pushed by hand like weyland-agent.
+# layer services/a2a-inspector/Dockerfile (FROM v1 by digest), built + pushed by hand. (weyland-agent was hand-tagged vN
+# until B255, 2026-11-20: its v20 never picked up source changes, so it joined this list below.)
 # weyland-jupyter (JupyterHub singleuser, B81) is tag-pinned (registry.weyland.lab/weyland-jupyter:vN, pullPolicy
 # IfNotPresent) and built MANUALLY (bump the tag in k8s/jupyterhub/jupyterhub-values.yaml, then docker build/push)
 # — the notebook library is git-synced not baked, so the image changes only on a dep/toolkit bump. Intentionally
@@ -38,6 +39,7 @@ nemo-guardrails	services/nemo-guardrails	k8s/nemo-guardrails/nemo-guardrails.yam
 weyland-operator	services/weyland-operator	k8s/weyland-operator/deployment.yaml
 weyland-mcp-compositor	services/weyland-mcp-compositor	k8s/mcp-servers/compositor.yaml k8s/mcp-servers/compositor-memory.yaml
 weyland-mcp-gateway	services/weyland-mcp-gateway	k8s/mcp-gateway/mcp-gateway.yaml
+weyland-agent	services/weyland-agent	k8s/weyland-agent/deployment.yaml
 realm-of-agents	services/realm-of-agents	k8s/realm-of-agents/deployment.yaml
 weyland-guard	services/weyland-guard	k8s/weyland-guard/deployment.yaml
 weyland-mlflow	services/weyland-mlflow	k8s/mlflow/mlflow.yaml
