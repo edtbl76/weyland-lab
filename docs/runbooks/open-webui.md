@@ -99,7 +99,7 @@ appears once **Admin Panel → Settings → Authentication → API Keys** is on 
 |---|---|---|
 | OpenAI-style connections | only `nemo-guardrails` (the guarded `weyland-operator` lane) | an enabled `api.openai.com` connection with no key had been left in the database: outbound, and the lab is LAN-only and $0 |
 | Community sharing · Arena model | off · off | sharing would publish chats to openwebui.com; Arena added a noise entry to the picker |
-| Hidden models | `nomic-embed-text`, `gpt-oss:20b-judge`, `qwen2.5:7b-operator`, `qwen3-coder:30b-32k` | an embedder, the eval judge, the operator's own variant, a duplicate — not chat models |
+| Hidden models | `nomic-embed-text`, `gpt-oss:20b-judge`, `gpt-oss:20b-rag`, `qwen2.5:7b-operator`, `qwen3-coder:30b-32k` | an embedder, the eval judge, the RAG endpoints' 8K variant (B255), the operator's own variant, a duplicate — not chat models |
 | Default model · order | **Lab Recall** · Lab Recall, Lab Recall (thorough), **Lab Status**, Guarded chat, then the chat models | before 2026-11-19 the guarded lane was listed first as `weyland-operator`, was taken for the operator, and invented the lab's status |
 | Guarded chat | the `weyland-operator` connection model named **"Guarded chat (no lab access)"**, public read, a description pointing to Lab Status and Lab Recall | it is NeMo Guardrails over plain `gpt-oss:20b`, no tools ([guardrails.md](guardrails.md) § nemo-guardrails) |
 | Default context | `num_ctx` **16384** | Ollama's 4096 default cut every chat with tools selected to ~2,050 tokens (Ollama halves an overflowing prompt), so the model saw only part of its tool list and answered "I have no such tools" |

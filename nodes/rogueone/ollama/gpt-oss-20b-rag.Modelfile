@@ -1,0 +1,18 @@
+# gpt-oss:20b-rag — gpt-oss:20b with a context window that holds the tool-server's RAG prompt (2026-11-20, B255).
+#
+# WHY: the tool-server's /context/ask called stock gpt-oss:20b through Ollama's /v1 API, which runs at Ollama's default
+# window on rogueone, 4096 tokens. Measured from inside the tool-server pod (docs/concepts/context-engineering.md): a
+# 10-chunk prompt is 4,643 tokens, and at 4096 the model received only 2,050 of them, with no error. B247's 2x depth on
+# comparison questions and any limit above 5 hit this; gpt-oss's reasoning tokens share the same window.
+#
+# WHY 8K AND NOT 16K: same card limit as gpt-oss:20b-judge (see its Modelfile): at 16K only 8.2 of 13.1 GiB fit on the
+# GPU beside the desktop and a call took ~70 s; at 8K, 9.5 GiB and ~48 s. 8K holds the largest prompt the endpoint
+# builds at limit 10 (4,643 tokens) plus a reply with reasoning.
+#
+# Used by the tool-server as OLLAMA_MODEL (k8s/weyland-tool-server deployment). Scoped to this tag on purpose:
+# OLLAMA_CONTEXT_LENGTH would raise VRAM for every model on the card.
+#
+# Build / rebuild (rogueone):
+#   ollama create gpt-oss:20b-rag -f /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/ollama/gpt-oss-20b-rag.Modelfile
+FROM gpt-oss:20b
+PARAMETER num_ctx 8192

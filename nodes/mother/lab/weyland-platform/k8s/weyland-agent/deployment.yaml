@@ -93,7 +93,7 @@ spec:
             - name: OLLAMA_BASE_URL
               value: http://192.168.1.230:11434/v1
             - name: OLLAMA_MODEL
-              value: gpt-oss:20b
+              value: gpt-oss:20b-rag   # 8K window since B255 (2026-11-20); stock gpt-oss:20b ran at Ollama's 4096 default (nodes/rogueone/ollama/gpt-oss-20b-rag.Modelfile)
             - name: GUARD_BASE_URL
               value: http://weyland-guard.weyland.svc.cluster.local:8080
             - name: MLFLOW_TRACKING_URI

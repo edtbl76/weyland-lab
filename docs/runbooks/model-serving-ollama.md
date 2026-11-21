@@ -28,6 +28,14 @@ reference — they still apply to the CPU-offloaded portion of any model that ov
   larger models (e.g. 30B@Q4 ≈ 20 GB) offload the overflow layers to CPU/RAM.
 - **Serves:** the eval-judge panel, weyland-tool-server RAG (`/context/ask`), Open WebUI, and the B66 operator
   (`qwen2.5:7b-operator`). Hermes was a consumer until its retirement on 2026-07-23.
+- **Window variants (`nodes/rogueone/ollama/*.Modelfile`):** Ollama runs a model at its own default window unless the
+  model sets one, and on this card that default is **4,096 tokens**; calls through the OpenAI-style `/v1` API cannot
+  raise it per request. A caller whose prompt can be larger gets a variant with `PARAMETER num_ctx`, scoped to that tag
+  (`OLLAMA_CONTEXT_LENGTH` would raise VRAM for every model): `qwen2.5:7b-operator` (32K, the operator and the Realm's
+  free lane), `gpt-oss:20b-judge` (8K, `wl-judge-oss`), `gpt-oss:20b-rag` (8K, the tool-server's `/context/ask` and
+  weyland-agent, B255: stock gpt-oss:20b dropped 2,593 of a 10-chunk prompt's 4,643 tokens without an error),
+  `qwen3-coder:30b-32k`. Two tags with the same weights and window share one loaded copy (checked 2026-11-20 with
+  `/api/ps`). Rebuild a variant with the `ollama create` line in its Modelfile.
 
 ## Access — get a shell on rogueone
 rogueone is a first-class LAN host with a normal login (no `pct` — that was the CT-102 era):

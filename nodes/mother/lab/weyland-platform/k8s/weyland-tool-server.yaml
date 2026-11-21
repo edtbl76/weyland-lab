@@ -122,7 +122,7 @@ spec:
                   name: tool-server-sentry
                   key: SENTRY_DSN
             - name: OLLAMA_MODEL
-              value: gpt-oss:20b   # B4 panel-validated most-faithful RAG model (2026-06-13)
+              value: gpt-oss:20b-rag   # B4's most-faithful RAG model (2026-06-13), with an 8K window since B255 (2026-11-20): stock gpt-oss:20b ran at Ollama's 4096 default and silently dropped half a 10-chunk prompt (nodes/rogueone/ollama/gpt-oss-20b-rag.Modelfile)
             # B70 Part 2 — shared guard service (fail-open; default matches the in-cluster svc, set explicit for clarity).
             - name: GUARD_BASE_URL
               value: http://weyland-guard.weyland.svc.cluster.local:8080

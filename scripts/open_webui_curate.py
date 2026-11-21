@@ -42,7 +42,8 @@ import urllib.request
 
 NEMO_URL = "http://nemo-guardrails.weyland.svc.cluster.local:8080/v1"
 GATEWAY = "http://weyland-mcp-gateway.weyland.svc.cluster.local:8080"
-HIDDEN_MODELS = ["nomic-embed-text:latest", "gpt-oss:20b-judge", "qwen2.5:7b-operator", "qwen3-coder:30b-32k"]
+HIDDEN_MODELS = ["nomic-embed-text:latest", "gpt-oss:20b-judge", "gpt-oss:20b-rag", "qwen2.5:7b-operator",
+                 "qwen3-coder:30b-32k"]   # gpt-oss:20b-rag: the RAG endpoints' 8K variant (B255)
 LAB_STATUS_BASE = "qwen3:30b-a3b"
 MODEL_ORDER = ["lab-recall", "lab-recall-thorough", "lab-status", "weyland-operator", LAB_STATUS_BASE, "qwen3:14b", "gpt-oss:20b",
                "mistral-small3.2:24b", "qwen3-coder:30b", "devstral:latest", "deepseek-coder-v2:16b",
