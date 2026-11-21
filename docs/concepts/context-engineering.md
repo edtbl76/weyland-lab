@@ -115,6 +115,19 @@ At 10 chunks, the default window kept 2,050 of 4,643 tokens: more than half the 
 and the reasoning tokens gpt-oss writes share the same 4,096. Whether a request truncates depends on chunk size, so B247's
 2x depth on comparisons and any `limit` above 5 can silently lose evidence.
 
+**Confirmed in production, 2026-11-20 21:59:** a real `/context/ask` (limit 10) on the old setup made Ollama log
+`level=WARN msg="truncating input prompt" limit=2050 prompt=4643 keep=4 new=2050` (rogueone `journalctl -u ollama`),
+while the same request's closing line still read `truncated = 0`. **For the guard:** the WARN line is the reliable signal;
+the `truncated` flag on the closing line is not.
+
+**After the fix (2026-11-20 22:03, both services on `gpt-oss:20b-rag`):** the same real ask arrived whole
+(`n_ctx_slot = 8192, task.n_tokens = 4643`, no warning). **A second gap surfaced:** at 22:02:59 Ollama truncated a
+10,596-token prompt to 4,098 on the same loaded model; the front door's access log (`docker logs ollama-proxy`) shows the
+caller was LiteLLM on timberback (`litellm/1.93.0`, `/api/chat`), i.e. `wl-judge-oss`: a Langfuse online evaluator
+scoring the 10-chunk test trace (question + 10 chunks + answer). The judge variant is capped at 8K by the GPU (16K does
+not fit), so evaluator scores on large RAG traces are judged on a cut prompt. Open for B255: trim what the evaluators
+receive, or a slower 16K judge.
+
 ## Industry survey (2026-11-20)
 
 Primary sources, fetched 2026-11-20 by a research agent; the claims marked **checked** were re-read on the source page
