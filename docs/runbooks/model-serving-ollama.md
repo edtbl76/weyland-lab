@@ -37,6 +37,26 @@ reference — they still apply to the CPU-offloaded portion of any model that ov
   `qwen3-coder:30b-32k`. Two tags with the same weights and window share one loaded copy (checked 2026-11-20 with
   `/api/ps`). Rebuild a variant with the `ollama create` line in its Modelfile.
 
+
+## Truncation watch (B255, 2026-11-20)
+
+Ollama cuts a prompt longer than the model's window and still answers: the caller sees no error. The only reliable trace
+is a WARN line in its journal, `truncating input prompt limit=<kept> prompt=<sent>`; the request's closing
+`truncated = 0|1` is not reliable (it read 0 on a request that had just lost 2,593 of 4,643 tokens). The user timer
+`ollama-truncation-watch` (every 15 min, `scripts/ollama_truncation_watch.py`) pushes the verdict to the Uptime Kuma push
+monitor `ollama-truncation` (URL in `scripts/.env` as `KUMA_OLLAMA_TRUNC_PUSH_URL`, heartbeat interval 1200 s): any
+truncation is DOWN with the count and the worst cut; an unreadable journal is DOWN; a missed heartbeat alerts.
+
+Check by hand (prints the verdict, pushes nothing):
+
+[rogueone]
+```
+python3 /home/edwardmangini/IdeaProjects/weyland/scripts/ollama_truncation_watch.py --window 60 --dry-run
+```
+
+When it fires: find the caller in the front door's access log at that time (`docker logs ollama-proxy --since <time>`;
+the user agent and address name it), then give that caller a window variant (§ Window variants above) or a smaller
+prompt. Install or reinstall the units with the lines in `nodes/rogueone/systemd/ollama-truncation-watch.service`.
 ## Access — get a shell on rogueone
 rogueone is a first-class LAN host with a normal login (no `pct` — that was the CT-102 era):
 1. **SSH to rogueone:** `ssh edwardmangini@rogueone`

@@ -1,0 +1,18 @@
+# B255 — Ollama silent-truncation watch: reads Ollama's journal for the last 16 min and pushes the verdict to an
+# Uptime-Kuma push monitor (KUMA_OLLAMA_TRUNC_PUSH_URL in scripts/.env). Any `truncating input prompt` WARN is DOWN;
+# an unreadable journal is DOWN. USER unit: the owner's account can read the system journal.
+# See docs/runbooks/model-serving-ollama.md § Truncation watch.
+#   Install:  cp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/ollama-truncation-watch.{service,timer} /home/edwardmangini/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now ollama-truncation-watch.timer
+#   Run now:  systemctl --user start ollama-truncation-watch.service   ·   logs: journalctl --user -u ollama-truncation-watch
+[Unit]
+Description=Ollama silent-truncation watch → Kuma (B255)
+
+[Service]
+Type=oneshot
+Nice=10
+# No EnvironmentFile on purpose: scripts/.env holds every lab secret and this unit needs ONE value; the script reads
+# only KUMA_OLLAMA_TRUNC_PUSH_URL from that file itself. Unset -> nothing is reported, and the missed heartbeat alerts.
+ExecStart=/usr/bin/python3 /home/edwardmangini/IdeaProjects/weyland/scripts/ollama_truncation_watch.py --window 16
+StandardOutput=journal
+StandardError=journal

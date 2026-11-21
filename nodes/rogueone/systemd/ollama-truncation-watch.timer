@@ -1,0 +1,12 @@
+# B255 — check Ollama's journal for silent prompt truncation every 15 min (a 16-min window, so runs overlap). The Kuma
+# push monitor's heartbeat interval is 1200 s (20 min), so a check that stops running alerts as well (dead-man's switch).
+[Unit]
+Description=Ollama silent-truncation watch every 15 min (B255)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
