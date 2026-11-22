@@ -50,6 +50,13 @@ teardown() { rm -rf "$T"; }
   [[ "$output" == *"nothing left"* ]]
 }
 
+@test "run: REALM_EVAL_ARMS limits the arms (B255 trials)" {
+  REALM_EVAL_ARMS=single,single-rt run bash "$SCRIPT" run
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [ "$(wc -l < "$T/out/results.jsonl")" -eq 4 ]            # 2 tasks x 2 arms x 1 rep
+  ! grep -q '"arm": "realm"' "$T/out/results.jsonl"
+}
+
 @test "run: a rerun resumes and execs nothing when all is done" {
   bash "$SCRIPT" run
   : > "$T/kubectl.args"

@@ -50,7 +50,7 @@ def test_the_counter_sums_tokens_llm_calls_tools_and_delegations(ev):
     c.on_tool_start({"name": "trino_execute_query"}, "{}")
     assert c.as_dict() == {"input_tokens": 150, "output_tokens": 25, "llm_calls": 2, "tool_calls": 2,
                            "delegations": 1, "tools_used": ["grafana_search_dashboards", "trino_execute_query"],
-                           "delegated_to": ["saga"]}
+                           "delegated_to": ["saga"], "cleared_tool_results": 0}
 
 
 def test_a_completion_without_usage_still_counts_as_a_call(ev):
@@ -82,12 +82,17 @@ def test_every_arm_runs_free_only(ev, monkeypatch):
         seen.append(mod.is_free_only())
         return "saga"
 
-    async def fake_solo(spec, task, history=None):
+    async def fake_solo(spec, task, history=None, **kw):
         seen.append(mod.is_free_only())
         return "ans"
     monkeypatch.setattr(mod.gna, "dispatch", fake_dispatch)
     monkeypatch.setattr(mod.gna, "classify", fake_classify)
     monkeypatch.setattr(mod, "run_solo", fake_solo)
+
+    async def fake_tools(prefixes):
+        seen.append(mod.is_free_only())
+        return []
+    monkeypatch.setattr(mod, "tools_for", fake_tools)
     for arm in mod.ARMS:
         asyncio.run(mod.run_arm("q", arm))
     assert seen and all(seen)
@@ -112,7 +117,7 @@ def test_routed_arm_runs_the_chosen_agent_alone_even_a_lead(ev, monkeypatch):
     async def fake_classify(task):
         return "verdandi"   # a lead
 
-    async def fake_solo(spec, task, history=None):
+    async def fake_solo(spec, task, history=None, **kw):
         ran["key"] = spec.key
         return "solo answer"
 
@@ -130,7 +135,7 @@ def test_single_arm_holds_every_realm_tool_family_and_no_router(ev, monkeypatch)
     from roster import ROSTER
     ran = {}
 
-    async def fake_solo(spec, task, history=None):
+    async def fake_solo(spec, task, history=None, **kw):
         ran["spec"] = spec
         return "one agent"
 
@@ -144,6 +149,52 @@ def test_single_arm_holds_every_realm_tool_family_and_no_router(ev, monkeypatch)
     assert out["routed_to"] is None and out["answer"] == "one agent"
 
 
+# --- B255 (2026-11-21): the context-engineering trial arms -----------------------------------------------------------
+def _named(name, description=""):
+    return types.SimpleNamespace(name=name, description=description)
+
+
+def test_retrieval_arm_gives_the_single_agent_only_the_top_k_tools(ev, monkeypatch):
+    mod, _ = ev
+    every = [_named(f"weyland_fleet-grafana_tool_{i}", "Grafana panels.") for i in range(20)]
+    every.append(_named("weyland_fleet-trino_list_catalogs", "List all available catalogs."))
+    ran = {}
+
+    async def fake_tools(prefixes):
+        ran["prefixes"] = prefixes
+        return every
+
+    async def fake_solo(spec, task, history=None, tools=None, pre_model_hook=None):
+        ran["spec"], ran["tools"], ran["hook"] = spec, tools, pre_model_hook
+        return "answer"
+    monkeypatch.setattr(mod, "tools_for", fake_tools)
+    monkeypatch.setattr(mod, "run_solo", fake_solo)
+    out = asyncio.run(mod.run_arm("Which Trino catalogs can I query?", "single-rt"))
+    assert ran["prefixes"] == mod.SINGLE.tool_prefixes and ran["spec"] is mod.SINGLE and ran["hook"] is None
+    assert ran["tools"][0].name == "weyland_fleet-trino_list_catalogs" and len(ran["tools"]) <= mod.RETRIEVE_K
+    assert out["retrieved"] == [t.name for t in ran["tools"]] and out["routed_to"] is None
+
+
+def test_context_editing_arm_runs_the_single_agent_with_a_clearing_hook_and_counts_clears(ev, monkeypatch):
+    mod, _ = ev
+
+    class _M:
+        def __init__(self, type_, content):
+            self.type, self.content = type_, content
+
+        def model_copy(self, update):
+            return _M(self.type, update.get("content", self.content))
+    msgs = [_M("human", "q")] + [m for i in range(4) for m in (_M("ai", "call"), _M("tool", "x" * 8000))]
+
+    async def fake_solo(spec, task, history=None, tools=None, pre_model_hook=None):
+        assert spec is mod.SINGLE and tools is None
+        view = pre_model_hook({"messages": msgs})["llm_input_messages"]
+        return f"{sum(m.content == '[cleared]' for m in view)} cleared"
+    monkeypatch.setattr(mod, "run_solo", fake_solo)
+    out = asyncio.run(mod.run_arm("q", "single-ce"))
+    assert out["answer"] == f"{4 - mod.CLEAR_KEEP} cleared" and out["cleared_tool_results"] == 4 - mod.CLEAR_KEEP
+
+
 def test_an_unknown_arm_is_refused(ev):
     mod, _ = ev
     with pytest.raises(ValueError, match="arm"):
@@ -153,7 +204,7 @@ def test_an_unknown_arm_is_refused(ev):
 def test_the_counts_are_per_run(ev, monkeypatch):
     mod, _ = ev
 
-    async def fake_solo(spec, task, history=None):
+    async def fake_solo(spec, task, history=None, **kw):
         for h in mod.current_counters():
             h.on_llm_end(_usage_result(10, 1))
         return "a"

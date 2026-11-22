@@ -10,7 +10,7 @@ a rubric). The judge is wl-judge-oss (gpt-oss:20b on rogueone, $0, a different m
 arm, LiteLLM fallbacks off.
 
 Modes (the wrapper scripts/realm-eval.sh drives them; runbook docs/runbooks/realm-of-agents.md § Evaluation (B253)):
-  plan        local:      --tasks F --results F [--reps 3] [--limit N]  → JSONL of runs still to do (resumable)
+  plan        local:      --tasks F --results F [--reps 3] [--limit N] [--arms a,b]  → JSONL of runs still to do (resumable)
   run         in-cluster: stdin plan JSONL → one result line per run (failures recorded, never dropped)
   judge-plan  local:      --tasks F --results F --scores F [--limit N]  → JSONL of blind judge inputs
   judge       in-cluster: stdin judge JSONL → one score line per answer
@@ -26,7 +26,8 @@ import statistics
 import sys
 import time
 
-ARMS = ("realm", "routed", "single")
+ARMS = ("realm", "routed", "single")                        # B253's arms: the default
+TRIAL_ARMS = ("single-rt", "single-ce")                    # B255 (2026-11-21): context-engineering trials (--arms)
 SEED = 253
 REALM_URL = os.getenv("REALM_URL", "http://realm-of-agents.weyland.svc.cluster.local:8080")
 RUN_TIMEOUT = float(os.getenv("REALM_EVAL_TIMEOUT", "900"))
@@ -70,6 +71,17 @@ def ref_of(task_id: str, arm: str, rep: int) -> str:
 def _order_key(*parts) -> str:
     """A fixed, seeded ordering (a hash, not a random generator): the same order on every run and every rerun."""
     return hashlib.sha256("|".join(map(str, (SEED, *parts))).encode()).hexdigest()
+
+
+def parse_arms(text: str | None) -> tuple:
+    """`--arms a,b,c` → the arms to plan, in that order; none given → B253's three. An unknown arm is refused."""
+    if not text:
+        return ARMS
+    arms = tuple(a.strip() for a in text.split(",") if a.strip())
+    unknown = [a for a in arms if a not in ARMS + TRIAL_ARMS]
+    if unknown or not arms:
+        raise ValueError(f"unknown arm(s) {', '.join(unknown) or '(none)'}; one of {', '.join(ARMS + TRIAL_ARMS)}")
+    return arms
 
 
 # --- plan ------------------------------------------------------------------------------------------------------------
@@ -291,6 +303,7 @@ def main(argv=None) -> int:
     p.add_argument("--scores")
     p.add_argument("--reps", type=int, default=3)
     p.add_argument("--limit", type=int)
+    p.add_argument("--arms", help="comma-separated arms to plan (default: realm,routed,single)")
     a = p.parse_args(argv)
     if a.mode == "run":
         return mode_run(sys.stdin, sys.stdout)
@@ -301,7 +314,8 @@ def main(argv=None) -> int:
     tasks = load_tasks(a.tasks)
     results = _read_file_jsonl(a.results)
     if a.mode == "plan":
-        for item in plan(tasks, {(r["id"], r["arm"], r["rep"]) for r in results}, reps=a.reps, limit=a.limit):
+        done = {(r["id"], r["arm"], r["rep"]) for r in results}
+        for item in plan(tasks, done, arms=parse_arms(a.arms), reps=a.reps, limit=a.limit):
             print(json.dumps(item))
         return 0
     scores = {s["ref"]: s for s in _read_file_jsonl(a.scores) if s.get("ok")}

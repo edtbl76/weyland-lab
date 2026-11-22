@@ -36,6 +36,22 @@ def test_plan_interleaves_arms_within_a_task_and_is_reproducible():
     assert a == ev.plan(TASKS, done=set(), arms=ev.ARMS, reps=1)   # seeded: the same order every time
 
 
+def test_arms_default_to_b253s_three_and_accept_the_b255_trials():
+    # B255 (2026-11-21): the context-engineering trials run as extra arms, chosen with --arms.
+    assert ev.parse_arms(None) == ("realm", "routed", "single")
+    assert ev.parse_arms("single,single-rt,single-ce") == ("single", "single-rt", "single-ce")
+    with pytest.raises(ValueError, match="swarm"):
+        ev.parse_arms("single,swarm")
+
+
+def test_plan_cli_runs_only_the_chosen_arms(tmp_path, capsys):
+    tasks = tmp_path / "tasks.json"
+    tasks.write_text(json.dumps({"questions": TASKS}))
+    assert ev.main(["plan", "--tasks", str(tasks), "--reps", "1", "--arms", "single,single-rt"]) == 0
+    arms = {json.loads(x)["arm"] for x in capsys.readouterr().out.splitlines()}
+    assert arms == {"single", "single-rt"}
+
+
 def test_plan_resumes_and_limits():
     first = ev.plan(TASKS, done=set(), arms=ev.ARMS, reps=1, limit=4)
     done = {(i["id"], i["arm"], i["rep"]) for i in first}

@@ -109,3 +109,26 @@ def test_reconcile_treats_mapping_order_as_irrelevant(le):
     calls = []
     le.reconcile(_client(live, calls))
     assert not [c for c in calls if c[0] in ("PATCH", "POST") and "evaluation-rules" in c[1]]
+
+
+def test_a_slow_patch_is_reported_and_does_not_stop_the_rest(le, capsys):
+    # Live, 2026-11-21: the first rollout's PATCH of `Conciseness` timed out (60 s) and the uncaught error stopped the
+    # run, leaving six rules on the old mapping (two judge prompts were then cut). One slow call must not abort the rest.
+    rules = _by_name(le)
+    live = [{"id": f"r{i}", "name": n, "mapping": [{"variable": "x", "source": "input"}]} for i, n in enumerate(rules)]
+    calls = []
+    client = _Client(live, calls)
+    real_patch = client.patch
+
+    def flaky_patch(path, json=None, **kw):
+        if path.endswith("/r0"):
+            raise TimeoutError("timed out")
+        return real_patch(path, json=json, **kw)
+    client.patch = flaky_patch
+    with pytest.raises(SystemExit) as stop:   # a partial reconcile is a failure, loudly (the asset run shows red)
+        le.reconcile(client)
+    assert stop.value.code == 1
+    patched = {c[1].rsplit("/", 1)[-1] for c in calls if c[0] == "PATCH"}
+    assert patched == {f"r{i}" for i in range(1, len(rules))}
+    out = capsys.readouterr().out
+    assert "rule mapping update FAILED" in out and "TimeoutError" in out and "rerun" in out

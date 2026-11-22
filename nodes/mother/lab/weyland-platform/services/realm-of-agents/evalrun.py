@@ -4,6 +4,10 @@ Arms (the question: does the Realm's shape beat one agent with the same tools an
   realm   Gná routes, and a lead delegates to its members: the Realm as it is (router.dispatch).
   routed  Gná routes, and the chosen agent answers ALONE with its own tools, even a lead: routing without delegation.
   single  one generic agent holding every tool family the roster uses, no routing: the control.
+B255 (2026-11-21) adds two context-engineering trials on the single agent (context_trials.py; verdicts in
+docs/concepts/context-engineering.md § Trials):
+  single-rt  tool retrieval: only the RETRIEVE_K tools that best match the task, instead of all of them.
+  single-ce  context editing: stale tool results cleared from the model's view past a token trigger.
 
 Every arm runs free-only (budget.free_only: the local lane, LiteLLM fallbacks off, no paid tools), so an evaluation run
 spends nothing whatever the caller sends. The counters ride the same per-request callback hook as Langfuse
@@ -16,6 +20,8 @@ import uuid
 import router as gna
 from agents import run_solo
 from budget import free_only, is_free_only
+from context_trials import clearing_hook, family_blurbs, rank_tools
+from fleet import tools_for
 from obs import current_extra_callbacks, extra_callbacks, log, set_session
 from roster import BY_KEY, ROSTER, AgentSpec
 
@@ -24,9 +30,16 @@ try:   # the real base class at runtime; the tests stub langchain_core, so fall 
 except ImportError:   # pragma: no cover - exercised only under the test stubs
     BaseCallbackHandler = object
 
-__all__ = ["ARMS", "SINGLE", "RunCounter", "counting", "current_counters", "is_free_only", "run_arm"]
+__all__ = ["ARMS", "CLEAR_KEEP", "CLEAR_TRIGGER_TOKENS", "RETRIEVE_K", "SINGLE", "RunCounter", "counting", "current_counters", "is_free_only", "run_arm"]
 
-ARMS = ("realm", "routed", "single")
+ARMS = ("realm", "routed", "single", "single-rt", "single-ce")
+
+# Trial settings (B255). k=8: offline on B253's tasks the top 8 hold a family a correct agent would use for 18 of 19
+# tool tasks, at ~3k tokens of schemas instead of ~26k. Clearing: the free lane's 32K window minus ~26k of schemas
+# leaves ~6k for messages, so the trigger is 4k (LangChain's 100k default could never fire); keep the newest 2.
+RETRIEVE_K = 8
+CLEAR_TRIGGER_TOKENS = 4_000
+CLEAR_KEEP = 2
 
 # The control arm's agent: every tool family any Realm agent uses (paid ones are dropped by free-only in fleet.py).
 SINGLE = AgentSpec(
@@ -43,6 +56,10 @@ class RunCounter(BaseCallbackHandler):
         self.input_tokens = self.output_tokens = self.llm_calls = 0
         self.tools_used: list[str] = []
         self.delegated_to: list[str] = []
+        self.cleared = 0   # the most tool results one model call's view had cleared (single-ce)
+
+    def note_cleared(self, n: int):
+        self.cleared = max(self.cleared, n)
 
     def on_llm_end(self, response, **kwargs):
         self.llm_calls += 1
@@ -62,7 +79,8 @@ class RunCounter(BaseCallbackHandler):
     def as_dict(self) -> dict:
         return {"input_tokens": self.input_tokens, "output_tokens": self.output_tokens, "llm_calls": self.llm_calls,
                 "tool_calls": len(self.tools_used), "delegations": len(self.delegated_to),
-                "tools_used": list(self.tools_used), "delegated_to": list(self.delegated_to)}
+                "tools_used": list(self.tools_used), "delegated_to": list(self.delegated_to),
+                "cleared_tool_results": self.cleared}
 
 
 @contextlib.contextmanager
@@ -84,7 +102,7 @@ async def run_arm(task: str, arm: str) -> dict:
         raise ValueError(f"unknown arm {arm!r}; one of {', '.join(ARMS)}")
     with free_only(), counting() as c:
         t0 = time.monotonic()
-        routed_to = None
+        routed_to, extra = None, {}
         if arm == "realm":
             routed_to, answer = await gna.dispatch(task)   # sets its own session
         else:
@@ -92,8 +110,15 @@ async def run_arm(task: str, arm: str) -> dict:
             if arm == "routed":
                 routed_to = await gna.classify(task)
                 answer = await run_solo(BY_KEY[routed_to], task)
+            elif arm == "single-rt":
+                picked = rank_tools(task, await tools_for(SINGLE.tool_prefixes), RETRIEVE_K, family_blurbs(ROSTER))
+                extra["retrieved"] = [t.name for t in picked]
+                answer = await run_solo(SINGLE, task, tools=picked)
+            elif arm == "single-ce":
+                hook = clearing_hook(trigger_tokens=CLEAR_TRIGGER_TOKENS, keep=CLEAR_KEEP, on_clear=c.note_cleared)
+                answer = await run_solo(SINGLE, task, pre_model_hook=hook)
             else:
                 answer = await run_solo(SINGLE, task)
         seconds = round(time.monotonic() - t0, 2)
     log(f"eval {arm}: {seconds}s, {c.llm_calls} LLM calls, {len(c.tools_used)} tools, {len(c.delegated_to)} delegations")
-    return {"arm": arm, "routed_to": routed_to, "answer": answer, "seconds": seconds, **c.as_dict()}
+    return {"arm": arm, "routed_to": routed_to, "answer": answer, "seconds": seconds, **c.as_dict(), **extra}

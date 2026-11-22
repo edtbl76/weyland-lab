@@ -163,6 +163,25 @@ bash /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/
 which), and `report` refuses while a successful run is unjudged. A failed run is recorded and scores 0, never dropped.
 Smaller runs: `REALM_EVAL_REPS=1`, or a different `REALM_EVAL_DIR`.
 
+### Context-engineering trials (B255, 2026-11-21)
+
+Two more arms test context engineering on the single agent (`context_trials.py`; verdicts in
+[context-engineering.md § Trials](../concepts/context-engineering.md#trials)):
+
+| Arm | What runs |
+|---|---|
+| `single-rt` | tool retrieval: only the 8 tools that best match the task (BM25 over each tool's name, the start of its description, and its family's roster text), instead of all 99 |
+| `single-ce` | context editing: past 4k tokens of messages, every tool result but the newest 2 is replaced with `[cleared]` in the model's view (LangChain's `ClearToolUsesEdit` semantics) |
+
+Each `single-rt` result lists its `retrieved` tools; every result carries `cleared_tool_results`. Pick arms with
+`REALM_EVAL_ARMS` (the default is B253's three), and keep a trial's results in their own directory:
+
+```bash
+REALM_EVAL_ARMS=single,single-rt,single-ce REALM_EVAL_DIR=/home/edwardmangini/IdeaProjects/weyland/eval/context-b255 bash /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/realm-eval.sh run
+```
+
+Then `judge` and `report` with the same `REALM_EVAL_DIR` (the arms matter only to `run`).
+
 ## What broke? Symptom to cause
 
 | Symptom | Likely cause | Check and fix |

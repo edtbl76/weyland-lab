@@ -71,19 +71,28 @@ def reconcile(c) -> None:
             print("evaluator exists:", spec["name"]); continue
         print("evaluator", spec["name"], c.post(EV, json=spec, timeout=60).status_code)
     live = {r["name"]: r for r in c.get(RULE, params={"limit": 100}, timeout=30).json().get("data", [])}
+    failed = []
     for name, ev, scope, mapping in RULES:
         if name in live:
             if _key(live[name].get("mapping")) == _key(mapping):
                 print("rule current:", name); continue
             # The only PATCH shape this Langfuse version accepts carries `target` (probed on a disabled rule, B255).
-            r = c.patch(f"{RULE}/{live[name]['id']}", json={"target": "observation", "mapping": mapping}, timeout=60)
-            print("rule mapping updated:", name, r.status_code); continue
+            try:
+                r = c.patch(f"{RULE}/{live[name]['id']}", json={"target": "observation", "mapping": mapping}, timeout=180)
+                print("rule mapping updated:", name, r.status_code)
+            except Exception as e:   # one slow call must not leave the rest on the old mapping (2026-11-21: it did)
+                failed.append(name)
+                print("rule mapping update FAILED:", name, type(e).__name__, "- rerun this script; it is idempotent")
+            continue
         body = {"name": name, "evaluator": {"name": ev, "scope": scope, "type": "llm_as_judge"},
                 "target": "observation", "enabled": True, "sampling": 1, "filter": FILTER, "mapping": mapping}
         try:
             print("rule", name, c.post(RULE, json=body, timeout=120).status_code)
         except Exception as e:   # rule create can be slow (cold judge model) — don't let one stall the rest
             print("rule", name, "ERR", type(e).__name__)
+    if failed:
+        print(f"langfuse online evaluators NOT fully reconciled: {', '.join(failed)} failed; rerun")
+        raise SystemExit(1)
     print(f"langfuse online evaluators reconciled: {len(RULES)} rules + {len(CUSTOM_EVALUATORS)} custom evaluators")
 
 

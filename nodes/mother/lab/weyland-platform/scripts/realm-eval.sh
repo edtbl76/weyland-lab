@@ -17,6 +17,7 @@ TASKS="${REALM_EVAL_TASKS:-$S/../services/weyland-dagster/weyland_pipeline/eval_
 OUT="${REALM_EVAL_DIR:-$HOME/IdeaProjects/weyland/eval/realm-b253}"
 REPS="${REALM_EVAL_REPS:-3}"
 BATCH="${REALM_EVAL_BATCH:-6}"
+ARMS="${REALM_EVAL_ARMS:-realm,routed,single}"   # B255 trials: e.g. REALM_EVAL_ARMS=single,single-rt,single-ce
 POD="${REALM_EVAL_POD:-deploy/dagster-user-code}"
 
 mode="${1:-}"
@@ -38,7 +39,7 @@ loop() {         # $1 = run | judge
   local planner out stalls=0 batch before after
   if [ "$1" = run ]; then planner=plan; out="$R"; else planner=judge-plan; out="$SC"; fi
   while :; do
-    batch="$(python3 "$PY" "$planner" --tasks "$TASKS" --results "$R" --scores "$SC" --reps "$REPS" --limit "$BATCH")"
+    batch="$(python3 "$PY" "$planner" --tasks "$TASKS" --results "$R" --scores "$SC" --reps "$REPS" --limit "$BATCH" --arms "$ARMS")"
     if [ -z "$batch" ]; then
       echo "$1: nothing left to do ($(progress "$1") done)" >&2
       return 0

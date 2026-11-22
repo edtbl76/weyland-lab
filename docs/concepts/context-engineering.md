@@ -166,9 +166,22 @@ carry the standing rules.
 | 2026-11-20 | Truncation guard: `ollama-truncation-watch` (rogueone user timer, every 15 min, `scripts/ollama_truncation_watch.py`) reads Ollama's journal for `truncating input prompt` WARN lines and pushes to the Kuma push monitor `ollama-truncation` (any hit or an unreadable journal is DOWN; Telegram on alert) | acceptance criterion (Scope 6) | none in any prompt | 6 tests; a real dry run over 2 h found the day's 6 truncations (worst 10,596 sent, 4,098 kept); first live run pushed UP; `kuma_push_check.py` OK (7 monitors) |
 | 2026-11-20 | Harness budget guard: `scripts/check-harness-budget.py` in CI's repo-guards step measures what every session loads (CLAUDE.md and its @-imports, unscoped `.claude/rules/`, HTML comments stripped as Claude Code does, plus project skill and agent descriptions) against budgets of today's size + ~15% | acceptance criterion (Scope 6) | none | 7 tests; on the repo: instructions 20,124/26,000 bytes (5 files), skills 15,043/17,500, agents 3,971/5,000 |
 | 2026-11-20 | Lab Status and Lab Recall (thorough) at a 32K window (`open_webui_curate.py` `LARGE_CTX`; both run `qwen3:30b-a3b`, so they share one loaded copy) | owner: "yes, raise the status window" | none in the prompt; a heavy question takes ~50 s instead of ~24 s; 20.6 GiB, 9.7 on the GPU | replay: "which pods are running?" reached the model as 8,194 of 19,428 tokens at 16K, whole at 32K |
-| 2026-11-20 | Evaluator inputs trimmed: the tool-server and weyland-agent record `{query, context}` as `rag-generate` metadata; `langfuse_evaluators.py` maps each rule to only what it needs (Hallucination keeps the whole Input) and PATCHes drifted rules; weyland-agent got its first tests | owner: "yes, trim the evaluators" | judge prompts carry the chunks once (rules using both variables carried them twice; the cut prompt was 10,596 tokens) | tests: tool-server 96, agent 1, evaluators 6; live check after the ship: a 10-chunk ask, then Ollama's log for the judge's prompt sizes and no truncation |
+| 2026-11-20 | Evaluator inputs trimmed: the tool-server and weyland-agent record `{query, context}` as `rag-generate` metadata; `langfuse_evaluators.py` maps each rule to only what it needs (Hallucination keeps the whole Input) and PATCHes drifted rules; weyland-agent got its first tests | owner: "yes, trim the evaluators" | judge prompts carry the chunks once (rules using both variables carried them twice; the cut prompt was 10,596 tokens) | tests: tool-server 96, agent 1, Dagster suite 423 (whole suite, CI order); **live, 2026-11-21:** after a 10-chunk ask, 0 truncation warnings and the largest prompt 6,466 tokens (8,192 window), against 10,208-10,596-token evaluator prompts cut before. The first rollout's reconcile timed out on one PATCH and stopped, leaving 6 rules on the old mapping (2 prompts cut); a rerun finished it, and the script now keeps going past one slow call and exits 1 on a partial reconcile |
 | 2026-11-20 | weyland-agent joined CI (`scripts/ci/images.tsv`; it ran a hand-tagged `v20` that never picked up source changes, so the evaluator-metadata change could not ship), with a ship transaction `txn_agent` (`/ready` + one real `/agent/ask`) | owner: "yes, add weyland-agent to CI" | none | local image build and app import OK; `txn_agent` against the live agent `TXN_OK` in 27 s; bats 1,392/1,401 (only promtool) |
 
 ## Trials
 
-To be run on `eval_sets/realm.json` with `scripts/realm-eval.sh`.
+Run on B253's 33 tasks (`eval_sets/realm.json`) with `scripts/realm-eval.sh`, same free lane, same blind judge, 3 reps.
+The `single` arm is rerun alongside, so each trial is compared with a same-day control, not with B253's numbers.
+Results: `eval/context-b255/`. Runbook: [realm-of-agents.md § Context-engineering trials](../runbooks/realm-of-agents.md).
+
+**Why these two.** In B253 the single agent carried all 99 tools (~26k tokens of schemas) on every call in a 32K
+window, and called no tool at all in 35 of 93 runs. 20 of its 93 runs made 3 or more tool calls, so context editing
+has fewer runs to act on than retrieval.
+
+| Arm | Technique | Settings |
+|---|---|---|
+| `single-rt` | tool retrieval (langgraph-bigtool, RAG-MCP) | top 8 of 99 by BM25 over name, the first 400 characters of the description, and the family's roster text; stopwords dropped. Lexical because the Realm has no embedding model. Offline check against the live tools: the top 8 include a family a correct agent would use for 18 of the 19 tool tasks (precision 0.48) |
+| `single-ce` | context editing (Anthropic; LangChain `ClearToolUsesEdit`) | past 4k tokens of messages, all but the newest 2 tool results become `[cleared]` in the model's view; 4k because ~26k of schemas leave ~6k of a 32K window |
+
+Results: pending (the arms ship with the next Realm image).

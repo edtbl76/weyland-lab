@@ -159,7 +159,7 @@ async def route(req: TaskRequest):
 # --- Evaluation (B253) ----------------------------------------------------------------------------------------------
 class EvalRequest(BaseModel):
     task: str
-    arm: str   # realm | routed | single (evalrun.ARMS). No allow_paid: an evaluation run is free-only by construction.
+    arm: str   # one of evalrun.ARMS. No allow_paid: an evaluation run is free-only by construction.
 
 
 @app.post("/eval/run", responses={400: {"description": "Unknown arm"},

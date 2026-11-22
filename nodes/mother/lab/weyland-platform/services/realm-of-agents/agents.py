@@ -15,7 +15,13 @@ from roster import AgentSpec
 _graphs: dict[tuple[str, bool], object] = {}
 
 
-async def _graph(spec: AgentSpec):
+async def _graph(spec: AgentSpec, tools: list | None = None, pre_model_hook=None):
+    if tools is not None or pre_model_hook is not None:
+        # A per-request graph (the B255 evaluation trials: a retrieved tool subset, or a context-editing hook). Never
+        # cached: the tools differ per task. Building one is cheap; the tools themselves are already loaded.
+        if tools is None:
+            tools = await tools_for(spec.tool_prefixes)
+        return create_react_agent(brain(spec.lane), tools, pre_model_hook=pre_model_hook)
     cache_key = (spec.key, is_free_only())
     g = _graphs.get(cache_key)
     if g is None:
@@ -34,9 +40,11 @@ def _solo_messages(spec: AgentSpec, task: str, history: list | None = None) -> l
     return messages
 
 
-async def run_solo(spec: AgentSpec, task: str, history: list | None = None) -> str:
-    """Run `spec` on `task` as a standalone specialist. Returns its final text."""
-    graph = await _graph(spec)
+async def run_solo(spec: AgentSpec, task: str, history: list | None = None, *, tools: list | None = None,
+                   pre_model_hook=None) -> str:
+    """Run `spec` on `task` as a standalone specialist. Returns its final text. `tools` replaces the spec's tool slice
+    and `pre_model_hook` edits what the model sees before each call (both only for the B255 trial arms)."""
+    graph = await _graph(spec, tools, pre_model_hook)
     log(f"{spec.god} · {spec.role} — thinking ({effective_model(spec.lane)})")
     result = await graph.ainvoke({"messages": _solo_messages(spec, task, history)}, lf_config({"recursion_limit": 50}))
     out = result["messages"][-1].content
