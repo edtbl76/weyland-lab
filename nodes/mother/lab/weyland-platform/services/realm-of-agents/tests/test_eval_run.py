@@ -93,6 +93,11 @@ def test_every_arm_runs_free_only(ev, monkeypatch):
         seen.append(mod.is_free_only())
         return []
     monkeypatch.setattr(mod, "tools_for", fake_tools)
+
+    async def fake_retrieving(spec, task, picker):
+        seen.append(mod.is_free_only())
+        return "ans"
+    monkeypatch.setattr(mod, "run_solo_retrieving", fake_retrieving)
     for arm in mod.ARMS:
         asyncio.run(mod.run_arm("q", arm))
     assert seen and all(seen)
@@ -193,6 +198,28 @@ def test_context_editing_arm_runs_the_single_agent_with_a_clearing_hook_and_coun
     monkeypatch.setattr(mod, "run_solo", fake_solo)
     out = asyncio.run(mod.run_arm("q", "single-ce"))
     assert out["answer"] == f"{4 - mod.CLEAR_KEEP} cleared" and out["cleared_tool_results"] == 4 - mod.CLEAR_KEEP
+
+
+def test_per_step_retrieval_arm_starts_with_the_top_k_and_reports_what_it_found(ev, monkeypatch):
+    mod, _ = ev
+    every = [_named(f"weyland_fleet-grafana_tool_{i}", "Grafana panels.") for i in range(20)]
+    every.append(_named("weyland_fleet-trino_list_catalogs", "List all available catalogs."))
+    every.append(_named("weyland_fleet-k8s_pods_list", "List pods."))
+    ran = {}
+
+    async def fake_tools(prefixes):
+        return every
+
+    async def fake_retrieving(spec, task, picker):
+        ran["spec"], ran["start"] = spec, [t.name for t in picker.selected]
+        picker.find("k8s pods")   # the agent asks for more mid-run
+        return "answer"
+    monkeypatch.setattr(mod, "tools_for", fake_tools)
+    monkeypatch.setattr(mod, "run_solo_retrieving", fake_retrieving)
+    out = asyncio.run(mod.run_arm("Which Trino catalogs can I query?", "single-rs"))
+    assert ran["spec"] is mod.SINGLE and ran["start"][0] == "weyland_fleet-trino_list_catalogs"
+    assert len(ran["start"]) <= mod.RETRIEVE_K and out["retrieved"] == ran["start"]
+    assert out["found"] == ["weyland_fleet-k8s_pods_list"] and out["answer"] == "answer"
 
 
 def test_an_unknown_arm_is_refused(ev):

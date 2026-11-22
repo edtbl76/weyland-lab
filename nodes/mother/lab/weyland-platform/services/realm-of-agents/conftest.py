@@ -35,7 +35,7 @@ _stub("langchain_core")
 _stub("langchain_core.tools", StructuredTool=type("StructuredTool", (), {}), tool=lambda f=None, **k: (f or (lambda g: g)))
 _stub("langgraph")
 _stub("langgraph.prebuilt", create_react_agent=lambda *a, **k: None)
-_stub("agents", run_solo=lambda *a, **k: None)
+_stub("agents", run_solo=lambda *a, **k: None, run_solo_retrieving=lambda *a, **k: None)
 _stub("fleet", tools_for=lambda *a, **k: [], tools_for_sync=lambda *a, **k: [])
 _stub("llm", brain=lambda *a, **k: None)
 import contextlib  # noqa: E402

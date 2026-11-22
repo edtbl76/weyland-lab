@@ -171,9 +171,10 @@ Two more arms test context engineering on the single agent (`context_trials.py`;
 | Arm | What runs |
 |---|---|
 | `single-rt` | tool retrieval: only the 8 tools that best match the task (BM25 over each tool's name, the start of its description, and its family's roster text), instead of all 99 |
+| `single-rs` | per-step retrieval (2026-11-22): the `single-rt` start, plus a `find_tools` tool; each call adds up to 5 matching tools, which the agent holds from its next step (langgraph-bigtool's pattern) |
 | `single-ce` | context editing: past 4k tokens of messages, every tool result but the newest 2 is replaced with `[cleared]` in the model's view (LangChain's `ClearToolUsesEdit` semantics) |
 
-Each `single-rt` result lists its `retrieved` tools; every result carries `cleared_tool_results`. Pick arms with
+Each `single-rt` and `single-rs` result lists its `retrieved` tools (and `single-rs` the tools it `found` mid-run); every result carries `cleared_tool_results`. Pick arms with
 `REALM_EVAL_ARMS` (the default is B253's three), and keep a trial's results in their own directory:
 
 ```bash

@@ -2,6 +2,7 @@
 
 An agent is a LangGraph ReAct loop: brain (its `wl-*` lane) + its tool slice + its role prompt. Graphs are built lazily
 on first use (tools load async from the Bifrost VK) and cached. Realm leads add delegation on top of this — see realms.py."""
+from langchain_core.tools import StructuredTool
 from langgraph.prebuilt import create_react_agent
 
 from budget import is_free_only
@@ -49,4 +50,32 @@ async def run_solo(spec: AgentSpec, task: str, history: list | None = None, *, t
     result = await graph.ainvoke({"messages": _solo_messages(spec, task, history)}, lf_config({"recursion_limit": 50}))
     out = result["messages"][-1].content
     log(f"{spec.god} — answered ({len(out)} chars)")
+    return out
+
+
+def _find_tool(picker) -> StructuredTool:
+    def find_tools(need: str) -> str:
+        return picker.find(need)
+    return StructuredTool.from_function(
+        find_tools, name="find_tools",
+        description=("Find more tools when the ones you have cannot do what the task needs. Describe the need in a few "
+                     "words (for example 'list kubernetes pods' or 'query prometheus metrics'); the tools found are "
+                     "yours from your next step."))
+
+
+async def run_solo_retrieving(spec: AgentSpec, task: str, picker) -> str:
+    """B255 trial arm single-rs (2026-11-22): `spec` on `task` holding only `picker.selected` plus find_tools, which
+    grows the selection mid-run (langgraph-bigtool's pattern). The tool node can run every tool; the model is re-bound
+    to the current selection before each call, so it only sees (and pays for) the tools it holds."""
+    find = _find_tool(picker)
+    chat = brain(spec.lane)
+
+    def model(state, runtime):
+        return chat.bind_tools([*picker.selected, find])
+    graph = create_react_agent(model, [*picker.tools, find])
+    log(f"{spec.god} · {spec.role} — thinking with {len(picker.selected)} retrieved tools "
+        f"({effective_model(spec.lane)})")
+    result = await graph.ainvoke({"messages": _solo_messages(spec, task)}, lf_config({"recursion_limit": 50}))
+    out = result["messages"][-1].content
+    log(f"{spec.god} — answered ({len(out)} chars; found {len(picker.found)} more tools)")
     return out

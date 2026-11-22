@@ -184,4 +184,54 @@ has fewer runs to act on than retrieval.
 | `single-rt` | tool retrieval (langgraph-bigtool, RAG-MCP) | top 8 of 99 by BM25 over name, the first 400 characters of the description, and the family's roster text; stopwords dropped. Lexical because the Realm has no embedding model. Offline check against the live tools: the top 8 include a family a correct agent would use for 18 of the 19 tool tasks (precision 0.48) |
 | `single-ce` | context editing (Anthropic; LangChain `ClearToolUsesEdit`) | past 4k tokens of messages, all but the newest 2 tool results become `[cleared]` in the model's view; 4k because ~26k of schemas leave ~6k of a 32K window |
 
-Results: pending (the arms ship with the next Realm image).
+### Results (2026-11-22, image `git-e05a1471`)
+
+297 runs (33 tasks x 3 arms x 3 reps), 285 judged by `wl-judge-oss`, blind to the arm. A failed run scores 0.
+
+| Arm | Failures | Rubric met (mean ± sd) | Single-realm | Multi-realm | Judge 1-5 | Input + output tokens a run | Seconds a run | Tool calls |
+|---|---|---|---|---|---|---|---|---|
+| single (control) | 6 | 0.34 ± 0.34 | 0.37 | 0.28 | 2.04 | 60,507 | 15 | 1.3 |
+| single-ce | 6 | 0.37 ± 0.34 | 0.45 | 0.23 | 2.18 | 56,550 | 17 | 1.2 |
+| single-rt | 0 | 0.39 ± 0.35 | 0.51 | 0.20 | 2.11 | **9,705** | 21 | 2.2 |
+
+Paired by task (mean of 3 reps per task, bootstrap 95% CI, 5,000 resamples):
+
+| Comparison | Tasks | Difference | 95% CI | Wins / ties / losses |
+|---|---|---|---|---|
+| single-ce minus single, all | 33 | +0.03 | −0.04 to +0.10 | 11 / 14 / 8 |
+| single-rt minus single, all | 33 | +0.05 | −0.05 to +0.17 | 11 / 11 / 11 |
+| single-rt minus single, single-realm | 20 | +0.14 | −0.00 to +0.30 | 9 / 7 / 4 |
+| single-rt minus single, multi-realm | 13 | **−0.09** | **−0.16 to −0.01** | 2 / 4 / 7 |
+| single-rt minus single, tasks needing tools | 19 | −0.04 | −0.12 to +0.05 | 5 / 6 / 8 |
+| single-rt minus single, tasks needing none | 14 | +0.17 | −0.01 to +0.38 | 6 / 5 / 3 |
+
+Findings:
+1. **Context editing never fired.** None of its 93 successful runs cleared anything: the longest runs reach about
+   27.6k input tokens a call, about 26.5k of them tool schemas, so the messages (tool results included) peak around
+   1-2k tokens, under the 4k trigger. This lab's tools return small results; the schemas are the cost. Because the arm
+   behaved exactly like the control, its +0.03 (CI −0.04 to +0.10) is a measured **noise floor** for this setup.
+2. **Retrieval cuts the context by 84%** (60.5k to 9.7k tokens a run) and removes every failure. The 6 control failures
+   are two reasoning tasks (`v-simplify`, `w-faithfulness`) where the agent holding 99 schemas returned an empty answer
+   in every rep; with 8 tools it answered (+1.00 on each). Without those two tasks, retrieval's overall difference is
+   about zero.
+3. **A fixed top 8 starves multi-realm tasks** (−0.09, the only CI that excludes zero): tasks spanning several tool
+   families lose the specific tools they need (`x-alerts-coverage-score` retrieved 1 tool; `x-restarts-postmortem`
+   kept the families but not the right k8s tools). On single-realm tasks retrieval leans positive (+0.14, CI touching
+   zero). Retrieval is also 6 seconds slower a run, because the agent calls more tools (2.2 against 1.3).
+4. Offline family recall (18 of 19) overstated retrieval's usefulness: having a tool from the right family in the
+   set is not the same as having the tool the task needs.
+
+Verdicts (provisional until the ADR):
+* **Context editing: don't adopt for the Realm or the operator's tool loops.** It has nothing to clear here. Revisit
+  only for a surface whose tool results are large (log or document dumps).
+* **Tool retrieval: adopt for the free-lane single generalist, once it stops starving multi-family tasks.** It ends
+  the empty-answer failures at a sixth of the tokens with quality otherwise level. Static top-8 is not good enough for
+  multi-realm work; the fix to trial is retrieval per step (langgraph-bigtool's pattern: the agent can ask for more
+  tools mid-run) or a larger k.
+
+### Per-step retrieval (arm `single-rs`, owner: "yes, run the per-step retrieval trial", 2026-11-22)
+
+The agent starts with the same top 8 as `single-rt`, plus a `find_tools(need)` tool. Each call adds up to 5 tools
+matching the need (the same BM25 ranking, excluding tools it already holds), and the model is re-bound to the grown
+set before its next call, so it pays only for the tools it holds; the tool node can run all 99. Run against a same-day
+`single` and `single-rt`. Results: pending (ships with the next Realm image).

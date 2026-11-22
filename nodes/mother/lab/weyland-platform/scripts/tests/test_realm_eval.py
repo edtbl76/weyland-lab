@@ -39,7 +39,7 @@ def test_plan_interleaves_arms_within_a_task_and_is_reproducible():
 def test_arms_default_to_b253s_three_and_accept_the_b255_trials():
     # B255 (2026-11-21): the context-engineering trials run as extra arms, chosen with --arms.
     assert ev.parse_arms(None) == ("realm", "routed", "single")
-    assert ev.parse_arms("single,single-rt,single-ce") == ("single", "single-rt", "single-ce")
+    assert ev.parse_arms("single,single-rt,single-ce,single-rs") == ("single", "single-rt", "single-ce", "single-rs")
     with pytest.raises(ValueError, match="swarm"):
         ev.parse_arms("single,swarm")
 

@@ -27,7 +27,7 @@ import sys
 import time
 
 ARMS = ("realm", "routed", "single")                        # B253's arms: the default
-TRIAL_ARMS = ("single-rt", "single-ce")                    # B255 (2026-11-21): context-engineering trials (--arms)
+TRIAL_ARMS = ("single-rt", "single-ce", "single-rs")   # B255 (2026-11-21): context-engineering trials (--arms)
 SEED = 253
 REALM_URL = os.getenv("REALM_URL", "http://realm-of-agents.weyland.svc.cluster.local:8080")
 RUN_TIMEOUT = float(os.getenv("REALM_EVAL_TIMEOUT", "900"))

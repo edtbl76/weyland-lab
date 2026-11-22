@@ -118,3 +118,30 @@ def test_stopwords_alone_never_match():
 def test_only_the_start_of_a_long_description_counts():
     long_doc = _tool("weyland_fleet-datahub_search", "Search the catalog. " + "filler " * 100 + "neo4j")
     assert ct.rank_tools("neo4j", [long_doc], k=1) == []
+
+
+# --- per-step retrieval (arm single-rs, 2026-11-22) ----------------------------------------------------------------
+# A fixed top 8 starved multi-realm tasks (−0.09). langgraph-bigtool's pattern: the agent can ask for more tools mid-run.
+def test_the_picker_starts_with_the_top_k():
+    p = ct.ToolPicker(TOOLS)
+    assert [t.name for t in p.pick("Which Trino catalogs?", 1)] == ["weyland_fleet-trino_list_catalogs"]
+
+
+def test_find_adds_new_matching_tools_and_says_which():
+    p = ct.ToolPicker(TOOLS)
+    p.pick("Which Trino catalogs?", 1)
+    text = p.find("grafana dashboards", n=1)
+    assert [t.name for t in p.selected] == ["weyland_fleet-trino_list_catalogs", "weyland_fleet-grafana_search_dashboards"]
+    assert "weyland_fleet-grafana_search_dashboards" in text and p.found == ["weyland_fleet-grafana_search_dashboards"]
+
+
+def test_find_never_returns_a_tool_already_held():
+    p = ct.ToolPicker(TOOLS)
+    p.pick("trino catalogs", 5)
+    held = len(p.selected)
+    assert "No other tools" in p.find("trino catalogs") and len(p.selected) == held
+
+
+def test_find_shows_only_the_first_sentence_of_a_description():
+    p = ct.ToolPicker([_tool("weyland_fleet-trino_list_catalogs", "List all catalogs. Then much more text here.")])
+    assert "Then much more" not in p.find("trino")
