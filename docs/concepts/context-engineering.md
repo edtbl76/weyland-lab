@@ -1,7 +1,8 @@
-# Context engineering (B255) — draft
+# Context engineering (B255)
 
-**Status: in progress (Linear EMA-356).** Measurements first, then a dated industry survey, trials on B253's task set,
-and the harness and service changes that survive. Verdicts and an ADR follow when the trials are in.
+**Status: verdicts in, [ADR-0017](../adr/0017-context-engineering-for-the-harness-and-services.md) proposed (Linear
+EMA-356).** Measurements first, then a dated industry survey, trials on B253's task set, and the harness and service
+changes that survive.
 
 ## Why
 
@@ -136,14 +137,14 @@ the owner, and the final verdicts go in the ADR.
 
 | Technique | Source (date) | What it says | Applies to | Provisional call |
 |---|---|---|---|---|
-| Compaction timing | code.claude.com/docs/en/model-config (undated) | **checked:** 1M-window models compact at about 967K by default; `/autocompact 500k` (per model, saved), `autoCompactWindow`, `--autocompact`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`; minimum 100K | harness | trial an earlier window (e.g. 400-500K) |
+| Compaction timing | code.claude.com/docs/en/model-config (undated) | **checked:** 1M-window models compact at about 967K by default; `/autocompact 500k` (per model, saved), `autoCompactWindow`, `--autocompact`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`; minimum 100K | harness | adopted 2026-11-22: 500K for this repo (Changes applied) |
 | Compaction content | code.claude.com/docs/en/hooks; /costs; /context-window (undated) | **checked:** PreCompact hook stdout becomes instructions for the compaction summary; also `/compact <focus>` and a `# Compact instructions` section in CLAUDE.md; PostCompact carries the summary; SessionStart `compact` re-injects context | harness | adopt: say what a summary must keep (open items, decisions, IDs, conversation-only instructions), and log the summaries |
 | What survives compaction | code.claude.com/docs/en/context-window (undated) | project CLAUDE.md, unscoped rules, auto memory and skill descriptions reload from disk; path-scoped rules and nested CLAUDE.md do not until touched | harness | design constraint: standing rules live in files that reload |
-| Long-task progress files | anthropic.com/engineering/effective-harnesses-for-long-running-agents (2025-11-26) | compaction alone is not sufficient; keep a progress file and a JSON task list, commit after each change | harness, services | adopt for long items |
+| Long-task progress files | anthropic.com/engineering/effective-harnesses-for-long-running-agents (2025-11-26) | compaction alone is not sufficient; keep a progress file and a JSON task list, commit after each change | harness, services | covered: backlog, Linear, memory and compact instructions (Verdicts) |
 | Context editing (clear stale tool results) | platform.claude.com/docs/en/build-with-claude/context-editing (undated); LangChain `ContextEditingMiddleware` | replace old tool results with a placeholder past a threshold; "safest, lightest touch" (Anthropic, 2025-09-29) | services (7B, 32K) | trial on the operator and the Realm |
 | Tool search / deferred loading | platform.claude.com/.../tool-search-tool; anthropic.com/engineering/advanced-tool-use (2025-11-24) | ~85% fewer definition tokens; tool choice degrades past 30-50 tools; MCP eval accuracy up (Opus 4: 49% to 74%) | harness (already on), services | already adopted in Claude Code |
 | Tool retrieval for LangGraph | github.com/langchain-ai/langgraph-bigtool; RAG-MCP arXiv 2505.03275 (2025-05-06) | retrieve a few tools per step from embedded descriptions; RAG-MCP: tool-selection accuracy 43.13% vs 13.62%, prompt tokens down over 50% | services | trial on the Realm's single agent (B253 task set) |
-| MCP code mode | anthropic.com/engineering/code-execution-with-mcp (2025-11-04); blog.cloudflare.com/code-mode (2025-09-26); docs.getbifrost.ai/mcp/code-mode | tools called from code instead of many schemas; Anthropic: ~150K to ~2K tokens on one workflow; Bifrost (vendor): input tokens down 58-93% at 96-508 tools; no evidence for 7B models | services | trial cautiously; not for the harness (tool search covers it) |
+| MCP code mode | anthropic.com/engineering/code-execution-with-mcp (2025-11-04); blog.cloudflare.com/code-mode (2025-09-26); docs.getbifrost.ai/mcp/code-mode | tools called from code instead of many schemas; Anthropic: ~150K to ~2K tokens on one workflow; Bifrost (vendor): input tokens down 58-93% at 96-508 tools; no evidence for 7B models | services | not trialed (see Verdicts); not for the harness (tool search covers it) |
 | Sub-agents for reading-heavy work | anthropic.com/engineering/multi-agent-research-system (2025-06-13) | isolate heavy reading, return 1-2K summaries; multi-agent uses ~15x the tokens of chat; poor fit for tightly coupled work | harness | adopt selectively (already used) |
 | Just-in-time retrieval | anthropic.com/engineering/effective-context-engineering-for-ai-agents (2025-09-29) | keep identifiers, load content when needed; hybrid with a small pre-loaded core | both | adopt: move detail out of always-loaded files |
 | Lean rule files, skills progressive disclosure | code.claude.com/docs/en/memory; /skills (undated) | **checked:** auto memory loads only the first 200 lines or 25KB; CLAUDE.md "target under 200 lines"; `@imports` do not reduce cost; skill listing budget is 1% of the window, least-used descriptions dropped past it | harness | adopt: cap `MEMORY.md` (now 18.9KB, 76% of the cap); scope or defer always-loaded rule files |
@@ -168,6 +169,7 @@ carry the standing rules.
 | 2026-11-20 | Lab Status and Lab Recall (thorough) at a 32K window (`open_webui_curate.py` `LARGE_CTX`; both run `qwen3:30b-a3b`, so they share one loaded copy) | owner: "yes, raise the status window" | none in the prompt; a heavy question takes ~50 s instead of ~24 s; 20.6 GiB, 9.7 on the GPU | replay: "which pods are running?" reached the model as 8,194 of 19,428 tokens at 16K, whole at 32K |
 | 2026-11-20 | Evaluator inputs trimmed: the tool-server and weyland-agent record `{query, context}` as `rag-generate` metadata; `langfuse_evaluators.py` maps each rule to only what it needs (Hallucination keeps the whole Input) and PATCHes drifted rules; weyland-agent got its first tests | owner: "yes, trim the evaluators" | judge prompts carry the chunks once (rules using both variables carried them twice; the cut prompt was 10,596 tokens) | tests: tool-server 96, agent 1, Dagster suite 423 (whole suite, CI order); **live, 2026-11-21:** after a 10-chunk ask, 0 truncation warnings and the largest prompt 6,466 tokens (8,192 window), against 10,208-10,596-token evaluator prompts cut before. The first rollout's reconcile timed out on one PATCH and stopped, leaving 6 rules on the old mapping (2 prompts cut); a rerun finished it, and the script now keeps going past one slow call and exits 1 on a partial reconcile |
 | 2026-11-20 | weyland-agent joined CI (`scripts/ci/images.tsv`; it ran a hand-tagged `v20` that never picked up source changes, so the evaluator-metadata change could not ship), with a ship transaction `txn_agent` (`/ready` + one real `/agent/ask`) | owner: "yes, add weyland-agent to CI" | none | local image build and app import OK; `txn_agent` against the live agent `TXN_OK` in 27 s; bats 1,392/1,401 (only promtool) |
+| 2026-11-22 | Auto-compaction on at a 500k window for this repo (`.claude/settings.json`: `autoCompactEnabled: true`, `autoCompactWindow: 500000`). The owner's user settings had auto-compaction off, so sessions ran to the limit or a manual `/compact`; project settings override that here only. Runbook: coding-agents.md § Auto-compaction at 500k | owner: "yes, set it to 500k", "yes, turn it on for this repo" | requests carry at most ~500k of history instead of up to ~967k; about twice as many compactions | the next summaries keep the active item, decisions and open threads (the keyword check in § The coding-agent harness) |
 
 ## Trials
 
@@ -263,3 +265,20 @@ loss (−0.09) halved on the replicate: part of it was noise, and what remains i
   stronger model (the paid lane), where asking for a tool is more likely.
 * **Context editing: don't adopt** for the Realm or the operator: nothing to clear (tool results stay small; schemas
   are the cost).
+* **Bifrost code mode: not trialed, don't adopt for now** (owner, 2026-11-22: "yes, record code mode as not trialed").
+  Code mode replaces tool schemas with a code-execution interface: the model lists tool files, reads them, and writes
+  code that calls them. Three things argue against spending a trial on it here. The free-lane 7B called the one
+  meta-tool it was given (`find_tools`) in only 13 of 98 runs, and code mode asks more of it: several steps and
+  correct code. Static retrieval already removes 85% of the context, the share code mode's published gains target
+  (Anthropic ~150K to ~2K on one workflow; Bifrost, a vendor figure, 58-93% at 96-508 tools; none on a 7B model). And a
+  trial needs a Bifrost configuration change. In the harness, Claude Code's tool search already covers it. Revisit for
+  a strong model holding hundreds of tools.
+* **AI-DLC skill and agent descriptions: leave as they are** (owner, 2026-11-22: "yes"). About 4.5k tokens a session,
+  under 1% of the 500k compaction window. Trimming means editing AI-DLC's own files (held at 2.6.18; an upgrade
+  overwrites them and `/aidlc --doctor` checks them) or hiding skills from model invocation; neither pays for 4.5k.
+  `check-harness-budget.py` keeps them from growing unnoticed.
+* **Long-task progress files: covered, no separate file** (owner, 2026-11-22: "yes"). The state Anthropic's article
+  keeps in a progress file and a JSON task list already lives in things that survive compaction: the backlog and
+  Linear (item, acceptance criteria, status), the shared memory store (durable lessons), and the `# Compact
+  instructions` (active item, owner decisions, open threads in every summary). A per-item file would be a fourth copy
+  that drifts.

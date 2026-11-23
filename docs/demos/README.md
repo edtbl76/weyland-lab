@@ -37,6 +37,7 @@ Legend: **DONE** · **MISSING** · **PARTIAL** (exists but stale) · — not app
 | 18 | MLflow tracking (image `weyland-mlflow` since B227: drivers + gateway extras baked from the pod's frozen freeze, nothing installed on start) | DONE `flow-mlflow` | DONE `mlflow.md` — RUN 2026-10-24: Ready in 39 s, freeze == lockfile, `db upgrade` no-op, 18 gateway endpoints, guardrails exit 2 / 0 FAIL; off-cluster download needs `MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD=false`; RUN 2026-10-25: **3.17.2** live (drill caught a driver outage pre-ship; the gateway regression after it fixed by 3 settings; a real guarded gateway call 200) | DONE experiments |
 | 36 | **MLflow GenAI** (B100 — Traces + Prompt Registry, hot-swap) | DONE (seq in demo) | DONE `mlflow-genai.md` (validated 2026-07-24) | DONE traces + prompt versions (history) |
 | 19 | Remote training (Ray → MLflow) | DONE (authored) | DONE `remote-training.md` | DONE artifacts/models |
+| 130 | **Context engineering** (B255 — Ollama truncation watch, harness budget guard, Realm trial arms) | DONE `flow-ollama-truncation-watch` | DONE `context-engineering.md` (run live 2026-11-22: watch `up`, and its real `down` of 2026-11-21 01:44; harness budget OK; trial report reproduced) | — read-only |
 | **Agent / serving** | | | | |
 | 21 | Agentic RAG (`weyland-agent`, B70) | DONE `flow-agentic-rag` | DONE `agentic-rag.md` (validated live 2026-07-23) | — read-only (traces/verdicts) |
 | 22 | Voice chat (Open WebUI + whisper) | DONE `flow-voice-chat` | DONE `voice-chat.md` | — |

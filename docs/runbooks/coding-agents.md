@@ -306,6 +306,17 @@ its own 12 KB budget (`scripts/check-shared-memory.py`).
 python3 /home/edwardmangini/IdeaProjects/weyland/scripts/check-harness-budget.py
 ```
 
+## Auto-compaction at 500k (B255, 2026-11-22)
+
+Sessions in this repo auto-compact at 500k tokens: `.claude/settings.json` sets `"autoCompactEnabled": true` and
+`"autoCompactWindow": 500000` (owner: "yes, turn it on for this repo"). The owner's user settings turn auto-compaction
+off everywhere else (`"autoCompactEnabled": false` in `~/.claude/settings.json`); project settings take precedence, so
+only this repo changes. Before, sessions here ran to about 967k (the 1M default) or to a manual `/compact`, so most
+requests carried several hundred thousand tokens of history. What every summary must keep is the `# Compact
+instructions` section of the root `CLAUDE.md`. To check a summary: open the session transcript under
+`~/.claude/projects/-home-edwardmangini-IdeaProjects-weyland/` and look for the active item, the owner's decisions and
+the open threads. To change the window for one launch, `claude --autocompact 700k`; to undo, remove the two keys.
+
 ## Gotchas (all learned this build)
 
 - **Model hidden in TUI picker** → add a `"limit": { "context": …, "output": … }` block to the model entry.
