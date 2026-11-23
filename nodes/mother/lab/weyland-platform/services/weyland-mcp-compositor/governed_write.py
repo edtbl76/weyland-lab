@@ -133,20 +133,38 @@ def _front(raw: str) -> dict:
     return {k: v for k, v in (data or {}).items() if isinstance(v, str)}
 
 
+def note_path(directory: str, title: str):
+    """(path, None) for a note in one of the layers, or (None, reason). The ONE place a path is built, for reads and
+    writes alike, so the layer check and the path the store sees cannot diverge (security review, 2026-11-23: the
+    read tool once built its path from an unchecked title, and `../../person/<name>/…` escaped its directory)."""
+    if _layer(directory or "") is None:
+        return None, f"{directory!r} is outside the layers (project root, task/<item>, person/<name>)"
+    if not title or any(c in title for c in "/\\") or title.startswith(".") or ".." in title:
+        return None, f"title {title!r} is not a plain note name"
+    d = (directory or "").strip("/")
+    return (f"{d}/{title}.md" if d else f"{title}.md"), None
+
+
+def read_path(identity: Identity, directory: str, title: str):
+    """(path, None) when `identity` may read that note through the governed read, else (None, reason)."""
+    why = may_read(identity, directory)
+    if why:
+        return None, why
+    return note_path(directory, title)
+
+
 def _refusal(identity: Identity, directory: str, title: str, content: str, operation: str) -> str | None:
     """The first rule the request breaks, or None. Checked before the store is touched."""
     if operation not in OPERATIONS:
         return f"operation {operation!r} is not offered (one of {', '.join(OPERATIONS)})"
-    where = _layer(directory or "")
-    if where is None:
-        return f"{directory!r} is outside the layers (project root, task/<item>, person/<name>)"
-    if not title or "/" in title or title.startswith(".") or ".." in title:
-        return f"title {title!r} is not a plain note name"
+    _, why = note_path(directory, title)
+    if why:
+        return why
     if content.lstrip().startswith("---"):
         return "content may not carry its own frontmatter: provenance is stamped by the gateway"
     if _SECRETS.search(content):
         return "content looks like it holds a secret; secrets never enter the shared memory"
-    return _allowed(identity, *where)
+    return _allowed(identity, *_layer(directory or ""))
 
 
 async def _apply(store, operation, *, path, d, title, content, raw, stamp, created, expected_sha256) -> Outcome:
@@ -179,7 +197,7 @@ async def governed_write(store, identity: Identity, *, directory: str, title: st
     if why:
         return Outcome(False, why)
     d = (directory or "").strip("/")
-    path = f"{d}/{title}.md" if d else f"{title}.md"
+    path, _ = note_path(directory, title)   # already validated by _refusal
     # on_behalf_of is always named (null for a human): Basic Memory keeps frontmatter keys a write does not name, so a
     # human editing an agent's note would otherwise inherit the agent's "on behalf of" (found live, 2026-11-23).
     stamp = {"updated_by": who, "updated_at": now, "on_behalf_of": on_behalf_of}

@@ -80,11 +80,9 @@ if governed_writes_enabled(os.environ):
         """Read one note with its SHA-256, the version a "replace" must send. directory: "" (project memory),
         "task/<item>" or "person/<name>" (readable only by that person and their agents)."""
         identity = gw.identity_from_headers(get_http_headers())
-        why = gw.may_read(identity, directory)
+        path, why = gw.read_path(identity, directory, title)   # layer, person rule and title checked together
         if why:
             raise ToolError(why)
-        d = (directory or "").strip("/")
-        path = f"{d}/{title}.md" if d else f"{title}.md"
         raw = await _store.read_raw(path)
         if raw is None:
             raise ToolError(f"{path} does not exist")
