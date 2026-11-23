@@ -221,17 +221,45 @@ Findings:
 4. Offline family recall (18 of 19) overstated retrieval's usefulness: having a tool from the right family in the
    set is not the same as having the tool the task needs.
 
-Verdicts (provisional until the ADR):
-* **Context editing: don't adopt for the Realm or the operator's tool loops.** It has nothing to clear here. Revisit
-  only for a surface whose tool results are large (log or document dumps).
-* **Tool retrieval: adopt for the free-lane single generalist, once it stops starving multi-family tasks.** It ends
-  the empty-answer failures at a sixth of the tokens with quality otherwise level. Static top-8 is not good enough for
-  multi-realm work; the fix to trial is retrieval per step (langgraph-bigtool's pattern: the agent can ask for more
-  tools mid-run) or a larger k.
+First-day reading (2026-11-21), revised by the replicate below: context editing has nothing to clear here, and static
+retrieval seemed to starve multi-family tasks, which led to the per-step trial. The final verdicts are under
+[Verdicts (for the ADR)](#verdicts-for-the-adr).
 
 ### Per-step retrieval (arm `single-rs`, owner: "yes, run the per-step retrieval trial", 2026-11-22)
 
 The agent starts with the same top 8 as `single-rt`, plus a `find_tools(need)` tool. Each call adds up to 5 tools
 matching the need (the same BM25 ranking, excluding tools it already holds), and the model is re-bound to the grown
 set before its next call, so it pays only for the tools it holds; the tool node can run all 99. Run against a same-day
-`single` and `single-rt`. Results: pending (ships with the next Realm image).
+`single` and `single-rt` (image `git-d17b6cb9`; results `eval/context-b255-rs/`, 297 runs, 289 judged).
+
+| Arm | Failures | Rubric met | Multi-realm | Judge 1-5 | Tokens a run | Seconds a run |
+|---|---|---|---|---|---|---|
+| single (control) | 7 | 0.39 ± 0.35 | 0.26 | 2.23 | 72,413 | 29 |
+| single-rt | 0 | 0.37 ± 0.34 | 0.23 | 2.06 | 9,591 | 19 |
+| single-rs | 1 (a timeout) | 0.35 ± 0.33 | 0.26 | 1.96 | 11,143 | 28 |
+
+| Comparison (paired by task) | Difference | 95% CI | W / T / L |
+|---|---|---|---|
+| single-rs minus single-rt, all | −0.02 | −0.08 to +0.03 | 9 / 13 / 11 |
+| single-rs minus single-rt, multi-realm | +0.03 | −0.04 to +0.09 | 6 / 4 / 3 |
+| single-rt minus single, all (this run) | −0.02 | −0.13 to +0.10 | 10 / 9 / 14 |
+| single-rt minus single, multi-realm (this run) | −0.03 | −0.12 to +0.05 | 4 / 3 / 6 |
+
+**Per-step retrieval adds nothing on this model.** The 7B called `find_tools` in 13 of 98 runs (6 of 38 multi-realm
+runs): it rarely notices that it lacks a tool, so the escape hatch goes unused. It costs 9 more seconds a run than
+static retrieval for no gain.
+
+**Both days pooled** (6 reps per task, `single-rt` minus `single`): all tasks +0.01 (CI −0.07 to +0.13); single-realm
++0.06 (−0.07 to +0.23); multi-realm −0.06 (−0.12 to +0.00); tool tasks −0.05 (−0.12 to +0.02); no-tool tasks +0.10
+(−0.08 to +0.33). Tokens a run 66,427 against 9,647 (−85%). Failures 13 against 0: the 99-schema agent returns an empty
+answer on `v-simplify` and `w-faithfulness` in every rep, and once on `m-operator-tables`. The first day's multi-realm
+loss (−0.09) halved on the replicate: part of it was noise, and what remains is small and borderline.
+
+### Verdicts (for the ADR)
+* **Static tool retrieval (top 8): adopt** for any free-lane agent that would otherwise hold the full tool set (the
+  single generalist ADR-0016 points at). Same quality, 85% fewer tokens, and no empty-answer failures. Its one cost is a
+  small, borderline loss on tasks spanning several tool families.
+* **Per-step retrieval (`find_tools`): don't adopt on the free lane.** The small model rarely uses it. Retest only on a
+  stronger model (the paid lane), where asking for a tool is more likely.
+* **Context editing: don't adopt** for the Realm or the operator: nothing to clear (tool results stay small; schemas
+  are the cost).
