@@ -27,7 +27,7 @@ checks every ADR's sections and status, the numbering, and this index.
 | [0015](./0015-adopt-bifrost-agent-gateway-for-the-realm.md) | Adopt Bifrost's Agent Gateway for the Realm (Relays stay out) | accepted | 2026-11-19 |
 | [0016](./0016-simplify-the-realm-on-the-free-lane.md) | Simplify the Realm of Agents on the free lane | accepted | 2026-11-20 |
 | [0017](./0017-context-engineering-for-the-harness-and-services.md) | Context engineering for the coding-agent harness and the AI services | accepted | 2026-11-22 |
-| [0018](./0018-adopt-herdr-for-interactive-multi-agent-work.md) | Adopt Herdr for interactive multi-agent work, alongside Emdash | proposed | 2026-11-23 |
+| [0018](./0018-adopt-herdr-for-interactive-multi-agent-work.md) | Adopt Herdr for interactive multi-agent work, alongside Emdash | accepted | 2026-11-23 |
 
 ## Status Legend
 

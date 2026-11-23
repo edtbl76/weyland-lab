@@ -2,9 +2,9 @@
 
 ## Status
 
-proposed
+accepted
 
-Date: 2026-11-23
+Date: 2026-11-23 (owner: "accept the ADR")
 
 ## Context and Problem Statement
 
