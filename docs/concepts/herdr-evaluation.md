@@ -1,6 +1,6 @@
 # Herdr evaluation (B257)
 
-**Status: verdict ADOPT alongside Emdash for interactive multi-agent work, [ADR-0018](../adr/0018-adopt-herdr-for-interactive-multi-agent-work.md)
+**Status: DONE 2026-11-23 — verdict ADOPT alongside Emdash for interactive multi-agent work, [ADR-0018](../adr/0018-adopt-herdr-for-interactive-multi-agent-work.md)
 (Linear EMA-358).** Runbook: [runbooks/herdr.md](../runbooks/herdr.md).
 
 ## Why
