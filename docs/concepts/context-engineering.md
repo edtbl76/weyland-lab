@@ -1,6 +1,6 @@
 # Context engineering (B255)
 
-**Status: verdicts in, [ADR-0017](../adr/0017-context-engineering-for-the-harness-and-services.md) proposed (Linear
+**Status: DONE 2026-11-22, [ADR-0017](../adr/0017-context-engineering-for-the-harness-and-services.md) accepted (Linear
 EMA-356).** Measurements first, then a dated industry survey, trials on B253's task set, and the harness and service
 changes that survive.
 
