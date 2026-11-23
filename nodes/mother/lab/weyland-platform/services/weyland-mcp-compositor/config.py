@@ -65,8 +65,21 @@ def _owned_by(upstream: str, tool_name: str, servers: dict) -> str | None:
     return tool_name[len(prefix):] if tool_name.startswith(prefix) else None
 
 
+# B256 (2026-11-23): the compositor's own tools for identity-checked writes (governed_write.py). Registered only on the
+# memory compositor, and only when GOVERNED_WRITE=1: its NetworkPolicy admits the gateway alone, so the identity
+# headers it reads were set by the gateway. Never on the fleet compositor, which Bifrost can also reach.
+GOVERNED_TOOLS = ("governed_write_note", "governed_read_note")
+
+
+def governed_writes_enabled(env) -> bool:
+    return env.get("GOVERNED_WRITE") == "1" and bool(env.get("MEMORY_URL"))
+
+
 def is_blocked(tool_name: str, servers: dict) -> bool:
-    """True when `tool_name` belongs to a mounted READ-ONLY upstream and is not on its allowlist."""
+    """True when `tool_name` belongs to a mounted READ-ONLY upstream and is not on its allowlist. The compositor's own
+    governed tools are never an upstream's (with one upstream every name would otherwise count as the memory's)."""
+    if tool_name in GOVERNED_TOOLS:
+        return False
     for upstream, allowed in READ_ONLY.items():
         bare = _owned_by(upstream, tool_name, servers)
         if bare is not None:

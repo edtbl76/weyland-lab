@@ -60,3 +60,18 @@ def test_an_empty_store_is_a_problem_not_a_pass(tmp_path):
 
 def test_the_default_budget_is_half_claude_codes_cap():
     assert csm.CORE_BUDGET_BYTES == 12 * 1024
+
+
+def test_task_and_person_layers_are_not_part_of_the_index(tmp_path):
+    # B256 (2026-11-23): the index covers project memory only. Notes in the task layer (task/<item>/) and the person
+    # layer (person/<name>/) live in their own scope, so an unlinked one there is not a problem; a link to one that does
+    # not exist still is.
+    d = _store(tmp_path, "- [a](a.md)\n", "", ["a.md", "task/b256/probe.md", "person/edward/todo.md"])
+    assert csm.index_problems(d) == []
+    d2 = _store(tmp_path / "x", "- [a](a.md) · [gone](task/b256/gone.md)\n", "", ["a.md", "task/b256/probe.md"])
+    assert any("task/b256/gone.md" in p and "does not exist" in p for p in csm.index_problems(d2))
+
+
+def test_a_subdirectory_that_is_not_a_layer_is_still_indexed(tmp_path):
+    d = _store(tmp_path, "- [a](a.md)\n", "", ["a.md", "sub/c.md"])
+    assert any("sub/c.md" in p for p in csm.index_problems(d))

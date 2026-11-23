@@ -16,7 +16,7 @@ from fastmcp.server import create_proxy
 from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import Middleware
 
-from config import build_servers, is_blocked, rewrite_arguments
+from config import build_servers, governed_writes_enabled, is_blocked, rewrite_arguments
 
 servers = build_servers(os.environ)
 print(f"[compositor] mounting upstreams: {sorted(servers)}", flush=True)
@@ -42,6 +42,53 @@ class ReadOnlyAllowlist(Middleware):
 
 app = create_proxy({"mcpServers": servers}, name="weyland-mcp-compositor")
 app.add_middleware(ReadOnlyAllowlist())
+
+# B256 (2026-11-23) walking skeleton: identity-checked, provenance-stamped writes (governed_write.py). Only on the memory
+# compositor with GOVERNED_WRITE=1: its NetworkPolicy admits the gateway alone, so X-Forwarded-User / -Consumer were set
+# by the gateway from a validated token. Design: docs/design/shared-context-design.md.
+if governed_writes_enabled(os.environ):
+    from datetime import datetime, timezone
+
+    from fastmcp.server.dependencies import get_http_headers
+
+    import governed_write as gw
+    from governed_store import BasicMemoryStore, client_call
+
+    _store = BasicMemoryStore(client_call(os.environ["MEMORY_URL"]))
+    print("[compositor] governed writes ON (governed_write_note, governed_read_note)", flush=True)
+
+    @app.tool(name="governed_write_note")
+    async def governed_write_note(directory: str, title: str, content: str, operation: str, source: str,
+                                  expected_sha256: str | None = None) -> dict:
+        """Write to the shared agent memory as YOURSELF: the gateway's identity is checked against the layer's rights
+        and stamped into the note's frontmatter (created_by / updated_by, author_kind, on_behalf_of, source, times).
+        directory: "" (project memory), "task/<item>" or "person/<name>". operation: "create" (fails if the note
+        exists), "append" (adds to it), or "replace" (needs expected_sha256 from governed_read_note; refused if the note
+        changed since). source: the B-number, incident or session this came from. Content must not carry frontmatter
+        or secrets."""
+        identity = gw.identity_from_headers(get_http_headers())
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        out = await gw.governed_write(_store, identity, directory=directory, title=title, content=content,
+                                      operation=operation, source=source, expected_sha256=expected_sha256, now=now)
+        print(gw.audit_line(identity, operation, directory, title, out), flush=True)
+        if not out.ok:
+            raise ToolError(out.reason)
+        return {"result": out.reason, "path": out.path}
+
+    @app.tool(name="governed_read_note")
+    async def governed_read_note(directory: str, title: str) -> dict:
+        """Read one note with its SHA-256, the version a "replace" must send. directory: "" (project memory),
+        "task/<item>" or "person/<name>" (readable only by that person and their agents)."""
+        identity = gw.identity_from_headers(get_http_headers())
+        why = gw.may_read(identity, directory)
+        if why:
+            raise ToolError(why)
+        d = (directory or "").strip("/")
+        path = f"{d}/{title}.md" if d else f"{title}.md"
+        raw = await _store.read_raw(path)
+        if raw is None:
+            raise ToolError(f"{path} does not exist")
+        return {"path": path, "sha256": gw.sha256_of(raw), "text": raw}
 
 if __name__ == "__main__":
     app.run(transport="http", host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))

@@ -157,6 +157,32 @@ Bifrost logs `Connected to MCP server 'Agent_Memory'` when it can reach the stor
 with `scripts/.env` loaded (`set -a && . /home/edwardmangini/IdeaProjects/weyland/scripts/.env && set +a`) or the model
 call fails with `Missing or invalid Authorization header` — the memory side is unaffected.
 
+## Governed writes (B256, 2026-11-23)
+
+The memory compositor behind `/mcp-memory` also offers **identity-checked writes**: `governed_write_note` and
+`governed_read_note` (design: [design/shared-context-design.md](../design/shared-context-design.md)). The caller's
+identity is what the gateway set from its validated Keycloak token: the person (`X-Forwarded-User`) or, for a machine
+token, the client (`X-Forwarded-Consumer`). Basic Memory's own write tools stay hidden and refused on this path.
+
+| Layer | Directory | Who may write |
+|---|---|---|
+| project memory | `""` (the store root) | any person; the coding-agent clients `claude-code`, `codex`, `opencode` |
+| task | `task/<item>` (a B-number or incident id) | any person; the coding agents; `weyland-operator` (its only writable layer) |
+| person | `person/<name>` | that person, and agents acting for them (read: the same) |
+
+Operations: `create` (refused if the note exists), `append`, `replace` (send `expected_sha256` from
+`governed_read_note`; refused if the note changed since). Move and delete are not offered (humans, on the files).
+Every write is stamped with `created_by` / `updated_by` (`user:<name>` or `agent:<client>`), `author_kind`,
+`on_behalf_of`, `source` and UTC times; content carrying its own frontmatter or a token-shaped secret is refused.
+The rights table is `AGENTS` in `services/weyland-mcp-compositor/governed_write.py` (unit-tested); the switch is
+`GOVERNED_WRITE=1` on the memory compositor only (`tests/test_governed_manifests.py` fails if the fleet compositor
+ever gets it, or if anything but the gateway can reach the memory compositor).
+
+Each attempt leaves one log line; find refusals in Loki with `{app="weyland-mcp-compositor-memory"} |= "mcp-memory-write" | logfmt | ok="false"`.
+
+The task and person layers are scoped context, not project memory: `check-shared-memory.py` does not require them in
+`MEMORY.md` or the catalog.
+
 ## Watchdog
 
 `scripts/agent-memory-watch.sh`, every 15 min (user timer `agent-memory-watch.timer`): gitleaks 8.21.2 over

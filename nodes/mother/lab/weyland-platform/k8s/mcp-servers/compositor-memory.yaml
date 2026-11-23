@@ -34,6 +34,10 @@ spec:
           env:
             - { name: PORT, value: "8000" }
             - { name: MEMORY_URL, value: "http://192.168.1.230:8765/mcp" }
+            # B256 (2026-11-23): identity-checked, provenance-stamped writes (governed_write_note / governed_read_note).
+            # Safe here only because this pod's NetworkPolicy admits the gateway alone, so X-Forwarded-User/-Consumer
+            # were set by the gateway from a validated token. NEVER on the fleet compositor (Bifrost reaches it too).
+            - { name: GOVERNED_WRITE, value: "1" }
             # Every other upstream OFF (an empty URL skips it — config.build_servers).
             - { name: CONTEXT_URL, value: "" }
             - { name: GRAFANA_URL, value: "" }

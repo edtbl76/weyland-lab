@@ -130,3 +130,18 @@ def test_the_callers_arguments_are_not_mutated():
     asked = {"query": "q", "tags": "x"}
     config.rewrite_arguments("memory_search_notes", asked, servers)
     assert asked == {"query": "q", "tags": "x"}
+
+
+def test_the_governed_tools_are_never_blocked_by_the_read_only_rule():
+    # B256 (2026-11-23): with one upstream every tool counts as the memory's, so the compositor's own governed tools
+    # would be hidden like a write tool. They are exempt by name; Basic Memory's own write tools stay blocked.
+    one = {"memory": config.build_servers(MEM)["memory"]}   # the memory compositor: one upstream
+    for name in config.GOVERNED_TOOLS:
+        assert not config.is_blocked(name, one)
+    assert config.is_blocked("write_note", one)
+
+
+def test_governed_writes_are_on_only_when_asked():
+    assert config.governed_writes_enabled({"GOVERNED_WRITE": "1", "MEMORY_URL": "http://m/mcp"}) is True
+    assert config.governed_writes_enabled({"MEMORY_URL": "http://m/mcp"}) is False
+    assert config.governed_writes_enabled({"GOVERNED_WRITE": "1"}) is False   # no store, no writes

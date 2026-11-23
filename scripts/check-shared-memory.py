@@ -45,9 +45,16 @@ def _targets(text: str) -> set:
     return {t if t.endswith(".md") else t + ".md" for t in _LINK.findall(text) if "://" not in t}
 
 
+# B256 (2026-11-23): the task and person layers (task/<item>/, person/<name>/) are scoped context, not project memory:
+# the indexes do not list them (docs/design/shared-context-design.md § Context layers).
+LAYER_DIRS = ("task/", "person/")
+
+
 def index_problems(directory: str, budget: int = CORE_BUDGET_BYTES) -> list:
-    """Problems with the two-tier index, named; [] when the core is within budget and every note is linked."""
-    notes = set(note_files(directory)) - {CORE, CATALOG}
+    """Problems with the two-tier index, named; [] when the core is within budget and every project note is linked.
+    Notes in the task and person layers need no index entry, but a link to one that does not exist is still a problem."""
+    on_disk = set(note_files(directory)) - {CORE, CATALOG}
+    notes = {n for n in on_disk if not n.startswith(LAYER_DIRS)}
     if not notes:
         return ["no notes found: the index check would pass vacuously"]
     core_path, cat_path = os.path.join(directory, CORE), os.path.join(directory, CATALOG)
@@ -60,7 +67,7 @@ def index_problems(directory: str, budget: int = CORE_BUDGET_BYTES) -> list:
         problems.append(f"{CORE} is {size} bytes, over its {budget}-byte budget: move entries to {CATALOG}")
     catalog = open(cat_path, encoding="utf-8").read() if os.path.exists(cat_path) else ""
     for name, text in ((CORE, core), (CATALOG, catalog)):
-        for t in sorted(_targets(text) - notes - {CORE, CATALOG}):
+        for t in sorted(_targets(text) - on_disk - {CORE, CATALOG}):
             problems.append(f"{name} links {t}, which does not exist")
     linked = _targets(core) | _targets(catalog)
     problems += [f"{n} is in neither {CORE} nor {CATALOG}" for n in sorted(notes - linked)]

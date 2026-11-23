@@ -5,6 +5,6 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 RUN useradd -u 10001 -m app
 USER 10001
-COPY app.py config.py /app/
+COPY app.py config.py governed_write.py governed_store.py /app/
 WORKDIR /app
 ENTRYPOINT ["python", "app.py"]
