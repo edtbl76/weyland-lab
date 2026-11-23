@@ -15,6 +15,7 @@ case "$mode" in plan|apply) ;; *) echo "usage: keycloak-tofu.sh plan|apply" >&2;
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${KEYCLOAK_TOFU_ENV:-$REPO/scripts/.env}"   # test seam
+# shellcheck source=/dev/null  # a gitignored env file (or the test seam)
 [ -f "$ENV_FILE" ] && { set -a; . "$ENV_FILE"; set +a; }
 [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ] || {
   echo "keycloak-tofu: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY missing from scripts/.env (the MinIO state backend)" >&2; exit 2; }
