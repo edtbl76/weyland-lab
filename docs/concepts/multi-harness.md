@@ -22,7 +22,12 @@ bottleneck ([runbooks/coding-agents.md](../runbooks/coding-agents.md)).
 
 **Supervisor (B179, adopted 2026-10-12):** Emdash runs the harnesses unattended. Its `agent-ready-nightly` automation
 starts Claude Code on the oldest `agent-ready` Linear issue at 04:00 in a fresh worktree, push off. The harness still
-reads `AGENTS.md`, so the rules above apply unchanged ([runbooks/software-factory.md](../runbooks/software-factory.md)). Delta (delta.dev, B210) was evaluated as an alternative on 2026-10-29 and rejected: no unattended runs, no header-auth MCP, and code + keys on its cloud ([concepts/software-factory.md](software-factory.md) § Delta).
+reads `AGENTS.md`, so the rules above apply unchanged ([runbooks/software-factory.md](../runbooks/software-factory.md)).
+
+**Running several at once (B257, adopted 2026-11-23):** Herdr hosts interactive agents side by side. A background
+server keeps every harness's terminal alive through a closed client or a dropped SSH connection, marks each pane
+`working` / `blocked` / `idle`, and lets one agent prompt and wait on another. It does not see Emdash's unattended runs,
+and its herdr.dev calls are off ([runbooks/herdr.md](../runbooks/herdr.md), [ADR-0018](../adr/0018-adopt-herdr-for-interactive-multi-agent-work.md)). Delta (delta.dev, B210) was evaluated as an alternative on 2026-10-29 and rejected: no unattended runs, no header-auth MCP, and code + keys on its cloud ([concepts/software-factory.md](software-factory.md) § Delta).
 
 ## Editors — where the harnesses run
 

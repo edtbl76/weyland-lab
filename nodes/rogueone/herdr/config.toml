@@ -1,0 +1,7 @@
+# weyland lab (B257). Pinned install: update by hand (docs/runbooks/herdr.md).
+# version_check ON (owner, 2026-11-23): one GET of herdr.dev/latest.json at start-up and every 30 minutes; it only
+# shows "update available", installs nothing. manifest_check OFF: it would fetch 23 detection-rule files from herdr.dev
+# every 30 minutes and apply them without a release, changing how agent state is read.
+[update]
+version_check = true
+manifest_check = false

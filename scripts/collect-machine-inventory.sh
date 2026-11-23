@@ -2,7 +2,7 @@
 # collect-machine-inventory.sh — the canonical machine-inventory collector (B129).
 #
 # Gathers the installed-software inventory of one lab machine and prints it NORMALIZED to stdout, one
-# record per line:  <kind>\t<name>\t<version>   (kind = snap|flatpak|apt|pip|npm|image|appimage|uv-tool).
+# record per line:  <kind>\t<name>\t<version>   (kind = snap|flatpak|apt|pip|npm|image|appimage|uv-tool|binary).
 #
 # It is OUTPUT-ONLY: it reads nothing but the machine's own package managers and writes nothing on the
 # host. The curated decisions (keep/remove/rationale) live in `machine-inventory.yaml`; `machine_inventory.py
@@ -81,6 +81,17 @@ fi
 # name with ANSI escapes EVEN WHEN PIPED (observed 2026-10-12: the first run cataloged "\e[1mbasic-memory"), so strip them.
 if command -v uv >/dev/null 2>&1; then
   uv tool list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | awk '!/^-/ && NF>=2 {v=$2; sub(/^v/,"",v); printf "uv-tool\t%s\t%s\n",$1,v}'; ran="$ran uv-tool"
+fi
+# Standalone binaries (2026-11-23, B257: Herdr's pinned release binary and 27 others in ~/.local/bin were invisible).
+# An ELF file directly in ~/.local/bin is a `binary`; its version is its SHA-256 (first 12 hex), because running an
+# arbitrary binary to ask its version is not safe. Symlinks (their target is cataloged elsewhere, or is a package
+# manager's), scripts and subdirectories are skipped.
+if [ -d "$HOME/.local/bin" ]; then
+  for f in "$HOME"/.local/bin/*; do
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    [ "$(head -c 4 "$f" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ] || continue
+    printf 'binary\t%s\tsha256:%s\n' "${f##*/}" "$(sha256sum "$f" | cut -c1-12)"
+  done; ran="$ran binary"
 fi
 printf 'sources:%s\n' "${ran:- NONE}" >&2
 SNIPPET

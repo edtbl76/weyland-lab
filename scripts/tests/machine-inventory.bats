@@ -275,10 +275,50 @@ collect_user_space() {
   [[ "$output" != *$'uv-tool\tbm'* ]]
 }
 
+# --- 2026-11-23 (B257 Closing Gaps): standalone binaries in ~/.local/bin ------------------------------------------
+# Herdr was installed as a pinned release binary in ~/.local/bin, and the collector could not see it, nor 27 other
+# binaries there (argocd, helm, tofu, woodpecker-cli, k3s, ...). An ELF file directly in ~/.local/bin is now kind
+# `binary`; its identity is its SHA-256 (the binary is never executed to ask its version). Symlinks (the target is
+# cataloged elsewhere), scripts and subdirectories are not binaries.
+collect_binaries() {
+  local home="$TMP/bhome"
+  mkdir -p "$home/.local/bin/sub"
+  printf '\177ELF\002\001\001fake-herdr' > "$home/.local/bin/herdr"
+  printf '\177ELF\002\001\001fake-tofu' > "$home/.local/bin/tofu"
+  printf '#!/bin/sh\necho hi\n' > "$home/.local/bin/a-script"
+  printf '\177ELF\002\001\001nested' > "$home/.local/bin/sub/nested"
+  ln -s "$home/.local/bin/herdr" "$home/.local/bin/herdr-link"
+  HOME="$home" bash "${BATS_TEST_DIRNAME}/../collect-machine-inventory.sh" "$(hostname -s)" 2>/dev/null \
+    | grep -E $'^binary\t' | sort
+}
+
+@test "collector lists ELF binaries in ~/.local/bin by name and SHA-256, skipping symlinks, scripts and subdirs" {
+  run collect_binaries
+  [ "$status" -eq 0 ]
+  local sum; sum="$(printf '\177ELF\002\001\001fake-herdr' | sha256sum | cut -c1-12)"
+  [[ "$output" == *$'binary\therdr\tsha256:'"$sum"* ]]
+  [[ "$output" == *$'binary\ttofu\tsha256:'* ]]
+  [[ "$output" != *"a-script"* ]]
+  [[ "$output" != *"herdr-link"* ]]
+  [[ "$output" != *"nested"* ]]
+  [ "$(printf '%s\n' "$output" | grep -c .)" -eq 2 ]
+}
+
+@test "the sources line names the binary collector only when ~/.local/bin exists" {
+  local home="$TMP/nobin"; mkdir -p "$home"
+  run bash -c "HOME='$home' bash '${BATS_TEST_DIRNAME}/../collect-machine-inventory.sh' '$(hostname -s)' 2>&1 >/dev/null | grep '^sources:'"
+  [[ "$output" == "sources:"* ]] && [[ "$output" != *"binary"* ]]
+  collect_binaries >/dev/null   # builds $TMP/bhome/.local/bin
+  run bash -c "HOME='$TMP/bhome' bash '${BATS_TEST_DIRNAME}/../collect-machine-inventory.sh' '$(hostname -s)' 2>&1 >/dev/null | grep '^sources:'"
+  [[ "$output" == *" binary"* ]]
+}
+
 @test "the new kinds are discretionary: they land unreviewed, never bulk system" {
   printf 'host:h1\nappimage\temdash\t1.2.7\nuv-tool\topenhands\t1.16.0\n' | python3 "$TOOL" merge h1
   [ "$(status_of h1 appimage emdash)" = "unreviewed" ]
   [ "$(status_of h1 uv-tool openhands)" = "unreviewed" ]
+  printf 'host:h1\nbinary\therdr\tsha256:14d9e8bc8b4a\n' | python3 "$TOOL" merge h1
+  [ "$(status_of h1 binary herdr)" = "unreviewed" ]
 }
 
 # 2026-10-12: rogueone has TWO npms. The nightly job (a systemd user unit) finds /usr/bin/npm (apt), which has no

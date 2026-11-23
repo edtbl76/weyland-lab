@@ -38,6 +38,7 @@ Legend: **DONE** · **MISSING** · **PARTIAL** (exists but stale) · — not app
 | 36 | **MLflow GenAI** (B100 — Traces + Prompt Registry, hot-swap) | DONE (seq in demo) | DONE `mlflow-genai.md` (validated 2026-07-24) | DONE traces + prompt versions (history) |
 | 19 | Remote training (Ray → MLflow) | DONE (authored) | DONE `remote-training.md` | DONE artifacts/models |
 | 130 | **Context engineering** (B255 — Ollama truncation watch, harness budget guard, Realm trial arms) | DONE `flow-ollama-truncation-watch` | DONE `context-engineering.md` (run live 2026-11-22: watch `up`, and its real `down` of 2026-11-21 01:44; harness budget OK; trial report reproduced) | — read-only |
+| 131 | **Several coding agents side by side** (B257 Herdr — parallel agents, working/blocked/idle, hand-off, survives a dropped client) | DONE `flow-herdr-multi-agent` | DONE `herdr.md` (run live 2026-11-22 as the B257 trial: parallel run, blocked prompts, hand-off, SIGHUP/SIGKILL client) | DONE `herdr --session demo server stop` + session dir |
 | **Agent / serving** | | | | |
 | 21 | Agentic RAG (`weyland-agent`, B70) | DONE `flow-agentic-rag` | DONE `agentic-rag.md` (validated live 2026-07-23) | — read-only (traces/verdicts) |
 | 22 | Voice chat (Open WebUI + whisper) | DONE `flow-voice-chat` | DONE `voice-chat.md` | — |

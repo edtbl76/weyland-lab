@@ -52,6 +52,7 @@ model {
     codex = component "Codex" "Harness — OpenAI Codex CLI + ChatGPT desktop (ChatGPT-sub GPT-5.5). MCP client of Bifrost + Linear (2026-09-25); Linear 'Work on issue' launcher (codex://); instructions AGENTS.md"
     sharedMemory = component "Shared agent memory" "B182 (2026-10-03) — Basic Memory 0.23.2 (user unit basic-memory.service) serving the notes in ~/agent-memory/weyland over MCP (streamable HTTP :8765). The notes ARE the store: Claude Code's memory path is a symlink to them; other agents use the Agent_Memory tools via Bifrost. No auth — ufw admits only mother. Watchdog: gitleaks + health every 15 min → Kuma"
     emdash = component "Emdash" "B179 (adopted 2026-10-12) — the software-factory conveyor: desktop supervisor (AppImage) whose automation agent-ready-nightly (04:00 NY, only while the app runs; a missed slot starts on launch) has Claude Code take the oldest Linear issue labelled agent-ready into a fresh local worktree, push OFF. Freshness: emdash-conveyor-watch user timer (06:00) → Kuma push"
+    herdr = component "Herdr" "B257 (adopted 2026-11-23, ADR-0018) — terminal runtime for running several coding agents side by side: a background server keeps each agent's terminal alive when the client closes or SSH drops, marks panes working / blocked / idle, and lets one agent prompt and wait on another over a local socket. Pinned v0.9.5 binary in ~/.local/bin; herdr.dev detection-rule updates OFF, version check ON (one GET of latest.json every 30 min)"
     codingAgents = component "Coding agents" "Harnesses — opencode / Cline / Pi (B15) — $0 dev coding TUIs; drive hosted models DIRECT, not through the gateway; instructions AGENTS.md"
     studioAgents = component "STUD.io CI agents" "4 Woodpecker local-backend agents (B57b) — run STUD.io's CI on the host shell + native docker; register to weyland's Woodpecker over the :30900 gRPC NodePort"
     machineInvDrift = component "machine-inv-drift" "B170 + B180 nightly host job (user timer, 03:45 NY). Collects every host's packages into machine-inventory.yaml (one inventory PR on drift), syncs + read-back-verifies the Port catalog (deleting entities the inventory dropped), and runs the placement host check over SSH: every systemd unit and host config file in placement.yaml installed and identical to its repo copy, no unlisted or failed unit, no stale timer. One Kuma push heartbeat, down on any finding"
@@ -305,6 +306,10 @@ model {
   rogueone.editors -> rogueone.codingAgents "hosts via the ACP registry (OpenCode, Cline)"
   edward -> rogueone.codex "develops on"
   edward -> rogueone.codingAgents "develops on"
+  edward -> rogueone.herdr "runs several agents side by side (B257)"
+  rogueone.herdr -> rogueone.claudeCode "hosts its terminal; reads its state from the screen"
+  rogueone.herdr -> rogueone.codex "hosts its terminal; reads its state from the screen"
+  rogueone.herdr -> rogueone.codingAgents "hosts their terminals (OpenCode, Pi report their own state)"
   rogueone.codex -> hostedModels "GPT-5.5 via ChatGPT sign-in (sub-included)"
   rogueone.codex -> weyland.mother.ops.edge.bifrost "MCP tools via /mcp (VK)"
   rogueone.codex -> linear "Linear MCP (mcp.linear.app, OAuth) — read/update issues"
@@ -492,6 +497,7 @@ views {
       rogueone.claudeCode,
       rogueone.codex,
       rogueone.codingAgents,
+      rogueone.herdr,
       weyland.mother.ai.openWebui,
       weyland.mother.ai.operator,
       rogueone.sharedMemory,

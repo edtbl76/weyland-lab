@@ -1016,6 +1016,7 @@ data:
       - {id: "tool:rogueone/editors", host: "rogueone", state: "none", move: "pinned: the dev workstation", target: "stays", managed: "desktop", likec4: "editors"}
       - {id: "tool:rogueone/claude-code", host: "rogueone", state: "none", move: "pinned: the dev workstation", target: "stays", managed: "desktop", likec4: "claudeCode"}
       - {id: "tool:rogueone/codex", host: "rogueone", state: "none", move: "pinned: the dev workstation", target: "stays", managed: "desktop", likec4: "codex"}
+      - {id: "tool:rogueone/herdr", host: "rogueone", state: "host-path: ~/.config/herdr/sessions, ~/.local/state/herdr", move: "pinned: the dev workstation", target: "stays", managed: "desktop", likec4: "herdr", on_demand: true, owner: "B257", why: "terminal runtime for running several coding agents side by side (ADR-0018); pinned release binary in ~/.local/bin"}
       - {id: "tool:rogueone/coding-agents", host: "rogueone", state: "none", move: "pinned: the dev workstation", target: "stays", managed: "desktop", likec4: "codingAgents"}
       - {id: "tool:rogueone/emdash", host: "rogueone", state: "~/.config/emdash (automation definition + run history; restic-backed)", move: "pinned: the dev workstation (its automations need the app running here)", target: "stays", managed: "desktop", likec4: "emdash"}
       # ---- mother (host units; B180) ----
@@ -1052,6 +1053,7 @@ data:
       - {id: "file:rogueone/etc/apparmor.d/bwrap", host: "rogueone", path: "/etc/apparmor.d/bwrap", source: "nodes/rogueone/apparmor/bwrap", why: "lets Codex's bubblewrap sandbox create user namespaces (coding-agents runbook)"}
       - {id: "file:rogueone/etc/apt/apt.conf.d/51weyland-hold-nvidia", host: "rogueone", path: "/etc/apt/apt.conf.d/51weyland-hold-nvidia", source: "nodes/rogueone/apt/51weyland-hold-nvidia", owner: "B226", why: "unattended-upgrades must never move the NVIDIA driver without a reboot (2026-10-09 drift)"}
       - {id: "file:rogueone/home/edwardmangini/.config/autostart/emdash.desktop", host: "rogueone", path: "/home/edwardmangini/.config/autostart/emdash.desktop", source: "nodes/rogueone/autostart/emdash.desktop", owner: "B179", why: "starts Emdash (the agent-ready-nightly conveyor) at login; without it a reboot silently stops the conveyor (down 2026-10-19 to 10-21)"}
+      - {id: "file:rogueone/home/edwardmangini/.config/herdr/config.toml", host: "rogueone", path: "/home/edwardmangini/.config/herdr/config.toml", source: "nodes/rogueone/herdr/config.toml", owner: "B257", why: "herdr.dev detection-rule updates off, version check on (one GET of latest.json every 30 min); pinned install"}
 ---
 apiVersion: batch/v1
 kind: CronJob
