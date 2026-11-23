@@ -231,3 +231,29 @@ def test_a_read_cannot_reach_another_persons_layer_through_the_title():
 
 def test_a_write_refuses_a_backslash_title():
     assert not run(FakeStore(), EDWARD, title="a\\b").ok
+
+
+# --- MCP OAuth (owner, 2026-11-23: option A): a harness signs in as its person -------------------------------------
+# A coding agent's token now carries BOTH the person who signed in (preferred_username) and the harness client (azp).
+# That is the agent acting for that person, not the person: author agent:<client>, on_behalf_of user:<person>.
+CLAUDE_AS_ALICE = gw.Identity(user="alice", client="claude-code")
+
+
+def test_a_harness_signed_in_as_a_person_writes_as_the_agent_for_that_person():
+    store = FakeStore()
+    assert run(store, CLAUDE_AS_ALICE).ok
+    meta = store.calls[0][3]
+    assert meta["created_by"] == "agent:claude-code" and meta["on_behalf_of"] == "user:alice"
+    assert meta["author_kind"] == "agent"
+
+
+def test_the_person_layer_follows_the_signed_in_person_not_the_table_default():
+    assert run(FakeStore(), CLAUDE_AS_ALICE, directory="person/alice").ok
+    assert not run(FakeStore(), CLAUDE_AS_ALICE, directory="person/edward").ok
+    assert gw.may_read(CLAUDE_AS_ALICE, "person/alice") is None
+    assert gw.may_read(CLAUDE_AS_ALICE, "person/edward") is not None
+
+
+def test_a_harness_signed_in_as_a_person_keeps_the_agents_layer_limits():
+    op_as_alice = gw.Identity(user="alice", client="weyland-operator")
+    assert not run(FakeStore(), op_as_alice, directory="", title="x").ok   # the operator never writes project memory

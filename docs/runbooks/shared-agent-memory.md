@@ -178,6 +178,21 @@ The rights table is `AGENTS` in `services/weyland-mcp-compositor/governed_write.
 `GOVERNED_WRITE=1` on the memory compositor only (`tests/test_governed_manifests.py` fails if the fleet compositor
 ever gets it, or if anything but the gateway can reach the memory compositor).
 
+**Coding agents sign in as their person (MCP OAuth, B256, 2026-11-23).** Each harness has its own public Keycloak
+client (`claude-code`, `opencode`, `codex`; `tofu/keycloak/mcp-agents.tf`) and a fixed loopback callback port. On its
+first call `/mcp-memory` answers 401 with `WWW-Authenticate` pointing at the gateway's protected-resource metadata
+(`https://mcp.weyland.lab/.well-known/oauth-protected-resource/mcp-memory`), which names the realm; the harness opens
+the browser, you sign in, and it refreshes the token itself. The token then carries both you (`preferred_username`) and
+the harness (`azp`), so a write is stamped `agent:<harness>`, `on_behalf_of: user:<you>`. Claude Code:
+
+[rogueone]
+```
+claude mcp add --transport http --scope user --client-id claude-code --callback-port 38256 weyland-memory https://mcp.weyland.lab/mcp-memory
+```
+
+Then, inside Claude Code, `/mcp` → `weyland-memory` → authenticate (a browser sign-in). OpenCode (port 38257) and Codex
+(port 38258) follow once verified; their config is recorded here when it is.
+
 Each attempt leaves one log line; find refusals in Loki with `{app="weyland-mcp-compositor-memory"} |= "mcp-memory-write" | logfmt | ok="false"`.
 
 The task and person layers are scoped context, not project memory: `check-shared-memory.py` does not require them in

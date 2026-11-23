@@ -40,6 +40,8 @@ JWKS_URL = os.environ["KEYCLOAK_JWKS_URL"]                 # https://keycloak.we
 ISSUER = os.environ["KEYCLOAK_ISSUER"]                     # https://keycloak.weyland.lab/realms/weyland
 AUDIENCE = os.environ.get("KEYCLOAK_AUDIENCE") or None     # optional; Keycloak often sets aud=account, so default off
 ACTOR_CLAIM = os.environ.get("ACTOR_CLAIM", "azp")         # client_credentials → azp = the agent's client_id
+PUBLIC_URL = (os.environ.get("PUBLIC_URL") or "").rstrip("/")   # https://mcp.weyland.lab — set → MCP OAuth discovery
+#   for /mcp-memory (B256, 2026-11-23): coding agents sign in as their person (RFC 9728 + the MCP authorization spec)
 FLEET_PATH = "/mcp-fleet"                                 # → COMPOSITOR (the read-only fleet)
 MEMORY_PATH = "/mcp-memory"                               # → MEMORY (the memory-only compositor)
 ALLOWED_PREFIXES = (FLEET_PATH, MEMORY_PATH, "/mcp-act", "/mcp",     # /mcp-fleet → compositor (read fleet); /mcp-act + /mcp → tool-server
@@ -107,6 +109,31 @@ def audit_line(method: str, path: str, actor, user, status: int) -> str:
             f"user={_logfmt(user)} status={status}")
 
 
+# B256 (2026-11-23): MCP OAuth discovery for /mcp-memory. A coding agent (Claude Code, Codex, OpenCode) gets a 401 with
+# WWW-Authenticate naming this metadata, reads it, and signs its person in at Keycloak (authorization code + PKCE) with
+# its own pre-registered public client; the token then carries the person (preferred_username) and the harness (azp).
+METADATA_PATH = "/.well-known/oauth-protected-resource"
+NOT_FOUND = "not found"
+
+
+def protected_resource_metadata() -> dict:
+    return {"resource": PUBLIC_URL + MEMORY_PATH, "authorization_servers": [ISSUER],
+            "scopes_supported": ["openid", "profile", "offline_access"], "bearer_methods_supported": ["header"]}
+
+
+def _unauthorized(path: str, detail: str) -> JSONResponse:
+    headers = {}
+    if PUBLIC_URL and path.startswith(MEMORY_PATH):
+        headers["WWW-Authenticate"] = f'Bearer resource_metadata="{PUBLIC_URL}{METADATA_PATH}{MEMORY_PATH}"'
+    return JSONResponse({"error": "unauthorized", "detail": detail}, status_code=401, headers=headers)
+
+
+def _metadata(_: Request) -> JSONResponse:   # sync: Starlette runs it in its threadpool
+    if not PUBLIC_URL:
+        return JSONResponse({"error": NOT_FOUND}, status_code=404)
+    return JSONResponse(protected_resource_metadata())
+
+
 async def _proxy(request: Request) -> StreamingResponse | JSONResponse:
     """Every request — forwarded or denied — leaves exactly one audit line. actor/user come only from the validated
     token (`_handle`), never from a header the client sent."""
@@ -119,23 +146,22 @@ async def _handle(request: Request) -> tuple:
     """(response, actor, user). actor/user are None until the token has been validated."""
     path = request.url.path
     if not any(path == p or path.startswith(p + "/") or path.startswith(p) for p in ALLOWED_PREFIXES):
-        return JSONResponse({"error": "not found"}, status_code=404), None, None
+        return JSONResponse({"error": NOT_FOUND}, status_code=404), None, None
 
     try:
         claims = _claims_from_bearer(request)
     except Exception as exc:                              # bad/expired/forged token → 401, never 500
-        return JSONResponse({"error": "unauthorized", "detail": str(exc)}, status_code=401), None, None
+        return _unauthorized(path, str(exc)), None, None
     actor, user = identity(claims) if claims else (None, None)
     if not actor:
-        return (JSONResponse({"error": "unauthorized", "detail": "missing/invalid Bearer token"}, status_code=401),
-                None, None)
+        return _unauthorized(path, "missing/invalid Bearer token"), None, None
 
     # /mcp-fleet → the compositor (aggregated read-only fleet), /mcp-memory → the memory-only compositor, each
     # rewritten to its /mcp mount. Everything else — RAG reads (/mcp) and acts (/mcp-act, /pipeline, /evals) — goes
     # to the tool-server.
     url = target_url(path)
     if url is None:
-        return (JSONResponse({"error": "not found", "detail": f"{path} has no backend configured"}, status_code=404),
+        return (JSONResponse({"error": NOT_FOUND, "detail": f"{path} has no backend configured"}, status_code=404),
                 actor, user)
 
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _DROP_REQ}
@@ -160,6 +186,8 @@ async def _health(_: Request) -> PlainTextResponse:
 
 app = Starlette(routes=[
     Route("/health", _health),
+    Route(METADATA_PATH + MEMORY_PATH, _metadata, methods=["GET"]),   # RFC 9728 path-suffixed form
+    Route(METADATA_PATH, _metadata, methods=["GET"]),
     Route(FLEET_PATH + "/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),
     Route(FLEET_PATH, _proxy, methods=["GET", "POST", "DELETE"]),
     Route(MEMORY_PATH + "/{path:path}", _proxy, methods=["GET", "POST", "DELETE"]),

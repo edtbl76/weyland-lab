@@ -68,29 +68,41 @@ def _layer(directory: str):
     return None
 
 
+def _acting(identity: Identity):
+    """("agent", client, person it acts for) or ("human", person, None) or None. A known agent client is an agent even
+    when its token names a person: since MCP OAuth (B256, 2026-11-23) a harness signs in AS its person, so the token
+    carries both, and the person is who it acts for. A client-credentials token names none: the table's default."""
+    if identity.client in AGENTS:
+        return "agent", identity.client, identity.user or AGENTS[identity.client][0]
+    if identity.user:
+        return "human", identity.user, None
+    return None
+
+
 def _author(identity: Identity):
     """(author, kind, on_behalf_of) or an Outcome refusing an unusable identity."""
-    if identity.user:
-        return f"user:{identity.user}", "human", None
-    if identity.client in AGENTS:
-        owner = AGENTS[identity.client][0]
-        return f"agent:{identity.client}", "agent", (f"user:{owner}" if owner else None)
-    if identity.client:
-        return Outcome(False, f"client {identity.client!r} may not write the shared memory")
-    return Outcome(False, "no identity: the gateway set neither a person nor a client")
+    acting = _acting(identity)
+    if acting is None:
+        if identity.client:
+            return Outcome(False, f"client {identity.client!r} may not write the shared memory")
+        return Outcome(False, "no identity: the gateway set neither a person nor a client")
+    kind, who, acts_for = acting
+    if kind == "human":
+        return f"user:{who}", "human", None
+    return f"agent:{who}", "agent", (f"user:{acts_for}" if acts_for else None)
 
 
 def _allowed(identity: Identity, layer: str, owner: str | None) -> str | None:
     """None when allowed, else the reason."""
-    if identity.user:
-        if layer == "person" and owner != identity.user:
-            return f"person/{owner} belongs to {owner}, not {identity.user}"
+    kind, who, acts_for = _acting(identity)
+    if kind == "human":
+        if layer == "person" and owner != who:
+            return f"person/{owner} belongs to {owner}, not {who}"
         return None if layer in HUMAN_LAYERS else f"layer {layer} is not writable"
-    acts_for, layers = AGENTS[identity.client]
-    if layer not in layers:
-        return f"{identity.client} may not write the {layer} layer"
+    if layer not in AGENTS[who][1]:
+        return f"{who} may not write the {layer} layer"
     if layer == "person" and owner != acts_for:
-        return f"person/{owner} belongs to {owner}; {identity.client} acts for {acts_for}"
+        return f"person/{owner} belongs to {owner}; {who} acts for {acts_for}"
     return None
 
 
@@ -105,7 +117,11 @@ def may_read(identity: Identity, directory: str) -> str | None:
     layer, owner = where
     if layer != "person":
         return None
-    reader = identity.user or (AGENTS.get(identity.client, (None, set()))[0])
+    acting = _acting(identity)
+    if acting is None:
+        return "no identity the shared memory recognises"
+    kind, who, acts_for = acting
+    reader = who if kind == "human" else acts_for
     return None if reader == owner else f"person/{owner} is readable only by {owner} and {owner}'s agents"
 
 

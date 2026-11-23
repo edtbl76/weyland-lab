@@ -101,11 +101,22 @@ Restart (config env change — Recreate rolls cleanly):
 ```
 kubectl -n weyland rollout restart deploy/keycloak
 ```
-Reconcile realm + clients from code (on **rogueone**, in `tofu/keycloak/`):
+Reconcile realm + clients from code. The script loads the MinIO keys from `scripts/.env` and the admin password from
+`keycloak-secret` into the environment (nothing printed; B256, 2026-11-23). Plan first, then apply:
+
+[rogueone]
 ```
-tofu plan     # dry-run against the live server
-tofu apply    # then wire any new client secret into the app's k8s Secret
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/keycloak-tofu.sh plan
 ```
+
+[rogueone]
+```
+bash /home/edwardmangini/IdeaProjects/weyland/scripts/keycloak-tofu.sh apply
+```
+
+Then wire any new confidential client's secret into its app's k8s Secret. The coding-agent clients (`claude-code`,
+`opencode`, `codex`, B256) are public: no secret; each harness signs its person in with MCP OAuth
+([shared-agent-memory.md § Governed writes](shared-agent-memory.md)).
 
 ## Session lifetime — 10h idle = 10h max (2026-10-05)
 

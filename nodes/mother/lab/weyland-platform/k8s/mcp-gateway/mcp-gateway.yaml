@@ -61,6 +61,8 @@ spec:
             # recall. Unset → /mcp-memory is a 404 (never the tool-server).
             - name: MEMORY_COMPOSITOR_URL
               value: http://weyland-mcp-compositor-memory.weyland.svc.cluster.local:8000
+            # B256 (2026-11-23): MCP OAuth discovery for /mcp-memory (RFC 9728): coding agents sign in as their person.
+            - { name: PUBLIC_URL, value: "https://mcp.weyland.lab" }
             # JWKS over internal HTTP (no CA); issuer validated against the external URL that Keycloak stamps on tokens.
             - name: KEYCLOAK_JWKS_URL
               value: http://keycloak.weyland.svc.cluster.local:8080/realms/weyland/protocol/openid-connect/certs

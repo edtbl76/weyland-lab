@@ -150,3 +150,34 @@ def test_an_unconfigured_route_is_audited_as_a_404_with_who_asked(monkeypatch, c
 def test_a_value_with_spaces_or_quotes_is_quoted_so_logfmt_parses_it(gw):
     assert gw.audit_line("GET", "/mcp", "a b", 'x"y', 200) == \
         'mcp-gateway-audit method=GET path=/mcp actor="a b" user="x\\"y" status=200'
+
+
+# --- B256 (2026-11-23): MCP OAuth discovery for coding agents (RFC 9728 + the MCP authorization spec) ------------------
+# A harness (Claude Code, Codex, OpenCode) signs in as its person: on a 401 it reads WWW-Authenticate, fetches the
+# protected-resource metadata, and runs the authorization-code flow against the authorization server it names (Keycloak).
+PUBLIC = {"PUBLIC_URL": "https://mcp.weyland.lab"}
+
+
+def test_the_memory_route_publishes_protected_resource_metadata(monkeypatch):
+    client = TestClient(_load(monkeypatch, **PUBLIC).app)
+    for path in ("/.well-known/oauth-protected-resource/mcp-memory", "/.well-known/oauth-protected-resource"):
+        r = client.get(path)
+        assert r.status_code == 200, path
+        body = r.json()
+        assert body["resource"] == "https://mcp.weyland.lab/mcp-memory"
+        assert body["authorization_servers"] == ["https://keycloak.weyland.lab/realms/weyland"]
+        assert "offline_access" in body["scopes_supported"] and body["bearer_methods_supported"] == ["header"]
+
+
+def test_a_401_on_memory_points_the_client_at_the_metadata(monkeypatch):
+    gwm = _load(monkeypatch, **PUBLIC)
+    client, seen = _client_with(gwm, monkeypatch, None)
+    r = client.post("/mcp-memory", json={})
+    assert r.status_code == 401 and seen == []
+    assert r.headers["www-authenticate"] == \
+        'Bearer resource_metadata="https://mcp.weyland.lab/.well-known/oauth-protected-resource/mcp-memory"'
+
+
+def test_without_a_public_url_there_is_no_discovery(gw):
+    client = TestClient(gw.app)
+    assert client.get("/.well-known/oauth-protected-resource").status_code == 404

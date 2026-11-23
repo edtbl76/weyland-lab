@@ -26,3 +26,38 @@ output "mcp_operator_client_secret" {
   value     = keycloak_openid_client.mcp_operator.client_secret
   sensitive = true
 }
+
+# B256 (2026-11-23, owner: "yes, go with A") — coding agents sign in to /mcp-memory AS THEIR PERSON with MCP OAuth
+# (authorization code + PKCE; the gateway publishes RFC 9728 protected-resource metadata naming this realm). One PUBLIC
+# client per harness (no secret: the harness runs on a laptop and cannot keep one), so the token's azp names the harness
+# and preferred_username names the person: the memory compositor records "agent <harness>, on behalf of <person>".
+# Each client accepts only its own loopback callback port (the harness's fixed --callback-port / callback_port).
+locals {
+  mcp_coding_agents = {
+    "claude-code" = { name = "Claude Code", redirect = "http://localhost:38256/callback" }
+    "opencode"    = { name = "OpenCode", redirect = "http://127.0.0.1:38257/callback" }
+    "codex"       = { name = "Codex", redirect = "http://127.0.0.1:38258/callback" }
+  }
+}
+
+resource "keycloak_openid_client" "mcp_coding_agent" {
+  for_each  = local.mcp_coding_agents
+  realm_id  = keycloak_realm.weyland.id
+  client_id = each.key
+  name      = "MCP coding agent — ${each.value.name} (B256)"
+  enabled   = true
+
+  access_type                  = "PUBLIC" # no client secret on a laptop
+  standard_flow_enabled        = true     # authorization code (the person signs in in the browser)
+  direct_access_grants_enabled = false    # no password grant
+  service_accounts_enabled     = false
+  pkce_code_challenge_method   = "S256" # PKCE required (MCP authorization spec)
+  valid_redirect_uris          = [each.value.redirect]
+}
+
+resource "keycloak_openid_client_optional_scopes" "mcp_coding_agent" {
+  for_each        = keycloak_openid_client.mcp_coding_agent
+  realm_id        = keycloak_realm.weyland.id
+  client_id       = each.value.id
+  optional_scopes = ["offline_access"] # a refresh token that outlives the SSO session: no daily re-login
+}

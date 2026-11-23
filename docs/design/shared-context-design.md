@@ -125,6 +125,11 @@ gateway, not in prose.
 * Every write carries an identity from a validated token, set by the gateway (anti-spoof, as today): a person
   (`X-Forwarded-User`) and a client (`X-Forwarded-Consumer`). An agent gets its own Keycloak client (`claude-code`,
   `codex`, …) instead of sharing one Bifrost key, and may act **on behalf of** its person.
+* **How agents get that identity: MCP OAuth** (owner, 2026-11-23: "yes, go with A"). Each harness has a public client
+  and signs its person in (authorization code + PKCE; the gateway publishes RFC 9728 metadata naming the realm), so the
+  token carries the person and the harness: "agent `claude-code`, on behalf of `edward`". A second human signs in as
+  themselves. Rejected: per-harness service accounts minting tokens from a stored secret (no person in the token;
+  Codex has no header helper; nothing for a second human).
 * Rights are a small table in the memory compositor (code, unit-tested), keyed by identity and layer. A forbidden write
   is refused with a reason naming the rule; nothing reaches Basic Memory.
 * Reads stay as they are; the person layer adds one read rule (only its owner and the owner's agents).
