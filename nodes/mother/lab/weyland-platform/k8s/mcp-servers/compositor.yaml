@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: weyland-mcp-compositor
-          image: registry.weyland.lab/weyland-mcp-compositor:git-ca42eae4   # CI-built + tag-following since 2026-10-03 (scripts/ci/images.tsv): ship-images.sh moves this to git-<sha>
+          image: registry.weyland.lab/weyland-mcp-compositor:git-668bca4f   # CI-built + tag-following since 2026-10-03 (scripts/ci/images.tsv): ship-images.sh moves this to git-<sha>
           ports:
             - { name: http, containerPort: 8000 }
           env:
