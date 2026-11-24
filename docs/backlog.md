@@ -284,14 +284,14 @@ applied each push within one 30 s check instead of ~3.5 min (`down` ~5 min → u
   8. **Cascades:** DONE. The client-config script round-trips the full `client_config`, so the new field cannot reset the others (tested); its re-run is a no-op. `register_bifrost_skills.py` gains one generated `SKILLS.append`; the live run touched only that skill (1 created, 26 unchanged). Re-enabling the marketplace changes nothing for agents until they refresh. A `repos.yaml` change now fails CI until the skill is regenerated, which is the intended coupling.
   9. **DR:** N/A for the skill (regenerated from git with `--install`). The marketplace setting lives in Bifrost's `config.db`, which is already backed up nightly and rebuilt from git by the client-config script.
 - **B242** — **Re-enable the Bifrost skills marketplace** — **MERGED INTO B241 2026-11-08** (was MEDIUM; Linear EMA-341 canceled as merged into EMA-340). Found by B241 and wrongly split out; the owner wanted it fixed inside B241, and it was: see B241's outcome.
-- **B243** — **Overnight reactive remediation: collect what broke, attempt safe fixes, report it each morning** — **HIGH (↑ Medium→High 2026-11-14 rebalance: daily operational payoff, workable now) (filed MEDIUM 2026-11-10, Linear EMA-342; raised by the owner: "Rather than me coming in to finding things that are broken... I'd love to come in to find things that WERE broken that you attempted to fix").** Each morning (about 05:30 NY, after nightly CI and the B179 conveyor), a rogueone timer collects the night's failures from the sources that already exist (Woodpecker, GlitchTip, critical alerts and U14's Auto-Filed incidents, failed Dagster runs, stale or failed backups), and a headless Claude Code run triages each one:
+- **B243** — **Overnight reactive remediation: collect what broke, attempt safe fixes, report it each morning** — **DONE 2026-11-24** (owner: "close it after CI and ship"; CI #733 green, shipped `git-057655d2`) **(HIGH, ↑ Medium→High 2026-11-14 rebalance: daily operational payoff, workable now) (filed MEDIUM 2026-11-10, Linear EMA-342; raised by the owner: "Rather than me coming in to finding things that are broken... I'd love to come in to find things that WERE broken that you attempted to fix").** Each morning (about 05:30 NY, after nightly CI and the B179 conveyor), a rogueone timer collects the night's failures from the sources that already exist (Woodpecker, GlitchTip, critical alerts and U14's Auto-Filed incidents, failed Dagster runs, stale or failed backups), and a headless Claude Code run triages each one:
   - transient failures get one retry, but only actions on an owner-approved allowlist in git;
   - real code failures get a fix on an `auto-fix/<date>-<slug>` branch that passes the full local gates, never pushed (the owner handles git);
   - a morning report (Slack + a comment on each Linear issue) says what broke, what was tried and the outcome; a quiet night says so, and a missed run pages.
 
   Prompted by nightly #611/#622 (`test-ada` on upstream hiccups) and four GlitchTip issues left open overnight. Sources also include new Dependabot critical/high alerts in the `repos.yaml` repos (added 2026-11-10; the existing backlog is B244). Full spec in Linear EMA-342.
 
-  **Progress 2026-11-24 (IN PROGRESS; owner: "yeah do it", the allowlist "yes, approve all four").** Built in four phases,
+  **Progress 2026-11-24 (owner: "yeah do it", the allowlist "yes, approve all four").** Built in four phases,
   runbook [morning-remediation.md](runbooks/morning-remediation.md):
   1. **Allowlist + executor — DONE** (pushed): `scripts/morning/allowlist.yaml` (4 actions), `scripts/lib/morning_actions.py`
      (argv only, anchored params, once per item per night, never re-runs itself), `scripts/lib/dagster_reexecute.py`.
@@ -302,7 +302,7 @@ applied each push within one 30 s check instead of ~3.5 min (`down` ~5 min → u
      `morning_deps.py`, `scripts/morning-remediation.py`; a triage-only night on 3 real items gave cited diagnoses and acted
      on none. Security review: the fix agent edits only (no Bash), `claude -p` gets no lab secrets, evidence is fenced as
      untrusted, the trusted checkout's gates judge the branch.
-  4. **Schedule + proof — DONE (DoD pending owner approval):** 05:30 user timer installed, `placement.yaml` rows,
+  4. **Schedule + proof — DONE (DoD approved 2026-11-24):** 05:30 user timer installed, `placement.yaml` rows,
      `schedules.md` row, the Kuma `morning-remediation` push monitor (live). **Seeded test night, run on demand
      2026-11-24** (owner: "We don't wait"; seeds approved "All five"): run 2 reported the seeded CI failure as **fix
      branch ready** (`auto-fix/2026-11-24-ci-platform-test-python`, `hours * 60`, full gates passed, not pushed), the
