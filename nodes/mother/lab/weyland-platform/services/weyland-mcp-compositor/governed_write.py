@@ -21,9 +21,9 @@ import yaml
 # Agent clients that may write, the person each acts for, and the layers it may write. An unknown client is refused
 # (fail closed). The operator joins the task layer only (scenario S3: incident findings); it stays read-only elsewhere.
 AGENTS = {
-    "claude-code": ("edward", {"project", "task", "person"}),
-    "codex": ("edward", {"project", "task", "person"}),
-    "opencode": ("edward", {"project", "task", "person"}),
+    "claude-code": ("emangini", {"project", "task", "person"}),
+    "codex": ("emangini", {"project", "task", "person"}),
+    "opencode": ("emangini", {"project", "task", "person"}),
     "weyland-operator": (None, {"task"}),
 }
 HUMAN_LAYERS = {"project", "task", "person"}

@@ -34,9 +34,12 @@ output "mcp_operator_client_secret" {
 # Each client accepts only its own loopback callback port (the harness's fixed --callback-port / callback_port).
 locals {
   mcp_coding_agents = {
-    "claude-code" = { name = "Claude Code", redirect = "http://localhost:38256/callback" }
-    "opencode"    = { name = "OpenCode", redirect = "http://127.0.0.1:38257/callback" }
-    "codex"       = { name = "Codex", redirect = "http://127.0.0.1:38258/callback" }
+    "claude-code" = { name = "Claude Code", redirects = ["http://localhost:38256/callback"] }
+    # OpenCode 1.18.x sends http://127.0.0.1:<callbackPort>/mcp/oauth/callback (its binary, 2026-11-23).
+    "opencode" = { name = "OpenCode", redirects = ["http://127.0.0.1:38257/mcp/oauth/callback"] }
+    # Codex 0.157 appends a random segment per login: http://127.0.0.1:38258/callback/<random> (Keycloak's own log of the
+    # rejected request, 2026-11-23). A trailing wildcard, still pinned to the loopback host and this port.
+    "codex" = { name = "Codex", redirects = ["http://127.0.0.1:38258/callback/*"] }
   }
 }
 
@@ -52,7 +55,7 @@ resource "keycloak_openid_client" "mcp_coding_agent" {
   direct_access_grants_enabled = false    # no password grant
   service_accounts_enabled     = false
   pkce_code_challenge_method   = "S256" # PKCE required (MCP authorization spec)
-  valid_redirect_uris          = [each.value.redirect]
+  valid_redirect_uris          = each.value.redirects
 }
 
 resource "keycloak_openid_client_optional_scopes" "mcp_coding_agent" {

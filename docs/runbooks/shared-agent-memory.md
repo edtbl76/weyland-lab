@@ -190,8 +190,36 @@ the harness (`azp`), so a write is stamped `agent:<harness>`, `on_behalf_of: use
 claude mcp add --transport http --scope user --client-id claude-code --callback-port 38256 weyland-memory https://mcp.weyland.lab/mcp-memory
 ```
 
-Then, inside Claude Code, `/mcp` → `weyland-memory` → authenticate (a browser sign-in). OpenCode (port 38257) and Codex
-(port 38258) follow once verified; their config is recorded here when it is.
+Then sign in from a fresh Claude Code session (a running session does not load a server added after it started):
+`/mcp` → `weyland-memory` → Authenticate. `claude mcp list` then shows it `✔ Connected`. Verified 2026-11-23: a
+headless `claude -p` write was stamped `created_by: agent:claude-code`, `on_behalf_of: user:emangini` (your Keycloak
+username is `emangini`, so your person layer is `person/emangini/`).
+
+OpenCode 1.18 (`~/.config/opencode/opencode.json`; this version takes camelCase keys, and the snake_case ones in
+today's OpenCode docs are ignored, so it falls back to dynamic registration, which Keycloak refuses):
+
+```json
+"weyland-memory": {"type": "remote", "url": "https://mcp.weyland.lab/mcp-memory", "enabled": true,
+  "oauth": {"clientId": "opencode", "scope": "openid profile offline_access", "callbackPort": 38257}}
+```
+
+Its redirect is `http://127.0.0.1:38257/mcp/oauth/callback`. Sign in with `opencode mcp auth weyland-memory`;
+`opencode mcp debug weyland-memory` shows the OAuth steps.
+
+Codex 0.157 (`~/.codex/config.toml`; it sends `http://127.0.0.1:38258/callback/<random>` per login, so its Keycloak
+client allows `http://127.0.0.1:38258/callback/*`):
+
+```toml
+[mcp_servers."weyland-memory"]
+url = "https://mcp.weyland.lab/mcp-memory"
+scopes = ["openid", "profile", "offline_access"]
+
+[mcp_servers."weyland-memory".oauth]
+client_id = "codex"
+callback_port = 38258
+```
+
+Sign in with `codex mcp login weyland-memory`.
 
 Each attempt leaves one log line; find refusals in Loki with `{app="weyland-mcp-compositor-memory"} |= "mcp-memory-write" | logfmt | ok="false"`.
 

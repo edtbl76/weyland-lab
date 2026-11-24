@@ -61,7 +61,7 @@ def test_an_agent_write_is_stamped_with_the_agent_and_the_person_it_acts_for():
     out = run(store, CLAUDE)
     assert out.ok, out.reason
     meta = store.calls[0][3]
-    assert meta["created_by"] == "agent:claude-code" and meta["on_behalf_of"] == "user:edward"
+    assert meta["created_by"] == "agent:claude-code" and meta["on_behalf_of"] == "user:emangini"
     assert meta["author_kind"] == "agent" and meta["source"] == "B256" and meta["created_at"] == NOW
     assert meta["updated_by"] == "agent:claude-code" and meta["updated_at"] == NOW
 
@@ -88,7 +88,7 @@ def test_an_agent_cannot_write_another_persons_layer():
 
 def test_a_person_and_that_persons_agents_can_write_its_layer():
     assert run(FakeStore(), ALICE, directory="person/alice").ok
-    assert run(FakeStore(), CLAUDE, directory="person/edward").ok
+    assert run(FakeStore(), CLAUDE, directory="person/emangini").ok
     assert not run(FakeStore(), EDWARD, directory="person/alice").ok
 
 
@@ -137,7 +137,7 @@ def test_append_always_succeeds_and_stamps_only_the_updater():
     assert out.ok, out.reason
     kind, path, content, meta = store.calls[0]
     assert kind == "append" and meta == {"updated_by": "agent:claude-code", "updated_at": NOW,
-                                         "on_behalf_of": "user:edward"}
+                                         "on_behalf_of": "user:emangini"}
 
 
 def test_replace_needs_the_version_read():
@@ -178,7 +178,7 @@ def test_identity_from_the_gateway_headers():
 # --- the governed read (gives a writer the version to send) and the audit line ----------------------------------
 def test_a_person_layer_is_readable_only_by_that_person_and_their_agents():
     assert gw.may_read(ALICE, "person/alice") is None
-    assert gw.may_read(CLAUDE, "person/edward") is None
+    assert gw.may_read(CLAUDE, "person/emangini") is None
     assert "alice" in gw.may_read(CLAUDE, "person/alice")
     assert gw.may_read(OPERATOR, "task/incident-42") is None and gw.may_read(EDWARD, "") is None
     assert "outside" in gw.may_read(EDWARD, "../etc")
