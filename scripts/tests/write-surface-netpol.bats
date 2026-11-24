@@ -118,6 +118,22 @@ print('ok')"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
+@test "the forward-auth middleware upgrades http to https before it authenticates (2026-11-24)" {
+  # Over plain http, traefik-forward-auth built redirect_uri=http://auth.weyland.lab/_oauth, which Keycloak rejects
+  # (only the https callback is registered): "Invalid parameter: redirect_uri" on realm, mlflow and every other
+  # forward-auth host. The shared middleware is a Chain: redirect to https FIRST, then the forwardAuth.
+  run python3 -c "
+import yaml
+docs=[x for x in yaml.safe_load_all(open('$P/traefik-forward-auth/traefik-forward-auth.yaml')) if x and x.get('kind')=='Middleware']
+by={d['metadata']['name']: d['spec'] for d in docs}
+chain=[m['name'] for m in by['traefik-forward-auth']['chain']['middlewares']]
+assert chain==['traefik-forward-auth-https','traefik-forward-auth-core'], chain
+assert by['traefik-forward-auth-https']['redirectScheme']['scheme']=='https'
+assert by['traefik-forward-auth-core']['forwardAuth']['address'].endswith(':4181')
+print('ok')"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
 @test "realm.weyland.lab sits behind Keycloak forward-auth (it was open to the LAN until B209)" {
   run python3 -c "
 import yaml

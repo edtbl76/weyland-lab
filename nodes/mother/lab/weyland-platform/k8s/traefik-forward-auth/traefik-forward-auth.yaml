@@ -74,10 +74,34 @@ spec:
 ---
 # The forwardAuth middleware — every protected ingress references weyland-traefik-forward-auth@kubernetescrd
 # (cross-namespace works: Kiali's ingress in istio-system can reference it the same way).
+#
+# 2026-11-24: it is a CHAIN — upgrade http to https FIRST, then authenticate. Over plain http the proxy built
+# redirect_uri=http://auth.weyland.lab/_oauth, which Keycloak rejects (only the https callback is registered), so
+# http://realm.weyland.lab (and every other forward-auth host) showed "Invalid parameter: redirect_uri". The name is
+# unchanged, so no ingress changes; https requests pass the redirect untouched. Test: write-surface-netpol.bats.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: traefik-forward-auth
+  namespace: weyland
+spec:
+  chain:
+    middlewares:
+      - name: traefik-forward-auth-https
+      - name: traefik-forward-auth-core
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth-https
+  namespace: weyland
+spec:
+  redirectScheme: { scheme: https, permanent: false }
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth-core
   namespace: weyland
 spec:
   forwardAuth:
