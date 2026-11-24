@@ -2,9 +2,9 @@
 
 ## Status
 
-proposed
+accepted
 
-Date: 2026-11-23
+Date: 2026-11-24 (owner: "close B256 and accept the ADR")
 
 ## Context and Problem Statement
 

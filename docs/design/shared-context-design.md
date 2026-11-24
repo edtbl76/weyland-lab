@@ -1,6 +1,6 @@
 # Shared context for many humans and agents — Design (B256)
 
-**Status: built and in use (2026-11-24), Linear EMA-357.** The owner approved the design and the skeleton, then asked
+**Status: DONE 2026-11-24, built and in use; ADR-0019 accepted (Linear EMA-357).** The owner approved the design and the skeleton, then asked
 for it to be finished rather than closed at the skeleton ("Why are we closing this?"): every agent write now goes
 through it, and the four follow-up steps are live (§ In use). Builds on B182
 ([shared-agent-memory-design.md](shared-agent-memory-design.md)); does not replace Basic Memory, Linear or git.

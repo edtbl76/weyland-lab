@@ -28,7 +28,7 @@ checks every ADR's sections and status, the numbering, and this index.
 | [0016](./0016-simplify-the-realm-on-the-free-lane.md) | Simplify the Realm of Agents on the free lane | accepted | 2026-11-20 |
 | [0017](./0017-context-engineering-for-the-harness-and-services.md) | Context engineering for the coding-agent harness and the AI services | accepted | 2026-11-22 |
 | [0018](./0018-adopt-herdr-for-interactive-multi-agent-work.md) | Adopt Herdr for interactive multi-agent work, alongside Emdash | accepted | 2026-11-23 |
-| [0019](./0019-shared-context-layers-with-governed-writes.md) | Shared context for many humans and agents: layers in one store, with governed writes | proposed | 2026-11-23 |
+| [0019](./0019-shared-context-layers-with-governed-writes.md) | Shared context for many humans and agents: layers in one store, with governed writes | accepted | 2026-11-24 |
 
 ## Status Legend
 
