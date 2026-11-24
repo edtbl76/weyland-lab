@@ -34,7 +34,7 @@ def runs_query(job: str | None, limit: int) -> str:
         raise ValueError(f"job name {job!r} must be letters, digits and underscores")
     job_filter = f',pipelineName:"{job}"' if job else ""
     return ("{runsOrError(filter:{statuses:[FAILURE]%s},limit:%d){__typename "
-            "... on Runs{results{runId jobName status startTime}} ... on PythonError{message}}}") % (job_filter, limit)
+            "... on Runs{results{runId jobName status startTime endTime tags{key value}}} ... on PythonError{message}}}") % (job_filter, limit)
 
 
 def run_query(run_id: str) -> str:
@@ -115,6 +115,22 @@ def run_rows(results: list[dict]) -> list[str]:
     return rows
 
 
+AGENT_TAG = ("weyland/started-by", "morning-remediation")   # B243: runs the morning runner re-executed
+
+
+def json_rows(results: list[dict], since: float) -> list[dict]:
+    """B243 (2026-11-24): failed runs that ended at or after `since` (epoch seconds), for the morning collector, each
+    marked when the morning runner itself started it (tag weyland/started-by=morning-remediation)."""
+    rows = []
+    for r in results:
+        if (r.get("endTime") or r.get("startTime") or 0) < since:
+            continue
+        tags = {t.get("key"): t.get("value") for t in r.get("tags") or []}
+        rows.append({"runId": r["runId"], "jobName": r["jobName"], "endTime": r.get("endTime"),
+                     "started_by_agent": tags.get(AGENT_TAG[0]) == AGENT_TAG[1]})
+    return rows
+
+
 def _ask(query: str) -> dict:
     req = urllib.request.Request(URL, data=json.dumps({"query": query}).encode(),
                                  headers={"Content-Type": "application/json"})
@@ -170,10 +186,23 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--run")
     ap.add_argument("--limit", type=int, default=5)
     ap.add_argument("--health", action="store_true")
+    ap.add_argument("--json-since", type=float, help="B243: print failed runs ended since this epoch time as JSON, "
+                                                     "each with its failure lines, and exit 0")
     a = ap.parse_args(argv)
     try:
         if a.health:
             return _show_health()
+        if a.json_since is not None:
+            runs = _ask(runs_query(a.job, 50))["runsOrError"]
+            if runs["__typename"] != "Runs":
+                print(f"dagster_runs: {runs.get('message', runs['__typename'])}", file=sys.stderr)
+                return 2
+            rows = json_rows(runs["results"], a.json_since)
+            for row in rows:
+                run = _ask(run_query(row["runId"]))["runOrError"]
+                row["failures"] = failure_lines((run.get("eventConnection") or {}).get("events") or [])
+            print(json.dumps(rows))
+            return 0
         run_id = a.run or _list_failures(a.job, a.limit)
         if isinstance(run_id, int):  # _list_failures returned an exit code: nothing to explain
             return run_id

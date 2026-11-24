@@ -121,3 +121,21 @@ def test_run_rows_show_short_id_job_and_utc_start():
     rows = dr.run_rows([{"runId": "6a6f3d61-0000-4000-8000-000000000000", "jobName": "datahub_catalog_emit_job",
                          "status": "FAILURE", "startTime": 1794116110.25}])
     assert rows == ["6a6f3d61-0000-4000-8000-000000000000  2026-11-08 05:35 UTC  datahub_catalog_emit_job"]
+
+
+# --- B243 (2026-11-24): a JSON listing for the morning remediation collector ------------------------------------------
+def test_the_runs_query_carries_tags_and_end_time_for_the_collector():
+    q = dr.runs_query(job=None, limit=20)
+    assert "tags{key value}" in q and "endTime" in q
+
+
+def test_json_rows_keep_runs_since_the_cutoff_and_mark_the_agents_own():
+    results = [
+        {"runId": "a", "jobName": "j1", "status": "FAILURE", "startTime": 100, "endTime": 2000, "tags": []},
+        {"runId": "b", "jobName": "j2", "status": "FAILURE", "startTime": 100, "endTime": 3000,
+         "tags": [{"key": "weyland/started-by", "value": "morning-remediation"}]},
+        {"runId": "c", "jobName": "j3", "status": "FAILURE", "startTime": 10, "endTime": 50, "tags": []},
+    ]
+    rows = dr.json_rows(results, since=1000)
+    assert [r["runId"] for r in rows] == ["a", "b"]
+    assert rows[0]["started_by_agent"] is False and rows[1]["started_by_agent"] is True

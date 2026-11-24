@@ -1,0 +1,42 @@
+# B243 — the ONLY actions the morning remediation runner may take (scripts/lib/morning_actions.py enforces it; the
+# tests in scripts/tests/test_morning_actions.py fail if anything off this list can run). Each action runs at most
+# once per item per night, through its argv (never a shell), with every parameter matched against its pattern.
+# Changing this file changes what an unattended agent may do: the owner approves every change.
+approved_by: owner
+approved_on: "2026-11-24"
+approval: "yes, approve all four"
+
+actions:
+  ci-retrigger-nightly:
+    description: >-
+      Re-trigger the nightly weyland-lab pipeline once, when a nightly step failed on something transient (an upstream
+      404, a network timeout, a registry hiccup). The canonical command (AGENTS.md, docs/runbooks/woodpecker.md).
+    argv: [woodpecker-cli, pipeline, create, edtbl76/weyland-lab, --branch, main]
+    params: {}
+    env_file: scripts/.env
+
+  dagster-reexecute-run:
+    description: >-
+      Re-execute one failed Dagster run from its failure, once, when it failed on something transient (a source timed
+      out, a pod was evicted). One GraphQL mutation, run inside the dagster-user-code pod.
+    argv: [kubectl, exec, -i, -n, weyland, deploy/dagster-user-code, --, python3, -, --run, "{run_id}"]
+    stdin: scripts/lib/dagster_reexecute.py
+    params:
+      run_id: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
+  cronjob-rerun:
+    description: >-
+      Run a failed Kubernetes CronJob once more as a one-off Job, when its last run failed on something transient.
+      The only cluster write on this list; namespaces limited to the lab's own.
+    argv: [kubectl, -n, "{namespace}", create, job, "--from=cronjob/{cronjob}", "{cronjob}-retry-{date_compact}"]
+    params:
+      namespace: "^(weyland|monitoring|data-mesh|minio|woodpecker)$"
+      cronjob: "^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$"
+
+  user-timer-rerun:
+    description: >-
+      Start a failed rogueone user-timer job once more (a backup, a watch). Only a .service that placement.yaml lists
+      on rogueone together with its .timer: a scheduled job, never a long-running service.
+    argv: [systemctl, --user, start, "{unit}"]
+    params:
+      unit: "^[a-z0-9][a-z0-9@._-]{0,78}\\.service$"
