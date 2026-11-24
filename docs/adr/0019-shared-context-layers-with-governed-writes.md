@@ -43,7 +43,11 @@ approved by the owner on 2026-11-23 ("yes"). The design is
 * Layers: lab rules (git), project memory (the store root), `task/<item>/`, `person/<name>/` (private to that person and
   their agents); harness session context stays per harness.
 * Writes go through the memory compositor behind `/mcp-memory`; the identity is what the gateway set from a validated
-  Keycloak token; a rights table in code decides per identity and layer; refusals name the rule.
+  Keycloak token; a rights table in code decides per identity and layer; refusals name the rule. Coding agents get that
+  identity by MCP OAuth, one public client per harness, signing in as their person (owner, 2026-11-23: "yes, go with
+  A"); per-harness service accounts were rejected (no person in the token, nothing for a second human).
+* The person layer is each person's own Basic Memory server (owner: "A strict"), because the shared server is
+  constrained to one project and ignores a project name; no Bifrost key holds memory tools.
 * Provenance (`created_by`, `updated_by`, `author_kind`, `on_behalf_of`, `source`, times) is stamped by the gateway, never
   by the caller. Write classes: create fails if the note exists, append always works, replace needs the version read.
 * Stale facts are superseded, never deleted; review dates; a task layer is reviewed at item close.
@@ -58,9 +62,13 @@ refused with the rule named; Basic Memory's own write tool stayed blocked; the g
 * Good, because every governed write says who wrote it, human or agent, and for whom, and a forbidden or stale write
   never reaches the store.
 * Good, because secrets are now refused at write time on this path (B182 could only flag them after the fact).
-* Bad, because today's writers (the shared Bifrost key, Claude Code's direct file writes) are not on this path yet:
-  their notes carry no provenance until agents get their own Keycloak clients and move over.
-* Bad, because Basic Memory's own read tools do not yet apply the person layer's read rule (only the governed read does).
+* Good, because every agent write path now carries its author: the harnesses sign in by MCP OAuth (each its own
+  Keycloak client, acting for its person), no Bifrost key holds memory tools, and Claude Code's native writes are
+  stamped by a local hook (the owner's choice; stamped on his own machine, not by a verified token).
+* Good, because a person's notes are private by construction: their own Basic Memory server, reachable only through
+  the governed tools after the person check.
+* Bad, because each person costs a server and a firewall rule, provisioned by hand; and a note written around both the
+  gateway and the hook (a Bash edit) is only caught after the fact, by the 15-minute check.
 * Neutral: the governed tools run on the memory compositor only (`GOVERNED_WRITE=1`), guarded by tests that fail if the
   fleet compositor gets the switch or anything but the gateway can reach the memory compositor.
 

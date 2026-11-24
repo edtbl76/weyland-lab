@@ -1,7 +1,8 @@
 # Shared context for many humans and agents — Design (B256)
 
-**Status: design approved, skeleton built (2026-11-23), Linear EMA-357.** The owner approved the design and the
-skeleton ("yes"); the ADR follows the live end-to-end proof. Builds on B182
+**Status: built and in use (2026-11-24), Linear EMA-357.** The owner approved the design and the skeleton, then asked
+for it to be finished rather than closed at the skeleton ("Why are we closing this?"): every agent write now goes
+through it, and the four follow-up steps are live (§ In use). Builds on B182
 ([shared-agent-memory-design.md](shared-agent-memory-design.md)); does not replace Basic Memory, Linear or git.
 
 ## Why
@@ -195,6 +196,21 @@ fixed with regression tests: a replace re-wrapped Basic Memory's quoted timestam
 PyYAML's `BaseLoader`), and a human's edit inherited an agent's `on_behalf_of` because Basic Memory keeps frontmatter
 keys a write does not name (every write now names it).
 
-Not in the skeleton (the design's next steps): agent Keycloak clients (`claude-code`, `codex`, …) and moving today's
-writers onto this path; the person layer's read rule on Basic Memory's own read tools; `review_by` and supersede
-fields; the hand-off note's schema.
+### In use (2026-11-24): the four follow-up steps, each proven live
+
+1. **Agent identities by MCP OAuth** (owner: "yes, go with A"). Public Keycloak clients `claude-code`, `opencode`,
+   `codex` (`tofu/keycloak/mcp-agents.tf`); the gateway publishes RFC 9728 metadata. All three harnesses signed in; the
+   gateway audit shows `actor=<harness> user=emangini`; Claude Code's write stamped `agent:claude-code`,
+   `on_behalf_of: user:emangini`. Found on the way: OpenCode 1.18 takes camelCase OAuth keys and redirects to
+   `/mcp/oauth/callback`; Codex appends a random segment to `/callback/` (Keycloak's log of the rejected request).
+2. **Writers moved** (owner: option A). No Bifrost key writes memory (a direct write is refused); Claude Code's native
+   writes are stamped by `.claude/hooks/memory-provenance.py`; `check-shared-memory.py` step 0b flags any note changed
+   since 2026-11-24T03:00Z without `updated_by`.
+3. **Person layer private** (owner: "A strict"). Basic Memory is constrained to one project and ignores a `project`
+   argument, so each person has their own server (`:8766` for emangini, own config and index); no Bifrost key holds
+   memory tools; compositor reads drop project arguments. Live: the owner's agent wrote and read a person note; the
+   operator was refused both; the shared search could not find it even naming the project; ufw admits only the k3s
+   nodes.
+4. **Stale facts and hand-offs.** `review_by` stamped (project 180 days, task 30), swept by step 0c; `supersede`
+   retires the old note in place; the hand-off schema refused an incomplete note and accepted B256's own
+   (`task/b256/handoff`).
