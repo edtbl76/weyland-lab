@@ -21,6 +21,7 @@ installations** (third-party or custom apps), 90 days of message history, no wor
 |---|---|---|---|
 | `#alerts` | Alertmanager | `weyland` webhook, `api_url_file` from Secret `monitoring/slack-webhooks` | every alert except InfoInhibitor and Watchdog, firing and resolved |
 | `#alerts` | Uptime Kuma | `weyland` webhook, set in Kuma's UI | monitor down / up |
+| `#alerts` | B243 morning remediation (rogueone, 05:30 NY) | the `weyland` app's `#alerts` webhook (`SLACK_WEBHOOK_ALERTS`), posted by `scripts/morning-remediation.py` | one summary each morning: what broke overnight, the diagnosis, what was tried and the outcome, or "Quiet night"; sources it could not read are named ([morning-remediation.md](morning-remediation.md)) |
 | `#deploys` | Argo CD notifications | `weyland` webhook | sync failed, health degraded, deployed |
 | `#deploys` | Woodpecker | `weyland` webhook, a `curl` step on failure | pipeline failed |
 | `#errors` | GlitchTip | `weyland` webhook, set per project in GlitchTip's UI | new error alert |

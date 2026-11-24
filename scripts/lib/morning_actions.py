@@ -20,6 +20,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 ALLOWLIST = ROOT / "scripts" / "morning" / "allowlist.yaml"
 PLACEMENT = ROOT / "placement.yaml"
 TIMEOUT_S = 300
+SELF_UNIT = "morning-remediation.service"
 
 
 class Refused(Exception):
@@ -73,11 +74,7 @@ def _scheduled_user_units() -> set:
     return {u for u in units if u.endswith(".service") and u[:-len(".service")] + ".timer" in units}
 
 
-def plan(allow: dict, action: str, params: dict, *, date: str, ledger: Ledger) -> Plan:
-    spec = (allow.get("actions") or {}).get(action)
-    if not spec:
-        raise Refused(f"{action!r} is not on the allowlist (scripts/morning/allowlist.yaml)")
-    patterns = spec.get("params") or {}
+def _check_params(action: str, patterns: dict, params: dict) -> None:
     missing = sorted(set(patterns) - set(params))
     extra = sorted(set(params) - set(patterns))
     if missing:
@@ -87,8 +84,22 @@ def plan(allow: dict, action: str, params: dict, *, date: str, ledger: Ledger) -
     for name, pattern in patterns.items():
         if not isinstance(params[name], str) or not re.fullmatch(pattern, params[name]):
             raise Refused(f"{action}: parameter {name}={params[name]!r} does not match {pattern}")
-    if action == "user-timer-rerun" and params["unit"] not in _scheduled_user_units():
-        raise Refused(f"{params['unit']} is not a scheduled rogueone job in placement.yaml")
+
+
+def _check_unit(unit: str) -> None:
+    if unit == SELF_UNIT:
+        raise Refused(f"{SELF_UNIT} is the morning runner itself; it never re-runs itself")
+    if unit not in _scheduled_user_units():
+        raise Refused(f"{unit} is not a scheduled rogueone job in placement.yaml")
+
+
+def plan(allow: dict, action: str, params: dict, *, date: str, ledger: Ledger) -> Plan:
+    spec = (allow.get("actions") or {}).get(action)
+    if not spec:
+        raise Refused(f"{action!r} is not on the allowlist (scripts/morning/allowlist.yaml)")
+    _check_params(action, spec.get("params") or {}, params)
+    if action == "user-timer-rerun":
+        _check_unit(params["unit"])
     if ledger.attempted(action, params):
         raise Refused(f"{action} {params} was already attempted tonight; never twice in one night")
     values = {**params, "date_compact": date.replace("-", "")}

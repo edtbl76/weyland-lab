@@ -290,6 +290,24 @@ applied each push within one 30 s check instead of ~3.5 min (`down` ~5 min → u
   - a morning report (Slack + a comment on each Linear issue) says what broke, what was tried and the outcome; a quiet night says so, and a missed run pages.
 
   Prompted by nightly #611/#622 (`test-ada` on upstream hiccups) and four GlitchTip issues left open overnight. Sources also include new Dependabot critical/high alerts in the `repos.yaml` repos (added 2026-11-10; the existing backlog is B244). Full spec in Linear EMA-342.
+
+  **Progress 2026-11-24 (IN PROGRESS; owner: "yeah do it", the allowlist "yes, approve all four").** Built in four phases,
+  runbook [morning-remediation.md](runbooks/morning-remediation.md):
+  1. **Allowlist + executor — DONE** (pushed): `scripts/morning/allowlist.yaml` (4 actions), `scripts/lib/morning_actions.py`
+     (argv only, anchored params, once per item per night, never re-runs itself), `scripts/lib/dagster_reexecute.py`.
+  2. **Collectors — DONE** (pushed): `scripts/lib/morning_collect.py`, six sources, all read live; NOT CHECKED when
+     unreadable; per-CronJob merge (14 raw alerts became 5 causes); CI failures superseded by a later green run dropped;
+     the failed Job's log tail as evidence.
+  3. **Triage + act + report — DONE** (pushed, plus the job-log evidence and the security fixes): `morning_run.py`,
+     `morning_deps.py`, `scripts/morning-remediation.py`; a triage-only night on 3 real items gave cited diagnoses and acted
+     on none. Security review: the fix agent edits only (no Bash), `claude -p` gets no lab secrets, evidence is fenced as
+     untrusted, the trusted checkout's gates judge the branch.
+  4. **Schedule + proof — IN PROGRESS:** 05:30 user timer, `placement.yaml` rows, `schedules.md` row, the Kuma
+     `morning-remediation` push monitor (owner creates it), the seeded test night, demo, DoD.
+
+  **Closing Gaps:** "run the FULL local guard suite" had no command; `scripts/local-gates.py` is now it (AGENTS.md
+  names it), replaying every secret-free `platform.yml` step in its CI image. **Found by its first run:**
+  `pr-staleness-check` fails nightly on `edtbl76/Skeets` (HTTP 404) and `MyBodyGraph` (owner decision: drop or fix the repo list).
 - **B244** — **Clear the Dependabot high and moderate alert backlog across the managed repos** — **DONE 2026-11-11** (HIGH, 2026-11-10, Linear EMA-343; raised by the owner after every critical alert in the managed repos was fixed that day). Open on 2026-11-10: weyland-lab 2 high / 22 medium, stud.io 11 / 15, the blog 13 / 13, midi_real_book (stale) 16 / 5; the other seven managed repos 0. Triage each high, then each moderate, into fix (bump or scoped override, 14-day rule), dismiss with evidence (Dependabot API, with a comment naming the check), or time-box until the fix is eligible. Includes stud.io's undici bump due 2026-11-18 (npm 11.21.2 or later; its three suppressions expire that day). midi_real_book needs an owner decision (fix or archive) first. Repos outside `repos.yaml` are out of scope. Full spec in Linear EMA-343.
 
   **Progress 2026-11-11 (owner: "do em all").** Every adopted version is ≥ 14 days old (checked against each registry); each fix proven in its own toolchain before the push.

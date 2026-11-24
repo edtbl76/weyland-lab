@@ -1,0 +1,21 @@
+# B243 — what broke overnight, what was tried, the outcome. Collects the night's failures read-only, triages each with
+# headless `claude -p` (the owner's subscription), acts only through scripts/morning/allowlist.yaml, writes code fixes to
+# local auto-fix/<date>-<slug> branches (never pushed), then reports to Slack #alerts, comments on the Auto-Filed
+# incidents and pushes the Kuma heartbeat (KUMA_MORNING_PUSH_URL in scripts/.env). USER unit: it needs the owner's
+# Claude Code login, kubeconfig, gh and docker. Runbook: docs/runbooks/morning-remediation.md.
+#   Install:  cp nodes/rogueone/systemd/morning-remediation.{service,timer} ~/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now morning-remediation.timer
+#   Run now:  systemctl --user start --no-block morning-remediation.service   ·   journalctl --user -u morning-remediation
+[Unit]
+Description=morning remediation: collect, triage, allowlisted retry or fix branch, report (B243)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+# Each item has its own limit (triage 15 min, fix 30 min, verification 60 min, gates 90 min); this caps a whole night.
+TimeoutStartSec=6h
+ExecStart=/usr/bin/python3 /home/edwardmangini/IdeaProjects/weyland/scripts/morning-remediation.py
+StandardOutput=journal
+StandardError=journal

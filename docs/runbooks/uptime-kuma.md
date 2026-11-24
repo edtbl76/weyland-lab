@@ -33,6 +33,7 @@ after every successful push (found 2026-10-03: `machine-inventory-drift` and `ag
 | `lan-nodeports` | `lan-nodeport-watch.timer` (rogueone, B219) | every 15 min | **1200 s** (20 min) | `KUMA_LAN_PUSH_URL` |
 | `gpu-driver-drift` | `gpu-driver-drift.timer` (rogueone, B226) | hourly | **4500 s** (75 min) | `KUMA_GPU_DRIFT_PUSH_URL` |
 | `ollama-truncation` | `ollama-truncation-watch.timer` (rogueone, B255) | every 15 min | **1200 s** (20 min) | `KUMA_OLLAMA_TRUNC_PUSH_URL` |
+| `morning-remediation` | `morning-remediation.timer` (rogueone, B243) | daily 05:30 | **90000 s** (25 h) | `KUMA_MORNING_PUSH_URL` |
 
 **This table is checked nightly** (2026-10-13): `machine-inv-drift.sh` runs `scripts/kuma_push_check.py`, which reads
 every push monitor from Kuma's store (read-only) and turns `machine-inventory-drift` down on any interval that differs

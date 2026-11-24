@@ -49,7 +49,8 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
 - **Trigger CI actively; never wait for a cron:** `woodpecker-cli pipeline create edtbl76/weyland-lab --branch main`
   (creds from `scripts/.env`; see `docs/runbooks/woodpecker.md`).
 - **Prove new/changed code in its Docker toolchain image BEFORE the push** — CI confirms, it does not discover.
-- **Run the FULL local guard suite before any handoff** (the `repo-guards` step in `.woodpecker/platform.yml`), not one guard —
+- **Run the FULL local guard suite before any handoff** — `python3 scripts/local-gates.py` (every secret-free step of
+  `.woodpecker/platform.yml`, each in its CI image; must print `local-gates: PASS`), not one guard —
   the first failure masks later ones. **Plus the SonarQube pre-check** on the changed files —
   `python3 scripts/sonar_api.py precheck <file>...` must print `precheck: clean` (CI's `sonar-gate` blocks the build
   and the nightly ship; the full command is in `docs/runbooks/code-quality.md`).

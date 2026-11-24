@@ -1,0 +1,13 @@
+# B243 — the morning remediation, daily at 05:30 NY: after nightly CI (01:00), the 00:00-05:00 jobs and the B179
+# conveyor (04:00), before the working day (docs/schedules.md Design Rule #5). The Kuma push monitor
+# `morning-remediation` has a ~25 h heartbeat, so a morning that never ran pages (dead-man's switch).
+# Persistent: a run missed while rogueone was off runs at the next boot.
+[Unit]
+Description=morning remediation daily at 05:30 NY (B243)
+
+[Timer]
+OnCalendar=*-*-* 05:30:00 America/New_York
+Persistent=true
+
+[Install]
+WantedBy=timers.target

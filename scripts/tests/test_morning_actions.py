@@ -116,3 +116,12 @@ def test_execute_runs_the_planned_argv_without_a_shell_and_records_it(allow, led
 def test_no_command_anywhere_in_the_executor_goes_through_a_shell():
     src = inspect.getsource(ma)
     assert "shell=True" not in src and "os.system" not in src and "Popen(" not in src
+
+
+def test_the_runner_never_reruns_itself(tmp_path):
+    # placement.yaml lists morning-remediation.service with its timer (B243 Phase 4), so it IS a scheduled rogueone
+    # unit; re-running it from inside a run would be the runner starting itself.
+    assert "morning-remediation.service" in ma._scheduled_user_units()
+    with pytest.raises(ma.Refused, match="itself"):
+        ma.plan(ma.load_allowlist(), "user-timer-rerun", {"unit": "morning-remediation.service"}, date=DATE,
+                ledger=ma.Ledger(tmp_path / "l.json"))
