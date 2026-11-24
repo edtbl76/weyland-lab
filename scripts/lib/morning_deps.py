@@ -126,6 +126,21 @@ def gates_argv(tree: pathlib.Path) -> list:
             "--config", str(ROOT / ".woodpecker" / "platform.yml")]
 
 
+def sonar_call(tree: pathlib.Path, changed: list):
+    """(argv, cwd) for the SonarQube pre-check of the branch's changed Python, run INSIDE the branch tree with
+    repo-relative paths (from ~ the worktree's `.local/` path is hidden to the scanner: 0 files, never clean); None
+    when nothing changed is a file Sonar analyses."""
+    py = [f for f in changed if f.endswith(".py")]
+    if not py:
+        return None
+    return ["python3", str(ROOT / "scripts" / "sonar_api.py"), "precheck", *py], tree
+
+
+def gate_failure(gate: str, output: str, tree) -> str:
+    last = (output.strip().splitlines() or ["no output"])[-1]
+    return f"failed: {gate}: {last} ({tree})"
+
+
 def recent_history(history: dict, date: str, days: int = 7) -> dict:
     cutoff = (datetime.date.fromisoformat(date) - datetime.timedelta(days=days)).isoformat()
     kept = {k: [h for h in v if h.get("date", "") >= cutoff] for k, v in history.items()}
@@ -296,15 +311,14 @@ class LiveDeps:
 
     def _gates(self, tree: pathlib.Path, changed: list) -> str:
         done = subprocess.run(gates_argv(tree), capture_output=True, text=True, timeout=5400)
-        last = (done.stdout.strip().splitlines() or ["local-gates: no output"])[-1]
-        if done.returncode != 0 or not last.startswith("local-gates: PASS"):
-            return f"failed: {last} ({tree})"
-        py = [str(tree / f) for f in changed if f.endswith(".py")]
-        if py:
-            sonar = subprocess.run(["python3", str(self.root / "scripts/sonar_api.py"), "precheck", *py],
-                                   capture_output=True, text=True, timeout=1800, env=self.env)
+        if done.returncode != 0 or "local-gates: PASS" not in done.stdout:
+            return gate_failure("local gates", done.stdout + done.stderr, tree)
+        call = sonar_call(tree, changed)
+        if call:
+            argv, cwd = call
+            sonar = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=1800, env=self.env)
             if "precheck: clean" not in sonar.stdout:
-                return f"failed: SonarQube pre-check not clean ({tree})"
+                return gate_failure("SonarQube pre-check", sonar.stdout + sonar.stderr, tree)
         return "passed"
 
     # bookkeeping ---------------------------------------------------------------------------------------------

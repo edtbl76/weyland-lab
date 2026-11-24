@@ -119,3 +119,18 @@ def test_the_gates_use_the_trusted_checkouts_script_and_step_list_not_the_branch
     assert argv[1] == str(md.ROOT / "scripts" / "local-gates.py")
     assert argv[argv.index("--config") + 1] == str(md.ROOT / ".woodpecker" / "platform.yml")
     assert argv[argv.index("--root") + 1] == "/wt"
+
+
+def test_the_sonar_precheck_runs_inside_the_branch_tree_with_repo_relative_paths():
+    # Live 2026-11-24: run from the service's working directory (~), the worktree path began with `.local/` (hidden),
+    # the scanner skipped it, and the pre-check scanned 0 files: correctly not clean, so a correct fix was not "ready".
+    argv, cwd = md.sonar_call(pathlib.Path("/state/worktrees/auto-fix-x"), ["scripts/lib/a.py", "docs/x.md", "b.py"])
+    assert cwd == pathlib.Path("/state/worktrees/auto-fix-x")
+    assert argv[1] == str(md.ROOT / "scripts" / "sonar_api.py") and argv[2] == "precheck"
+    assert argv[3:] == ["scripts/lib/a.py", "b.py"]
+    assert md.sonar_call(pathlib.Path("/t"), ["docs/x.md"]) is None   # nothing Sonar analyses: no call
+
+
+def test_a_gate_failure_names_what_the_gate_printed():
+    assert md.gate_failure("SonarQube pre-check", "scan...\nprecheck: FINDINGS (1 files scanned, 2 issues)\n", "/t") == \
+        "failed: SonarQube pre-check: precheck: FINDINGS (1 files scanned, 2 issues) (/t)"

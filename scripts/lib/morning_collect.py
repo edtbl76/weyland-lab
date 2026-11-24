@@ -179,7 +179,21 @@ def collect(since: float, fetchers: dict) -> tuple:
                 merged[f.key].evidence = (merged[f.key].evidence + "\n" + f.evidence).strip()
             else:
                 merged[f.key] = f
-    return list(merged.values()), status
+    return _fold_run_reports(list(merged.values())), status
+
+
+def _fold_run_reports(items: list) -> list:
+    """A GlitchTip issue that names a failed Dagster run's id is Dagster reporting that run (STEP_FAILURE /
+    RUN_FAILURE): the same cause as the Dagster item, so it joins that item instead of being triaged again."""
+    runs = {f.extra["run_id"]: f for f in items if f.source == "dagster" and f.extra.get("run_id")}
+    kept = []
+    for f in items:
+        owner = next((d for rid, d in runs.items() if f.source == "glitchtip" and rid in f.title), None)
+        if owner is None:
+            kept.append(f)
+        else:
+            owner.evidence = (owner.evidence + f"\nalso reported to GlitchTip as {f.key.split(':', 1)[1]}").strip()
+    return kept
 
 
 # --- fetchers (I/O) -----------------------------------------------------------------------------------------------

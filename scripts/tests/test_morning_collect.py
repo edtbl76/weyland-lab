@@ -155,3 +155,17 @@ def test_a_job_whose_log_is_gone_says_so_rather_than_failing_the_source():
         raise mc.SourceUnavailable("pod gone")
     mc.attach_job_logs([item], list_jobs=lambda ns: "x-29900000 Failed\n", read_log=gone)
     assert "log unavailable" in item.evidence
+
+
+def test_glitchtip_issues_dagster_filed_about_a_failed_run_merge_into_that_run():
+    # Live 2026-11-24: Dagster reports a failed run to GlitchTip itself (STEP_FAILURE and RUN_FAILURE issues titled
+    # with the run id), so one cause came back as three items, and two retries were refused as repeats.
+    run = "9154c6bc-8ee4-4251-9591-c52245c87146"
+    dag = mc.Failure("dagster", "dagster:b243_seed_job", f"Dagster run {run} failed", "step failed",
+                     extra={"run_id": run, "job": "b243_seed_job"})
+    gt1 = mc.Failure("glitchtip", "glitchtip:weyland-dagster/X-181", f"b243_seed_job - {run} - STEP_FAILURE", "1 event")
+    gt2 = mc.Failure("glitchtip", "glitchtip:weyland-dagster/X-182", f"b243_seed_job - {run} - RUN_FAILURE", "2 events")
+    other = mc.Failure("glitchtip", "glitchtip:weyland-dagster/X-180", "a real error", "1 event")
+    failures, _ = mc.collect(0, {"dagster": lambda _s: [dag], "glitchtip": lambda _s: [gt1, gt2, other]})
+    assert [f.key for f in failures] == ["dagster:b243_seed_job", "glitchtip:weyland-dagster/X-180"]
+    assert "X-181" in failures[0].evidence and "X-182" in failures[0].evidence
