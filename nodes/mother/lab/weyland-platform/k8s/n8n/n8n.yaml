@@ -101,6 +101,28 @@ spec:
       port: 5678
       targetPort: 5678
 ---
+# 2026-11-24: `traefik-forward-auth` is a CHAIN — upgrade http to https FIRST, then authenticate. Over plain http the
+# proxy built redirect_uri=http://auth.weyland.lab/_oauth, which Keycloak rejects ("Invalid parameter: redirect_uri").
+# Same shape in every namespace's copy (Traefik blocks cross-namespace refs); test: scripts/tests/write-surface-netpol.bats.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth
+  namespace: n8n
+spec:
+  chain:
+    middlewares:
+      - name: traefik-forward-auth-https
+      - name: traefik-forward-auth-core
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth-https
+  namespace: n8n
+spec:
+  redirectScheme: { scheme: https, permanent: false }
+---
 # Traefik picks this up as the k3s default ingress controller. Plain Ingress (no
 # IngressRoute CRD) for portability. TLS terminated by Traefik using the shared
 # wildcard cert; the Secret must live in THIS namespace (n8n).
@@ -109,7 +131,7 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: traefik-forward-auth
+  name: traefik-forward-auth-core
   namespace: n8n
 spec:
   forwardAuth:

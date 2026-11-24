@@ -118,19 +118,31 @@ print('ok')"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
-@test "the forward-auth middleware upgrades http to https before it authenticates (2026-11-24)" {
+@test "every forward-auth middleware upgrades http to https before it authenticates (2026-11-24)" {
   # Over plain http, traefik-forward-auth built redirect_uri=http://auth.weyland.lab/_oauth, which Keycloak rejects
-  # (only the https callback is registered): "Invalid parameter: redirect_uri" on realm, mlflow and every other
-  # forward-auth host. The shared middleware is a Chain: redirect to https FIRST, then the forwardAuth.
+  # (only the https callback is registered): "Invalid parameter: redirect_uri" on realm, kiali and every other
+  # forward-auth host. Traefik blocks cross-namespace middleware refs, so each namespace keeps its own copy; in EVERY
+  # namespace the name ingresses use (traefik-forward-auth) is a Chain: redirect to https FIRST, then the forwardAuth.
   run python3 -c "
-import yaml
-docs=[x for x in yaml.safe_load_all(open('$P/traefik-forward-auth/traefik-forward-auth.yaml')) if x and x.get('kind')=='Middleware']
-by={d['metadata']['name']: d['spec'] for d in docs}
-chain=[m['name'] for m in by['traefik-forward-auth']['chain']['middlewares']]
-assert chain==['traefik-forward-auth-https','traefik-forward-auth-core'], chain
-assert by['traefik-forward-auth-https']['redirectScheme']['scheme']=='https'
-assert by['traefik-forward-auth-core']['forwardAuth']['address'].endswith(':4181')
-print('ok')"
+import os, yaml
+mw = {}
+for dp, _, fs in os.walk('$P'):
+    for f in fs:
+        if f.endswith(('.yaml', '.yml')):
+            for d in yaml.safe_load_all(open(os.path.join(dp, f))):
+                if isinstance(d, dict) and d.get('kind') == 'Middleware':
+                    mw[(d['metadata'].get('namespace'), d['metadata']['name'])] = d['spec']
+auth = [k for k, v in mw.items() if 'forwardAuth' in v]
+assert len(auth) >= 10, auth
+bad = []
+for ns, name in auth:
+    chain = mw.get((ns, 'traefik-forward-auth'), {}).get('chain', {}).get('middlewares', [])
+    names = [m['name'] for m in chain]
+    https = mw.get((ns, 'traefik-forward-auth-https'), {}).get('redirectScheme', {}).get('scheme')
+    if name != 'traefik-forward-auth-core' or names != ['traefik-forward-auth-https', 'traefik-forward-auth-core'] or https != 'https':
+        bad.append(f'{ns}/{name}')
+assert not bad, bad
+print('ok', len(auth))"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 

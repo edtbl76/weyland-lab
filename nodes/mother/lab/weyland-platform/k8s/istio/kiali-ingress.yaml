@@ -1,3 +1,25 @@
+# 2026-11-24: `traefik-forward-auth` is a CHAIN — upgrade http to https FIRST, then authenticate. Over plain http the
+# proxy built redirect_uri=http://auth.weyland.lab/_oauth, which Keycloak rejects ("Invalid parameter: redirect_uri").
+# Same shape in every namespace's copy (Traefik blocks cross-namespace refs); test: scripts/tests/write-surface-netpol.bats.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth
+  namespace: istio-system
+spec:
+  chain:
+    middlewares:
+      - name: traefik-forward-auth-https
+      - name: traefik-forward-auth-core
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth-https
+  namespace: istio-system
+spec:
+  redirectScheme: { scheme: https, permanent: false }
+---
 # B8 — Traefik TLS ingress for Kiali (mesh observability UI). Same pattern as grafana/dagster.
 # TLS secret weyland-wildcard-tls must exist in istio-system (copied from the weyland ns — see runbook).
 # B1.1 — forward-auth Middleware local to istio-system (Traefik blocks cross-namespace middleware refs by
@@ -5,7 +27,7 @@
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: traefik-forward-auth
+  name: traefik-forward-auth-core
   namespace: istio-system
 spec:
   forwardAuth:

@@ -1,3 +1,25 @@
+# 2026-11-24: `traefik-forward-auth` is a CHAIN — upgrade http to https FIRST, then authenticate. Over plain http the
+# proxy built redirect_uri=http://auth.weyland.lab/_oauth, which Keycloak rejects ("Invalid parameter: redirect_uri").
+# Same shape in every namespace's copy (Traefik blocks cross-namespace refs); test: scripts/tests/write-surface-netpol.bats.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth
+  namespace: argocd
+spec:
+  chain:
+    middlewares:
+      - name: traefik-forward-auth-https
+      - name: traefik-forward-auth-core
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth-https
+  namespace: argocd
+spec:
+  redirectScheme: { scheme: https, permanent: false }
+---
 # Argo CD UI via Traefik TLS at argocd.weyland.lab. Reuses the mkcert wildcard cert (copy weyland-wildcard-tls
 # into the argocd ns once). Server is `server.insecure: true`, so route to argocd-server:80 (HTTP) — Traefik
 # terminates TLS. CoreDNS wildcard resolves this to mother; rogueone needs an explicit /etc/hosts line.
@@ -6,7 +28,7 @@
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: traefik-forward-auth
+  name: traefik-forward-auth-core
   namespace: argocd
 spec:
   forwardAuth:

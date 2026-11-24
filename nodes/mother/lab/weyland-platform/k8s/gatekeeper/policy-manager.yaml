@@ -100,10 +100,32 @@ metadata:
 spec:
   redirectScheme: { scheme: https, permanent: false }
 ---
+# 2026-11-24: `traefik-forward-auth` is a CHAIN — upgrade http to https FIRST, then authenticate. Over plain http the
+# proxy built redirect_uri=http://auth.weyland.lab/_oauth, which Keycloak rejects ("Invalid parameter: redirect_uri").
+# Same shape in every namespace's copy (Traefik blocks cross-namespace refs); test: scripts/tests/write-surface-netpol.bats.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: traefik-forward-auth
+  namespace: gatekeeper-system
+spec:
+  chain:
+    middlewares:
+      - name: traefik-forward-auth-https
+      - name: traefik-forward-auth-core
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth-https
+  namespace: gatekeeper-system
+spec:
+  redirectScheme: { scheme: https, permanent: false }
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth-core
   namespace: gatekeeper-system
 spec:
   forwardAuth:

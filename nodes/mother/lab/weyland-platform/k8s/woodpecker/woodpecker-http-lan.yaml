@@ -26,3 +26,37 @@ spec:
       targetPort: http
       protocol: TCP
       nodePort: 30980
+---
+# 2026-11-24: `traefik-forward-auth` is a CHAIN — upgrade http to https FIRST, then authenticate. Over plain http the
+# proxy built redirect_uri=http://auth.weyland.lab/_oauth, which Keycloak rejects ("Invalid parameter: redirect_uri").
+# Same shape in every namespace's copy (this one was hand-made on 2026-06-25 and is now in git); test: scripts/tests/write-surface-netpol.bats.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth
+  namespace: woodpecker
+spec:
+  chain:
+    middlewares:
+      - name: traefik-forward-auth-https
+      - name: traefik-forward-auth-core
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth-https
+  namespace: woodpecker
+spec:
+  redirectScheme: { scheme: https, permanent: false }
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-forward-auth-core
+  namespace: woodpecker
+spec:
+  forwardAuth:
+    address: http://traefik-forward-auth.weyland.svc.cluster.local:4181
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Forwarded-User

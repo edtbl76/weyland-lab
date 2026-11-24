@@ -60,9 +60,11 @@ bug.
   (`https://auth.weyland.lab/_oauth`), and the cookie is valid across every `*.weyland.lab` subdomain = SSO
   everywhere. The client (`tofu/keycloak/traefik-forward-auth.tf`) has exactly that one `valid_redirect_uri`.
 - A Traefik `forwardAuth` **Middleware** (`weyland-traefik-forward-auth@kubernetescrd`) fronts each protected
-  ingress. Cross-namespace refs work (Kiali's ingress in `istio-system` references the `weyland` one directly).
-  **It is a Chain (2026-11-24):** `traefik-forward-auth-https` (redirect to https) THEN `traefik-forward-auth-core`
-  (the forwardAuth). Over plain http the proxy builds `redirect_uri=http://auth.weyland.lab/_oauth`, which the client
+  ingress in `weyland`. Traefik blocks cross-namespace middleware refs, so **every other namespace keeps its own copy**
+  of the same name (argocd, data-mesh, gatekeeper-system, headlamp, istio-system for Kiali, minio, n8n, opencost,
+  opensearch, woodpecker — the woodpecker one was hand-made until 2026-11-24 and is now in `woodpecker-http-lan.yaml`).
+  **Each is a Chain (2026-11-24):** `traefik-forward-auth-https` (redirect to https) THEN `traefik-forward-auth-core`
+  (the forwardAuth); `scripts/tests/write-surface-netpol.bats` fails if any copy is not. Over plain http the proxy builds `redirect_uri=http://auth.weyland.lab/_oauth`, which the client
   does not register, so `http://realm.weyland.lab` showed "We are sorry... Invalid parameter: redirect_uri" (Keycloak
   log: `invalid_redirect_uri`, `redirect_uri="http://..."`). Check either scheme:
   `curl -sk -D - -o /dev/null http://realm.weyland.lab/ | grep -i ^location` must point at `https://realm...`.
