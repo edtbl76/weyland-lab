@@ -128,7 +128,7 @@ docker run --rm alpine:3.20 sh -c 'apk add -q curl >/dev/null; curl -s -o /dev/n
 ## Bifrost registration (how mother's agents reach it)
 
 Source of truth: `Agent_Memory` in `scripts/register_bifrost_mcp_clients.py` and in `SCOPING` of
-`scripts/register_bifrost_vk_mcp.py` (coding-agents = all tools; operator = `MEMORY_READ`; applied through the API, no restart — B203). Order matters
+`scripts/register_bifrost_vk_mcp.py` (every key read-only, `MEMORY_READ`, since B256 2026-11-23: writes go through `/mcp-memory`; applied through the API, no restart — B203). Order matters
 ([mcp-gateway.md](mcp-gateway.md) § Restore):
 
 [mother]
@@ -220,6 +220,13 @@ callback_port = 38258
 ```
 
 Sign in with `codex mcp login weyland-memory`.
+
+**Claude Code's native writes** (its memory path is a symlink to the store, so they never pass the gateway) are
+stamped by the PostToolUse hook `.claude/hooks/memory-provenance.py` with the same fields (`created_by:
+agent:claude-code`, `on_behalf_of: user:emangini`, `source: session:<id>`). `check-shared-memory.py` step 0b (also in
+the 15-minute watchdog) flags any note changed after 2026-11-24T03:00Z that has no `updated_by`: a write made around
+both, such as a Bash edit. Older notes are grandfathered. No Bifrost key holds Basic Memory's write tools any more
+(`register_bifrost_vk_mcp.py`; a test fails if one does).
 
 Each attempt leaves one log line; find refusals in Loki with `{app="weyland-mcp-compositor-memory"} |= "mcp-memory-write" | logfmt | ok="false"`.
 

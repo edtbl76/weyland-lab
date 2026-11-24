@@ -96,6 +96,9 @@ Claude Code loads only its first 25 KB); `MEMORY-catalog.md` lists every note by
   core over budget.
 - **Never write a secret into memory** — a watchdog (`agent-memory-watch`, every 15 min) scans the notes with gitleaks
   and alerts.
+- **Every write carries its author (B256).** Agents write through the `weyland-memory` MCP server (`/mcp-memory`,
+  signed in as their person; `governed_write_note`), since no Bifrost key writes memory. Claude Code's native writes are
+  stamped by `.claude/hooks/memory-provenance.py`: write notes with Write/Edit, never Bash, or the watchdog flags them.
 - **If the store does not answer, say so** — unreachable is not "no memory".
 
 Runbook: `docs/runbooks/shared-agent-memory.md`. A rule every harness must follow still belongs in THIS file.

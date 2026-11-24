@@ -20,7 +20,9 @@ import os
 import sys
 
 BASE_ENV = "BIFROST_URL"   # required, passed by the runbook command; no default, so a missing URL fails loudly
-# B182 (2026-10-03): Agent_Memory — coding agents read AND write the shared memory; the operator only recalls.
+# B182 (2026-10-03): Agent_Memory — the shared memory. B256 (2026-11-23): READ-ONLY on every key. Writes go through the
+# governed gateway (/mcp-memory: each harness signed in as its person, a rights table, provenance stamped); Basic
+# Memory's own write tools carry no identity, so no key holds them.
 MEMORY_READ = ["search_notes", "read_note", "view_note", "read_content", "build_context", "recent_activity",
                "list_directory", "search", "fetch"]
 # B209 (2026-10-14): GitHub's read-only tools, for the unattended key. Listed explicitly; '*' would include every write.
@@ -38,7 +40,7 @@ JAM_READ = ["getDetails", "getConsoleLogs", "getNetworkRequests", "getUserEvents
 # VK name -> the MCP clients (by name) it may use. An entry is a client name (all its tools) or (name, [tools]).
 SCOPING = {
     "coding-agents": ["weyland_fleet", "Context7", "Hugging_Face", "Linear", "Perplexity", "Playwright", "GitHub_Remote",
-                      ("Jam", JAM_READ), "Agent_Memory"],
+                      ("Jam", JAM_READ), ("Agent_Memory", MEMORY_READ)],
     "operator":      ["Excalidraw", "Malwarebytes", ("Agent_Memory", MEMORY_READ)],
     "chat-eval":     [],   # explicitly toolless
     # B209: UNATTENDED agents (realm-of-agents): no human approves their tool calls, so the key holds no write. No

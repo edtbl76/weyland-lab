@@ -74,6 +74,35 @@ def index_problems(directory: str, budget: int = CORE_BUDGET_BYTES) -> list:
     return problems
 
 
+# B256 (2026-11-23): every note written from now on carries provenance: the governed gateway stamps other agents'
+# writes, and .claude/hooks/memory-provenance.py stamps Claude Code's native ones. A note changed after this moment with
+# no `updated_by` was written around both (a Bash edit, another tool). The notes from before carry none (grandfathered).
+PROVENANCE_SINCE = 1795489200   # 2026-11-24T03:00:00Z: the hook went live
+
+
+def provenance_problems(directory: str, cutoff: int = PROVENANCE_SINCE) -> list:
+    out = []
+    for rel in note_files(directory):
+        if rel in (CORE, CATALOG) or rel.startswith("_check/"):
+            continue
+        path = os.path.join(directory, rel)
+        if os.path.getmtime(path) <= cutoff:
+            continue
+        head = open(path, encoding="utf-8").read().split("\n---\n", 1)[0]
+        if not re.search(r"^updated_by:", head, re.M):
+            out.append(f"{rel} changed after provenance began with no updated_by (written around the hook?)")
+    return out
+
+
+def step_provenance(directory: str) -> bool:
+    problems = provenance_problems(directory)
+    if problems:
+        print("0b. provenance FAIL — " + "; ".join(problems[:10]) + (f" (+{len(problems) - 10} more)" if len(problems) > 10 else ""))
+        return False
+    print("0b. provenance OK — every note changed since provenance began carries updated_by")
+    return True
+
+
 def step_index_files(directory: str) -> bool:
     problems = index_problems(directory)
     if problems:
@@ -192,7 +221,8 @@ async def run(url: str, directory: str, read_only: bool = False) -> int:
         return 1
     print(f"1. reachable OK — {len(tools)} tools at {url}")
 
-    results = {"index files": step_index_files(directory), "indexed": await step_indexed(url, directory)}
+    results = {"index files": step_index_files(directory), "provenance": step_provenance(directory),
+               "indexed": await step_indexed(url, directory)}
     if not read_only:
         tag = uuid.uuid4().hex[:10]
         results["mcp write"] = await step_mcp_write(url, directory, tag)

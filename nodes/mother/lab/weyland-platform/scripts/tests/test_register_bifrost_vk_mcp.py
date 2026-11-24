@@ -243,3 +243,14 @@ def test_no_key_holds_a_jam_write_or_wildcard():
 def test_coding_agents_can_read_a_jams_evidence():
     jam = set(r.desired("coding-agents").get("Jam") or [])
     assert {"getDetails", "getConsoleLogs", "getNetworkRequests", "getEvents", "getFrames"} <= jam
+
+
+def test_no_key_writes_the_shared_memory_directly():
+    # B256 (2026-11-23): shared-memory writes go through the governed gateway (/mcp-memory, signed in as the person, the
+    # rights table, provenance stamped). No Bifrost key keeps Basic Memory's own write tools, which carry no identity.
+    for name, entries in r.SCOPING.items():
+        for e in entries:
+            if e == "Agent_Memory":
+                raise AssertionError(f"{name} holds every Agent_Memory tool, writes included")
+            if isinstance(e, tuple) and e[0] == "Agent_Memory":
+                assert set(e[1]) <= set(r.MEMORY_READ), name
