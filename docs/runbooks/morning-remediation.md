@@ -87,6 +87,9 @@ cp /home/edwardmangini/IdeaProjects/weyland/nodes/rogueone/systemd/morning-remed
 | `worktrees/auto-fix-<date>-<slug>/` | a fix branch's worktree, left for review |
 | `run.lock` | one run at a time; a second start exits 3 |
 
+**Backed up** by the rogueone `restic-backup` timer (`backup-paths.conf`, 2026-11-24); restore drill and row in
+[dr.md](../dr.md): `restic restore latest --target <scratch> --include "$HOME/.local/state/weyland-morning"`, then `diff -rq`.
+
 **Reviewing a fix branch:** the report names the branch and the worktree. Read `git -C <worktree> show`; if you keep
 it, merge or cherry-pick it yourself. To discard it: `git worktree remove <worktree>` and `git branch -D <branch>`.
 
@@ -108,6 +111,7 @@ CI-only steps. `--root <tree>` checks another tree; `--config <platform.yml>` ta
 | `verification failed` | the retry ran and did not succeed | the item needs a person; it will show as recurring tomorrow |
 | `the gates did not pass` | the fix branch fails a gate | the branch is kept for review, not reported ready |
 | `slack: FAILED` / `linear ...: FAILED` in the journal | a delivery was refused | the report file still has it |
+| A second run on the same day refuses every retry, and the fix item says it could not create the worktree | by design: the ledger allows one attempt per item per night, and the branch `auto-fix/<date>-<slug>` already exists | to re-run deliberately (as the seeded test did, 2026-11-24): rename `ledger-<date>.json` and `history.json` to `*.run1`, rename the branch and move its worktree to a `-run1` name, and delete the `<cronjob>-retry-<yyyymmdd>` Job a CronJob retry left (its name is fixed per date) |
 
 ## Security design (review of 2026-11-24)
 

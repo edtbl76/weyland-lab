@@ -82,22 +82,6 @@ def _safe_emit(context, label, emit_fn):
 
 
 @op
-def b243_seed_op(context):
-    """B243 SEED (TEMPORARY, EMA-342): fails a first run, passes a re-execution (weyland_pipeline/b243_seed.py)."""
-    from dagster import Failure
-    from weyland_pipeline.b243_seed import SeedFailure, seed_outcome
-    try:
-        context.log.info(seed_outcome(context.dagster_run.parent_run_id))
-    except SeedFailure as exc:
-        raise Failure(str(exc)) from exc
-
-
-@job(tags={"weyland/seed": "b243"})
-def b243_seed_job():
-    b243_seed_op()
-
-
-@op
 def emit_dagster_assets_op(context):
     from weyland_pipeline.datahub_emit import emit
     _safe_emit(context, "Dagster assets", emit)
@@ -595,7 +579,7 @@ weyland_eval_schedule = ScheduleDefinition(
 defs = Definitions(
     assets=[*all_assets, weyland_dbt_assets],
     asset_checks=all_asset_checks,
-    jobs=[feast_materialize_job, weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, datahub_asset_check_assertions_job, ge_validate_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_datasets_finance_land_job, weyland_datasets_finance_transform_job, weyland_datasets_finance_hydrate_job, weyland_datasets_kindle_land_job, weyland_datasets_kindle_transform_job, weyland_datasets_kindle_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job, soda_quality_job, registrations_reconcile_job, linear_backup_job, linear_digest_job, b243_seed_job],
+    jobs=[feast_materialize_job, weyland_ingestion_job, weyland_eval_job, weyland_eval_score_job, weyland_catalog_job, weyland_aidlc_kb_job, weyland_ai_session_job, datahub_catalog_emit_job, datahub_asset_check_assertions_job, ge_validate_job, weyland_datasets_music_transform_job, weyland_datasets_music_land_job, weyland_datasets_health_land_job, weyland_datasets_health_transform_job, weyland_datasets_health_hydrate_job, weyland_datasets_music_hydrate_job, weyland_datasets_finance_land_job, weyland_datasets_finance_transform_job, weyland_datasets_finance_hydrate_job, weyland_datasets_kindle_land_job, weyland_datasets_kindle_transform_job, weyland_datasets_kindle_hydrate_job, weyland_timeseries_job, weyland_lancedb_sync_job, weyland_dbt_job, soda_quality_job, registrations_reconcile_job, linear_backup_job, linear_digest_job],
     schedules=[feast_materialize_schedule, weyland_ingestion_schedule, weyland_catalog_schedule, weyland_ai_session_schedule, datahub_catalog_emit_schedule, weyland_timeseries_schedule, weyland_datasets_music_land_schedule, weyland_datasets_health_land_schedule, weyland_datasets_finance_land_schedule, weyland_dbt_schedule, soda_quality_schedule, weyland_eval_schedule, registrations_schedule, linear_backup_schedule, linear_digest_schedule],
     sensors=[datasets_music_raw_sensor, lancedb_sync_sensor],
     resources={

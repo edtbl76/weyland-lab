@@ -1264,6 +1264,7 @@ observed; **Control/ops** = scheduled and operational paths.
 | Control/ops | Deploy / redeploy (build<->runtime isolation) | [flow-deploy.md](diagrams/flow-deploy.md) |
 | Control/ops | **Ship loop** — detect → build → tag-bump PR → gated merge → Argo → verify a pod carries the tag (B135) | [flow-ship-loop.md](diagrams/flow-ship-loop.md) |
 | Control/ops | **Scheduled-work watchdogs** — open-PR staleness + Woodpecker-cron freshness → Alertmanager → Telegram (B131/B135) | [flow-ship-loop.md](diagrams/flow-ship-loop.md#watchdogs) |
+| Control/ops | **Morning remediation** — 05:30 collect → triage (`claude -p`, read-only) → allowlisted retry (verified) or local `auto-fix/` branch (gated) → Slack/Linear/Kuma report (B243) | [flow-morning-remediation.md](diagrams/flow-morning-remediation.md) |
 
 ---
 

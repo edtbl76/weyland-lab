@@ -302,8 +302,15 @@ applied each push within one 30 s check instead of ~3.5 min (`down` ~5 min → u
      `morning_deps.py`, `scripts/morning-remediation.py`; a triage-only night on 3 real items gave cited diagnoses and acted
      on none. Security review: the fix agent edits only (no Bash), `claude -p` gets no lab secrets, evidence is fenced as
      untrusted, the trusted checkout's gates judge the branch.
-  4. **Schedule + proof — IN PROGRESS:** 05:30 user timer, `placement.yaml` rows, `schedules.md` row, the Kuma
-     `morning-remediation` push monitor (owner creates it), the seeded test night, demo, DoD.
+  4. **Schedule + proof — DONE (DoD pending owner approval):** 05:30 user timer installed, `placement.yaml` rows,
+     `schedules.md` row, the Kuma `morning-remediation` push monitor (live). **Seeded test night, run on demand
+     2026-11-24** (owner: "We don't wait"; seeds approved "All five"): run 2 reported the seeded CI failure as **fix
+     branch ready** (`auto-fix/2026-11-24-ci-platform-test-python`, `hours * 60`, full gates passed, not pushed), the
+     seed CronJob and the Dagster seed run **fixed by an allowlisted retry** after verification
+     (`b243-seed-retry-20261124`, Dagster `289c70bd`), GlitchTip and the incident reported with diagnoses, Slack
+     `#alerts` sent, EMA-360/EMA-359 commented, Kuma pushed. Run 1 found two defects, both fixed test-first: the Sonar
+     pre-check scanned 0 files from the service's `~` (a hidden worktree path), and Dagster's own GlitchTip reports of a
+     run were triaged as separate items. Seeds removed afterwards (EMA-360 canceled).
 
   **Closing Gaps:** "run the FULL local guard suite" had no command; `scripts/local-gates.py` is now it (AGENTS.md
   names it), replaying every secret-free `platform.yml` step in its CI image. **Found by its first run:**

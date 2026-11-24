@@ -123,7 +123,7 @@ def parse_alerts(series: list) -> list:
 def parse_dagster(rows: list) -> list:
     return [Failure("dagster", f"dagster:{r['jobName']}", f"Dagster run {r['runId']} of {r['jobName']} failed",
                     scrub("\n".join(r.get("failures") or [])), agent_caused=bool(r.get("started_by_agent")),
-                    extra={"run_id": r["runId"], "job": r["jobName"]}) for r in rows]
+                    extra={"run_id": r["runId"], "run_ids": [r["runId"]], "job": r["jobName"]}) for r in rows]
 
 
 def parse_glitchtip(rows: list, since: float) -> list:
@@ -175,17 +175,25 @@ def collect(since: float, fetchers: dict) -> tuple:
         items, note = got if isinstance(got, tuple) else (got, "")
         status[name] = f"checked ({note})" if note else "checked"
         for f in items:
-            if f.key in merged:
-                merged[f.key].evidence = (merged[f.key].evidence + "\n" + f.evidence).strip()
-            else:
-                merged[f.key] = f
+            _merge(merged, f)
     return _fold_run_reports(list(merged.values())), status
+
+
+def _merge(merged: dict, f: Failure) -> None:
+    """The same cause is one item: later evidence is appended, and a Dagster item keeps every failed run's id."""
+    first = merged.setdefault(f.key, f)
+    if first is f:
+        return
+    first.evidence = (first.evidence + "\n" + f.evidence).strip()
+    if "run_ids" in f.extra:
+        first.extra["run_ids"] = first.extra.get("run_ids", []) + f.extra["run_ids"]
 
 
 def _fold_run_reports(items: list) -> list:
     """A GlitchTip issue that names a failed Dagster run's id is Dagster reporting that run (STEP_FAILURE /
     RUN_FAILURE): the same cause as the Dagster item, so it joins that item instead of being triaged again."""
-    runs = {f.extra["run_id"]: f for f in items if f.source == "dagster" and f.extra.get("run_id")}
+    runs = {rid: f for f in items if f.source == "dagster"
+            for rid in {*(f.extra.get("run_ids") or []), f.extra.get("run_id")} if rid}
     kept = []
     for f in items:
         owner = next((d for rid, d in runs.items() if f.source == "glitchtip" and rid in f.title), None)

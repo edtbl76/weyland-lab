@@ -169,3 +169,16 @@ def test_glitchtip_issues_dagster_filed_about_a_failed_run_merge_into_that_run()
     failures, _ = mc.collect(0, {"dagster": lambda _s: [dag], "glitchtip": lambda _s: [gt1, gt2, other]})
     assert [f.key for f in failures] == ["dagster:b243_seed_job", "glitchtip:weyland-dagster/X-180"]
     assert "X-181" in failures[0].evidence and "X-182" in failures[0].evidence
+
+
+def test_two_failed_runs_of_one_job_are_one_item_that_still_owns_both_runs_reports():
+    # Live 2026-11-24 (run 2): two failed runs of b243_seed_job merged under one key and kept only the newer run id,
+    # so GlitchTip's reports about the OLDER run were triaged on their own and re-executed it a second time.
+    new, old = "0ca5f5b8-4b56-4554-86cb-46d88a580a77", "9154c6bc-8ee4-4251-9591-c52245c87146"
+    rows = [{"runId": new, "jobName": "b243_seed_job", "endTime": 3000, "started_by_agent": False, "failures": []},
+            {"runId": old, "jobName": "b243_seed_job", "endTime": 2000, "started_by_agent": False, "failures": []}]
+    gt = mc.Failure("glitchtip", "glitchtip:weyland-dagster/X-182", f"b243_seed_job - {old} - RUN_FAILURE", "2 events")
+    failures, _ = mc.collect(0, {"dagster": lambda _s: mc.parse_dagster(rows), "glitchtip": lambda _s: [gt]})
+    assert [f.key for f in failures] == ["dagster:b243_seed_job"]
+    assert failures[0].extra["run_id"] == new and failures[0].extra["run_ids"] == [new, old]
+    assert "X-182" in failures[0].evidence
