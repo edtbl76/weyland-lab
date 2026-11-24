@@ -98,3 +98,13 @@ def test_a_note_changed_after_the_cutoff_without_a_stamp_is_named(tmp_path):
     os.utime(tmp_path / "old.md", (100, 100))
     problems = csm.provenance_problems(str(tmp_path), cutoff=1000)
     assert problems == ["bypass.md changed after provenance began with no updated_by (written around the hook?)"]
+
+
+# --- the review sweep (B256 step 4): notes past their review_by are listed for a person, never failed or deleted -------
+def test_notes_past_their_review_date_are_listed_and_superseded_ones_are_not(tmp_path):
+    (tmp_path / "task").mkdir()
+    (tmp_path / "due.md").write_text("---\nname: due\nreview_by: '2026-01-01'\n---\nx\n")
+    (tmp_path / "task" / "later.md").write_text("---\nname: later\nreview_by: 2099-01-01\n---\nx\n")
+    (tmp_path / "retired.md").write_text("---\nname: r\nreview_by: 2026-01-01\ninvalid_at: '2026-02-01T00:00:00Z'\n---\nx\n")
+    (tmp_path / "none.md").write_text("---\nname: n\n---\nx\n")
+    assert csm.review_due(str(tmp_path), today="2026-11-24") == ["due.md (review by 2026-01-01)"]

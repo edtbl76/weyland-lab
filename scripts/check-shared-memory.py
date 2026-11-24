@@ -103,6 +103,32 @@ def step_provenance(directory: str) -> bool:
     return True
 
 
+def _front_value(head: str, key: str) -> str | None:
+    m = re.search(rf"^{key}:\s*['\"]?([^'\"\n]+)['\"]?\s*$", head, re.M)
+    return m.group(1).strip() if m else None
+
+
+def review_due(directory: str, today: str | None = None) -> list:
+    """Notes past their `review_by` date (stamped by governed writes, B256 step 4), for a person to confirm or supersede.
+    Superseded notes (`invalid_at`) are skipped. A list to act on, never a failure and never a deletion."""
+    today = today or time.strftime("%Y-%m-%d", time.gmtime())
+    due = []
+    for rel in note_files(directory):
+        if rel in (CORE, CATALOG) or rel.startswith("_check/"):
+            continue
+        head = open(os.path.join(directory, rel), encoding="utf-8").read().split("\n---\n", 1)[0]
+        review_by = _front_value(head, "review_by")
+        if review_by and review_by[:10] < today and not _front_value(head, "invalid_at"):
+            due.append(f"{rel} (review by {review_by[:10]})")
+    return due
+
+
+def step_review_due(directory: str) -> bool:
+    due = review_due(directory)
+    print(f"0c. review due: {len(due)} note(s)" + (" — " + "; ".join(due[:10]) if due else "") + " (informational)")
+    return True
+
+
 def step_index_files(directory: str) -> bool:
     problems = index_problems(directory)
     if problems:
@@ -222,6 +248,7 @@ async def run(url: str, directory: str, read_only: bool = False) -> int:
     print(f"1. reachable OK — {len(tools)} tools at {url}")
 
     results = {"index files": step_index_files(directory), "provenance": step_provenance(directory),
+               "review due": step_review_due(directory),
                "indexed": await step_indexed(url, directory)}
     if not read_only:
         tag = uuid.uuid4().hex[:10]

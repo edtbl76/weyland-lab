@@ -47,7 +47,7 @@ class FakeStore:
 
 def run(store, identity, **kw):
     args = {"directory": "task/b256", "title": "notes", "content": "a finding", "operation": "create",
-            "source": "B256", "expected_sha256": None}
+            "source": "B256", "expected_sha256": None, "supersedes": None}
     args.update(kw)
     return asyncio.run(gw.governed_write(store, identity, now=NOW, **args))
 
@@ -275,3 +275,49 @@ def test_a_person_write_goes_to_that_persons_project_root():
 def test_shared_layers_never_name_a_project():
     store = FakeStore()
     assert run(store, CLAUDE).ok and len(store.calls[0]) == 5   # no project element: the server default (shared)
+
+
+# --- step 4: review dates, supersede-not-delete, the hand-off schema (design § Stale facts, § Hand-off record) --------
+def test_a_create_is_stamped_with_a_review_date_by_layer():
+    store = FakeStore()
+    assert run(store, ALICE, directory="", title="a lesson").ok
+    assert store.calls[0][3]["review_by"] == "2027-05-22"          # project memory: 180 days after 2026-11-23
+    store = FakeStore()
+    assert run(store, ALICE).ok
+    assert store.calls[0][3]["review_by"] == "2026-12-23"          # a task note: 30 days
+    store = FakeStore()
+    assert run(store, ALICE, directory="person/alice").ok
+    assert "review_by" not in store.calls[0][3]                     # a person's notes are their own business
+
+
+def test_supersede_creates_the_correction_and_retires_the_old_note_without_deleting_it():
+    store = FakeStore({"old fact.md": "---\ntitle: old fact\ncreated_by: agent:codex\n---\n\nwrong"})
+    out = run(store, CLAUDE, directory="", title="new fact", operation="supersede", content="right",
+              supersedes="old fact")
+    assert out.ok, out.reason
+    (k1, p1, _c1, m1, ow1), (k2, p2, c2, m2) = store.calls
+    assert (k1, p1, ow1) == ("write", "new fact.md", False) and m1["supersedes"] == "[[old fact]]"
+    assert (k2, p2) == ("append", "old fact.md") and m2["superseded_by"] == "[[new fact]]" and m2["invalid_at"] == NOW
+    assert "[[new fact]]" in c2 and "old fact.md" in store.files   # still there, still searchable
+
+
+def test_supersede_needs_an_existing_note_in_the_same_layer():
+    assert "does not exist" in run(FakeStore(), CLAUDE, directory="", title="n", operation="supersede",
+                                   supersedes="nothing").reason
+    assert "supersedes" in run(FakeStore(), CLAUDE, directory="", title="n", operation="supersede").reason
+
+
+HANDOFF = ("## State\nworking\n\n## Done\n- built x\n\n## Verified\n- tests 5/5\n\n## Open\n- y\n\n"
+           "## Next\n- do z\n")
+
+
+def test_a_handoff_note_must_follow_the_schema():
+    assert run(FakeStore(), CLAUDE, title="handoff", content=HANDOFF).ok
+    out = run(FakeStore(), CLAUDE, title="handoff", content="## State\nworking\n\n## Done\n- x\n")
+    assert not out.ok and "Verified" in out.reason and "Open" in out.reason and "Next" in out.reason
+    out = run(FakeStore(), CLAUDE, title="handoff", content=HANDOFF.replace("working", "finished"))
+    assert not out.ok and "state" in out.reason
+
+
+def test_the_schema_applies_to_handoff_notes_in_the_task_layer_only():
+    assert run(FakeStore(), CLAUDE, directory="", title="handoff", content="anything").ok

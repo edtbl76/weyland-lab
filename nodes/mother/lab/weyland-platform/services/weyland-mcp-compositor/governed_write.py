@@ -13,6 +13,7 @@ not offered: they stay with humans, on the files. Reads are unchanged in this sk
 the design's next step).
 """
 import dataclasses
+import datetime
 import hashlib
 import re
 
@@ -27,7 +28,14 @@ AGENTS = {
     "weyland-operator": (None, {"task"}),
 }
 HUMAN_LAYERS = {"project", "task", "person"}
-OPERATIONS = ("create", "append", "replace")
+OPERATIONS = ("create", "append", "replace", "supersede")
+# Stale facts (design § Stale facts): a create is stamped with a date to be reviewed by; check-shared-memory.py lists the
+# overdue ones for a person to confirm or supersede (flag, never delete). A person's own notes carry none.
+REVIEW_DAYS = {"project": 180, "task": 30}
+# The hand-off record (design § Hand-off record): task/<item>/handoff, after A2A's task states.
+HANDOFF_TITLE = "handoff"
+HANDOFF_SECTIONS = ("State", "Done", "Verified", "Open", "Next")
+HANDOFF_STATES = ("working", "input-required", "done")
 
 _SEGMENT = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 # A small, high-confidence set; agent-memory-watch (gitleaks, every 15 min) still scans everything after the fact.
@@ -180,6 +188,20 @@ def read_path(identity: Identity, directory: str, title: str):
     return note_path(directory, title)
 
 
+def handoff_problem(content: str) -> str | None:
+    """None when `content` follows the hand-off schema, else what is missing. Plain line parsing, no regex: the content
+    comes from any agent, and an overlapping pattern (`\\s*\\n+`) could be made to backtrack (Sonar, 2026-11-24)."""
+    lines = [line.strip() for line in content.splitlines()]
+    missing = [s for s in HANDOFF_SECTIONS if f"## {s}" not in lines]
+    if missing:
+        return f"a hand-off note needs the sections {', '.join('## ' + m for m in missing)}"
+    after = lines[lines.index("## State") + 1:]
+    state = next((line for line in after if line), "").lower()
+    if state not in HANDOFF_STATES:
+        return f"a hand-off note's state must be one of {', '.join(HANDOFF_STATES)}, not {state!r}"
+    return None
+
+
 def _refusal(identity: Identity, directory: str, title: str, content: str, operation: str) -> str | None:
     """The first rule the request breaks, or None. Checked before the store is touched."""
     if operation not in OPERATIONS:
@@ -191,7 +213,26 @@ def _refusal(identity: Identity, directory: str, title: str, content: str, opera
         return "content may not carry its own frontmatter: provenance is stamped by the gateway"
     if _SECRETS.search(content):
         return "content looks like it holds a secret; secrets never enter the shared memory"
-    return _allowed(identity, *_layer(directory or ""))
+    layer = _layer(directory or "")
+    if layer[0] == "task" and title == HANDOFF_TITLE and operation in ("create", "replace"):
+        why = handoff_problem(content)
+        if why:
+            return why
+    return _allowed(identity, *layer)
+
+
+async def _supersede(store, *, path, where, old_where, title, old_title, content, stamp, created, now) -> Outcome:
+    """Create the correcting note linked to the old one, then retire the old one in place (never deleted)."""
+    project, spath, sdir = where
+    if await store.read_raw(old_where[1], project=old_where[0]) is None:
+        return Outcome(False, f"{old_title} does not exist in that layer: nothing to supersede")
+    if await store.read_raw(spath, project=project) is not None:
+        return Outcome(False, f"{path} exists: supersede into a new note")
+    await store.write(title, sdir, content, {**created, **stamp, "supersedes": f"[[{old_title}]]"}, False,
+                      project=project)
+    await store.append(old_where[1], f"Superseded by [[{title}]] on {now[:10]}.",
+                       {**stamp, "superseded_by": f"[[{title}]]", "invalid_at": now}, project=old_where[0])
+    return Outcome(True, "superseded", path)
 
 
 async def _apply(store, operation, *, path, where, title, content, stamp, created, expected_sha256) -> Outcome:
@@ -220,7 +261,7 @@ async def _apply(store, operation, *, path, where, title, content, stamp, create
 
 
 async def governed_write(store, identity: Identity, *, directory: str, title: str, content: str, operation: str,
-                         source: str, expected_sha256: str | None, now: str) -> Outcome:
+                         source: str, expected_sha256: str | None, now: str, supersedes: str | None = None) -> Outcome:
     author = _author(identity)
     if isinstance(author, Outcome):
         return author
@@ -233,5 +274,17 @@ async def governed_write(store, identity: Identity, *, directory: str, title: st
     # human editing an agent's note would otherwise inherit the agent's "on behalf of" (found live, 2026-11-23).
     stamp = {"updated_by": who, "updated_at": now, "on_behalf_of": on_behalf_of}
     created = {"created_by": who, "created_at": now, "author_kind": kind, "source": source}
+    days = REVIEW_DAYS.get(_layer(directory or "")[0])
+    if days:
+        created["review_by"] = (datetime.date.fromisoformat(now[:10]) + datetime.timedelta(days=days)).isoformat()
+    if operation == "supersede":
+        if not supersedes:
+            return Outcome(False, "supersede needs supersedes: the title of the note it corrects, in the same layer")
+        _, why = note_path(directory, supersedes)
+        if why:
+            return Outcome(False, why)
+        return await _supersede(store, path=path, where=store_location(directory, title),
+                                old_where=store_location(directory, supersedes), title=title, old_title=supersedes,
+                                content=content, stamp=stamp, created=created, now=now)
     return await _apply(store, operation, path=path, where=store_location(directory, title), title=title,
                         content=content, stamp=stamp, created=created, expected_sha256=expected_sha256)

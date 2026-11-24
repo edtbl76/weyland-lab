@@ -220,6 +220,15 @@ callback_port = 38258
 
 Sign in with `codex mcp login weyland-memory`.
 
+**Stale facts and hand-offs (B256 step 4).** A governed create is stamped `review_by` (project memory 180 days, task
+notes 30; person notes none); `check-shared-memory.py` step 0c lists notes past it for a person to confirm or
+supersede (informational, never a failure or a deletion). When a fact turns out wrong, `operation: "supersede"` with
+`supersedes: "<old title>"` writes the correction (`supersedes: [[old]]`) and retires the old note in place
+(`invalid_at`, `superseded_by: [[new]]`, a line saying so); it stays searchable, and the sweep skips it. Each task can
+keep one hand-off note, `task/<item>/handoff`, which must carry `## State` (`working`, `input-required` or `done`),
+`## Done`, `## Verified`, `## Open` and `## Next`; Linear keeps the status, the hand-off keeps the working detail and
+links to the notes behind it.
+
 **The person layer is each person's own server (B256, owner 2026-11-23: A strict).** Basic Memory here runs constrained to
 one project (`--project …`) and ignores a `project` argument, so privacy cannot be a project name: each person gets their
 own Basic Memory, with its own config and index (`BASIC_MEMORY_CONFIG_DIR`), serving `~/agent-memory/person/<name>`.

@@ -61,17 +61,21 @@ if governed_writes_enabled(os.environ):
 
     @app.tool(name="governed_write_note")
     async def governed_write_note(directory: str, title: str, content: str, operation: str, source: str,
-                                  expected_sha256: str | None = None) -> dict:
+                                  expected_sha256: str | None = None, supersedes: str | None = None) -> dict:
         """Write to the shared agent memory as YOURSELF: the gateway's identity is checked against the layer's rights
         and stamped into the note's frontmatter (created_by / updated_by, author_kind, on_behalf_of, source, times).
         directory: "" (project memory), "task/<item>" or "person/<name>". operation: "create" (fails if the note
-        exists), "append" (adds to it), or "replace" (needs expected_sha256 from governed_read_note; refused if the note
-        changed since). source: the B-number, incident or session this came from. Content must not carry frontmatter
+        exists), "append" (adds to it), "replace" (needs expected_sha256 from governed_read_note; refused if the note
+        changed since), or "supersede" (a fact turned out wrong: writes this note as the correction of `supersedes`,
+        another note's title in the same directory, which is marked invalid and linked, never deleted). source: the
+        B-number, incident or session this came from. A task's "handoff" note must have the sections ## State
+        (working | input-required | done), ## Done, ## Verified, ## Open, ## Next. Content must not carry frontmatter
         or secrets."""
         identity = gw.identity_from_headers(get_http_headers())
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         out = await gw.governed_write(_store, identity, directory=directory, title=title, content=content,
-                                      operation=operation, source=source, expected_sha256=expected_sha256, now=now)
+                                      operation=operation, source=source, expected_sha256=expected_sha256, now=now,
+                                      supersedes=supersedes)
         print(gw.audit_line(identity, operation, directory, title, out), flush=True)
         if not out.ok:
             raise ToolError(out.reason)
