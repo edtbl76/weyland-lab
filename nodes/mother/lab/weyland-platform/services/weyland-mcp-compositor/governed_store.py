@@ -42,6 +42,7 @@ class BasicMemoryStore:
         return _payload(result).get("text")
 
     async def write(self, title: str, directory: str, content: str, metadata: dict, overwrite: bool) -> str:
+        # No `project` argument, ever: each server here is constrained to one project and ignores it (2026-11-23).
         await self._call("write_note", {"title": title, "directory": directory or "/", "content": content,
                                         "metadata": metadata, "overwrite": overwrite})
         return f"{directory}/{title}.md" if directory else f"{title}.md"
@@ -50,6 +51,42 @@ class BasicMemoryStore:
         await self._call("edit_note", {"identifier": path, "operation": "append", "content": content,
                                        "metadata": metadata})
         return path
+
+
+class RoutingStore:
+    """The store governed_write talks to: the shared server for every shared layer, and each person's OWN Basic Memory
+    server (constrained to `person-<name>`) for that person's layer (owner, 2026-11-23: A strict). A person with no
+    server is refused: their note is never written to the shared store instead."""
+
+    def __init__(self, shared, persons: dict):
+        self._shared, self._persons = shared, dict(persons)
+
+    def _pick(self, project):
+        if project is None:
+            return self._shared
+        name = project.removeprefix("person-")
+        if not project.startswith("person-") or name not in self._persons:
+            raise ToolError(f"the person layer for {name} is not provisioned (no Basic Memory server for it)")
+        return self._persons[name]
+
+    async def read_raw(self, path, project=None):
+        return await self._pick(project).read_raw(path)
+
+    async def write(self, title, directory, content, metadata, overwrite, project=None):
+        return await self._pick(project).write(title, directory, content, metadata, overwrite)
+
+    async def append(self, path, content, metadata, project=None):
+        return await self._pick(project).append(path, content, metadata)
+
+
+def person_urls(env) -> dict:
+    """{person: MCP URL} from PERSON_MEMORY_URLS="name=url,name=url" (each person's own Basic Memory server)."""
+    out = {}
+    for item in (env.get("PERSON_MEMORY_URLS") or "").split(","):
+        name, sep, url = item.strip().partition("=")
+        if sep and name and url:
+            out[name.strip()] = url.strip()
+    return out
 
 
 def client_call(url: str):

@@ -87,14 +87,27 @@ def is_blocked(tool_name: str, servers: dict) -> bool:
     return False
 
 
+# B256 (2026-11-23, owner: A strict): each person's notes are their own Basic Memory project, reachable only through the
+# governed tools. A read through a compositor never chooses its project: these are dropped from every memory read.
+PROJECT_ARGS = ("project", "project_id", "workspace")
+
+
 def rewrite_arguments(tool_name: str, args: dict, servers: dict) -> dict:
     """The arguments to forward for `tool_name`: a memory search asked as default/text/hybrid becomes semantic, and
-    loses the filters our notes never carry. Returns `args` itself when nothing changes (never mutates it)."""
+    loses the filters our notes never carry; every memory read loses any project choice. Returns `args` itself when
+    nothing changes (never mutates it)."""
+    out = args
+    if _owned_by("memory", tool_name, servers) is not None and _has_project_args(args):
+        out = {k: v for k, v in out.items() if k not in PROJECT_ARGS}
     for upstream, tool in SEMANTIC_SEARCH:
         if _owned_by(upstream, tool_name, servers) != tool:
             continue
-        out = {k: v for k, v in args.items() if k not in DROP_FILTERS}
-        if out.get("search_type") in REWRITE_TO_SEMANTIC:
-            out["search_type"] = "semantic"
-        return out if out != args else args
-    return args
+        filtered = {k: v for k, v in out.items() if k not in DROP_FILTERS}
+        if filtered.get("search_type") in REWRITE_TO_SEMANTIC:
+            filtered["search_type"] = "semantic"
+        out = filtered
+    return out if out != args else args
+
+
+def _has_project_args(args: dict) -> bool:
+    return any(k in args for k in PROJECT_ARGS)

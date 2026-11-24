@@ -20,9 +20,10 @@ import os
 import sys
 
 BASE_ENV = "BIFROST_URL"   # required, passed by the runbook command; no default, so a missing URL fails loudly
-# B182 (2026-10-03): Agent_Memory — the shared memory. B256 (2026-11-23): READ-ONLY on every key. Writes go through the
-# governed gateway (/mcp-memory: each harness signed in as its person, a rights table, provenance stamped); Basic
-# Memory's own write tools carry no identity, so no key holds them.
+# B182 (2026-10-03): Agent_Memory — the shared memory's tools straight to Basic Memory. B256 (2026-11-23, owner: A
+# strict): NO key holds them. Reads and writes go through the governed gateway (/mcp-memory: each harness signed in as
+# its person; reads can never name another project, so a person's own notes stay private). MEMORY_READ stays the
+# compositor's allowlist reference only.
 MEMORY_READ = ["search_notes", "read_note", "view_note", "read_content", "build_context", "recent_activity",
                "list_directory", "search", "fetch"]
 # B209 (2026-10-14): GitHub's read-only tools, for the unattended key. Listed explicitly; '*' would include every write.
@@ -40,14 +41,14 @@ JAM_READ = ["getDetails", "getConsoleLogs", "getNetworkRequests", "getUserEvents
 # VK name -> the MCP clients (by name) it may use. An entry is a client name (all its tools) or (name, [tools]).
 SCOPING = {
     "coding-agents": ["weyland_fleet", "Context7", "Hugging_Face", "Linear", "Perplexity", "Playwright", "GitHub_Remote",
-                      ("Jam", JAM_READ), ("Agent_Memory", MEMORY_READ)],
-    "operator":      ["Excalidraw", "Malwarebytes", ("Agent_Memory", MEMORY_READ)],
+                      ("Jam", JAM_READ)],
+    "operator":      ["Excalidraw", "Malwarebytes"],   # the operator recalls through /mcp-fleet (governed), not here
     "chat-eval":     [],   # explicitly toolless
     # B209: UNATTENDED agents (realm-of-agents): no human approves their tool calls, so the key holds no write. No
     # Playwright (it runs inside the Bifrost pod and can POST anywhere in-cluster), no Linear, read-only GitHub, memory
     # and Hugging Face. The interactive harnesses keep `coding-agents`, where a person approves each call.
     "agents-read":   ["weyland_fleet", "Context7", "Perplexity", ("GitHub_Remote", GITHUB_READ),
-                      ("Agent_Memory", MEMORY_READ), ("Hugging_Face", HUGGING_FACE_READ)],
+                      ("Hugging_Face", HUGGING_FACE_READ)],   # memory: none (the Realm declares no memory tool)
     # 2026-10-16: the ship's end-to-end MCP transaction (scripts/ship-images.sh txn_bifrost_fleet). ONE read-only tool,
     # so the key in rogueone's scripts/.env can list namespaces and nothing else. It proves the path agents use:
     # Bifrost -> compositor -> a backing server (a compositor ship strands Bifrost's session until Bifrost restarts).

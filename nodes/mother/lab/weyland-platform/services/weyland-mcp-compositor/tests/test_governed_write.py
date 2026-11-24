@@ -22,22 +22,26 @@ NOW = "2026-11-23T12:00:00Z"
 
 class FakeStore:
     def __init__(self, files=None):
-        self.files = dict(files or {})   # path -> raw text
+        self.files = dict(files or {})   # (project, path) or path (the shared project) -> raw text
         self.calls = []
 
-    async def read_raw(self, path):
-        return self.files.get(path)
+    @staticmethod
+    def _key(path, project):
+        return path if project is None else (project, path)
 
-    async def write(self, title, directory, content, metadata, overwrite):
+    async def read_raw(self, path, project=None):
+        return self.files.get(self._key(path, project))
+
+    async def write(self, title, directory, content, metadata, overwrite, project=None):
         path = f"{directory}/{title}.md" if directory else f"{title}.md"
-        self.calls.append(("write", path, content, dict(metadata), overwrite))
+        self.calls.append(("write", path, content, dict(metadata), overwrite) + ((project,) if project else ()))
         front = "".join(f"{k}: {v}\n" for k, v in metadata.items())
-        self.files[path] = f"---\ntitle: {title}\n{front}---\n\n{content}"
+        self.files[self._key(path, project)] = f"---\ntitle: {title}\n{front}---\n\n{content}"
         return path
 
-    async def append(self, path, content, metadata):
-        self.calls.append(("append", path, content, dict(metadata)))
-        self.files[path] += "\n" + content
+    async def append(self, path, content, metadata, project=None):
+        self.calls.append(("append", path, content, dict(metadata)) + ((project,) if project else ()))
+        self.files[self._key(path, project)] += "\n" + content
         return path
 
 
@@ -257,3 +261,17 @@ def test_the_person_layer_follows_the_signed_in_person_not_the_table_default():
 def test_a_harness_signed_in_as_a_person_keeps_the_agents_layer_limits():
     op_as_alice = gw.Identity(user="alice", client="weyland-operator")
     assert not run(FakeStore(), op_as_alice, directory="", title="x").ok   # the operator never writes project memory
+
+
+# --- the person layer is that person's own Basic Memory project (owner, 2026-11-23: A strict) -----------------------
+def test_a_person_write_goes_to_that_persons_project_root():
+    store = FakeStore()
+    out = run(store, ALICE, directory="person/alice", title="todo")
+    assert out.ok and out.path == "person/alice/todo.md"
+    kind, path, _content, _meta, overwrite, project = store.calls[0]
+    assert (kind, path, project) == ("write", "todo.md", "person-alice")
+
+
+def test_shared_layers_never_name_a_project():
+    store = FakeStore()
+    assert run(store, CLAUDE).ok and len(store.calls[0]) == 5   # no project element: the server default (shared)

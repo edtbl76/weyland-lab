@@ -53,7 +53,7 @@ the agent can reach.
 | **Retrieval** | `context_ask` / `context_search` (the lab RAG) | live |
 | **Model egress** | LiteLLM / Bifrost (agentic), MLflow AI Gateway (chat/eval) | live |
 | **Rules & conventions** | `AGENTS.md` (harness-neutral; `CLAUDE.md` imports it), `docs/`, AIDLC rule files | live |
-| **Memory** (lessons, decisions, corrections) | **Shared agent memory** — the notes in `~/agent-memory/weyland` on rogueone, served by Basic Memory over MCP (`Agent_Memory` via Bifrost) | **live (B182, 2026-10-03)** |
+| **Memory** (lessons, decisions, corrections) | **Shared agent memory** — the notes in `~/agent-memory/weyland` on rogueone, served by Basic Memory over MCP (`weyland-memory`, the governed gateway's `/mcp-memory`, signed in as your person, B256) | **live (B182, 2026-10-03)** |
 
 ## What is still per-harness
 
@@ -73,8 +73,9 @@ One store every harness reads and writes: **the directory of Markdown notes** `~
 
 - **Native:** Claude Code's auto-memory path is a symlink to it, so Claude keeps its always-loaded `MEMORY.md` index
   and plain-file writes. Pi (no MCP) uses the files directly.
-- **Shared:** **Basic Memory 0.23.2** serves the files over MCP on `:8765`; Bifrost registers it as `Agent_Memory`
-  (coding-agents key: all tools · operator key: read-only). rogueone's ufw admits only mother to that port.
+- **Shared:** **Basic Memory 0.23.2** serves the files over MCP on `:8765`, reached only through the governed MCP gateway
+  (`/mcp-memory` for coding agents and Open WebUI, signed in as their person; `/mcp-fleet` for the operator; B256). rogueone's
+  ufw admits only the k3s nodes to that port. Each person's own layer is a separate server (`:8766` for emangini).
 - **Guarded:** `agent-memory-watch` scans the notes for secrets (gitleaks) and checks the store every 15 min → Kuma.
 
 Decisions and evidence: [../design/shared-agent-memory-design.md](../design/shared-agent-memory-design.md) · runbook
@@ -99,7 +100,8 @@ flowchart LR
   CC --> LN
   CX --> LN
   CC -->|native files| MEM
-  BF -->|Agent_Memory| MEM
+  OC -->|weyland-memory, OAuth| MEM
+  CX -->|weyland-memory, OAuth| MEM
   OP -.->|planned: read-only| MEM
   OW -.->|planned: read-only| MEM
 ```

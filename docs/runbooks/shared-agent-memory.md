@@ -12,7 +12,7 @@ Design + evidence: [design/shared-agent-memory-design.md](../design/shared-agent
 | Notes (the store) | rogueone `~/agent-memory/weyland/` — backed up nightly by restic (`backup-paths.conf`) |
 | Claude Code's path | `~/.claude/projects/-home-edwardmangini-IdeaProjects-weyland/memory` → **symlink** to the notes |
 | Server | Basic Memory 0.23.2, user unit `basic-memory.service`, MCP streamable HTTP on `:8765` |
-| Gateway | Bifrost MCP client `Agent_Memory` → `http://192.168.1.230:8765/mcp`; coding-agents key = all tools, operator key = read-only |
+| Gateway | the governed MCP gateway only: `/mcp-memory` (the `weyland-memory` server; coding agents and Open WebUI, signed in as their person) and `/mcp-fleet` (the operator). Bifrost's `Agent_Memory` client stays registered but **no key is granted it** (B256, 2026-11-23) |
 | Firewall | rogueone ufw: `:8765` admits only the two k3s nodes, mother (`192.168.1.243`) and timberback (`192.168.1.233`, since 2026-11-17), because pods arrive SNATed to their node's IP; everything else unchanged (default allow) |
 | Watchdog | user timer `agent-memory-watch` every 15 min — gitleaks + read-only health → Kuma push monitor |
 
@@ -128,7 +128,7 @@ docker run --rm alpine:3.20 sh -c 'apk add -q curl >/dev/null; curl -s -o /dev/n
 ## Bifrost registration (how mother's agents reach it)
 
 Source of truth: `Agent_Memory` in `scripts/register_bifrost_mcp_clients.py` and in `SCOPING` of
-`scripts/register_bifrost_vk_mcp.py` (every key read-only, `MEMORY_READ`, since B256 2026-11-23: writes go through `/mcp-memory`; applied through the API, no restart — B203). Order matters
+`scripts/register_bifrost_vk_mcp.py` (since B256, 2026-11-23, **no key holds it**: reads and writes go through `/mcp-memory`, where the caller is identified and a read can never reach a person's own server; a test fails if a key regains it; applied through the API, no restart — B203). Order matters
 ([mcp-gateway.md](mcp-gateway.md) § Restore):
 
 [mother]
@@ -139,16 +139,15 @@ kubectl -n weyland exec -i deploy/weyland-guard -- python - < /home/edwardmangin
 ```
 kubectl -n weyland exec -i deploy/weyland-guard -- env BIFROST_URL=http://bifrost.weyland.svc.cluster.local:8080 python - < /home/edwardmangini/IdeaProjects/weyland/nodes/mother/lab/weyland-platform/scripts/register_bifrost_vk_mcp.py
 ```
-Bifrost logs `Connected to MCP server 'Agent_Memory'` when it can reach the store. Tools then appear as
-`Agent_Memory-search_notes`, `Agent_Memory-write_note`, … (21 on the coding-agents key).
+Bifrost logs `Connected to MCP server 'Agent_Memory'` when it can reach the store; since B256 no key serves its tools.
 
 ## Per-harness config (B182 criterion 6)
 
 | Harness | How it reaches the store | Config | Read test |
 |---|---|---|---|
 | Claude Code | native files — its memory path is a symlink to the store | `~/.claude/projects/-home-edwardmangini-IdeaProjects-weyland/memory` → `~/agent-memory/weyland` | `check-shared-memory.py` step 4 (plain-file note searchable < 1 s) |
-| Codex | Bifrost `/mcp`, coding-agents key | `~/.codex/config.toml` `[mcp_servers."bifrost"]` + `http_headers.x-bf-vk` | 2026-10-03: a real `codex exec --sandbox read-only` session called `bifrost/Agent_Memory-search_notes` and returned the Claude-written note (28 s); also its exact route both directions, < 1 s |
-| OpenCode | Bifrost `/mcp`, its key | `~/.config/opencode/opencode.json` `mcp.bifrost` (`type: remote`, `headers.x-bf-vk`) | 2026-10-03: `opencode run -m gemini-direct/gemini-2.5-flash` called `bifrost_Agent_Memory-search_notes` and returned the Claude-written note (28 s) |
+| Codex | `weyland-memory` (`/mcp-memory`, MCP OAuth as its person, B256) | `~/.codex/config.toml` `[mcp_servers."weyland-memory"]` (§ Governed writes) | 2026-11-23: `codex mcp list` shows OAuth; the gateway audit shows `actor=codex user=emangini` (B182's Bifrost route retired) |
+| OpenCode | `weyland-memory` (`/mcp-memory`, MCP OAuth as its person, B256) | `~/.config/opencode/opencode.json` `mcp.weyland-memory` (§ Governed writes) | 2026-11-23: `opencode mcp list` shows connected (OAuth); the gateway audit shows `actor=opencode user=emangini` |
 | Pi / Cline | the files directly (same host) | `AGENTS.md` § Agent memory | — |
 | weyland-operator (recall only) | the governed gateway `/mcp-fleet` → the compositor's READ-ONLY `memory` upstream (`memory_*`, 7 tools; writes hidden and refused) | `k8s/mcp-servers/compositor.yaml` `MEMORY_URL`; operator `LOCAL_FLEET_ALLOW` += `memory_search_notes,memory_read_note` | compositor live 2026-10-03: 102 fleet tools, 7 `memory_*`, `memory_write_note` refused. The operator's 7B called `memory_search_notes` correctly but answered EMPTY — its prompt did not fit Ollama's window (operator.md). Fixed 2026-10-04: `qwen2.5:7b-operator` (32K), tool results capped, fleet memory searches made semantic; proven in-pod ("what caused the rogueone GPU freeze?" → "a kernel bug", 2/2). Live recall check after ship |
 | Open WebUI (recall only, as the signed-in person) | the governed gateway `/mcp-memory` → the memory-ONLY compositor (7 read tools, unprefixed; writes hidden and refused) — an MCP tool server with `system_oauth`, so each call carries the user's own Keycloak token | `k8s/open-webui/deployment.yaml` `TOOL_SERVER_CONNECTIONS` (fresh PVC) **+ once in the admin UI on the live PVC** (below); gateway `MEMORY_COMPOSITOR_URL`; `k8s/mcp-servers/compositor-memory.yaml` | 2026-10-04 local containers, real Keycloak token: 7 tools, the right note #1 (an invented `tags` filter dropped), `write_note` refused, no/forged token → 401. **Live 2026-10-04 (v0.11.4):** the **Lab Recall** preset (qwen2.5:7b-operator, Builtin Tools off, Agent memory on) asked "what caused the rogueone GPU freeze?" called `agent-memory_search_notes` and answered "a kernel bug … conclusively determined on 2026-08-13"; the gateway shows the authenticated session (initialize, tools/list, tools/call, all 200) |
@@ -220,6 +219,17 @@ callback_port = 38258
 ```
 
 Sign in with `codex mcp login weyland-memory`.
+
+**The person layer is each person's own server (B256, owner 2026-11-23: A strict).** Basic Memory here runs constrained to
+one project (`--project …`) and ignores a `project` argument, so privacy cannot be a project name: each person gets their
+own Basic Memory, with its own config and index (`BASIC_MEMORY_CONFIG_DIR`), serving `~/agent-memory/person/<name>`.
+emangini's is `basic-memory-person-emangini.service` on `:8766` (keyword search only). The memory compositor routes
+`person/<name>` to it through `PERSON_MEMORY_URLS` (`k8s/mcp-servers/compositor-memory.yaml`) after the person check, and
+refuses a person who has no server. Nothing else knows the server exists: no Bifrost key, no shared read tool (every
+compositor read also drops any `project` argument). ufw admits only the k3s nodes to `:8766`
+(`nodes/rogueone/ufw/rogueone-ufw.sh`). Restic and `agent-memory-watch` cover `~/agent-memory`, so person layers too.
+To add a person: copy the unit with their name and a free port, add the port to the ufw script, and add `name=url` to
+`PERSON_MEMORY_URLS`.
 
 **Claude Code's native writes** (its memory path is a symlink to the store, so they never pass the gateway) are
 stamped by the PostToolUse hook `.claude/hooks/memory-provenance.py` with the same fields (`created_by:

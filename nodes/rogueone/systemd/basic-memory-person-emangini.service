@@ -1,0 +1,30 @@
+# B256 (2026-11-23, owner: A strict) — one person's own layer of the shared context: Basic Memory serving
+# ~/agent-memory/person/emangini over MCP, constrained to that one project, on its own port with its own config and
+# index (BASIC_MEMORY_CONFIG_DIR). The shared server (basic-memory.service, :8765) never sees these notes, and no
+# Bifrost key reaches either server; only the memory compositor's governed tools call this one, after checking that the
+# caller is this person or an agent acting for them (docs/design/shared-context-design.md § Context layers).
+# USER unit (restic and the gitleaks watchdog cover ~/agent-memory, so this directory too).
+#   Install:  cp nodes/rogueone/systemd/basic-memory-person-emangini.service ~/.config/systemd/user/
+#             systemctl --user daemon-reload && systemctl --user enable --now basic-memory-person-emangini.service
+#   Firewall: like :8765, only the k3s nodes may reach :8766 (nodes/rogueone/ufw/rogueone-ufw.sh).
+[Unit]
+Description=Basic Memory — emangini's person layer over MCP (B256)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=BASIC_MEMORY_CONFIG_DIR=/home/edwardmangini/.basic-memory-person-emangini
+Environment=BASIC_MEMORY_DISABLE_PERMALINKS=true
+Environment=BASIC_MEMORY_ENSURE_FRONTMATTER_ON_SYNC=false
+# Keyword search only: a person's notes are few, and semantic search costs ~1.1 GB more RSS (B182 measurement).
+Environment=BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED=false
+ExecStartPre=-/home/edwardmangini/.local/bin/basic-memory project add person-emangini /home/edwardmangini/agent-memory/person/emangini
+ExecStart=/home/edwardmangini/.local/bin/basic-memory mcp --transport streamable-http --host 0.0.0.0 --port 8766 --project person-emangini
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -110,8 +110,8 @@ capabilities:
     summary: the lab's durable lessons as Markdown notes, shared by every harness
     scope: all
     use:
-      - "Search before re-deriving a lab fact: the Agent_Memory tools (mcp__bifrost__Agent_Memory-search_notes) or read /home/edwardmangini/agent-memory/weyland/MEMORY.md."
-      - "The store is the weyland lab's: write a note there only for a lesson about the lab, never a secret."
+      - "Search before re-deriving a lab fact: the weyland-memory MCP server's search_notes (https://mcp.weyland.lab/mcp-memory, signed in as your person) or read /home/edwardmangini/agent-memory/weyland/MEMORY.md."
+      - "Write through weyland-memory's governed_write_note (it stamps who wrote it); no Bifrost key writes memory. The store is the weyland lab's: a note only for a lesson about the lab, never a secret."
     runbook: shared-agent-memory.md
 
   - key: lab-ask

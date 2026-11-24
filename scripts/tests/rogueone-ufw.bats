@@ -22,10 +22,14 @@ Status: active
 [ 3] 11434/tcp                  ALLOW IN    172.17.0.0/16
 [ 4] 8765/tcp                   ALLOW IN    192.168.1.233
 [ 5] 8765/tcp                   ALLOW IN    192.168.1.243
-[ 6] 11434/tcp                  DENY IN     Anywhere
-[ 7] 8765/tcp                   DENY IN     Anywhere
-[ 8] 11434/tcp (v6)             DENY IN     Anywhere (v6)
-[ 9] 8765/tcp (v6)              DENY IN     Anywhere (v6)
+[ 6] 8766/tcp                   ALLOW IN    192.168.1.233
+[ 7] 8766/tcp                   ALLOW IN    192.168.1.243
+[ 8] 11434/tcp                  DENY IN     Anywhere
+[ 9] 8765/tcp                   DENY IN     Anywhere
+[10] 8766/tcp                   DENY IN     Anywhere
+[11] 11434/tcp (v6)             DENY IN     Anywhere (v6)
+[12] 8765/tcp (v6)              DENY IN     Anywhere (v6)
+[13] 8766/tcp (v6)              DENY IN     Anywhere (v6)
 EOF
 }
 
@@ -33,7 +37,15 @@ EOF
   good
   run bash "$S" --check
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  [[ "$output" == *"OK — 2 port(s), 5 allow rule(s) and their denies in place"* ]] || { echo "$output"; return 1; }
+  [[ "$output" == *"OK — 3 port(s), 7 allow rule(s) and their denies in place"* ]] || { echo "$output"; return 1; }
+}
+
+@test "the person-layer memory port (B256) is closed to the LAN: a missing 8766 deny is drift, named" {
+  good
+  sed -i '/8766\/tcp  *DENY IN  *Anywhere$/d' "$F"
+  run bash "$S" --check
+  [ "$status" -eq 1 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"MISSING: deny 8766/tcp"* ]] || { echo "$output"; return 1; }
 }
 
 @test "a missing allow is drift, named" {

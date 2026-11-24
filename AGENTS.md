@@ -83,14 +83,14 @@ harness-specific file, so every agent gets them. See `docs/concepts/multi-harnes
 Durable lessons and decisions live in ONE shared store (B182, 2026-10-03): the Markdown notes in
 `/home/edwardmangini/agent-memory/weyland/` on rogueone, one note per fact (frontmatter
 `name` / `description` / `metadata.type`, `[[name]]` links). Claude Code's auto-memory path is a symlink to it, and
-**Basic Memory** serves the same files over MCP (`http://127.0.0.1:8765/mcp` on rogueone; `Agent_Memory-*` tools via
-Bifrost for the coding-agents key). The weyland-operator and Open WebUI READ it through the governed MCP gateway
-(`/mcp-fleet`, `/mcp-memory` — Open WebUI as the signed-in person, every request audited). **Two indexes (B255,
+**Basic Memory** serves the same files over MCP (`http://127.0.0.1:8765/mcp` on rogueone). Everyone else reaches it
+only through the governed MCP gateway: coding agents and Open WebUI at `/mcp-memory` (the `weyland-memory` server, signed
+in as their person), the operator at `/mcp-fleet`; every request audited, and no Bifrost key holds memory tools (B256). **Two indexes (B255,
 2026-11-20):** `MEMORY.md` is the small core every session loads (working rules and starred notes, under 12 KB:
 Claude Code loads only its first 25 KB); `MEMORY-catalog.md` lists every note by topic. Every harness:
-- **Read `MEMORY.md` before proposing work, and `MEMORY-catalog.md` or a search (`Agent_Memory-search_notes`) when the
+- **Read `MEMORY.md` before proposing work, and `MEMORY-catalog.md` or a search (`search_notes` on `weyland-memory`) when the
   task touches a topic the core does not list.**
-- **Record a durable lesson as one note** (a file in that directory, or `Agent_Memory-write_note`), and add a one-line
+- **Record a durable lesson as one note** (a file in that directory, or `governed_write_note` on `weyland-memory`), and add a one-line
   pointer to `MEMORY-catalog.md`; add it to `MEMORY.md` too only if every session needs it. Update an existing note
   rather than duplicating it. `scripts/check-shared-memory.py` (and its 15-min watchdog) fails on an unlinked note or a
   core over budget.

@@ -122,7 +122,9 @@ def test_frontmatter_filters_our_notes_never_carry_are_dropped():
 def test_filters_that_can_match_are_kept():
     servers = config.build_servers(MEM)
     asked = {"query": "q", "after_date": "1 week", "project": "weyland", "page_size": 5, "search_type": "title"}
-    assert config.rewrite_arguments("memory_search_notes", dict(asked), servers) == asked
+    # B256: `project` is dropped (reads see only the server's default project, the shared one); the rest is kept.
+    kept = {k: v for k, v in asked.items() if k != "project"}
+    assert config.rewrite_arguments("memory_search_notes", dict(asked), servers) == kept
 
 
 def test_the_callers_arguments_are_not_mutated():
@@ -145,3 +147,17 @@ def test_governed_writes_are_on_only_when_asked():
     assert config.governed_writes_enabled({"GOVERNED_WRITE": "1", "MEMORY_URL": "http://m/mcp"}) is True
     assert config.governed_writes_enabled({"MEMORY_URL": "http://m/mcp"}) is False
     assert config.governed_writes_enabled({"GOVERNED_WRITE": "1"}) is False   # no store, no writes
+
+
+def test_no_memory_read_may_name_another_project():
+    # B256 (2026-11-23, owner: A strict): each person's notes live in their own Basic Memory project, reachable only
+    # through the governed tools. A read through the compositor never chooses its project: the shared one (the server
+    # default) is the only one it can see, so `project`, `project_id` and `workspace` are dropped from every read tool.
+    one = {"memory": config.build_servers(MEM)["memory"]}
+    for tool in config.MEMORY_READ_TOOLS:
+        out = config.rewrite_arguments(tool, {"query": "x", "identifier": "y", "project": "person-alice",
+                                              "project_id": "p1", "workspace": "w"}, one)
+        assert not {"project", "project_id", "workspace"} & set(out), tool
+    fleet = config.build_servers(MEM)   # several upstreams: the fleet compositor's memory_* names
+    out = config.rewrite_arguments("memory_read_note", {"identifier": "y", "project": "main"}, fleet)
+    assert "project" not in out

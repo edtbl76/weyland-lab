@@ -117,7 +117,7 @@ gateway, not in prose.
 | **Lab rules** | `AGENTS.md`, `CLAUDE.md`, ADRs (git) | everyone | humans, through git (unchanged) |
 | **Project memory** | the existing notes (top level of `~/agent-memory/weyland/`) | everyone with memory access | any human; agents: create a new note, append to one, or edit one only with the version they read (below); move or delete: humans only |
 | **Task** | `task/<item>/` (a B-number or an incident id): working notes plus one `handoff.md` | everyone on the item | any participant, human or agent |
-| **Person** | `person/<username>/` | that person and that person's agents only | the same |
+| **Person** | `person/<username>/`: that person's OWN Basic Memory server (2026-11-23: the shared server is constrained to one project, so a project name cannot keep notes private) | that person and that person's agents only, through the governed tools | the same |
 | **Session** | each harness's own transcript and summary | that harness | that harness (unchanged; not in the store) |
 
 ### Identity and rights

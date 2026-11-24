@@ -7,7 +7,8 @@
 #   :11434  Ollama's front door (ollama-proxy.service): mother and timberback (every pod arrives SNATed to its node's
 #           IP; timberback added 2026-11-16 when litellm moved there, B134) + docker0 (OpenHands).
 #           The proxy also asks mother's callers for the bearer token; ufw keeps the rest of the LAN off it entirely.
-#   :8765   Basic Memory (B182): mother only (Bifrost).
+#   :8765   Basic Memory (B182): the k3s nodes only.
+#   :8766   emangini's person-layer Basic Memory (B256, 2026-11-23): the k3s nodes only (the memory compositor).
 #
 #   sudo nodes/rogueone/ufw/rogueone-ufw.sh --apply    idempotent (ufw skips a rule it already has)
 #   sudo nodes/rogueone/ufw/rogueone-ufw.sh --check    exit 0 in place · 1 drift, named · 2 cannot check
@@ -22,8 +23,10 @@ ALLOWS=(
   "11434|172.17.0.0/16"
   "8765|192.168.1.233"
   "8765|192.168.1.243"
+  "8766|192.168.1.233"
+  "8766|192.168.1.243"
 )
-PORTS=(11434 8765)
+PORTS=(11434 8765 8766)
 
 usage() { echo "usage: $0 --apply | --check" >&2; exit 2; }
 [ $# -eq 1 ] || usage

@@ -30,7 +30,7 @@ def _vk(vid, name, configs):
 def _settled():
     return [
         _vk("v1", "coding-agents", [_cfg(n, t) for n, t in r.desired("coding-agents").items()]),
-        _vk("v2", "operator", [_cfg("Excalidraw"), _cfg("Malwarebytes"), _cfg("Agent_Memory", r.MEMORY_READ)]),
+        _vk("v2", "operator", [_cfg("Excalidraw"), _cfg("Malwarebytes")]),
         _vk("v3", "chat-eval", []),
         _vk("v4", "realm-llm", []),
         _vk("v5", "agents-read", [_cfg(n, t) for n, t in r.desired("agents-read").items()]),
@@ -78,7 +78,7 @@ def test_settled_keys_are_unchanged_and_nothing_is_written():
 
 def test_a_missing_grant_is_put_as_the_full_set_and_read_back():
     vks = _settled()
-    vks[0]["mcp_configs"] = vks[0]["mcp_configs"][:-1]          # coding-agents lost Agent_Memory
+    vks[0]["mcp_configs"] = vks[0]["mcp_configs"][:-1]          # coding-agents lost its last grant (Jam)
     fake = _Fake(vks)
     lines, rc = r.reconcile(fake)
     assert rc == 0
@@ -91,17 +91,17 @@ def test_a_missing_grant_is_put_as_the_full_set_and_read_back():
 
 def test_existing_rows_keep_their_ids_so_unchanged_grants_are_updated_not_recreated():
     vks = _settled()
-    vks[1]["mcp_configs"] = [_cfg("Excalidraw", row=36), _cfg("Malwarebytes", row=37)]     # operator lost Agent_Memory
+    vks[1]["mcp_configs"] = [_cfg("Excalidraw", row=36)]     # operator lost Malwarebytes
     fake = _Fake(vks)
     r.reconcile(fake)
     (_, body), = fake.puts
     ids = {c["mcp_client_name"]: c.get("id") for c in body["mcp_configs"]}
-    assert ids == {"Excalidraw": 36, "Malwarebytes": 37, "Agent_Memory": None}
+    assert ids == {"Excalidraw": 36, "Malwarebytes": None}
 
 
 def test_partial_tool_scoping_round_trips_and_order_alone_is_not_a_change():
     vks = _settled()
-    vks[1]["mcp_configs"][2]["tools_to_execute"] = list(reversed(r.MEMORY_READ))
+    vks[0]["mcp_configs"][-1]["tools_to_execute"] = list(reversed(r.JAM_READ))   # coding-agents' Jam, reordered
     fake = _Fake(vks)
     _, rc = r.reconcile(fake)
     assert rc == 0 and fake.puts == []
@@ -109,12 +109,12 @@ def test_partial_tool_scoping_round_trips_and_order_alone_is_not_a_change():
 
 def test_a_widened_tool_list_is_narrowed_back():
     vks = _settled()
-    vks[1]["mcp_configs"][2]["tools_to_execute"] = ["*"]       # operator's memory became read-write
+    vks[0]["mcp_configs"][-1]["tools_to_execute"] = ["*"]       # coding-agents' Jam gained its write tools
     fake = _Fake(vks)
     r.reconcile(fake)
     (_, body), = fake.puts
-    mem = next(c for c in body["mcp_configs"] if c["mcp_client_name"] == "Agent_Memory")
-    assert sorted(mem["tools_to_execute"]) == sorted(r.MEMORY_READ)
+    jam = next(c for c in body["mcp_configs"] if c["mcp_client_name"] == "Jam")
+    assert sorted(jam["tools_to_execute"]) == sorted(r.JAM_READ)
 
 
 def test_an_extra_grant_is_revoked_and_chat_eval_stays_toolless():
@@ -213,7 +213,7 @@ def test_agents_read_keeps_what_realms_roster_uses():
     # weyland_fleet, Context7 and Perplexity. Dropping one would leave a Realm agent tool-less.
     grants = r.desired("agents-read")
     assert {"weyland_fleet", "Context7", "Perplexity"} <= set(grants)
-    assert grants["Agent_Memory"] == sorted(r.MEMORY_READ)
+    assert "Agent_Memory" not in grants   # B256: memory only through the governed gateway; the Realm declares none
 
 
 # --- 2026-10-16: `ship-txn`, the key the ship's MCP transaction uses from rogueone. It lives in a .env file on a laptop,
@@ -245,12 +245,11 @@ def test_coding_agents_can_read_a_jams_evidence():
     assert {"getDetails", "getConsoleLogs", "getNetworkRequests", "getEvents", "getFrames"} <= jam
 
 
-def test_no_key_writes_the_shared_memory_directly():
-    # B256 (2026-11-23): shared-memory writes go through the governed gateway (/mcp-memory, signed in as the person, the
-    # rights table, provenance stamped). No Bifrost key keeps Basic Memory's own write tools, which carry no identity.
+def test_no_key_reaches_the_shared_memory_directly():
+    # B256 (2026-11-23, owner: A strict): every memory read and write goes through the governed gateway, where the caller
+    # is identified and a read can never name a person's own project. Basic Memory's tools straight from Bifrost carry
+    # no identity and can name any project, so no key holds them, read or write.
     for name, entries in r.SCOPING.items():
         for e in entries:
-            if e == "Agent_Memory":
-                raise AssertionError(f"{name} holds every Agent_Memory tool, writes included")
-            if isinstance(e, tuple) and e[0] == "Agent_Memory":
-                assert set(e[1]) <= set(r.MEMORY_READ), name
+            client = e[0] if isinstance(e, tuple) else e
+            assert client != "Agent_Memory", f"{name} still reaches Basic Memory directly"

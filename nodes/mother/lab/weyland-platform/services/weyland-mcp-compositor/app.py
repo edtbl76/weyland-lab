@@ -52,9 +52,11 @@ if governed_writes_enabled(os.environ):
     from fastmcp.server.dependencies import get_http_headers
 
     import governed_write as gw
-    from governed_store import BasicMemoryStore, client_call
+    from governed_store import BasicMemoryStore, RoutingStore, client_call, person_urls
 
-    _store = BasicMemoryStore(client_call(os.environ["MEMORY_URL"]))
+    # The shared layers on the shared server; each person's layer on their OWN server (PERSON_MEMORY_URLS).
+    _store = RoutingStore(BasicMemoryStore(client_call(os.environ["MEMORY_URL"])),
+                          {name: BasicMemoryStore(client_call(url)) for name, url in person_urls(os.environ).items()})
     print("[compositor] governed writes ON (governed_write_note, governed_read_note)", flush=True)
 
     @app.tool(name="governed_write_note")
@@ -83,7 +85,8 @@ if governed_writes_enabled(os.environ):
         path, why = gw.read_path(identity, directory, title)   # layer, person rule and title checked together
         if why:
             raise ToolError(why)
-        raw = await _store.read_raw(path)
+        project, spath, _ = gw.store_location(directory, title)   # a person's notes are their own project
+        raw = await _store.read_raw(spath, project=project)
         if raw is None:
             raise ToolError(f"{path} does not exist")
         return {"path": path, "sha256": gw.sha256_of(raw), "text": raw}

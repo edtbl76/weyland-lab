@@ -161,6 +161,17 @@ def note_path(directory: str, title: str):
     return (f"{d}/{title}.md" if d else f"{title}.md"), None
 
 
+def store_location(directory: str, title: str):
+    """(project, path, directory) where a validated note lives in Basic Memory. The person layer is that person's OWN
+    project, `person-<name>`, at its root (owner, 2026-11-23: A strict), so no shared read tool can reach it; every
+    other layer is the shared project (None = the server default) at the same path callers see."""
+    layer, owner = _layer(directory or "")
+    if layer == "person":
+        return f"person-{owner}", f"{title}.md", ""
+    d = (directory or "").strip("/")
+    return None, (f"{d}/{title}.md" if d else f"{title}.md"), d
+
+
 def read_path(identity: Identity, directory: str, title: str):
     """(path, None) when `identity` may read that note through the governed read, else (None, reason)."""
     why = may_read(identity, directory)
@@ -183,16 +194,20 @@ def _refusal(identity: Identity, directory: str, title: str, content: str, opera
     return _allowed(identity, *_layer(directory or ""))
 
 
-async def _apply(store, operation, *, path, d, title, content, raw, stamp, created, expected_sha256) -> Outcome:
-    """Run one write class against the note's current text `raw` (None when the note does not exist)."""
+async def _apply(store, operation, *, path, where, title, content, stamp, created, expected_sha256) -> Outcome:
+    """Run one write class. `path` is the note as callers see it; `where` = (project, path, directory) in the store."""
+    project, spath, sdir = where
+    raw = await store.read_raw(spath, project=project)
     if operation == "create":
         if raw is not None:
             return Outcome(False, f"{path} exists: append to it, or replace it with the version you read")
-        return Outcome(True, "created", await store.write(title, d, content, {**created, **stamp}, False))
+        await store.write(title, sdir, content, {**created, **stamp}, False, project=project)
+        return Outcome(True, "created", path)
     if raw is None:
         return Outcome(False, f"{path} does not exist: create it first")
     if operation == "append":
-        return Outcome(True, "appended", await store.append(path, content, stamp))
+        await store.append(spath, content, stamp, project=project)
+        return Outcome(True, "appended", path)
     if not expected_sha256:
         return Outcome(False, "replace needs expected_sha256: the SHA-256 of the version you read")
     if expected_sha256 != sha256_of(raw):
@@ -200,7 +215,8 @@ async def _apply(store, operation, *, path, d, title, content, raw, stamp, creat
     old = _front(raw)
     kept = {"created_by": old.get("created_by", "unknown"), "created_at": old.get("created_at", "unknown"),
             "author_kind": old.get("author_kind", created["author_kind"]), "source": created["source"]}
-    return Outcome(True, "replaced", await store.write(title, d, content, {**kept, **stamp}, True))
+    await store.write(title, sdir, content, {**kept, **stamp}, True, project=project)
+    return Outcome(True, "replaced", path)
 
 
 async def governed_write(store, identity: Identity, *, directory: str, title: str, content: str, operation: str,
@@ -212,11 +228,10 @@ async def governed_write(store, identity: Identity, *, directory: str, title: st
     why = _refusal(identity, directory, title, content, operation)
     if why:
         return Outcome(False, why)
-    d = (directory or "").strip("/")
     path, _ = note_path(directory, title)   # already validated by _refusal
     # on_behalf_of is always named (null for a human): Basic Memory keeps frontmatter keys a write does not name, so a
     # human editing an agent's note would otherwise inherit the agent's "on behalf of" (found live, 2026-11-23).
     stamp = {"updated_by": who, "updated_at": now, "on_behalf_of": on_behalf_of}
     created = {"created_by": who, "created_at": now, "author_kind": kind, "source": source}
-    return await _apply(store, operation, path=path, d=d, title=title, content=content, raw=await store.read_raw(path),
-                        stamp=stamp, created=created, expected_sha256=expected_sha256)
+    return await _apply(store, operation, path=path, where=store_location(directory, title), title=title,
+                        content=content, stamp=stamp, created=created, expected_sha256=expected_sha256)

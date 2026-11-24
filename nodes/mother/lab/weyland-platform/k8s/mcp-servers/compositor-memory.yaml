@@ -38,6 +38,9 @@ spec:
             # Safe here only because this pod's NetworkPolicy admits the gateway alone, so X-Forwarded-User/-Consumer
             # were set by the gateway from a validated token. NEVER on the fleet compositor (Bifrost reaches it too).
             - { name: GOVERNED_WRITE, value: "1" }
+            # B256 (2026-11-23, owner: A strict): each person's layer is their OWN Basic Memory server on rogueone (ufw admits
+            # only the k3s nodes); the governed tools route person/<name> there, and refuse a person with no entry.
+            - { name: PERSON_MEMORY_URLS, value: "emangini=http://192.168.1.230:8766/mcp" }
             # Every other upstream OFF (an empty URL skips it — config.build_servers).
             - { name: CONTEXT_URL, value: "" }
             - { name: GRAFANA_URL, value: "" }
