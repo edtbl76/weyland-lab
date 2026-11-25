@@ -32,6 +32,7 @@ WOODPECKER_REPO = "edtbl76/weyland-lab"
 LOG_TAIL = 15
 ALERT_FAMILY = {"KubeJobFailed", "ScheduledJobFailed", "ScheduledJobStale", "ScheduledBackupFailed"}
 ALERT_NOISE = {"InfoInhibitor", "Watchdog"}
+CRON_KEY = "cronjob:"   # an item whose cause is a CronJob
 _SECRET = re.compile(r"(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{16,}"
                      r"|sk-[A-Za-z0-9_-]{16,}|xox[abpr]-[A-Za-z0-9-]{8,}|lin_api_[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16})")
 _BEARER = re.compile(r"(?i)(bearer\s+)\S+")
@@ -110,9 +111,12 @@ def parse_alerts(series: list) -> list:
             continue
         if name in ALERT_FAMILY and m.get("namespace") and (m.get("cronjob") or m.get("job_name")):
             cron = m.get("cronjob") or _RUN_SUFFIX.sub("", m["job_name"])
-            out.append(Failure("alerts", f"cronjob:{m['namespace']}/{cron}",
+            extra = {"namespace": m["namespace"], "cronjob": cron}
+            if m.get("job_name"):
+                extra["job_name"] = m["job_name"]
+            out.append(Failure("alerts", f"{CRON_KEY}{m['namespace']}/{cron}",
                                f"CronJob {m['namespace']}/{cron} failed or went stale", f"{name}: {m.get('job_name', cron)}",
-                               extra={"namespace": m["namespace"], "cronjob": cron}))
+                               extra=extra))
             continue
         subject = m.get("instance") or m.get("namespace") or m.get("job") or "-"
         out.append(Failure("alerts", f"alert:{name}:{subject}", f"{name} ({m.get('severity')}) on {subject}",
@@ -140,10 +144,11 @@ def parse_glitchtip(rows: list, since: float) -> list:
 
 
 def parse_linear(issues: list, since: float) -> list:
+    closed = ("canceled", "completed")   # a closed incident needs nothing (2026-11-25: EMA-360 was commented after cancel)
     return [Failure("incidents", f"incident:{i['identifier']}", f"Incident {i['identifier']}: {i['title']}",
                     f"state {(i.get('state') or {}).get('name')}", i.get("url", ""),
                     extra={"identifier": i["identifier"]})
-            for i in issues if iso_to_epoch(i["createdAt"]) >= since]
+            for i in issues if iso_to_epoch(i["createdAt"]) >= since and (i.get("state") or {}).get("type") not in closed]
 
 
 def parse_dependabot(repo: str, alerts: list, since: float) -> list:
@@ -238,11 +243,58 @@ def fetch_ci(since: float):
     return parse_woodpecker(pipelines, logs, since, last_green)
 
 
+def _owner_and_failure(job: dict) -> tuple:
+    owner = next((r["name"] for r in (job.get("metadata") or {}).get("ownerReferences") or []
+                  if r.get("kind") == "CronJob"), None)
+    failed = next((c.get("lastTransitionTime") for c in (job.get("status") or {}).get("conditions") or []
+                   if c.get("type") == "Failed"), None)
+    return owner, failed
+
+
+def _settle_one(f: Failure, jobs: dict, crons: dict, since) -> Failure | None:
+    """The item, re-keyed to its owning CronJob, or None when it is no longer broken."""
+    job = jobs.get(f.extra.get("job_name"))
+    owner, failed_at = _owner_and_failure(job) if job else (None, None)
+    cron = owner or f.extra["cronjob"]
+    if cron not in crons:
+        return None                                    # the CronJob no longer exists: nothing left to fix
+    last_ok = crons[cron]
+    failure = iso_to_epoch(failed_at) if failed_at else since
+    if last_ok and failure is not None and iso_to_epoch(last_ok) > failure:
+        return None                                    # a later run succeeded: superseded, like a CI failure
+    ns = f.extra["namespace"]
+    f.key, f.title = f"{CRON_KEY}{ns}/{cron}", f"CronJob {ns}/{cron} failed or went stale"
+    f.extra["cronjob"] = cron
+    return f
+
+
+def settle_cronjobs(items: list, jobs_by_ns: dict, crons_by_ns: dict, since: float | None = None) -> list:
+    """First unattended run, 2026-11-25: name each failed Job's CronJob from the Job's ownerReference (a hand-started
+    `<cj>-manual-<ts>` Job is still `<cj>`), and drop an item that is no longer broken: its CronJob is gone, or the
+    CronJob's last success is newer than the failure (failed Jobs keep their alerts firing for their 72 h TTL)."""
+    kept = []
+    for f in items:
+        if not f.key.startswith(CRON_KEY):
+            kept.append(f)
+            continue
+        ns = f.extra["namespace"]
+        jobs = {j["metadata"]["name"]: j for j in jobs_by_ns.get(ns) or []}
+        crons = {c["metadata"]["name"]: (c.get("status") or {}).get("lastSuccessfulTime") for c in crons_by_ns.get(ns) or []}
+        settled = _settle_one(f, jobs, crons, since)
+        if settled is not None:
+            kept.append(settled)
+    return kept
+
+
+def _cluster_list(kind: str, ns: str) -> list:
+    return json.loads(_run(["kubectl", "-n", ns, "get", kind, "-o", "json"])).get("items") or []
+
+
 def attach_job_logs(items: list, list_jobs, read_log) -> None:
     """For each CronJob item, the newest failed Job's log tail as evidence (the WHY the alert cannot carry). A log that
     is gone (the pod was reaped) is said, never treated as a failure of the source."""
     listings = {}
-    for f in (i for i in items if i.key.startswith("cronjob:")):
+    for f in (i for i in items if i.key.startswith(CRON_KEY)):
         ns, cron = f.extra["namespace"], f.extra["cronjob"]
         if ns not in listings:
             listings[ns] = list_jobs(ns)
@@ -274,6 +326,9 @@ def fetch_alerts(since: float):
     if data.get("status") != "success":
         raise SourceUnavailable(f"Prometheus answered {data.get('status')}")
     items = parse_alerts(data["data"]["result"])
+    namespaces = sorted({f.extra["namespace"] for f in items if f.key.startswith(CRON_KEY)})
+    items = settle_cronjobs(items, {ns: _cluster_list("jobs", ns) for ns in namespaces},
+                            {ns: _cluster_list("cronjobs", ns) for ns in namespaces}, since)
     attach_job_logs(items, _list_jobs, _read_job_log)
     return items
 
@@ -316,7 +371,7 @@ def fetch_incidents(since: float):
         raise SourceUnavailable("LINEAR_API_KEY_RO not set")
     iso = datetime.datetime.fromtimestamp(since, tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     query = ('query($since: DateTimeOrDuration!){issues(first: 50, filter: {project: {name: {eq: "Weyland Auto-Filed"}}, '
-             'createdAt: {gte: $since}}){nodes{identifier title url createdAt state{name}}}}')
+             'createdAt: {gte: $since}}){nodes{identifier title url createdAt state{name type}}}}')
     data = _http_json("https://api.linear.app/graphql", {"Content-Type": "application/json", "Authorization": key},
                       json.dumps({"query": query, "variables": {"since": iso}}).encode())
     if data.get("errors"):

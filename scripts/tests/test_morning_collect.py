@@ -62,7 +62,7 @@ def test_relevant_alerts_become_failures_and_noise_is_dropped():
                     "cronjob:weyland/pr-staleness-check"]
     failures, _ = mc.collect(0, {"alerts": lambda _s: mc.parse_alerts(series)})
     job = next(f for f in failures if f.key == "cronjob:weyland/pr-staleness-check")
-    assert job.extra == {"namespace": "weyland", "cronjob": "pr-staleness-check"}
+    assert job.extra["namespace"] == "weyland" and job.extra["cronjob"] == "pr-staleness-check"
     assert "KubeJobFailed" in job.evidence and "ScheduledJobFailed" in job.evidence
 
 
@@ -182,3 +182,61 @@ def test_two_failed_runs_of_one_job_are_one_item_that_still_owns_both_runs_repor
     assert [f.key for f in failures] == ["dagster:b243_seed_job"]
     assert failures[0].extra["run_id"] == new and failures[0].extra["run_ids"] == [new, old]
     assert "X-182" in failures[0].evidence
+
+
+# --- first unattended run, 2026-11-25: stale CronJob items -------------------------------------------------------------
+def _job(name, owner, failed_at):
+    return {"metadata": {"name": name, "namespace": "weyland",
+                         "ownerReferences": [{"kind": "CronJob", "name": owner}] if owner else []},
+            "status": {"conditions": [{"type": "FailureTarget", "lastTransitionTime": failed_at},
+                                      {"type": "Failed", "lastTransitionTime": failed_at}]}}
+
+
+def _cron(name, last_success):
+    return {"metadata": {"name": name, "namespace": "weyland"}, "status": {"lastSuccessfulTime": last_success}}
+
+
+def _alert(job_name):
+    return mc.parse_alerts([{"metric": {"alertname": "KubeJobFailed", "severity": "warning", "namespace": "weyland",
+                                        "job_name": job_name}}])[0]
+
+
+def test_a_hand_started_job_belongs_to_the_cronjob_that_owns_it():
+    # Live: code-scan-suite-manual-202611241552 was reported as a CronJob called "code-scan-suite-manual".
+    item = _alert("code-scan-suite-manual-202611241552")
+    kept = mc.settle_cronjobs([item], {"weyland": [_job("code-scan-suite-manual-202611241552", "code-scan-suite",
+                                                        "2026-11-24T21:53:04Z")]},
+                              {"weyland": [_cron("code-scan-suite", "2026-11-24T20:00:00Z")]})
+    assert [f.key for f in kept] == ["cronjob:weyland/code-scan-suite"]
+    assert kept[0].extra["cronjob"] == "code-scan-suite"
+
+
+def test_a_cronjob_that_succeeded_after_its_failure_is_dropped():
+    # Live: the three B259 jobs passed at 04:53Z but their failed Jobs (72 h TTL) kept the alerts firing.
+    item = _alert("code-scan-suite-manual-202611241552")
+    kept = mc.settle_cronjobs([item], {"weyland": [_job("code-scan-suite-manual-202611241552", "code-scan-suite",
+                                                        "2026-11-24T21:53:04Z")]},
+                              {"weyland": [_cron("code-scan-suite", "2026-11-25T04:53:12Z")]})
+    assert kept == []
+
+
+def test_a_failure_whose_cronjob_no_longer_exists_is_dropped():
+    # Live: the removed b243-seed CronJob's alerts were still inside the 24 h window.
+    item = _alert("b243-seed-29924200")
+    assert mc.settle_cronjobs([item], {"weyland": []}, {"weyland": []}) == []
+
+
+def test_other_alerts_pass_through_untouched():
+    other = mc.Failure("alerts", "alert:NodeDiskFull:mother", "t", "e", extra={"labels": {}})
+    assert mc.settle_cronjobs([other], {}, {}) == [other]
+
+
+def test_a_canceled_or_done_incident_is_not_collected():
+    # Live: EMA-360 had been canceled and still got a comment.
+    issues = [{"identifier": "EMA-360", "title": "seed", "url": "u", "createdAt": "2026-11-24T15:05:07Z",
+               "state": {"name": "Canceled", "type": "canceled"}},
+              {"identifier": "EMA-361", "title": "done", "url": "u", "createdAt": "2026-11-24T15:05:07Z",
+               "state": {"name": "Done", "type": "completed"}},
+              {"identifier": "EMA-359", "title": "real", "url": "u", "createdAt": "2026-11-24T15:05:07Z",
+               "state": {"name": "Todo", "type": "unstarted"}}]
+    assert [f.key for f in mc.parse_linear(issues, since=0)] == ["incident:EMA-359"]

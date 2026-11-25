@@ -11,10 +11,10 @@ Linear: EMA-342. Schedule: [schedules.md](../schedules.md) (05:30, node systemd)
    | Source | Read through | One item per |
    |---|---|---|
    | `ci` | Woodpecker API (`WOODPECKER_SERVER`/`_TOKEN`): failed pipelines, failed steps (not `killed` ones), the step's log tail | workflow/step; a failure a later green pipeline superseded is dropped |
-   | `alerts` | Prometheus `ALERTS` at the `prometheus-lan` NodePort (`http://mother:30909`): every critical, plus `KubeJobFailed`, `ScheduledJobFailed`, `ScheduledJobStale`, `ScheduledBackupFailed` | CronJob (all of a CronJob's alerts merge), with the newest failed Job's log tail |
+   | `alerts` | Prometheus `ALERTS` at the `prometheus-lan` NodePort (`http://mother:30909`): every critical, plus `KubeJobFailed`, `ScheduledJobFailed`, `ScheduledJobStale`, `ScheduledBackupFailed` | CronJob, named from the failed Job's ownerReference (so a hand-started `<cj>-manual-<ts>` Job is `<cj>`); all of a CronJob's alerts merge, with the newest failed Job's log tail. Dropped when the CronJob's `lastSuccessfulTime` is newer than the failure (failed Jobs keep alerting for their 72 h TTL) or the CronJob no longer exists (2026-11-25) |
    | `dagster` | `dagster_runs.py --json-since` piped into `deploy/dagster-user-code` | failed run; runs the runner itself started (tag `weyland/started-by=morning-remediation`) are marked agent-caused |
    | `glitchtip` | a read-only ORM query in `deploy/glitchtip-web`'s Django shell (`IssueIndex`) | unresolved issue seen in the window (new or recurring) |
-   | `incidents` | Linear GraphQL (`LINEAR_API_KEY_RO`), project **Weyland Auto-Filed** | incident filed in the window |
+   | `incidents` | Linear GraphQL (`LINEAR_API_KEY_RO`), project **Weyland Auto-Filed** | incident filed in the window and still open (canceled or done ones are skipped) |
    | `dependabot` | `gh api repos/edtbl76/<repo>/dependabot/alerts` for each `status: active` repo in `repos.yaml` | new high or critical alert |
 
    A source that cannot be read is reported **NOT CHECKED** with the reason, never as "nothing broke". Evidence is
