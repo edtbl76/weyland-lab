@@ -182,6 +182,26 @@ teardown() {
   [ "$(echo "$output" | grep -c 'selfcheck')" -eq 0 ]            # its selfcheck is NOT a separate one
 }
 
+@test "a golden path's integration/ dir is never its own project, and the unit run ignores it (B260)" {
+  # integration/ holds tests against REAL backends; its conftest refuses to run without them (fail closed). The
+  # unit lane must neither discover it as a separate python project nor collect it from the path's own dir;
+  # the integration-python CI step runs it with the backends.
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/golden-paths/python/fw/integration"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/golden-paths/python/fw/test_main.py"
+  : > "$SANDBOX/scan/golden-paths/python/fw/integration/test_backends.py"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python --list-roots
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"golden-paths/python/fw"* ]]
+  [ "$(echo "$output" | grep -c 'integration')" -eq 0 ]
+  stub pytest 0 "1 passed"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python
+  [ "$status" -eq 0 ]
+  grep -qE '^pytest .*--ignore=selfcheck --ignore=integration' "$STUB_LOG"
+}
+
 @test "the coding-agent eval fixture tree is never discovered as a project (B104)" {
   # eval/coding-agents/tasks/<id>/ ships a deliberately-buggy Red test + a solution/. Discovering it
   # runs a test built to FAIL and reds the lane (test-python did, 2026-09-10). It must be excluded.

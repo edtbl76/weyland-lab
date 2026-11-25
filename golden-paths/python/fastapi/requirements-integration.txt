@@ -1,0 +1,6 @@
+# The integration tier's clients (B260; owner-approved 2026-11-25, each the newest release >= 14 days old).
+# Installed only by the `integration-python` CI step and by a scaffolded service that serves `backends:app`.
+psycopg[binary]==3.3.8
+redis==8.1.0
+confluent-kafka==2.16.1
+boto3==1.44.0

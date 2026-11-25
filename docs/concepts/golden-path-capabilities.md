@@ -107,7 +107,7 @@ module (an `ItemStore` backed by Postgres, plus the cache, event and object adap
 
 | Backend | Exercise | Why this one |
 |---|---|---|
-| **Postgres 16** | the `ItemStore` (create/get/list, a migration) | the estate's core store; every ecosystem has a mature client |
+| **Postgres 17** | the `ItemStore` (create/get/list, a migration) | the estate's core store; every ecosystem has a mature client |
 | **Valkey 8** | read-through cache for `GET /items/{id}` | the estate's cache (Feast online store, GlitchTip) |
 | **Redpanda** (Kafka API) | publish an `item.created` event, read it back | the estate's event bus (DataHub, Flink) |
 | **MinIO** (S3 API) | store an item attachment, read it back | the estate's object store (Iceberg, backups) |
@@ -129,6 +129,9 @@ JWKS would be a mock; a later "auth tier" item. **Never mock a backend and count
 | PHP | 1 | PDO pgsql | predis | skip (needs the rdkafka C extension in the image; revisit) | aws-sdk-php |
 | BEAM (Elixir, Erlang) | 3 | Postgrex / epgsql | Redix / eredis | brod | ExAws / erlcloud |
 | Long tail (Swift, Dart, Haskell, Julia, Perl, R, Lua, Ada, C, C++) | 10 | **Postgres only** where a maintained client exists (PostgresNIO, postgres.dart, postgresql-simple, LibPQ.jl, Mojo::Pg, RPostgres, pgmoon, GNATCOLL.SQL, libpq, libpqxx) | skip | skip | skip — the long tail proves its language can reach the core store; the rest is matrix cost without lab value |
+
+**Images:** the ones the lab already runs: `postgres:17-alpine`, `valkey/valkey:8-alpine`, Redpanda `v24.2.7`,
+`alpine/minio:RELEASE.2025-10-15T17-29-55Z` (served from `/tmp/data`: its `/data` is not writable without a volume).
 
 **CI shape:** one `integration-<ecosystem>` step per ecosystem, with the four backends as Woodpecker `services:`
 sidecars, selected by changed paths (the B161 selector) so a run pays only for what changed. **Unproven here:** no
@@ -166,6 +169,15 @@ every path green, raises its lines in `tests/lang/coverage-baseline.tsv`, and te
 
 **Order rationale:** 1 sets the contract, harness and CI pattern everything else reuses; 2-8 follow the estate's
 weight (Python first, the long tail last); the clients (10-11) come after the services they would call.
+
+## Built so far
+
+- **B260 (python/fastapi), 2026-11-25:** v2 C1-C11 in FastAPI (30 tests, 100% coverage); the v2 smoke sequence in the
+  path's own `smoke.py` (each path's smoke runs in its image, so the sequence lives per path, not in
+  `run-golden-path-jobs.sh`); `backends.py` with Postgres, Valkey, Redpanda and MinIO, proven locally against real
+  containers (5 tests) and failing closed; `.woodpecker/golden-integration.yml` with the four as `services:`
+  sidecars and `scripts/ci/golden-integration.sh` (bats-tested). The integration module lives in the path for now;
+  B261 (the second Python consumer) decides whether to extract it to a shared Python location.
 
 ## Risks
 

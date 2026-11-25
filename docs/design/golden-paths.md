@@ -28,6 +28,11 @@ CONTRACT, never the framework — frameworks are interchangeable implementations
 | **Observability** | structured logging + `/metrics`; an OTel hook (or a documented stub). |
 | **Scaffold seam** | parameterized name/port placeholders so `scripts/new-service.sh <golden-path> <name>` stamps a real service. |
 
+**Deep contract v2 (B163, 2026-11-25):** the paths are being deepened to a uniform v2 (`/items` CRUD, validation,
+an error envelope, request-id middleware, config, DI, lifecycle, tracing) in each framework's idiom, with an
+integration tier per language ecosystem: [concepts/golden-path-capabilities.md](../concepts/golden-path-capabilities.md).
+The reference is python/fastapi (B260); the rest follow as B261-B270.
+
 ## The locked framework matrix (B153 — 21; B160 +14 → 35; B164 +9 service +4 mobile clients → 48 total)
 
 | Language | Frameworks | Lane runner |

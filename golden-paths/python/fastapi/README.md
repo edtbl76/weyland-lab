@@ -59,8 +59,32 @@ run `scripts/gen-api-contract-lock.sh`, and the onboarding + API-lifecycle guard
 
 | Facet | This golden path |
 |---|---|
-| HTTP surface | `/health` `/ready` `/metrics` `/hello` (main.py) |
-| Self-test | `tests/test_main.py` (TestClient over all four) + `selfcheck/` (deliberate fail) |
+| HTTP surface | `/health` `/ready` `/metrics` `/hello`, plus the deep contract v2 `/items` API (main.py) |
+| Self-test | `test_main.py` (TestClient, one test per v2 row, 100% coverage) + `selfcheck/` (deliberate fail) |
 | Build | multi-stage non-root `Dockerfile` → `registry.weyland.lab/golden-python-fastapi` |
-| Observability | structured JSON logging + `/metrics` (prometheus-client counter) |
+| Observability | JSON access log with `X-Request-ID`, per-route `/metrics`, OTel spans when `OTEL_EXPORTER_OTLP_ENDPOINT` is set |
 | API lifecycle | OpenAPI at `/openapi.json` (FastAPI-native) → captured by B155 |
+
+## Deep contract v2 (B163 / B260) — the reference implementation
+
+Every row of [the deep contract](../../../docs/concepts/golden-path-capabilities.md), in FastAPI's own idiom:
+
+| Row | Here |
+|---|---|
+| C1 routing | `GET /items?limit&offset`, `GET /items/{item_id}`, `POST /items` |
+| C2 validation | Pydantic `ItemIn` (name 1-64, ≤ 5 tags) and `Query(ge=, le=)`; invalid = 422 with `fields` |
+| C3 errors | exception handlers → `{"error": {"code", "message", "request_id"}}` for 404/405/422/500/503 |
+| C4 middleware | `@app.middleware("http")`: `X-Request-ID` echoed or generated; one JSON access-log line |
+| C5 metrics | `http_requests_total{route,status}`, `http_request_duration_seconds` (route = the template) |
+| C6 config | `Settings.from_env()`: `GOLDEN_GREETING`, validated at startup (empty refuses to start) |
+| C7 DI | `ItemStore` via `Depends(get_store)`; `InMemoryItemStore` by default |
+| C8 lifecycle | `lifespan` opens the store and flips `/ready` (503 before); uvicorn drains on SIGTERM |
+| C9 tests | `TestClient`, `test_main.py` |
+| C10 OpenAPI | `/openapi.json` |
+| C11 tracing | `setup_tracing()`: OTLP export when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, a no-op otherwise |
+
+**Real backends** (`backends.py`, `requirements-integration.txt`): set `GOLDEN_DATABASE_URL` (Postgres), and
+optionally `GOLDEN_VALKEY_URL` (read-through cache), `GOLDEN_KAFKA_BOOTSTRAP` (`item.created` events) and the
+`GOLDEN_S3_*` settings (attachments), then serve `uvicorn backends:app`. `integration/` tests them against real
+backends in CI (`.woodpecker/golden-integration.yml`); its conftest refuses to run without them. The unit lane
+ignores `integration/`.

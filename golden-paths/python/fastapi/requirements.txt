@@ -1,3 +1,8 @@
 fastapi
 uvicorn[standard]
 prometheus-client
+# C11 tracing (B260; owner-approved 2026-11-25, newest release >= 14 days old): spans per request when
+# OTEL_EXPORTER_OTLP_ENDPOINT is set, a no-op otherwise. A matched release set: bump them together.
+opentelemetry-sdk==1.45.2
+opentelemetry-exporter-otlp-proto-http==1.45.2
+opentelemetry-instrumentation-fastapi==0.66b2

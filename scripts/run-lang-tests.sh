@@ -244,6 +244,10 @@ is_excluded() {
     # excluded (the whole tree is); this also covers golden-paths/<lang>/<fw>/selfcheck (B153).
     */selfcheck/*)
       return 0 ;;
+    # A golden path's integration/ dir holds tests against REAL backends (B260): its conftest refuses to run
+    # without them, so it is never a standalone project; the integration-python CI step runs it with sidecars.
+    */golden-paths/*/integration/*)
+      return 0 ;;
     # The coding-agent eval harness (B104) ships task FIXTURES under eval/coding-agents/tasks/<id>/ —
     # deliberately-buggy code + a "Red" test designed to FAIL + a solution/. Those test_*.py / *_test.*
     # files are fixtures, NOT real projects; discovering them runs a test built to fail and reds the lane
@@ -479,7 +483,7 @@ run_in_raw() {
           printf 'LANE BROKEN: pip install -r requirements-test.txt failed in %s\n' "$dir" >&2; return 2; }
       fi
       if [ "$mode" = selfcheck ]; then (cd "$dir" && pytest -q -p no:cacheprovider selfcheck)
-      else (cd "$dir" && pytest -q -p no:cacheprovider ${JB:+"--junitxml=$JB.xml"} --ignore=selfcheck); fi ;;
+      else (cd "$dir" && pytest -q -p no:cacheprovider ${JB:+"--junitxml=$JB.xml"} --ignore=selfcheck --ignore=integration); fi ;;
     shell)
       # bats writes report.xml into an existing --output dir; run_in moves it to $JB.xml afterwards.
       if [ "$mode" = selfcheck ]; then (cd "$dir" && bats selfcheck)

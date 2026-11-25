@@ -1,4 +1,9 @@
 # The golden-path lane's per-project test deps (installed by run-lang-tests.sh before pytest).
-# httpx backs FastAPI's TestClient; fastapi is imported by the app under test.
+# httpx backs FastAPI's TestClient; the rest are what main.py imports (the tracing test uses the SDK's
+# in-memory exporter).
 fastapi
 httpx
+prometheus-client
+opentelemetry-sdk==1.45.2
+opentelemetry-exporter-otlp-proto-http==1.45.2
+opentelemetry-instrumentation-fastapi==0.66b2

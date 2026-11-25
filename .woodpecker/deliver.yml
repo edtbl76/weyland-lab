@@ -7,7 +7,7 @@ labels:
 when:
   - event: manual
   - event: cron
-depends_on: [platform, fixtures-haskell, fixtures-a, fixtures-b, fixtures-c, golden-path-1, golden-path-2, golden-path-3]
+depends_on: [platform, fixtures-haskell, fixtures-a, fixtures-b, fixtures-c, golden-path-1, golden-path-2, golden-path-3, golden-integration]
 steps:
 
   # ── 2. detect which images changed since their currently-deployed git-<sha> ──

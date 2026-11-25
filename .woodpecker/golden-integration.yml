@@ -1,0 +1,78 @@
+# golden-integration — the golden paths' integration tier (B163 deep contract v2; B260): each language ecosystem's
+# integration/ tests against REAL Postgres, Valkey, Redpanda and MinIO, started here as Woodpecker services
+# (sidecars, reached by their service name). Nothing is mocked. The runner waits for every backend and fails closed
+# (scripts/ci/golden-integration.sh, tested by scripts/tests/golden-integration.bats). Its own workflow so the
+# sidecars start only here, not on every platform run. Rules every workflow follows: .woodpecker/README.md.
+labels:
+  backend: kubernetes
+  node: timberback    # golden-path and sample-app work runs on timberback (B200 step 3). See README.md.
+when:
+  - event: manual
+  - event: cron
+
+# The backends, the same images the lab runs (k8s/). Ports declared so each gets a regular Kubernetes Service.
+services:
+  - name: postgres
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: golden
+      POSTGRES_DB: golden
+    ports: [5432]
+  - name: valkey
+    image: valkey/valkey:8-alpine
+    ports: [6379]
+  - name: redpanda
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    commands:
+      - rpk redpanda start --mode dev-container --smp 1 --memory 1G --overprovisioned --kafka-addr PLAINTEXT://0.0.0.0:9092 --advertise-kafka-addr PLAINTEXT://redpanda:9092
+    ports: [9092]
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 2Gi
+  - name: minio
+    image: alpine/minio:RELEASE.2025-10-15T17-29-55Z
+    environment:
+      MINIO_ROOT_USER: golden
+      MINIO_ROOT_PASSWORD: golden-secret
+    commands:
+      - minio server /tmp/data   # /data is not writable by the image's user without a volume (seen 2026-11-25)
+    ports: [9000]
+
+steps:
+  - name: integration-python
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " integration-python ")'}]
+    image: python:3.12-slim
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+      GOLDEN_DATABASE_URL: postgresql://postgres:golden@postgres:5432/golden
+      GOLDEN_VALKEY_URL: redis://valkey:6379/0
+      GOLDEN_KAFKA_BOOTSTRAP: redpanda:9092
+      GOLDEN_S3_ENDPOINT: http://minio:9000
+      GOLDEN_S3_ACCESS_KEY: golden
+      GOLDEN_S3_SECRET_KEY: golden-secret
+    commands:
+      - pip install --quiet --no-cache-dir pytest
+      - bash scripts/ci/golden-integration.sh python
+
+  - name: trunk-upload
+    image: alpine:3.20
+    when:
+      - event: [manual, cron]
+        status: [success, failure]
+        evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " integration-python ")'
+    environment:
+      TRUNK_API_TOKEN:
+        from_secret: trunk_org_token
+      TRUNK_COLLECTION_ID: ZuFEh5e5
+      TRUNK_CLI_VERSION: 0.16.1
+      TRUNK_CLI_SHA256: 8c34f99a41d4b3151f711aca05d01478b2f707dd698d3980d2524646021af5f2
+    commands:
+      - apk add --no-cache bash curl git >/dev/null
+      - curl -sSfL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/trunk-cli.tgz "https://github.com/trunk-io/analytics-cli/releases/download/$TRUNK_CLI_VERSION/trunk-analytics-cli-x86_64-unknown-linux.tar.gz"
+      - echo "$TRUNK_CLI_SHA256  /tmp/trunk-cli.tgz" | sha256sum -c -
+      - tar -xzf /tmp/trunk-cli.tgz -C /usr/local/bin trunk-analytics-cli
+      - bash scripts/ci/trunk-upload.sh reports/junit

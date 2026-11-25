@@ -112,7 +112,7 @@ cov_python() { # pytest-cov; term-report's TOTAL row for the ratchet, + a Cobert
   # scan's /usr/src layout, and the weekly sonar-scan CronJob consumes it via sonar.python.coverage.reportPaths.
   # It goes to a FILE, not stdout, so the term-report pipe below is unaffected; CI ignores the file entirely.
   need pytest pytest
-  ( cd "$1" && pytest -q -p no:cacheprovider --ignore=selfcheck \
+  ( cd "$1" && pytest -q -p no:cacheprovider --ignore=selfcheck --ignore=integration \
       --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml 2>/dev/null \
       | awk '/^TOTAL/{gsub(/%/,"",$NF); print $NF}' )
 }

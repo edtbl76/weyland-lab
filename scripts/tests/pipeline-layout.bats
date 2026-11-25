@@ -101,7 +101,7 @@ check() { run python3 "$CHECK" "$1"; }
 @test "the real pipeline follows every layout rule" {
   check "$REPO/.woodpecker"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  [[ "$output" == *"10 workflow(s)"* ]] || { echo "$output"; return 1; }
+  [[ "$output" == *"11 workflow(s)"* ]]   # + golden-integration (B260, 2026-11-25) || { echo "$output"; return 1; }
 }
 
 @test "a workflow with no node label is refused" {
