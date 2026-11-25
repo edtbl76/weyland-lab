@@ -139,3 +139,18 @@ def test_json_rows_keep_runs_since_the_cutoff_and_mark_the_agents_own():
     rows = dr.json_rows(results, since=1000)
     assert [r["runId"] for r in rows] == ["a", "b"]
     assert rows[0]["started_by_agent"] is False and rows[1]["started_by_agent"] is True
+
+
+def test_json_rows_say_whether_the_failed_runs_job_is_still_defined():
+    # 2026-11-25: a failed run of b243_seed_job (removed from the code) kept the morning report from being quiet.
+    results = [{"runId": "a", "jobName": "kept_job", "status": "FAILURE", "startTime": 1, "endTime": 2000, "tags": []},
+               {"runId": "b", "jobName": "gone_job", "status": "FAILURE", "startTime": 1, "endTime": 2000, "tags": []}]
+    rows = dr.json_rows(results, since=1000, defined={"kept_job"})
+    assert [(r["runId"], r["job_defined"]) for r in rows] == [("a", True), ("b", False)]
+    assert dr.json_rows(results, since=1000)[1]["job_defined"] is True   # unknown definitions: assume defined
+
+
+def test_the_job_names_query_reads_every_repository():
+    assert "repositoriesOrError" in dr.JOBS_QUERY and "jobs{name}" in dr.JOBS_QUERY
+    answer = {"repositoriesOrError": {"nodes": [{"jobs": [{"name": "a"}, {"name": "b"}]}, {"jobs": [{"name": "c"}]}]}}
+    assert dr.job_names(answer) == {"a", "b", "c"}

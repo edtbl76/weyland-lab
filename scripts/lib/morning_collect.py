@@ -127,7 +127,8 @@ def parse_alerts(series: list) -> list:
 def parse_dagster(rows: list) -> list:
     return [Failure("dagster", f"dagster:{r['jobName']}", f"Dagster run {r['runId']} of {r['jobName']} failed",
                     scrub("\n".join(r.get("failures") or [])), agent_caused=bool(r.get("started_by_agent")),
-                    extra={"run_id": r["runId"], "run_ids": [r["runId"]], "job": r["jobName"]}) for r in rows]
+                    extra={"run_id": r["runId"], "run_ids": [r["runId"]], "job": r["jobName"],
+                           "job_defined": r.get("job_defined", True)}) for r in rows]
 
 
 def parse_glitchtip(rows: list, since: float) -> list:
@@ -181,7 +182,10 @@ def collect(since: float, fetchers: dict) -> tuple:
         status[name] = f"checked ({note})" if note else "checked"
         for f in items:
             _merge(merged, f)
-    return _fold_run_reports(list(merged.values())), status
+    folded = _fold_run_reports(list(merged.values()))
+    # A failed run of a job the code no longer defines is nothing left to fix (2026-11-25). Dropped AFTER the fold, so
+    # GlitchTip's reports about that run leave with it instead of being reported on their own.
+    return [f for f in folded if f.extra.get("job_defined", True)], status
 
 
 def _merge(merged: dict, f: Failure) -> None:

@@ -240,3 +240,17 @@ def test_a_canceled_or_done_incident_is_not_collected():
               {"identifier": "EMA-359", "title": "real", "url": "u", "createdAt": "2026-11-24T15:05:07Z",
                "state": {"name": "Todo", "type": "unstarted"}}]
     assert [f.key for f in mc.parse_linear(issues, since=0)] == ["incident:EMA-359"]
+
+
+def test_a_failed_run_of_a_job_the_code_no_longer_defines_is_dropped_with_its_glitchtip_reports():
+    # Live 2026-11-25: dropping the removed job's run BEFORE the fold left Dagster's two GlitchTip reports about that run
+    # orphaned, so they were reported on their own. Fold first, then drop the item and everything folded into it.
+    gone = "0ca5f5b8-4b56-4554-86cb-46d88a580a77"
+    rows = [{"runId": gone, "jobName": "b243_seed_job", "endTime": 2000, "started_by_agent": False, "failures": [],
+             "job_defined": False},
+            {"runId": "r2", "jobName": "real_job", "endTime": 2000, "started_by_agent": False, "failures": [],
+             "job_defined": True}]
+    reports = [mc.Failure("glitchtip", "glitchtip:weyland-dagster/X-183", f"b243_seed_job - {gone} - STEP_FAILURE", ""),
+               mc.Failure("glitchtip", "glitchtip:weyland-dagster/X-185", "a real error", "")]
+    failures, _ = mc.collect(0, {"dagster": lambda _s: mc.parse_dagster(rows), "glitchtip": lambda _s: reports})
+    assert [f.key for f in failures] == ["dagster:real_job", "glitchtip:weyland-dagster/X-185"]

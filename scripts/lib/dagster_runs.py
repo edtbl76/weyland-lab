@@ -118,16 +118,26 @@ def run_rows(results: list[dict]) -> list[str]:
 AGENT_TAG = ("weyland/started-by", "morning-remediation")   # B243: runs the morning runner re-executed
 
 
-def json_rows(results: list[dict], since: float) -> list[dict]:
+JOBS_QUERY = "{repositoriesOrError{... on RepositoryConnection{nodes{jobs{name}}}}}"
+
+
+def job_names(answer: dict) -> set:
+    """Every job the loaded code locations define."""
+    return {j["name"] for n in (answer.get("repositoriesOrError") or {}).get("nodes") or [] for j in n.get("jobs") or []}
+
+
+def json_rows(results: list[dict], since: float, defined: set | None = None) -> list[dict]:
     """B243 (2026-11-24): failed runs that ended at or after `since` (epoch seconds), for the morning collector, each
-    marked when the morning runner itself started it (tag weyland/started-by=morning-remediation)."""
+    marked when the morning runner itself started it (tag weyland/started-by=morning-remediation), and whether its job
+    is still defined (2026-11-25: a removed job's failed run is nothing left to fix). Unknown definitions: defined."""
     rows = []
     for r in results:
         if (r.get("endTime") or r.get("startTime") or 0) < since:
             continue
         tags = {t.get("key"): t.get("value") for t in r.get("tags") or []}
         rows.append({"runId": r["runId"], "jobName": r["jobName"], "endTime": r.get("endTime"),
-                     "started_by_agent": tags.get(AGENT_TAG[0]) == AGENT_TAG[1]})
+                     "started_by_agent": tags.get(AGENT_TAG[0]) == AGENT_TAG[1],
+                     "job_defined": defined is None or r["jobName"] in defined})
     return rows
 
 
@@ -197,7 +207,7 @@ def main(argv: list[str]) -> int:
             if runs["__typename"] != "Runs":
                 print(f"dagster_runs: {runs.get('message', runs['__typename'])}", file=sys.stderr)
                 return 2
-            rows = json_rows(runs["results"], a.json_since)
+            rows = json_rows(runs["results"], a.json_since, job_names(_ask(JOBS_QUERY)))
             for row in rows:
                 run = _ask(run_query(row["runId"]))["runOrError"]
                 row["failures"] = failure_lines((run.get("eventConnection") or {}).get("events") or [])
