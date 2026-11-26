@@ -66,3 +66,14 @@ stub() { # stub <cmd> <exit> <output>
   [ "$status" -eq 1 ]
   [[ "$output" == *"python/fw"* && "$output" == *"FAILED"* ]]
 }
+
+@test "REGRESSION (CI #739): a relative LANG_JUNIT_DIR resolves from where the runner starts, not inside a path" {
+  # CI passes reports/junit; the runner resolved it after cd-ing into the golden path, found nothing, and the
+  # report landed outside the workspace, so trunk-upload had nothing to upload.
+  stub pip 0 ok; stub pytest 0 "5 passed"
+  cd "$SANDBOX"
+  LANG_JUNIT_DIR=reports/junit run bash "$RUNNER" python
+  [ "$status" -eq 0 ]
+  [ -d "$SANDBOX/reports/junit" ]
+  grep -qE "^pytest .*--junitxml=$SANDBOX/reports/junit/golden-integration-python-fw\.xml" "$STUB_LOG"
+}

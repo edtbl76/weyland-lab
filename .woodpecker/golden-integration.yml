@@ -23,8 +23,11 @@ services:
     ports: [6379]
   - name: redpanda
     image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
-    commands:
-      - rpk redpanda start --mode dev-container --smp 1 --memory 1G --overprovisioned --kafka-addr PLAINTEXT://0.0.0.0:9092 --advertise-kafka-addr PLAINTEXT://redpanda:9092
+    # entrypoint, not commands: commands run inside a wrapper shell that does not pass SIGTERM on, and a service
+    # killed at teardown fails the workflow (CI #739: minio, exit 137). No shell, so the server gets the signal.
+    entrypoint: ["rpk", "redpanda", "start", "--mode", "dev-container", "--smp", "1", "--memory", "1G",
+                 "--overprovisioned", "--kafka-addr", "PLAINTEXT://0.0.0.0:9092",
+                 "--advertise-kafka-addr", "PLAINTEXT://redpanda:9092"]
     ports: [9092]
     backend_options:
       kubernetes:
@@ -38,8 +41,8 @@ services:
     environment:
       MINIO_ROOT_USER: golden
       MINIO_ROOT_PASSWORD: golden-secret
-    commands:
-      - minio server /tmp/data   # /data is not writable by the image's user without a volume (seen 2026-11-25)
+    # entrypoint (no wrapper shell, as above). /tmp/data: /data is not writable by the image's user without a volume.
+    entrypoint: ["minio", "server", "/tmp/data"]
     ports: [9000]
 
 steps:

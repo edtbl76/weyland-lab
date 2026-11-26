@@ -44,6 +44,7 @@ for pair in "postgres:${GOLDEN_DATABASE_URL:-}" "valkey:${GOLDEN_VALKEY_URL:-}" 
 done
 
 mkdir -p "$junit"
+junit="$(cd "$junit" && pwd)"   # absolute NOW: each path's tests run after a cd (CI #739 lost its report that way)
 ran=0 failed=()
 for dir in "${dirs[@]}"; do
   dir="${dir%/}"
@@ -54,7 +55,7 @@ for dir in "${dirs[@]}"; do
     failed+=("$path (client install)"); continue
   fi
   (cd "$dir" && pytest -q -p no:cacheprovider integration \
-      --junitxml="$(cd "$junit" && pwd)/golden-integration-${path//\//-}.xml") || failed+=("$path")
+      --junitxml="$junit/golden-integration-${path//\//-}.xml") || failed+=("$path")
 done
 
 if [ "$ran" -eq 0 ]; then
