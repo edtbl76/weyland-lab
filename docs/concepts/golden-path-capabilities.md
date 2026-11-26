@@ -134,10 +134,8 @@ JWKS would be a mock; a later "auth tier" item. **Never mock a backend and count
 `alpine/minio:RELEASE.2025-10-15T17-29-55Z` (served from `/tmp/data`: its `/data` is not writable without a volume).
 
 **CI shape:** one `integration-<ecosystem>` step per ecosystem, with the four backends as Woodpecker `services:`
-sidecars, selected by changed paths (the B161 selector) so a run pays only for what changed. **Unproven here:** no
-workflow in this repo uses `services:` yet on the Kubernetes backend. The first sub-item proves it before any other
-depends on it; if it cannot work, the fallback is the existing pattern (`test-integration-datahub` runs the backend
-image itself), decided there, with evidence.
+sidecars, selected by changed paths (the B161 selector) so a run pays only for what changed. **Proven by B260 (CI #741):** `services:` sidecars work on the Kubernetes backend, reached by service name; start
+them with `entrypoint:` (never `commands:`), so they shut down cleanly.
 
 ## The path set: 48, not 21
 
@@ -176,7 +174,11 @@ weight (Python first, the long tail last); the clients (10-11) come after the se
   path's own `smoke.py` (each path's smoke runs in its image, so the sequence lives per path, not in
   `run-golden-path-jobs.sh`); `backends.py` with Postgres, Valkey, Redpanda and MinIO, proven locally against real
   containers (5 tests) and failing closed; `.woodpecker/golden-integration.yml` with the four as `services:`
-  sidecars and `scripts/ci/golden-integration.sh` (bats-tested). The integration module lives in the path for now;
+  sidecars and `scripts/ci/golden-integration.sh` (bats-tested). **Sidecars proven on the k8s backend: CI #741
+  (2026-11-25), 5/5 against real backends, `golden-integration` 45 s in parallel (adds no wall-clock; the run is bound
+  by fixtures-haskell, 928 s).** Two lessons from #739/#740: a service started through `commands:` runs inside a
+  wrapper shell that does not pass SIGTERM on (MinIO was killed at teardown, exit 137): use `entrypoint:`; and
+  `trunk-upload.sh` reads only `<dir>/<source>/*.xml`. The integration module lives in the path for now;
   B261 (the second Python consumer) decides whether to extract it to a shared Python location.
 
 ## Risks

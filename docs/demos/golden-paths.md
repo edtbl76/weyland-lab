@@ -139,7 +139,42 @@ built but its smoke MISBEHAVED, **0** = every path served. Observed live:
 Because each failure is exit 2 (not 1) and the step carries **no `failure: ignore`**, a build that can't run can
 never be mistaken for a clean pass — the exact absence-as-success this whole effort removes.
 
+## Deep contract v2 — the python/fastapi reference (B163 / B260, RUN 2026-11-25)
+
+The paths are being deepened to one uniform contract (`/items` with validation, an error envelope, request-id
+middleware, config, DI, lifecycle, tracing) in each framework's idiom:
+[concepts/golden-path-capabilities.md](../concepts/golden-path-capabilities.md). The reference:
+
+**1. Unit tier** (the `test-python` lane): 30 TestClient tests, one per contract row, 100% coverage of `main.py`.
+
+**2. The image serves the v2 sequence** (what `golden-path-smoke` runs in its Job):
+
+[rogueone]
+```
+cd /home/edwardmangini/IdeaProjects/weyland/golden-paths/python/fastapi && docker build -q -t golden-python-fastapi:local . && docker run --rm golden-python-fastapi:local python smoke.py
+```
+Seen: `SMOKE OK: image serves — /ready, /hello and the deep contract v2 sequence` (create → get → list → 404 envelope
+→ 422 envelope → X-Request-ID echo).
+
+**3. Integration tier against real backends** (`.woodpecker/golden-integration.yml`): Postgres, Valkey, Redpanda and
+MinIO started as Woodpecker `services:` sidecars; CI #741: `golden-integration: python OK (1 path(s))`, 5 passed,
+45 s in parallel with the other workflows.
+
+**4. A scaffold works out of the box:** `scripts/new-service.sh python/fastapi orders-api <dir>` produced a service
+whose tests pass (30, 100%) and whose image passes the same smoke.
+
+**Watched failing:**
+- `GOLDEN_GREETING=other` → `SMOKE FAIL: /hello returned 200 {... 'message': 'other'}`, exit 1; `GOLDEN_GREETING=` →
+  the service refuses to start (`ValueError: GOLDEN_GREETING must not be empty`).
+- The integration tests with no backend settings: `refusing to run (an unchecked backend is never 'passed')`; with
+  Valkey stopped: `FAILED integration/test_backends.py::test_valkey_serves_the_second_read`.
+- The runner: an unknown ecosystem, a backend that never answers, and nothing to test are each exit 2
+  (`scripts/tests/golden-integration.bats`).
+- On the way to green: CI #739 (MinIO killed at teardown, exit 137, because `commands:` wraps a service in a shell; and
+  a JUnit report written relative to the wrong directory) and CI #740 (`trunk-upload`: "no JUnit reports" — it reads
+  only `<dir>/<source>/*.xml`). Each failed the workflow loudly; each fix has a regression test.
+
 ## Next
 
 - **B160** — extend the suite to a second wave of languages (Angular, C#/.NET, PHP, Ruby, Elixir, Kotlin, Scala, C/C++, Clojure).
-- **B163** — deepen all 21 paths to semi-exhaustively cover each framework's module capabilities (routing, middleware, validation, DI, error handling, lifecycle).
+- **B163** — deepen all 48 paths to deep contract v2: the reference (B260) is done; the rest are B261-B270.
