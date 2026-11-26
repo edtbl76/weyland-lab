@@ -57,7 +57,9 @@ stub() { # stub <cmd> <exit> <output>
   run bash "$RUNNER" python
   [ "$status" -eq 0 ]
   grep -qE '^pip .*requirements-integration\.txt' "$STUB_LOG"
-  grep -qE "^pytest .*integration .*--junitxml=$SANDBOX/junit/golden-integration-python-fw\.xml" "$STUB_LOG"
+  # trunk-upload.sh reads only <dir>/<source>/*.xml (CI #740: a top-level file was "no JUnit reports")
+  grep -qE "^pytest .*integration .*--junitxml=$SANDBOX/junit/integration-python/python-fw\.xml" "$STUB_LOG"
+  [ -d "$SANDBOX/junit/integration-python" ]
 }
 
 @test "a failing path is exit 1 and named" {
@@ -75,5 +77,5 @@ stub() { # stub <cmd> <exit> <output>
   LANG_JUNIT_DIR=reports/junit run bash "$RUNNER" python
   [ "$status" -eq 0 ]
   [ -d "$SANDBOX/reports/junit" ]
-  grep -qE "^pytest .*--junitxml=$SANDBOX/reports/junit/golden-integration-python-fw\.xml" "$STUB_LOG"
+  grep -qE "^pytest .*--junitxml=$SANDBOX/reports/junit/integration-python/python-fw\.xml" "$STUB_LOG"
 }

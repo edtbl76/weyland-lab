@@ -43,8 +43,10 @@ for pair in "postgres:${GOLDEN_DATABASE_URL:-}" "valkey:${GOLDEN_VALKEY_URL:-}" 
   wait_for "$name" "$(hostport "$url")" || exit 2
 done
 
-mkdir -p "$junit"
-junit="$(cd "$junit" && pwd)"   # absolute NOW: each path's tests run after a cd (CI #739 lost its report that way)
+# trunk-upload.sh reads <dir>/<source>/*.xml, one source per subdirectory (CI #740: a top-level file was "no JUnit
+# reports"); the source is this step's name. Absolute NOW: each path's tests run after a cd (CI #739).
+mkdir -p "$junit/integration-$ecosystem"
+junit="$(cd "$junit/integration-$ecosystem" && pwd)"
 ran=0 failed=()
 for dir in "${dirs[@]}"; do
   dir="${dir%/}"
@@ -55,7 +57,7 @@ for dir in "${dirs[@]}"; do
     failed+=("$path (client install)"); continue
   fi
   (cd "$dir" && pytest -q -p no:cacheprovider integration \
-      --junitxml="$junit/golden-integration-${path//\//-}.xml") || failed+=("$path")
+      --junitxml="$junit/${path//\//-}.xml") || failed+=("$path")
 done
 
 if [ "$ran" -eq 0 ]; then
