@@ -77,14 +77,16 @@ Every row of [the deep contract](../../../docs/concepts/golden-path-capabilities
 | C4 middleware | `@app.middleware("http")`: `X-Request-ID` echoed or generated; one JSON access-log line |
 | C5 metrics | `http_requests_total{route,status}`, `http_request_duration_seconds` (route = the template) |
 | C6 config | `Settings.from_env()`: `GOLDEN_GREETING`, validated at startup (empty refuses to start) |
-| C7 DI | `ItemStore` via `Depends(get_store)`; `InMemoryItemStore` by default |
+| C7 DI | the shared `ItemStore` via `Depends(get_store)`; in-memory by default, the real backends by env |
 | C8 lifecycle | `lifespan` opens the store and flips `/ready` (503 before); uvicorn drains on SIGTERM |
 | C9 tests | `TestClient`, `test_main.py` |
 | C10 OpenAPI | `/openapi.json` |
 | C11 tracing | `setup_tracing()`: OTLP export when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, a no-op otherwise |
 
-**Real backends** (`backends.py`, `requirements-integration.txt`): set `GOLDEN_DATABASE_URL` (Postgres), and
-optionally `GOLDEN_VALKEY_URL` (read-through cache), `GOLDEN_KAFKA_BOOTSTRAP` (`item.created` events) and the
-`GOLDEN_S3_*` settings (attachments), then serve `uvicorn backends:app`. `integration/` tests them against real
-backends in CI (`.woodpecker/golden-integration.yml`); its conftest refuses to run without them. The unit lane
-ignores `integration/`.
+**Shared code** (`items_store.py`, `items_backends.py`, `v2_smoke.py`, `integration/conftest.py`,
+`integration/test_items_backends.py`, `requirements-integration.txt`) is a synced copy of
+[golden-paths-shared/python/](../../../golden-paths-shared/python/README.md): edit the source, never the copy
+(`scripts/sync-golden-shared.sh`; ADR-0020). **Real backends:** set `GOLDEN_DATABASE_URL` (Postgres), and optionally
+`GOLDEN_VALKEY_URL` (read-through cache) and `GOLDEN_KAFKA_BOOTSTRAP` (`item.created` events): `main.py` builds the
+store from them. `integration/` tests them against real backends in CI (`.woodpecker/golden-integration.yml`); its
+conftest refuses to run without them, and the unit lane ignores it.

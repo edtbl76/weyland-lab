@@ -116,6 +116,8 @@ steps:
       # the agent retrieves against a vector space the index was not built in. Compares the method bodies
       # modulo docstring; fails closed on drift (exit 1) or a missing/absent class (exit 2). python3 above.
       - bash scripts/check-onnx-sync.sh
+      # B261: the golden paths' synced copies of golden-paths-shared/ must match their source (one source, synced copies)
+      - bash scripts/sync-golden-shared.sh --check
       # B88 (image-signature follow-up) — declared-image provenance invariant. The Gatekeeper
       # require-signed-images constraint only AUDITS running pods in dryrun; this asserts at PR time
       # that every `image:` declared in the k8s manifests is from a reviewed source (the same

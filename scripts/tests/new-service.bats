@@ -54,3 +54,14 @@ teardown() {
   [[ "$output" == *"key: orders"* ]]
   [[ "$output" == *"port_component: orders"* ]]
 }
+
+@test "a scaffold owns its copies of the shared code: no sync marker, no 'edit the source' header (B261)" {
+  # Golden paths keep synced copies of golden-paths-shared/<lang>/ (scripts/sync-golden-shared.sh). A scaffolded
+  # service is outside that sync: the copies become its own, so the marker goes and the header says so.
+  run bash "$NS" python/fastapi billing-api "$DEST_ROOT/billing"
+  [ "$status" -eq 0 ]
+  [ ! -e "$DEST_ROOT/billing/.golden-shared" ]
+  [ -f "$DEST_ROOT/billing/items_store.py" ] && [ -f "$DEST_ROOT/billing/integration/test_items_backends.py" ]
+  ! grep -rq "edit the source, not this copy" "$DEST_ROOT/billing"
+  head -1 "$DEST_ROOT/billing/items_store.py" | grep -q "this service owns it"
+}

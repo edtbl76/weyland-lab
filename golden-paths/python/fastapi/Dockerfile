@@ -10,7 +10,8 @@ FROM python:3.12-slim
 WORKDIR /app
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin appuser
 COPY --from=deps /install /usr/local
-COPY main.py smoke.py .
+# items_store.py / items_backends.py: the shared store, synced from golden-paths-shared/python (B261).
+COPY main.py smoke.py v2_smoke.py items_store.py items_backends.py .
 USER 10001
 EXPOSE 8080
 # readinessProbe target: GET /ready (the SMOKE gate + the ephemeral Job assert this).

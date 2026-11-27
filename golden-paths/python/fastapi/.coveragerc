@@ -1,9 +1,10 @@
 # Coverage measures the SERVICE code (main.py) — not the test files, the ephemeral smoke, or selfcheck.
-# backends.py is proven against REAL backends by integration/ (the integration-python step), not the unit lane.
+# items_backends.py is proven against REAL backends by integration/ (the integration-python step), not the unit lane.
 [run]
 omit =
     test_*.py
     smoke.py
+    v2_smoke.py
     selfcheck/*
     integration/*
-    backends.py
+    items_backends.py

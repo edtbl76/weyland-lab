@@ -1,4 +1,8 @@
-"""The integration tier needs REAL backends: a missing one fails the run, it is never skipped (B260)."""
+# GENERATED from golden-paths-shared/python/integration/conftest.py by scripts/sync-golden-shared.sh: edit the source, not this copy.
+"""The integration tier needs REAL backends: a missing one fails the run, it is never skipped (B260).
+
+SOURCE: golden-paths-shared/python/integration/. Each path holds a synced copy (scripts/sync-golden-shared.sh).
+"""
 import os
 import sys
 

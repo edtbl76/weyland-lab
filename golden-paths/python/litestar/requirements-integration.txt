@@ -1,0 +1,8 @@
+# GENERATED from golden-paths-shared/python/requirements-integration.txt by scripts/sync-golden-shared.sh: edit the source, not this copy.
+# The integration tier's clients (B260; owner-approved 2026-11-25, each the newest release >= 14 days old).
+# Installed only by the `integration-python` CI step and by a scaffolded service that uses items_backends.
+# SOURCE: golden-paths-shared/python/. Each path holds a synced copy (scripts/sync-golden-shared.sh).
+psycopg[binary]==3.3.8
+redis==8.1.0
+confluent-kafka==2.16.1
+boto3==1.44.0

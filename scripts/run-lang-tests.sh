@@ -248,6 +248,10 @@ is_excluded() {
     # without them, so it is never a standalone project; the integration-python CI step runs it with sidecars.
     */golden-paths/*/integration/*)
       return 0 ;;
+    # golden-paths-shared/<lang>/ is a SOURCE (B261): each opted-in golden path holds a synced copy and tests it
+    # there (scripts/sync-golden-shared.sh). Discovering the source would run its integration tests with no backends.
+    */golden-paths-shared/*)
+      return 0 ;;
     # The coding-agent eval harness (B104) ships task FIXTURES under eval/coding-agents/tasks/<id>/ —
     # deliberately-buggy code + a "Red" test designed to FAIL + a solution/. Those test_*.py / *_test.*
     # files are fixtures, NOT real projects; discovering them runs a test built to fail and reds the lane

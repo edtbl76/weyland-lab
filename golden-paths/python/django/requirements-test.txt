@@ -1,4 +1,10 @@
-# per-project test deps installed by run-lang-tests.sh before pytest
+# The golden-path lane's per-project test deps (installed by run-lang-tests.sh before pytest): what main.py imports.
 django
 gunicorn
 prometheus-client
+# Deep contract v2 (B261; owner-approved 2026-11-26, each the newest release >= 14 days old). DRF: serializers (C2)
+# and its exception handler (C3). OTel: a matched release set with the other Python paths; bump them together.
+djangorestframework==3.18.3
+opentelemetry-sdk==1.45.2
+opentelemetry-exporter-otlp-proto-http==1.45.2
+opentelemetry-instrumentation-django==0.66b2

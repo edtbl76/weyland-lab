@@ -46,7 +46,7 @@ the reason; the path still meets the behaviour with plain code, it just has no f
 | Path | Validation / binding | Errors | Middleware | DI / context | Lifecycle | Skips |
 |---|---|---|---|---|---|---|
 | python/fastapi | Pydantic models | exception handlers | `@app.middleware` | `Depends` | lifespan | — |
-| python/litestar | msgspec / Pydantic DTOs | exception handlers | middleware + guards | `Provide` | on_startup / lifespan | — |
+| python/litestar | msgspec Structs (`JSONBody`) + `Parameter` | exception handlers | ASGI middleware | `Provide` + `NamedDependency` | on_startup / on_shutdown | — |
 | python/flask | marshmallow schema | `errorhandler` | `before/after_request` | app context + `g` / extension | app factory | DI framework (none native) |
 | python/django | DRF serializers | DRF exception handler | Django middleware | apps registry / settings | `AppConfig.ready` | DI (none native) |
 | java/spring-boot | Bean Validation `@Valid` | `@RestControllerAdvice` | `OncePerRequestFilter` | Spring beans | `SmartLifecycle`, graceful shutdown | — |
@@ -180,6 +180,12 @@ weight (Python first, the long tail last); the clients (10-11) come after the se
   wrapper shell that does not pass SIGTERM on (MinIO was killed at teardown, exit 137): use `entrypoint:`; and
   `trunk-upload.sh` reads only `<dir>/<source>/*.xml`. The integration module lives in the path for now;
   B261 (the second Python consumer) decides whether to extract it to a shared Python location.
+- **B261 (django, flask, litestar), 2026-11-26:** all four Python paths on v2, 100% unit coverage each (33/32/34
+  tests), image smoke OK, integration 6/6 each against real backends, scaffolds OK. The shared code moved to
+  `golden-paths-shared/python/` with synced copies and a guard (owner: "One source, synced copies"; ADR-0020); each
+  path keeps only its framework code. Idiom notes: Django and Flask have no native DI or OpenAPI (catalog skips);
+  Litestar 2.23+ wants `NamedDependency`, `JSONBody`, `FromPath` and `litestar.plugins.opentelemetry` (the older forms
+  are deprecated), and an injected Protocol must be typed `Any` (msgspec validates handler arguments).
 
 ## Risks
 

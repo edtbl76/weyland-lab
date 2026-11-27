@@ -11,7 +11,7 @@ Deep contract v2 (docs/concepts/golden-path-capabilities.md), each row in FastAP
   C4 middleware     X-Request-ID (echoed or generated) + one JSON access-log line per request
   C5 metrics        http_requests_total{route,status} + http_request_duration_seconds, per route template
   C6 config         Settings.from_env(): GOLDEN_GREETING validated at startup (empty = refuse to start)
-  C7 DI             an ItemStore injected with Depends; in-memory by default (backends.py has the real stores)
+  C7 DI             an ItemStore injected with Depends; in-memory by default, the real ones by env (items_backends)
   C8 lifecycle      the lifespan opens the store and flips /ready; shutdown closes it (uvicorn drains on SIGTERM)
   C9 tests          TestClient, one test per row (test_main.py)
   C10 OpenAPI       /openapi.json, native
@@ -25,15 +25,12 @@ TO SCAFFOLD A REAL SERVICE: `scripts/new-service.sh python/fastapi <your-service
 from __future__ import annotations
 
 import dataclasses
-import itertools
 import json
 import logging
 import os
-import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Protocol
 
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -41,6 +38,8 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from items_store import InMemoryItemStore, ItemStore  # the shared store (a synced copy, B261); re-exported for tests
 
 # The one place a scaffolded service is renamed (scripts/new-service.sh rewrites this token).
 SERVICE_NAME = "golden-python-fastapi"
@@ -80,41 +79,16 @@ class Item(ItemIn):
     id: int
 
 
-# --- C7 the store --------------------------------------------------------------------------------------------
-class ItemStore(Protocol):
-    def open(self) -> None: ...
-    def close(self) -> None: ...
-    def create(self, item: ItemIn) -> Item: ...
-    def get(self, item_id: int) -> Item | None: ...
-    def list(self, limit: int, offset: int) -> list[Item]: ...
+# --- C7 the store (shared, framework-neutral: items_store.py is a synced copy, B261) -------------------------
 
 
-class InMemoryItemStore:
-    """The default store: no backend, so the template runs anywhere. backends.py has Postgres-backed ones."""
-
-    def __init__(self) -> None:
-        self._items: dict[int, Item] = {}
-        self._ids = itertools.count(1)
-        self._lock = threading.Lock()
-        self.closed = False
-
-    def open(self) -> None:
-        self.closed = False
-
-    def close(self) -> None:
-        self.closed = True
-
-    def create(self, item: ItemIn) -> Item:
-        with self._lock:
-            stored = Item(id=next(self._ids), **item.model_dump())
-            self._items[stored.id] = stored
-        return stored
-
-    def get(self, item_id: int) -> Item | None:
-        return self._items.get(item_id)
-
-    def list(self, limit: int, offset: int) -> list[Item]:
-        return [self._items[k] for k in sorted(self._items)][offset:offset + limit]
+def store_from_env() -> ItemStore:
+    """GOLDEN_DATABASE_URL (and the optional cache/event settings) select the real backends; the in-memory store
+    otherwise. The backends module is imported only when configured, and nothing connects until the lifespan opens it."""
+    if not os.environ.get("GOLDEN_DATABASE_URL"):
+        return InMemoryItemStore()
+    import items_backends
+    return items_backends.build_store_from_env()
 
 
 # --- C3 errors -----------------------------------------------------------------------------------------------
@@ -188,7 +162,7 @@ def get_store(request: Request) -> ItemStore:
 
 def create_app(settings: Settings | None = None, store: ItemStore | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    store = store or InMemoryItemStore()
+    store = store or store_from_env()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -230,18 +204,18 @@ def create_app(settings: Settings | None = None, store: ItemStore | None = None)
     @app.get("/items")
     def list_items(limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0),
                    items: ItemStore = Depends(get_store)) -> dict:
-        return {"items": [i.model_dump() for i in items.list(limit, offset)], "limit": limit, "offset": offset}
+        return {"items": items.list(limit, offset), "limit": limit, "offset": offset}
 
     @app.get("/items/{item_id}")
     def get_item(item_id: int, items: ItemStore = Depends(get_store)) -> Item:
         found = items.get(item_id)
         if found is None:
             raise ApiError(404, "not_found", f"item {item_id} not found")
-        return found
+        return Item(**found)
 
     @app.post("/items", status_code=201)
     def create_item(item: ItemIn, items: ItemStore = Depends(get_store)) -> Item:
-        return items.create(item)
+        return Item(**items.create(item.name, item.tags))
 
     return app
 

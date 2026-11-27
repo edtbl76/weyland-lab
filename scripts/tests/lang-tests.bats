@@ -202,6 +202,20 @@ teardown() {
   grep -qE '^pytest .*--ignore=selfcheck --ignore=integration' "$STUB_LOG"
 }
 
+@test "the shared golden-path source is never discovered as a project; its synced copies are tested (B261)" {
+  # golden-paths-shared/<lang>/ is a SOURCE: each opted-in golden path holds a synced copy and runs it with its own
+  # tests. Discovering the source would run its integration tests without backends (their conftest refuses).
+  mkdir -p "$SANDBOX/fix/python" "$SANDBOX/scan/golden-paths-shared/python/integration" "$SANDBOX/scan/golden-paths/python/fw"
+  : > "$SANDBOX/fix/python/test_hello.py"
+  : > "$SANDBOX/scan/golden-paths-shared/python/integration/test_items_backends.py"
+  : > "$SANDBOX/scan/golden-paths/python/fw/test_main.py"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" \
+      bash "$RUNNER" python --list-roots
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"golden-paths/python/fw"* ]]
+  [ "$(echo "$output" | grep -c 'golden-paths-shared')" -eq 0 ]
+}
+
 @test "the coding-agent eval fixture tree is never discovered as a project (B104)" {
   # eval/coding-agents/tasks/<id>/ ships a deliberately-buggy Red test + a solution/. Discovering it
   # runs a test built to FAIL and reds the lane (test-python did, 2026-09-10). It must be excluded.

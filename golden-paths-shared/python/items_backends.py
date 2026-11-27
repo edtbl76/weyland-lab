@@ -1,17 +1,19 @@
-"""Real backends for the golden path's ItemStore — the deep contract v2 integration tier (B260).
+"""items_backends — real backends for the deep contract v2 ItemStore (B260; framework-neutral since B261).
 
-The template runs on InMemoryItemStore (main.py). A scaffolded service that needs real storage composes these,
-selected by env (`build_store_from_env`), and serves `uvicorn backends:app`:
+The golden paths run on InMemoryItemStore (items_store.py). A scaffolded service that needs real storage composes
+these, selected by env with `build_store_from_env()`:
 
   GOLDEN_DATABASE_URL     Postgres  -> PostgresItemStore (the source of truth; migrates its table on open)
-  GOLDEN_VALKEY_URL       Valkey    -> CachedItemStore   (read-through cache for GET /items/{id})
+  GOLDEN_VALKEY_URL       Valkey    -> CachedItemStore   (read-through cache for get)
   GOLDEN_KAFKA_BOOTSTRAP  Redpanda  -> EventingItemStore (publishes item.created to GOLDEN_KAFKA_TOPIC)
   GOLDEN_S3_ENDPOINT      MinIO     -> AttachmentStore   (an item's attachment bytes; with GOLDEN_S3_BUCKET + keys)
 
-Python's frameworks share these clients, so this module is per ECOSYSTEM, not per framework
-(docs/concepts/golden-path-capabilities.md § integration tier). It is proven only against real backends
-(integration/, the `integration-python` CI step); the unit lane never imports it, and it never mocks a backend.
-Clients (owner-approved 2026-11-25): requirements-integration.txt.
+Python's frameworks share these clients, so this module is per ECOSYSTEM, not per framework. Clients are imported
+lazily, so a path's unit lane never needs them; it is proven only against real backends (integration/, the
+`integration-python` CI step) and never mocks one. Clients (owner-approved 2026-11-25): requirements-integration.txt.
+
+SOURCE: golden-paths-shared/python/. Each path holds a synced copy (scripts/sync-golden-shared.sh); a guard fails CI
+if a copy drifts. Edit this file, never a copy.
 """
 from __future__ import annotations
 
@@ -19,13 +21,17 @@ import json
 import os
 import threading
 
-from main import InMemoryItemStore, Item, ItemIn, create_app  # noqa: F401  (InMemoryItemStore: the fallback)
+from items_store import InMemoryItemStore
 
 _TABLE = """CREATE TABLE IF NOT EXISTS items (
     id   BIGSERIAL PRIMARY KEY,
     name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 64),
     tags TEXT[] NOT NULL DEFAULT '{}'
 )"""
+
+
+def _row(row) -> dict:
+    return {"id": row[0], "name": row[1], "tags": list(row[2])}
 
 
 class PostgresItemStore:
@@ -44,22 +50,22 @@ class PostgresItemStore:
         if self._conn is not None:
             self._conn.close()
 
-    def create(self, item: ItemIn) -> Item:
+    def create(self, name: str, tags: list[str]) -> dict:
         with self._lock:
-            row = self._conn.execute("INSERT INTO items (name, tags) VALUES (%s, %s) RETURNING id",
-                                     (item.name, item.tags)).fetchone()
-        return Item(id=row[0], **item.model_dump())
+            row = self._conn.execute("INSERT INTO items (name, tags) VALUES (%s, %s) RETURNING id, name, tags",
+                                     (name, list(tags))).fetchone()
+        return _row(row)
 
-    def get(self, item_id: int) -> Item | None:
+    def get(self, item_id: int) -> dict | None:
         with self._lock:
             row = self._conn.execute("SELECT id, name, tags FROM items WHERE id = %s", (item_id,)).fetchone()
-        return Item(id=row[0], name=row[1], tags=row[2]) if row else None
+        return _row(row) if row else None
 
-    def list(self, limit: int, offset: int) -> list[Item]:
+    def list(self, limit: int, offset: int) -> list[dict]:
         with self._lock:
             rows = self._conn.execute("SELECT id, name, tags FROM items ORDER BY id LIMIT %s OFFSET %s",
                                       (limit, offset)).fetchall()
-        return [Item(id=r[0], name=r[1], tags=r[2]) for r in rows]
+        return [_row(r) for r in rows]
 
 
 class CachedItemStore:
@@ -80,20 +86,20 @@ class CachedItemStore:
             self._cache.close()
         self._inner.close()
 
-    def create(self, item: ItemIn) -> Item:
-        return self._inner.create(item)
+    def create(self, name: str, tags: list[str]) -> dict:
+        return self._inner.create(name, tags)
 
-    def get(self, item_id: int) -> Item | None:
+    def get(self, item_id: int) -> dict | None:
         cached = self._cache.get(f"item:{item_id}")
         if cached is not None:
             self.hits += 1
-            return Item.model_validate_json(cached)
+            return json.loads(cached)
         found = self._inner.get(item_id)
         if found is not None:
-            self._cache.set(f"item:{item_id}", found.model_dump_json(), ex=self._ttl)
+            self._cache.set(f"item:{item_id}", json.dumps(found), ex=self._ttl)
         return found
 
-    def list(self, limit: int, offset: int) -> list[Item]:
+    def list(self, limit: int, offset: int) -> list[dict]:
         return self._inner.list(limit, offset)
 
 
@@ -113,20 +119,20 @@ class EventingItemStore:
             self._producer.flush(10)
         self._inner.close()
 
-    def create(self, item: ItemIn) -> Item:
-        created = self._inner.create(item)
+    def create(self, name: str, tags: list[str]) -> dict:
+        created = self._inner.create(name, tags)
         failures = []
-        self._producer.produce(self._topic, key=str(created.id),
-                               value=json.dumps({"type": "item.created", "item": created.model_dump()}),
+        self._producer.produce(self._topic, key=str(created["id"]),
+                               value=json.dumps({"type": "item.created", "item": created}),
                                on_delivery=lambda err, _msg: err and failures.append(err))
         if self._producer.flush(10) != 0 or failures:   # an undelivered event is an error, never silent
-            raise RuntimeError(f"item.created for {created.id} was not delivered: {failures or 'flush timed out'}")
+            raise RuntimeError(f"item.created for {created['id']} was not delivered: {failures or 'flush timed out'}")
         return created
 
-    def get(self, item_id: int) -> Item | None:
+    def get(self, item_id: int) -> dict | None:
         return self._inner.get(item_id)
 
-    def list(self, limit: int, offset: int) -> list[Item]:
+    def list(self, limit: int, offset: int) -> list[dict]:
         return self._inner.list(limit, offset)
 
 
@@ -161,10 +167,3 @@ def build_store_from_env(env=os.environ):
     if env.get("GOLDEN_KAFKA_BOOTSTRAP"):
         store = EventingItemStore(store, env["GOLDEN_KAFKA_BOOTSTRAP"], env.get("GOLDEN_KAFKA_TOPIC", "items"))
     return store
-
-
-def create_backed_app():
-    return create_app(store=build_store_from_env())
-
-
-app = create_backed_app() if os.environ.get("GOLDEN_DATABASE_URL") else None

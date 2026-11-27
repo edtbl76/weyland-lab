@@ -1,6 +1,10 @@
-# Coverage measures the SERVICE code (main.py) — not the test files, the ephemeral smoke, or selfcheck.
+# Coverage measures the SERVICE code (main.py + the shared items_store) — not the test files, the ephemeral smoke,
+# or selfcheck. items_backends.py is proven against REAL backends by integration/ (the integration-python step).
 [run]
 omit =
     test_*.py
     smoke.py
+    v2_smoke.py
     selfcheck/*
+    integration/*
+    items_backends.py

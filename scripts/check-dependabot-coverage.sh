@@ -8,7 +8,8 @@
 # pins could never reach a security PR. Nothing compared the config with the tree.
 #
 # EXCLUDED, with the reason: golden-paths/ (the per-language service templates; a service scaffolded from one lands in
-# its own directory and needs its own entry) and tests/lang/ (test fixtures). Neither is deployed.
+# its own directory and needs its own entry), golden-paths-shared/ (the source the templates' synced copies come from,
+# ADR-0020; template code too) and tests/lang/ (test fixtures). None is deployed.
 #
 # EXIT: 0 = every requirements directory watched · 1 = an unwatched one, named · 2 = cannot check (no config, an
 # unparseable one, or no requirements directory found). Checking nothing is never a pass.
@@ -25,7 +26,7 @@ DEPENDABOT_ROOT="$DEPENDABOT_ROOT" DEPENDABOT_CONFIG="$DEPENDABOT_CONFIG" python
 import os, sys
 
 root, cfg = os.environ["DEPENDABOT_ROOT"], os.environ["DEPENDABOT_CONFIG"]
-EXCLUDED = ("golden-paths/", "tests/lang/")
+EXCLUDED = ("golden-paths/", "golden-paths-shared/", "tests/lang/")
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", ".claude"}
 
 

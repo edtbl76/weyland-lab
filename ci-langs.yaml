@@ -38,6 +38,7 @@ production_lanes:
 # changed, so the full fixture matrix must run. Matched as literal prefixes against `git diff --name-only`.
 fixture_trigger_paths:
   - golden-paths/          # the B153/B160 per-language golden paths (the fixtures themselves)
+  - golden-paths-shared/   # B261: the source synced into the golden paths (scripts/sync-golden-shared.sh)
   - tests/lang/            # shared language-test fixtures + the coverage baseline
   - scripts/run-lang-tests.sh   # the test-lane runner — affects EVERY language lane
   - scripts/run-lang-scan.sh    # the scan-lane runner — affects every scan lane

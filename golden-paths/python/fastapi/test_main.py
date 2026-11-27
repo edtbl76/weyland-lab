@@ -71,7 +71,7 @@ def test_the_store_is_injected_and_replaceable():
     app = create_app(Settings(greeting="hi"), store=store)
     with TestClient(app) as c:
         c.post("/items", json={"name": "x"})
-    assert [i.name for i in store.list(10, 0)] == ["x"]
+    assert [i["name"] for i in store.list(10, 0)] == ["x"]     # the shared, framework-neutral store (B261)
 
 
 # --- C2 validation + C3 the error envelope -------------------------------------------------------------------
@@ -200,3 +200,13 @@ def test_tracing_exports_over_otlp_when_the_endpoint_is_set(monkeypatch):
         assert type(processor.span_exporter).__name__ == "OTLPSpanExporter"
     finally:
         provider.shutdown()
+
+
+def test_the_real_backends_are_chosen_by_env_without_connecting(monkeypatch):
+    # C7: GOLDEN_DATABASE_URL selects the shared Postgres-backed store; it connects only when the lifespan opens it.
+    monkeypatch.setenv("GOLDEN_DATABASE_URL", "postgresql://u:p@db.invalid:5432/x")
+    monkeypatch.delenv("GOLDEN_VALKEY_URL", raising=False)
+    monkeypatch.delenv("GOLDEN_KAFKA_BOOTSTRAP", raising=False)
+    assert type(main.store_from_env()).__name__ == "PostgresItemStore"
+    monkeypatch.delenv("GOLDEN_DATABASE_URL")
+    assert type(main.store_from_env()).__name__ == "InMemoryItemStore"

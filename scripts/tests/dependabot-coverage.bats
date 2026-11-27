@@ -61,6 +61,17 @@ cfg() {  # cfg <dir>... — a config with one pip entry per dir
   [[ "$output" != *"golden-paths"*"UNWATCHED"* ]]
 }
 
+@test "the golden-paths shared source is excluded like the templates (B261)" {
+  # golden-paths-shared/<lang>/ is the source the templates' synced copies come from (ADR-0020): template code, not
+  # deployed. A service scaffolded from a path lands in its own directory and needs its own entry.
+  mkdir -p "$T/golden-paths-shared/python"
+  : > "$T/golden-paths-shared/python/requirements-integration.txt"
+  cfg /services/a /services/b
+  run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" != *"UNWATCHED: golden-paths-shared"* && "$output" == *"excluded: "*"golden-paths-shared/"* ]]
+}
+
 @test "a missing config is exit 2, never 'nothing to watch'" {
   rm -f "$DEPENDABOT_CONFIG"
   run bash "$GUARD"

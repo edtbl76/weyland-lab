@@ -56,8 +56,17 @@ mkdir -p "$dest" || die "could not create $dest"
 ( cd "$GP_DIR/$gp" && tar \
     --exclude=node_modules --exclude=dist --exclude=build --exclude=.next --exclude=.astro \
     --exclude=coverage --exclude=target --exclude=__pycache__ --exclude=.venv --exclude=.pytest_cache \
-    --exclude=selfcheck -cf - . ) | ( cd "$dest" && tar -xf - ) \
+    --exclude=selfcheck --exclude=.golden-shared -cf - . ) | ( cd "$dest" && tar -xf - ) \
   || die "copy failed"
+
+# ── shared code becomes the service's own (B261) ───────────────────────────────────────────────────
+# A golden path keeps synced copies of golden-paths-shared/<lang>/ (scripts/sync-golden-shared.sh), each headed
+# "GENERATED ... edit the source, not this copy". A scaffold is outside that sync, so the marker is not copied and
+# the header now says the service owns the file.
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  sed -i '1s|^# GENERATED from \(golden-paths-shared/[^ ]*\) by scripts/sync-golden-shared.sh: edit the source, not this copy\.$|# From the weyland golden path shared source \1; this service owns it now.|' "$f"
+done < <(grep -rIl -- "edit the source, not this copy" "$dest" 2>/dev/null)
 
 # ── rewrite the golden token -> the service name (SERVICE_NAME, image ref, manifest name) ─────────
 # grep -I skips binary files; the token has no sed-special characters, and `|` is the delimiter.
