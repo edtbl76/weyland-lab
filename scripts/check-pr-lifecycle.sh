@@ -149,7 +149,7 @@ drift_overlap() {
 pr_downgrades() {
   local repo="$1" num="$2" diff
   diff="$("$GH_BIN" pr diff "$num" --repo "$repo" 2>/dev/null)" || { echo UNREADABLE; return 0; }
-  printf '%s\n' "$diff" | grep -q '^diff --git ' || { echo UNREADABLE; return 0; }
+  grep -q '^diff --git ' <<<"$diff" || { echo UNREADABLE; return 0; }   # here-string (B271)
   printf '%s\n' "$diff" | python3 -c '
 import re, sys
 def key(v):

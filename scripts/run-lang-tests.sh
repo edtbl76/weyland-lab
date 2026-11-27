@@ -599,7 +599,8 @@ run_in_raw() {
         local out
         out="$(cd "$dir" && mix test --only selfcheck 2>&1)"
         printf '%s\n' "$out" | tail -4
-        printf '%s' "$out" | grep -qE '[1-9][0-9]* failure' && return 1 || return 0
+        # A here-string, never `printf | grep -q` (B271: under pipefail a found "N failure" could read as none).
+        grep -qE '[1-9][0-9]* failure' <<<"$out" && return 1 || return 0
       elif [ -n "$JB" ]; then
         # B189 phase 2b: junit_formatter (owner-approved 3.4.0, a test-only dep in each golden path's mix.exs — a Mix
         # archive install was tried and writes nothing) writes _build/test/lib/<app>/test-junit-report.xml; run_in

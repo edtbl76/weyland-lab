@@ -123,7 +123,7 @@ for line in open(sys.argv[1], errors="ignore"):
 print(f"SNAP={shlex.quote(str(snap))}; FILES_NEW={int(fn)}; FILES_CHANGED={int(fc)}; DATA_ADDED={int(da)}; DUR={int(dur)}")
 PY
 )"
-tail -1 "$JSONOUT" 2>/dev/null | grep -q summary && echo "restic summary: snap=$SNAP files_new=$FILES_NEW data_added=${DATA_ADDED}B dur=${DUR}s"
+grep -q summary <<<"$(tail -1 "$JSONOUT" 2>/dev/null)" && echo "restic summary: snap=$SNAP files_new=$FILES_NEW data_added=${DATA_ADDED}B dur=${DUR}s"
 
 if [[ "$STATUS" == success ]]; then
   # --group-by host: the backup's path SET drifts over time (allow-list edits), and the default

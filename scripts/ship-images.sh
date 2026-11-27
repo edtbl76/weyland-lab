@@ -276,7 +276,10 @@ head_tag() {
 # FR1.5 — is a POD running this tag? Not "did the PR merge", not "does the manifest say so".
 live_carries_tag() {
   local tag="${1:?usage: live_carries_tag <tag>}"
-  kubectl get pods -A -o jsonpath='{..image}' 2>/dev/null | grep -q ":${tag}\\b"
+  # Capture, then match: `kubectl … | grep -q` under pipefail could call a live tag missing (B271).
+  local images
+  images="$(kubectl get pods -A -o jsonpath='{..image}' 2>/dev/null)" || return 1
+  grep -q ":${tag}\\b" <<<"$images"
 }
 
 # EVERY image a bump diff raises the tag on. Not "the first" — see all_bumped_images_live.
@@ -1136,7 +1139,9 @@ except Exception as e:
 SHIP_DAGSTER_IMAGE="${SHIP_DAGSTER_IMAGE:-weyland-dagster-user-code}"
 
 bump_restarts_dagster() { # bump_restarts_dagster <diff-file> — true when the bump rolls the Dagster code pod
-  bumped_images "${1:?usage: bump_restarts_dagster <diff-file>}" | grep -qx "$SHIP_DAGSTER_IMAGE"
+  local bumped
+  bumped="$(bumped_images "${1:?usage: bump_restarts_dagster <diff-file>}")" || return 1
+  grep -qx "$SHIP_DAGSTER_IMAGE" <<<"$bumped"   # here-string, not a pipe into grep -q (B271)
 }
 
 # One line per in-flight run ("RUN <job> <runId>"), or RUNS_NONE, or RUNS_ERR <why>. Asked from the pod

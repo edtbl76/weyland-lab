@@ -118,6 +118,8 @@ steps:
       - bash scripts/check-onnx-sync.sh
       # B261: the golden paths' synced copies of golden-paths-shared/ must match their source (one source, synced copies)
       - bash scripts/sync-golden-shared.sh --check
+      # B271: no `producer | grep -q` under pipefail (a SIGPIPE race: a found match can fail the pipeline; CI flake #746)
+      - python3 scripts/check-grep-q-pipes.py
       # B88 (image-signature follow-up) — declared-image provenance invariant. The Gatekeeper
       # require-signed-images constraint only AUDITS running pods in dryrun; this asserts at PR time
       # that every `image:` declared in the k8s manifests is from a reviewed source (the same

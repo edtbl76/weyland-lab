@@ -157,7 +157,7 @@ main() {
     errs="$(validate_doc "$json")"
     # id uniqueness across the set
     local id; id="$(jq -r '.id // ""' <<<"$json")"
-    if [ -n "$id" ] && printf '%s\n' "$ids" | grep -Fxq -- "$id"; then
+    if [ -n "$id" ] && grep -Fxq -- "$id" <<<"$ids"; then
       errs="$(printf '%s\nduplicate id: %s' "$errs" "$id")"
     fi
     [ -n "$id" ] && ids="$ids"$'\n'"$id"

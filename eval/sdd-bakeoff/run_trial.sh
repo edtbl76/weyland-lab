@@ -72,8 +72,8 @@ print(next((e.get("session_id") for e in (json.loads(l) for l in open(sys.argv[1
   prev=""
   while [ -n "$sid" ] && [ "$replies" -lt "$MAX_REPLIES" ]; do
     cur=$(last_result)
-    printf '%s' "$cur" | grep -q "TRIAL DONE" && break
-    printf '%s' "$cur" | grep -q "TRIAL BLOCKED" && ! printf '%s' "$cur" | grep -q "Reply with" && break
+    grep -q "TRIAL DONE" <<<"$cur" && break          # here-strings, not pipes into grep -q (B271)
+    grep -q "TRIAL BLOCKED" <<<"$cur" && ! grep -q "Reply with" <<<"$cur" && break
     [ -n "$prev" ] && [ "$cur" = "$prev" ] && break
     prev=$cur
     left=$((WALL - ($(date +%s) - t0)))

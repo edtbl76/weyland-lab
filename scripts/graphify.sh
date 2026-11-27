@@ -249,7 +249,7 @@ cmd_affected() {
   out="$("$GRAPHIFY_VENV/bin/graphify" affected "$target" --graph "$GRAPHIFY_GRAPH" 2>&1)" || rc=$?
   printf '%s\n' "$out"
   # Turn the unactionable "No unique node match" into the list of colliding files.
-  if printf '%s' "$out" | grep -q "No unique node match"; then
+  if grep -q "No unique node match" <<<"$out"; then
     candidates "$target" "$GRAPHIFY_GRAPH"
   fi
   return $rc

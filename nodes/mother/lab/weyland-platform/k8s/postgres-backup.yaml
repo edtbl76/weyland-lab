@@ -84,7 +84,16 @@ spec:
                   PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall -h weyland-postgres.weyland.svc.cluster.local -U "$POSTGRES_USER" | gzip > "$OUT.partial"
                   # proof of completeness: the gzip stream decodes (zcat fails on a truncated file) and ends with
                   # pg_dumpall's own completion line
-                  zcat "$OUT.partial" | tail -n 3 | grep -q 'PostgreSQL database cluster dump complete'
+                  # (B271) No pipe into `grep -q` under pipefail: it can fail a complete dump. Instead: `gzip -t` proves
+                  # the whole stream decodes (a truncated file, even one missing only its CRC footer, fails here under
+                  # set -e; a failing zcat inside $(…) does NOT fail the assignment in BusyBox ash, verified 2026-11-27),
+                  # then the trailer is captured and matched with `case` (ash has no here-string).
+                  gzip -t "$OUT.partial"
+                  trailer="$(zcat "$OUT.partial" | tail -n 3)"
+                  case "$trailer" in
+                    *'PostgreSQL database cluster dump complete'*) ;;
+                    *) echo "dump incomplete: no completion line in $OUT.partial" >&2; exit 1 ;;
+                  esac
                   mv -f "$OUT.partial" "$OUT"
                   # rotation: keep the 7 most recent (a .partial never matches this glob)
                   ls -1t "$DIR"/weyland-all-*.sql.gz | tail -n +8 | xargs -r rm -f

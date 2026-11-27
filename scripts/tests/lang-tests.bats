@@ -1108,3 +1108,23 @@ EOF
   [[ "$output" == *"jest"*"phase 2b"* ]]
   [[ "$output" != *"NO JUNIT REPORT"* ]]
 }
+
+@test "REGRESSION (B271): elixir --self-check finds its '1 failure' even with a lot of output after it" {
+  # `printf "$out" | grep -qE '[1-9][0-9]* failure'` under pipefail: grep -q exits at the match, printf (more than a
+  # pipe buffer still to write) dies of SIGPIPE, the pipeline fails, and the lane called itself BROKEN although the
+  # deliberate test had failed exactly as designed. The output here puts ~100 KiB after the match.
+  mkdir -p "$SANDBOX/fix/elixir/test" "$SANDBOX/scan"
+  : > "$SANDBOX/fix/elixir/mix.exs"; : > "$SANDBOX/fix/elixir/test/hello_test.exs"
+  cat > "$STUB_DIR/mix" <<EOF
+#!/usr/bin/env bash
+printf 'mix %s\n' "\$*" >> "$STUB_LOG"
+case "\$*" in
+  "test --only selfcheck") printf '1 test, 1 failure\n'; yes 'filler line after the failure count, enough to outlast a pipe buffer' | head -n 3000; exit 2 ;;
+esac
+exit 0
+EOF
+  chmod +x "$STUB_DIR/mix"
+  run env WEYLAND_LANG_FIXTURE_DIR="$SANDBOX/fix" WEYLAND_LANG_SCAN_ROOT="$SANDBOX/scan" bash "$RUNNER" elixir --self-check
+  [ "$status" -eq 0 ] || { echo "$output" | cut -c1-200 | tail -5; return 1; }
+  [[ "$output" != *"LANE BROKEN"* ]]
+}

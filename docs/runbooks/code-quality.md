@@ -103,6 +103,17 @@ The suite + B89 triage + B90 dashboard are detailed in the sections below.
   ```
   cd /home/edwardmangini/IdeaProjects/weyland && docker run --rm -v "$PWD:/repo:ro" -w /repo --entrypoint sh koalaman/shellcheck-alpine:stable -c 'apk add --no-cache python3 py3-yaml bash >/dev/null; bash scripts/check-configmap-shellcheck.sh'
   ```
+- **Never pipe into `grep -q` under `pipefail`** (B271, 2026-11-27): `producer | grep -q pattern` races. `grep -q`
+  exits at its first match, the producer (still writing) dies of SIGPIPE, and `pipefail` fails the pipeline although
+  the match WAS found, so timing decides the answer: a CI-only flake (`dagster-watchdog-budgets`, B211/#399/#746), a
+  lane that called itself BROKEN after its deliberate test failed, a shipped tag read as not live. Read the whole
+  input instead: a here-string `grep -q PATTERN <<<"$x"`, `awk`, or capture the producer first; under BusyBox `ash`
+  (no here-strings) capture, then `case`. `scripts/check-grep-q-pipes.py` (repo-guards) fails on any pipe into
+  `grep -q`/`--quiet` in a `.sh` or embedded-shell `.yaml` under `scripts/`, `nodes/` or `eval/` that sets pipefail,
+  naming `file:line` (exit 1); nothing to check is exit 2. Run it as CI does:
+  ```
+  python3 /home/edwardmangini/IdeaProjects/weyland/scripts/check-grep-q-pipes.py
+  ```
 - **No packages installed straight from a Dockerfile** (2026-10-16): `scripts/check-dockerfile-installs.sh`
   (repo-guards) counts every package a Dockerfile under `nodes/` or `golden-paths/` (the templates, in scope since the
   2026-10-19 DoD audit — 68 Dockerfiles) `pip install`s outside a requirements file, in every stage, and holds

@@ -90,13 +90,14 @@ is_placeholder() { # is_placeholder <value>
 
   # Now, and only now, the placeholder vocabulary. Anchored to the WHOLE value or to a standalone token
   # so a real credential that happens to contain "test" survives.
-  printf '%s' "$v" | grep -qiE \
+  # here-strings, never `printf | grep -q` (B271: the SIGPIPE race under pipefail)
+  grep -qiE \
     '^(your[_-]?[a-z]*|change[_-]?me|replace[_-]?me|placeholder|todo|tbd|test|example|foo|bar|xxx+|secret|password|<[^>]*>)$' \
-    && return 0
+    <<<"$v" && return 0
   # ...plus the same words as an embedded ALL-CAPS token, which is how YOUR_ID / YOUR_SECRET appear.
-  printf '%s' "$v" | grep -qE \
+  grep -qE \
     '(^|[^A-Za-z])(YOUR|CHANGEME|CHANGE_ME|REPLACEME|REPLACE_ME|PLACEHOLDER)([^A-Za-z]|$)' \
-    && return 0
+    <<<"$v" && return 0
   return 1
 }
 

@@ -31,7 +31,9 @@ fi
 for i in $(seq 1 "$attempts"); do
     docker push "$push_ref"
     # The manifest is finalized only when the tag appears in the registry's tags/list.
-    if curl -sf "https://${registry}/v2/${name}/tags/list" | grep -q "\"${tag}\""; then
+    # Capture, then match (B271: `curl | grep -q` under pipefail can fail on the very tag it found).
+    tags="$(curl -sf "https://${registry}/v2/${name}/tags/list" || true)"
+    if grep -q "\"${tag}\"" <<<"$tags"; then
         echo "✅ ${name}:${tag} manifest finalized (attempt ${i}/${attempts})"
         exit 0
     fi

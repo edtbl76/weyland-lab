@@ -56,7 +56,7 @@ fi
 
 printf '%s\n' "$out"
 
-if ! printf '%s\n' "$out" | grep -q "complexity triage:"; then
+if ! grep -q "complexity triage:" <<<"$out"; then   # here-string, not a pipe into grep -q (B271)
   echo "FATAL: the complexity engine could not run (missing lizard/tree-sitter? — pip install -r scripts/requirements-test.txt)." >&2
   exit 2
 fi

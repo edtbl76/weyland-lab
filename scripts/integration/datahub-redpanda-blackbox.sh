@@ -48,22 +48,22 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; fails=1; }
 RPK_ATTEMPTS="${RPK_ATTEMPTS:-6}"; RPK_RETRY_DELAY="${RPK_RETRY_DELAY:-5}"
 for attempt in $(seq 1 "$RPK_ATTEMPTS"); do
   topics="$(rpk topic list -X brokers="$BROKERS" 2>&1)"; rc=$?
-  { [ "$rc" -eq 0 ] && printf '%s\n' "$topics" | grep -qi 'PARTITIONS'; } && break
+  { [ "$rc" -eq 0 ] && grep -qi 'PARTITIONS' <<<"$topics"; } && break   # here-strings throughout (B271)
   [ "$attempt" -lt "$RPK_ATTEMPTS" ] && sleep "$RPK_RETRY_DELAY"
 done
-{ [ "$rc" -eq 0 ] && printf '%s\n' "$topics" | grep -qi 'PARTITIONS'; } \
+{ [ "$rc" -eq 0 ] && grep -qi 'PARTITIONS' <<<"$topics"; } \
   || die2 "redpanda unreachable at $BROKERS after $RPK_ATTEMPTS attempts, or 'rpk topic list' returned no listing:
 $topics"
 [ "$attempt" -gt 1 ] && printf 'note: redpanda answered on attempt %s of %s\n' "$attempt" "$RPK_ATTEMPTS"
 
 for t in DataHubUpgradeHistory_v1 MetadataChangeLog_Versioned_v1 MetadataChangeProposal_v1; do
-  printf '%s\n' "$topics" | grep -qw "$t" \
+  grep -qw "$t" <<<"$topics" \
     || fail "DataHub topic '$t' is MISSING on redpanda — the event flow DataHub depends on is broken"
 done
 
 # ── consumer groups ─────────────────────────────────────────────────────────────────────────────────
 groups="$(rpk group list -X brokers="$BROKERS" 2>&1)"; rc=$?
-{ [ "$rc" -eq 0 ] && printf '%s\n' "$groups" | grep -qi 'STATE'; } \
+{ [ "$rc" -eq 0 ] && grep -qi 'STATE' <<<"$groups"; } \
   || die2 "could not list consumer groups on $BROKERS:
 $groups"
 
@@ -72,7 +72,7 @@ for g in generic-mae-consumer-job-client generic-mce-consumer-job-client; do
   line="$(printf '%s\n' "$groups" | grep -w "$g")"
   if [ -z "$line" ]; then
     fail "DataHub consumer group '$g' is ABSENT — DataHub is not consuming from redpanda"
-  elif ! printf '%s\n' "$line" | grep -qw Stable; then
+  elif ! grep -qw Stable <<<"$line"; then
     fail "DataHub consumer group '$g' is not Stable (disconnected or idle) — got: $line"
   fi
 done

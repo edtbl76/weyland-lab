@@ -101,7 +101,7 @@ while IFS= read -r hit; do
 
   # (3) Documented SUBSET statements -- a count of some apps, not all of them.
   #     "6 apps cut over" = the Keycloak SSO rollout subset (docs/arch.md).
-  if printf '%s' "$ctx" | grep -qiE "cut over|redistributed"; then continue; fi
+  if grep -qiE "cut over|redistributed" <<<"$ctx"; then continue; fi
 
   filtered="${filtered}${hit}"$'\n'
 done <<< "$claims"
