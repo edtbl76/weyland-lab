@@ -2,9 +2,9 @@
 
 ## Status
 
-proposed
+accepted
 
-Date: 2026-11-26 (decided by the owner on 2026-11-25: "One source, synced copies"; B261)
+Date: 2026-11-27 (owner: "close B261 and accept the ADR"; decided 2026-11-25: "One source, synced copies")
 
 ## Context and Problem Statement
 
