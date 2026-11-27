@@ -202,7 +202,9 @@ main() {
 
   while IFS=$'\t' read -r job budget; do
     [ -n "$job" ] || continue
-    if ! cut -f1 <<<"$scheds" | grep -qx "$job"; then
+    # awk reads ALL its input: `cut | grep -qx` exited at the first match, cut died of SIGPIPE, and pipefail turned a
+    # found job into "no schedule" (the CI flake of B211, #399, #746; scripts/tests/dagster-watchdog-budgets.bats).
+    if ! awk -F'\t' -v j="$job" '$1 == j {found = 1} END {exit !found}' <<<"$scheds"; then
       echo "  ❌ ${job}: budgeted in the watchdog but has no schedule (deleted or renamed job)" >&2; fail=1
     fi
   done <<<"$budgets"

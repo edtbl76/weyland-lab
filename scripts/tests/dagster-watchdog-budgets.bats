@@ -200,3 +200,29 @@ defs = Definitions(schedules=[daily_schedule, weekly_schedule, off_schedule, mys
   [ "$status" -eq 1 ]
   [[ "$output" == *"weyland_catalog_job"* ]]
 }
+
+@test "REGRESSION (CI #746, #399, B211): a budgeted job is found even when many schedules follow it" {
+  # The flake: `cut -f1 <<<"$scheds" | grep -qx "$job"` under pipefail. grep -q exits at the first match; cut, still
+  # writing, dies of SIGPIPE; pipefail turns the pipeline red, and the guard reported a scheduled job as having "no
+  # schedule". It needed cut to have output left after the match: rare with a small list (CI only), certain with
+  # more than a pipe buffer (64 KiB) of schedules after it, which is what this fixture builds.
+  python3 - "$PIPE/definitions.py" <<'PY'
+import sys
+long = "x" * 180
+lines = ["from dagster import ScheduleDefinition, DefaultScheduleStatus, Definitions, define_asset_job",
+         'daily_job = define_asset_job(name="daily_job", selection="x")',
+         'daily_schedule = ScheduleDefinition(job=daily_job, cron_schedule="17 2 * * *", '
+         'default_status=DefaultScheduleStatus.RUNNING)']
+names = ["daily_schedule"]
+for i in range(420):
+    lines.append(f'j{i} = define_asset_job(name="off_{i}_{long}", selection="y")')
+    lines.append(f's{i} = ScheduleDefinition(job=j{i}, cron_schedule="0 4 * * *")')
+    names.append(f"s{i}")
+lines.append(f"defs = Definitions(schedules=[{', '.join(names)}])")
+open(sys.argv[1], "w").write("\n".join(lines) + "\n")
+PY
+  watch_budgets 'daily_job 108000  # daily -> 30h'
+  run bash "$GUARD"
+  [ "$status" -eq 0 ] || { echo "$output" | grep -v '^off_' | tail -5; return 1; }
+  [[ "$output" != *"has no schedule"* ]]
+}
