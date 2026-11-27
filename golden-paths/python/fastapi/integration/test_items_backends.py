@@ -71,7 +71,8 @@ def test_redpanda_receives_item_created():
 
 def test_minio_stores_and_returns_an_attachment():
     att = items_backends.AttachmentStore(ENV["GOLDEN_S3_ENDPOINT"], ENV.get("GOLDEN_S3_BUCKET", "golden-items"),
-                                         ENV["GOLDEN_S3_ACCESS_KEY"], ENV["GOLDEN_S3_SECRET_KEY"])
+                                         ENV["GOLDEN_S3_ACCESS_KEY"], ENV["GOLDEN_S3_SECRET_KEY"],
+                                         ENV.get("GOLDEN_S3_REGION", "us-east-1"))
     att.ensure_bucket()
     att.put(7, b"attachment-bytes")
     assert att.get(7) == b"attachment-bytes"

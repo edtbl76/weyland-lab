@@ -7,7 +7,8 @@ these, selected by env with `build_store_from_env()`:
   GOLDEN_DATABASE_URL     Postgres  -> PostgresItemStore (the source of truth; migrates its table on open)
   GOLDEN_VALKEY_URL       Valkey    -> CachedItemStore   (read-through cache for get)
   GOLDEN_KAFKA_BOOTSTRAP  Redpanda  -> EventingItemStore (publishes item.created to GOLDEN_KAFKA_TOPIC)
-  GOLDEN_S3_ENDPOINT      MinIO     -> AttachmentStore   (an item's attachment bytes; with GOLDEN_S3_BUCKET + keys)
+  GOLDEN_S3_ENDPOINT      MinIO     -> AttachmentStore   (an item's attachment bytes; with GOLDEN_S3_BUCKET, keys,
+                                       and GOLDEN_S3_REGION: config, never a literal; Sonar S6262)
 
 Python's frameworks share these clients, so this module is per ECOSYSTEM, not per framework. Clients are imported
 lazily, so a path's unit lane never needs them; it is proven only against real backends (integration/, the
@@ -140,11 +141,11 @@ class EventingItemStore:
 class AttachmentStore:
     """An item's attachment in S3 (MinIO), keyed by item id."""
 
-    def __init__(self, endpoint: str, bucket: str, access_key: str, secret_key: str) -> None:
+    def __init__(self, endpoint: str, bucket: str, access_key: str, secret_key: str, region: str) -> None:
         import boto3
         self._bucket = bucket
         self._s3 = boto3.client("s3", endpoint_url=endpoint, aws_access_key_id=access_key,
-                                aws_secret_access_key=secret_key, region_name="us-east-1")
+                                aws_secret_access_key=secret_key, region_name=region)
 
     def ensure_bucket(self) -> None:
         names = {b["Name"] for b in self._s3.list_buckets().get("Buckets", [])}
