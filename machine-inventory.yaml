@@ -1071,142 +1071,110 @@ hosts:
     - name: argocd
       kind: binary
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - the lab''s Argo CD CLI (runbooks/argocd.md; ship-images.sh FR-ARGO)'
       rationale: ''
     - name: cs
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: drat-trim
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: duckdb
       kind: binary
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - DuckDB CLI used by lab runbooks (dr.md, hosts.md)'
       rationale: ''
     - name: helm
       kind: binary
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - Helm CLI for the lab''s chart-managed apps (runbooks/argocd.md exceptions)'
       rationale: ''
     - name: herdr
       kind: binary
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - B257: Herdr v0.9.5 terminal runtime for coding agents, pinned release with verified SHA-256 (concepts/herdr-evaluation.md)'
       rationale: ''
     - name: k3s
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: mc
       kind: binary
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - MinIO client for the lab''s object store (dr.md, restic backup)'
       rationale: ''
     - name: mm-delay
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: mm-intermittent
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: mm-link
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: mm-loss
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: mm-meter
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: mm-onoff
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: mm-replayserver
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: mm-webrecord
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: mm-webreplay
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: opa
       kind: binary
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - OPA CLI for policy checks (completeness-audit.md)'
       rationale: ''
     - name: opam
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: plannotator
       kind: binary
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - Plannotator CLI, adopted for plan/code review (concepts/plannotator-eval.md)'
       rationale: ''
     - name: qodana
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: solc
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: tamarin-prover
       kind: binary
       status: keep
-      rationale: 'owner review 2026-11-23 (B257): keep'
       rationale: ''
     - name: tofu
       kind: binary
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - OpenTofu for the lab''s IaC (tofu/ stacks, dr.md; check-tofu-fmt.sh)'
       rationale: ''
     - name: uv
       kind: binary
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - uv Python package/tool manager (basic-memory uv tool, scripts)'
       rationale: ''
     - name: uvx
       kind: binary
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - uv''s tool runner (ships with uv)'
       rationale: ''
     - name: woodpecker-cli
       kind: binary
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - Woodpecker CLI, the canonical CI trigger (AGENTS.md, runbooks/woodpecker.md)'
-      rationale: ''
-    - name: woodpecker-cli.3.17.0
-      kind: binary
-      status: remove
-      rationale: 'owner review 2026-11-23 (B257): remove - an August copy beside the current woodpecker-cli'
       rationale: ''
     - name: com.obsproject.Studio
       kind: flatpak
@@ -1270,6 +1238,9 @@ hosts:
       kind: image
       status: system
     - name: composer
+      kind: image
+      status: system
+    - name: compositor-b256
       kind: image
       status: system
     - name: contiker/contiki-ng
@@ -1374,6 +1345,33 @@ hosts:
     - name: golden-lua-openresty
       kind: image
       status: system
+    - name: golden-python-django
+      kind: image
+      status: system
+    - name: golden-python-fastapi
+      kind: image
+      status: system
+    - name: golden-python-flask
+      kind: image
+      status: system
+    - name: golden-python-litestar
+      kind: image
+      status: system
+    - name: gp-express-b262
+      kind: image
+      status: system
+    - name: gp-fastify-b262
+      kind: image
+      status: system
+    - name: gp-nestjs-b262
+      kind: image
+      status: system
+    - name: gp-quarkus-b263
+      kind: image
+      status: system
+    - name: gp-spring-b263
+      kind: image
+      status: system
     - name: gradle
       kind: image
       status: system
@@ -1447,6 +1445,18 @@ hosts:
       kind: image
       status: system
     - name: openresty/openresty
+      kind: image
+      status: system
+    - name: orders-api
+      kind: image
+      status: system
+    - name: orders-django
+      kind: image
+      status: system
+    - name: orders-flask
+      kind: image
+      status: system
+    - name: orders-litestar
       kind: image
       status: system
     - name: p4lang/behavioral-model
@@ -1554,6 +1564,9 @@ hosts:
     - name: registry.weyland.lab/weyland-jupyter
       kind: image
       status: system
+    - name: registry.weyland.lab/weyland-mcp-compositor
+      kind: image
+      status: system
     - name: registry.weyland.lab/weyland-superset
       kind: image
       status: system
@@ -1590,9 +1603,6 @@ hosts:
     - name: studio-controlroom_backend
       kind: image
       status: system
-    - name: studio-controlroom_backend_test
-      kind: image
-      status: system
     - name: studio-frontend
       kind: image
       status: system
@@ -1606,6 +1616,9 @@ hosts:
       kind: image
       status: system
     - name: ubuntu
+      kind: image
+      status: system
+    - name: valkey/valkey
       kind: image
       status: system
     - name: vllm/vllm-openai
@@ -2853,7 +2866,6 @@ hosts:
     - name: gaming-graphics-core26
       kind: snap
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - snap platform/runtime'
       rationale: ''
     - name: gimp
       kind: snap
@@ -2882,7 +2894,6 @@ hosts:
     - name: gnome-core26
       kind: snap
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - snap platform/runtime'
       rationale: ''
     - name: go
       kind: snap
@@ -2919,7 +2930,6 @@ hosts:
     - name: mesa-2604
       kind: snap
       status: keep
-      rationale: 'agent pre-triage 2026-11-23 (B257, from repo use): keep - snap platform/runtime'
       rationale: ''
     - name: musescore
       kind: snap
