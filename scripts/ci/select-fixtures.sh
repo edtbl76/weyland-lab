@@ -190,8 +190,13 @@ gp_changes = [f for f in fixture_changes if f.startswith("golden-paths/") and le
 if len(gp_changes) != len(fixture_changes):
     emit("1")
 
+# The integration tier (B262): golden-integration.sh <ecosystem> tests the golden paths these lanes discover.
+INTEGRATION_LANGS = {"python": {"python"}, "node": {"javascript", "typescript"}}
+
 def lane_table():
-    """{lane key: {languages}} from the fixture-gated steps that run run-lang-(tests|scan).sh <lang>. None = cannot tell."""
+    """{lane key: {languages}} from the fixture-gated steps that run run-lang-(tests|scan).sh <lang> (key: the name
+    without test-/scan-) or golden-integration.sh <ecosystem> (key: the full integration-<ecosystem> name, which is
+    what that step's gate tests). None = cannot tell."""
     try:
         steps = [st for _, st in wp.steps(os.environ.get("WP_HEAD", ""))]
     except Exception:
@@ -200,10 +205,16 @@ def lane_table():
     for st in steps:
         if not isinstance(st, dict) or "RUN_FIXTURES" not in str(st.get("when", "")):
             continue
-        m = re.match(r"^(?:test|scan)-([a-z0-9-]+)$", str(st.get("name", "")))
-        langs = set(re.findall(r"run-lang-(?:tests|scan)\.sh\s+([a-z0-9-]+)", " ".join(map(str, st.get("commands") or []))))
+        name, cmds = str(st.get("name", "")), " ".join(map(str, st.get("commands") or []))
+        m = re.match(r"^(?:test|scan)-([a-z0-9-]+)$", name)
+        langs = set(re.findall(r"run-lang-(?:tests|scan)\.sh\s+([a-z0-9-]+)", cmds))
         if m and langs:
             table.setdefault(m.group(1), set()).update(langs)
+        if re.match(r"^integration-[a-z0-9-]+$", name):
+            for eco in re.findall(r"golden-integration\.sh\s+([a-z0-9-]+)", cmds):
+                if eco not in INTEGRATION_LANGS:
+                    return None                   # an ecosystem with no lane mapping: cannot tell what it tests
+                table.setdefault(name, set()).update(INTEGRATION_LANGS[eco])
     return table or None
 
 def lang_roots(langs):

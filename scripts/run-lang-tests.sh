@@ -31,6 +31,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # override keeps the <dir>/<lang> seam the bats guards inject through. See scripts/lib/lang-fixtures.sh.
 # shellcheck source=scripts/lib/lang-fixtures.sh
 . "$REPO_ROOT/scripts/lib/lang-fixtures.sh"
+# shellcheck source=scripts/lib/junit.sh
+. "$REPO_ROOT/scripts/lib/junit.sh"         # wrap_bare_cases()
 
 # Overridable for tests. The fixture tree is ALWAYS excluded from real-project discovery so it is
 # never double-counted as production code.
@@ -387,20 +389,7 @@ harvest() {
   done
 }
 
-# wrap_bare_cases <file> — node's junit reporter puts <testcase> straight under <testsuites> when tests are not in a
-# describe(), and Trunk counts such cases as nothing (pipeline #592: fastify's 4 tests uploaded as 0; a dry-run
-# counted 0 raw, 4 wrapped). Wrap them in one <testsuite> named after the report. A file that already has a
-# <testsuite> is left alone.
-wrap_bare_cases() {
-  local f="$1" name
-  [ -f "$f" ] && ! grep -q '<testsuite[ >]' "$f" && grep -q '<testcase' "$f" || return 0
-  name="$(basename "$f" .xml)"
-  awk -v n="$name" '
-    /<testsuites[ >]/ && !opened { print; print "<testsuite name=\"" n "\">"; opened = 1; next }
-    /<\/testsuites>/              { print "</testsuite>" }
-    { print }
-  ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-}
+# wrap_bare_cases (node's bare <testcase> reports, pipeline #592): scripts/lib/junit.sh
 
 # dart_junit <runner> <dir> — B189 phase 2b, shared by the dart and flutter lanes. Both runners write their results as
 # JSON with --file-reporter (the console output is kept); junitreport's tojunit (owner-approved 2.0.2, activated

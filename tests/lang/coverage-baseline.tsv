@@ -12,7 +12,7 @@ go:golden-paths/go/echo	91.7
 go:golden-paths/go/fiber	91.7
 javascript:golden-paths/node/express	100
 javascript:golden-paths/node/fastify	100.00
-typescript:golden-paths/node/nestjs	78.31
+typescript:golden-paths/node/nestjs	79.95
 react:golden-paths/frontend/vite-react	100
 react:golden-paths/frontend/react-router	100
 react:golden-paths/frontend/astro	100

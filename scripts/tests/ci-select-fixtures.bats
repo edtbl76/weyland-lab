@@ -363,6 +363,54 @@ print(f"{checked} workflow(s) checked"); print("\n".join(bad)); sys.exit(1 if ba
 PY
 }
 
+# B262 (2026-11-27): the integration tier (integration-<ecosystem> steps, golden-integration.sh <ecosystem>) is keyed by
+# its full step name. Narrowing used to know only test-/scan- lanes, so a change to one golden path skipped its
+# ecosystem's integration step: the path's backend wiring was never re-proven on the change that touched it.
+plan_wp_integration() {
+  cat > "$1" <<'YML'
+steps:
+  - name: test-node
+    when: [{event: [manual, cron], evaluate: 'RUN_FIXTURES != "0"'}]
+    commands: [bash scripts/run-lang-tests.sh javascript]
+  - name: test-python
+    when: [{event: [manual, cron], evaluate: 'RUN_FIXTURES != "0"'}]
+    commands: [bash scripts/run-lang-tests.sh python]
+  - name: integration-node
+    when: [{event: [manual, cron], evaluate: 'RUN_FIXTURES != "0"'}]
+    commands: [bash scripts/ci/golden-integration.sh node]
+  - name: integration-python
+    when: [{event: [manual, cron], evaluate: 'RUN_FIXTURES != "0"'}]
+    commands: [pip install pytest, bash scripts/ci/golden-integration.sh python]
+YML
+}
+
+@test "--plan: a change to one Node golden path also selects integration-node (and not integration-python)" {
+  plan_wp_integration "$STUB_DIR/wp.yml"
+  SELECT_CHANGED_FILES='golden-paths/node/express/src/app.js' SELECT_WOODPECKER_HEAD="$STUB_DIR/wp.yml" \
+    SELECT_LANG_ROOTS=$'javascript golden-paths/node/express\ntypescript golden-paths/node/nestjs\npython golden-paths/python/fastapi' \
+    CI_LANGS_FILE="$MANIFEST" run bash "$GUARD" --plan
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"FIXTURE_LANES='integration-node node'"* ]] || { echo "$output"; return 1; }
+}
+
+@test "--plan: a change to one Python golden path selects integration-python" {
+  plan_wp_integration "$STUB_DIR/wp.yml"
+  SELECT_CHANGED_FILES='golden-paths/python/fastapi/main.py' SELECT_WOODPECKER_HEAD="$STUB_DIR/wp.yml" \
+    SELECT_LANG_ROOTS=$'javascript golden-paths/node/express\npython golden-paths/python/fastapi' \
+    CI_LANGS_FILE="$MANIFEST" run bash "$GUARD" --plan
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"FIXTURE_LANES='integration-python python'"* ]] || { echo "$output"; return 1; }
+}
+
+@test "--plan: an integration step for an ecosystem with no lane mapping stays the full matrix, never a silent skip" {
+  plan_wp_integration "$STUB_DIR/wp.yml"
+  printf '  - name: integration-go\n    when: [{event: [manual, cron], evaluate: \x27RUN_FIXTURES != "0"\x27}]\n    commands: [bash scripts/ci/golden-integration.sh go]\n' >> "$STUB_DIR/wp.yml"
+  SELECT_CHANGED_FILES='golden-paths/node/express/src/app.js' SELECT_WOODPECKER_HEAD="$STUB_DIR/wp.yml" \
+    SELECT_LANG_ROOTS=$'javascript golden-paths/node/express' CI_LANGS_FILE="$MANIFEST" run bash "$GUARD" --plan
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [[ "$output" == *"FIXTURE_LANES=''"* ]] || { echo "$output"; return 1; }
+}
+
 @test "--plan: a .woodpecker.yml change confined to ONE lane's steps narrows to that lane (the swift 6.4.1 bump)" {
   plan_wp "$STUB_DIR/base.yml"
   sed 's|run-lang-tests.sh swift]|run-lang-tests.sh swift, echo swift-6.4.1]|' "$STUB_DIR/base.yml" > "$STUB_DIR/head.yml"

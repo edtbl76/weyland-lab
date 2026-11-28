@@ -186,6 +186,22 @@ weight (Python first, the long tail last); the clients (10-11) come after the se
   path keeps only its framework code. Idiom notes: Django and Flask have no native DI or OpenAPI (catalog skips);
   Litestar 2.23+ wants `NamedDependency`, `JSONBody`, `FromPath` and `litestar.plugins.opentelemetry` (the older forms
   are deprecated), and an injected Protocol must be typed `Any` (msgspec validates handler arguments).
+- **B262 (express, fastify, nestjs), 2026-11-27:** all three Node paths on v2 (32/32/35 tests; statement coverage
+  100/100/79.95, Nest's baseline raised from 78.31), image smoke OK, integration 6/6 each against real backends,
+  scaffolds OK. The shared code is `golden-paths-shared/node/` (the async `ItemStore`, settings, the pg/ioredis/kafkajs/
+  S3 adapters, tracing, the v2 smoke, the backend tests), synced into each path with `//` headers; the integration
+  clients are devDependencies, never in an image. **kafkajs 2.2.4 (maintenance mode, last release 2023) talks to
+  Redpanda v24.2.7**, so no replacement was needed. Idiom notes: Fastify's default Ajv `coerceTypes: 'array'` turns
+  a scalar into an array (set to `true`); Fastify's `onReady` and Nest's `OnModuleInit` run before any request is
+  accepted, so the store opens after `listen` to keep `/ready`'s 503 window; Nest needs `abortOnError: false` (or a
+  config error is `process.exit(1)`), `bodyParser: false` with the request context ahead of the parser (or an
+  unparseable request has no id and no log line, and Nest maps it to a bare 400), and no `enableShutdownHooks()` (its
+  handler re-raises SIGTERM before tracing flushes). Tracing is proven end to end: jest's module sandbox hides the http
+  instrumentation, so each path's tracing test runs the real bootstrap as a child process and receives its server span
+  over OTLP/HTTP. Two gaps closed on the way: `select-fixtures.sh --plan` never selected an `integration-<ecosystem>`
+  step, so a change to one golden path skipped its integration tier (now selected; an unmapped ecosystem runs the
+  full matrix); and node's bare-`<testcase>` JUnit (Trunk counts 0, pipeline #592) is now wrapped in the integration
+  tier too (`scripts/lib/junit.sh`, shared with the lang lanes).
 
 ## Risks
 

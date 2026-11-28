@@ -61,3 +61,38 @@ teardown() { rm -rf "$ROOT"; }
   [ "$status" -eq 0 ]
   [ ! -e "$ROOT/golden-paths/python/a/__pycache__" ]
 }
+
+@test "a JavaScript or TypeScript copy is stamped with a // comment, never # (B262: # is not a JS comment)" {
+  mkdir -p "$ROOT/golden-paths-shared/node/src/shared" "$ROOT/golden-paths/node/x"
+  printf 'module.exports = 1;\n' > "$ROOT/golden-paths-shared/node/src/shared/items-store.js"
+  printf 'export const y = 1;\n' > "$ROOT/golden-paths-shared/node/src/shared/y.ts"
+  : > "$ROOT/golden-paths/node/x/.golden-shared"
+  run bash "$SYNC"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  head -1 "$ROOT/golden-paths/node/x/src/shared/items-store.js" | grep -q '^// GENERATED from golden-paths-shared/node/src/shared/items-store.js'
+  head -1 "$ROOT/golden-paths/node/x/src/shared/y.ts" | grep -q '^// GENERATED from golden-paths-shared/node/src/shared/y.ts'
+  head -1 "$ROOT/golden-paths/python/a/items_store.py" | grep -q '^# GENERATED'     # python keeps #
+  run bash "$SYNC" --check
+  [ "$status" -eq 0 ]
+}
+
+@test "--check fails on an orphaned copy whose source was renamed or removed, naming it (B262)" {
+  bash "$SYNC"
+  printf '# GENERATED from golden-paths-shared/python/old_name.py by scripts/sync-golden-shared.sh: edit the source, not this copy.\nX = 0\n' \
+    > "$ROOT/golden-paths/python/a/old_name.py"
+  run bash "$SYNC" --check
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"ORPHAN: golden-paths/python/a/old_name.py"* ]] || { echo "$output"; return 1; }
+}
+
+@test "a write removes orphaned copies, so a rename never leaves a stale GENERATED file behind (B262)" {
+  bash "$SYNC"
+  printf '// GENERATED from golden-paths-shared/python/old_name.js by scripts/sync-golden-shared.sh: edit the source, not this copy.\n' \
+    > "$ROOT/golden-paths/python/a/old_name.js"
+  printf 'hand-written, not generated\n' > "$ROOT/golden-paths/python/a/mine.py"
+  run bash "$SYNC"
+  [ "$status" -eq 0 ]
+  [ ! -e "$ROOT/golden-paths/python/a/old_name.js" ]
+  [ -f "$ROOT/golden-paths/python/a/mine.py" ]                    # never touches a file it did not generate
+  [[ "$output" == *"removed orphan golden-paths/python/a/old_name.js"* ]] || { echo "$output"; return 1; }
+}

@@ -8,7 +8,8 @@
 # generated and names its source. Owner decision 2026-11-25: "One source, synced copies".
 #
 #   scripts/sync-golden-shared.sh           write every copy
-#   scripts/sync-golden-shared.sh --check   exit 0 all copies match · 1 a copy drifted or is missing (named) ·
+#   scripts/sync-golden-shared.sh --check   exit 0 all copies match · 1 a copy drifted, is missing or is an orphan
+#                                           (its source was renamed or removed; a write deletes it), named ·
 #                                           2 shared code that no path opts in to (checking nothing is not a pass)
 # Runs as a repo guard (--check). Tests: scripts/tests/sync-golden-shared.bats.
 set -uo pipefail
@@ -18,15 +19,19 @@ mode="${1:-write}"
 shared="$root/golden-paths-shared"
 drift=0 copies=0
 
+# The header is a comment in the copy's own language: `#` is not a comment in JavaScript/TypeScript (B262).
+comment_for() { case "$1" in *.js|*.cjs|*.mjs|*.ts) echo '//' ;; *) echo '#' ;; esac; }
+
 expected() { # expected <lang> <relative file>: the copy's exact content
-  printf '# GENERATED from golden-paths-shared/%s/%s by scripts/sync-golden-shared.sh: edit the source, not this copy.\n' "$1" "$2"
+  printf '%s GENERATED from golden-paths-shared/%s/%s by scripts/sync-golden-shared.sh: edit the source, not this copy.\n' \
+    "$(comment_for "$2")" "$1" "$2"
   cat "$shared/$1/$2"
 }
 
 for langdir in "$shared"/*/; do
   [ -d "$langdir" ] || continue
   lang="$(basename "$langdir")"
-  mapfile -t files < <(cd "$langdir" && find . -type f -not -path '*/__pycache__/*' -not -name '*.pyc' \
+  mapfile -t files < <(cd "$langdir" && find . -type f -not -path '*/__pycache__/*' -not -name '*.pyc' -not -path '*/node_modules/*' \
                                              -not -name 'README.md' | sed 's|^\./||' | sort)
   [ "${#files[@]}" -gt 0 ] || continue
   targets=()
@@ -51,6 +56,18 @@ for langdir in "$shared"/*/; do
         expected "$lang" "$f" > "$dest"
       fi
     done
+    # Orphans (B262): a copy whose header names a source that no longer exists (renamed or removed). Only a file
+    # this script generated (its first line is the header) is ever considered; a hand-written file is never touched.
+    while IFS= read -r copy; do
+      src="$(head -n 1 -- "$copy" 2>/dev/null | sed -nE 's~^(#|//) GENERATED from golden-paths-shared/'"$lang"'/([^ ]+) by scripts/sync-golden-shared\.sh: edit the source, not this copy\.$~\2~p')"
+      [ -n "$src" ] && [ ! -f "$shared/$lang/$src" ] || continue
+      if [ "$mode" = --check ]; then
+        echo "ORPHAN: ${copy#"$root"/} names golden-paths-shared/$lang/$src, which no longer exists (run scripts/sync-golden-shared.sh)" >&2
+        drift=1
+      else
+        rm -f -- "$copy" && echo "sync-golden-shared: removed orphan ${copy#"$root"/}"
+      fi
+    done < <(find "$target" \( -name node_modules -o -name dist \) -prune -o -type f -print)   # portable: no GNU grep -r flags
   done
 done
 

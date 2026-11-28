@@ -9,11 +9,10 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:24-alpine
 WORKDIR /app
-RUN adduser -D -u 10001 appuser && apk add --no-cache curl
+RUN adduser -D -u 10001 appuser
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
-COPY smoke.sh ./
 USER 10001
 EXPOSE 8080
 CMD ["node", "dist/main.js"]

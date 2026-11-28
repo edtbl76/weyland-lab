@@ -14,7 +14,7 @@ B200 split it so independent work runs in parallel. Runbook: [docs/runbooks/wood
 | `fixtures-b.yml` (timberback) | sample-app lanes: node, react-native, flutter, dart, rust, go, c, cpp, lua, php (every lane on the npm, cargo or go cache) | — |
 | `fixtures-c.yml` (timberback) | sample-app lanes: swift-tokamak, kotlin, julia, ruby, scala, perl, dotnet, r, clojure, erlang | — |
 | `golden-path-1.yml` … `golden-path-3.yml` (timberback) | `golden-path-smoke` on one round-robin third of the golden paths each (`GOLDEN_PATH_SHARD`), plus its own `trunk-upload`. The three files are identical except their shard number (enforced) | — |
-| `golden-integration.yml` (timberback) | the golden paths' integration tier (B260): `integration-<ecosystem>` steps against Postgres, Valkey, Redpanda and MinIO started as `services:` sidecars, plus its own `trunk-upload` | — |
+| `golden-integration.yml` (timberback) | the golden paths' integration tier (B260): `integration-<ecosystem>` steps (python B260/B261, node B262) against Postgres, Valkey, Redpanda and MinIO started as `services:` sidecars, plus its own `trunk-upload` | — |
 | `deliver.yml` (mother) | `detect-changes` → `build` → `kubeconform` → `deploy-handoff` (the image build and tag-bump PR) | all eight work workflows above (platform, the four fixtures-*, the three golden-path shards, golden-integration); **skipped if any failed** |
 | `finish.yml` (mother) | `notify-port`, `notify-slack` with the pipeline's true status | everything, `deliver` included, on success **or** failure |
 

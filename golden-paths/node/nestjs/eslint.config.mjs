@@ -7,4 +7,7 @@ export default [
   { ignores: ['node_modules/**', 'coverage/**', 'dist/**', 'build/**', '.next/**', '.astro/**', 'selfcheck/**', '**/*.astro'] },
   ...tseslint.configs.recommended,
   { rules: { 'no-unused-vars': 'off', '@typescript-eslint/no-unused-vars': 'warn' } },
+  // The shared, framework-neutral JavaScript (src/shared/, integration/; synced from golden-paths-shared/node) is
+  // CommonJS by design: every Node path, TypeScript or not, requires it as-is.
+  { files: ['**/*.js'], rules: { '@typescript-eslint/no-require-imports': 'off' } },
 ];

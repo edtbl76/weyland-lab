@@ -65,3 +65,12 @@ teardown() {
   ! grep -rq "edit the source, not this copy" "$DEST_ROOT/billing"
   head -1 "$DEST_ROOT/billing/items_store.py" | grep -q "this service owns it"
 }
+
+@test "a Node scaffold owns its // headed copies of the shared code too (B262)" {
+  run bash "$NS" node/express orders-api "$DEST_ROOT/orders"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [ ! -e "$DEST_ROOT/orders/.golden-shared" ]
+  [ -f "$DEST_ROOT/orders/src/shared/items-store.js" ] && [ -f "$DEST_ROOT/orders/integration/items-backends.integration.js" ]
+  ! grep -rq "edit the source, not this copy" "$DEST_ROOT/orders" --exclude-dir=node_modules
+  head -1 "$DEST_ROOT/orders/src/shared/items-store.js" | grep -q '^// From the weyland golden path shared source golden-paths-shared/node/src/shared/items-store.js; this service owns it now\.$'
+}

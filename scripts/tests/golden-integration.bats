@@ -79,3 +79,67 @@ stub() { # stub <cmd> <exit> <output>
   [ -d "$SANDBOX/reports/junit" ]
   grep -qE "^pytest .*--junitxml=$SANDBOX/reports/junit/integration-python/python-fw\.xml" "$STUB_LOG"
 }
+
+# ── node (B262) ─────────────────────────────────────────────────────────────────────────────────────────────────────
+node_path() { # node_path <name> [package.json] — a node golden path with integration tests
+  mkdir -p "$SANDBOX/golden-paths/node/$1/integration"
+  : > "$SANDBOX/golden-paths/node/$1/integration/items-backends.integration.js"
+  printf '%s\n' "${2:-{\"scripts\": {\"test\": \"jest\"}}}" > "$SANDBOX/golden-paths/node/$1/package.json"
+}
+
+@test "node: each path installs from its lockfile and runs its *.integration.js with node --test and a JUnit report" {
+  node_path fw
+  stub npm 0 ok; stub node 0 "# pass 5"
+  run bash "$RUNNER" node
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -qE '^npm ci' "$STUB_LOG"
+  ! grep -qE '^npm run (--silent )?build' "$STUB_LOG"                  # no build script: nothing to build
+  grep -qE "^node --test .*--test-reporter=junit --test-reporter-destination=$SANDBOX/junit/integration-node/node-fw\.xml .*integration/items-backends\.integration\.js" "$STUB_LOG"
+  [[ "$output" == *"node OK (1 path(s))"* ]]
+}
+
+@test "node: a path with a build script (TypeScript: its tests load dist/) is built before its tests run" {
+  node_path nest '{"scripts": {"build": "tsc -p tsconfig.build.json", "test": "jest"}}'
+  stub npm 0 ok; stub node 0 "# pass 5"
+  run bash "$RUNNER" node
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [ "$(grep -nE '^npm run (--silent )?build' "$STUB_LOG" | cut -d: -f1)" -lt "$(grep -nE '^node --test' "$STUB_LOG" | cut -d: -f1)" ]
+}
+
+@test "node: a failing install or test is exit 1 and names the path" {
+  node_path fw
+  stub npm 1 "npm ERR! lockfile"; stub node 0 "# pass 5"
+  run bash "$RUNNER" node
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"node/fw (client install)"* ]]
+  stub npm 0 ok; stub node 1 "# fail 1"
+  run bash "$RUNNER" node
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"FAILED: node/fw"* ]]
+}
+
+@test "node: no path with *.integration.js is exit 2: verifying nothing is not a pass" {
+  mkdir -p "$SANDBOX/golden-paths/node/fw"
+  stub npm 0 ok; stub node 0 "# pass 5"
+  run bash "$RUNNER" node
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"no integration tests found for node"* ]]
+}
+
+@test "REGRESSION (pipeline #592 class): node's bare <testcase> report is wrapped in a <testsuite>, or Trunk counts 0" {
+  node_path fw
+  stub npm 0 ok
+  # a node stub that writes what node's junit reporter writes for top-level test() calls: cases straight under
+  # <testsuites> (observed 2026-11-27, integration-node run against real backends)
+  cat > "$SANDBOX/bin/node" <<'EOF'
+#!/usr/bin/env bash
+echo "node $*" >> "$STUB_LOG"
+dest=""; for a in "$@"; do case "$a" in --test-reporter-destination=stdout) ;; --test-reporter-destination=*) dest="${a#*=}" ;; esac; done
+printf '<?xml version="1.0" encoding="utf-8"?>\n<testsuites>\n\t<testcase name="t" time="0.1" classname="test"/>\n</testsuites>\n' > "$dest"
+EOF
+  chmod +x "$SANDBOX/bin/node"
+  run bash "$RUNNER" node
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -q '<testsuite name="node-fw">' "$SANDBOX/junit/integration-node/node-fw.xml"
+  grep -q '</testsuite>' "$SANDBOX/junit/integration-node/node-fw.xml"
+}

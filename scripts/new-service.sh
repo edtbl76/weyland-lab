@@ -65,7 +65,8 @@ mkdir -p "$dest" || die "could not create $dest"
 # the header now says the service owns the file.
 while IFS= read -r f; do
   [ -n "$f" ] || continue
-  sed -i '1s|^# GENERATED from \(golden-paths-shared/[^ ]*\) by scripts/sync-golden-shared.sh: edit the source, not this copy\.$|# From the weyland golden path shared source \1; this service owns it now.|' "$f"
+  # The comment marker is the copy's own (# or //, B262), kept as it was.
+  sed -i -E '1s~^(#|//) GENERATED from (golden-paths-shared/[^ ]*) by scripts/sync-golden-shared.sh: edit the source, not this copy\.$~\1 From the weyland golden path shared source \2; this service owns it now.~' "$f"
 done < <(grep -rIl -- "edit the source, not this copy" "$dest" 2>/dev/null)
 
 # ── rewrite the golden token -> the service name (SERVICE_NAME, image ref, manifest name) ─────────

@@ -11,15 +11,42 @@
 # Tests: scripts/tests/golden-integration.bats. Design: docs/concepts/golden-path-capabilities.md.
 set -uo pipefail
 
+# shellcheck source=scripts/lib/junit.sh
+. "$(cd "$(dirname "$0")/.." && pwd)/lib/junit.sh"   # wrap_bare_cases(): Trunk counts bare <testcase>s as 0
+
 ecosystem="${1:-}"
 root="${GOLDEN_PATHS_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)/golden-paths}"
 wait_s="${INTEGRATION_WAIT_S:-180}"
 junit="${LANG_JUNIT_DIR:-reports/junit}"
 
+# Per ecosystem: the golden paths, how a path is recognised as having integration tests, and how they run.
 case "$ecosystem" in
-  python) dirs=("$root"/python/*/) ;;
-  *) echo "golden-integration: unknown ecosystem '$ecosystem' (known: python)" >&2; exit 2 ;;
+  python) dirs=("$root"/python/*/) pattern='integration/test_*.py' ;;
+  node)   dirs=("$root"/node/*/)   pattern='integration/*.integration.js' ;;
+  *) echo "golden-integration: unknown ecosystem '$ecosystem' (known: python, node)" >&2; exit 2 ;;
 esac
+
+# run_python / run_node <dir> <junit file>: install the path's clients, then its integration tests. Exit 1 at the
+# install marks it "(client install)"; any other failure is the tests'.
+run_python() {
+  (cd "$1" && pip install --quiet --no-cache-dir -r requirements-test.txt -r requirements-integration.txt) || return 10
+  (cd "$1" && pytest -q -p no:cacheprovider integration --junitxml="$2")
+}
+
+# Node (B262): the clients are devDependencies, so `npm ci` installs them from the lockfile. A path with a build
+# script (TypeScript) is built first: its integration tests load dist/. The tests are *.integration.js, never
+# *.test.js, so the unit lanes never discover them; node's own runner writes the JUnit report.
+run_node() {
+  (cd "$1" && npm ci --no-audit --no-fund --loglevel=error) || return 10
+  if grep -q '"build"[[:space:]]*:' "$1/package.json"; then
+    (cd "$1" && npm run --silent build) || return 10
+  fi
+  local rc=0
+  (cd "$1" && node --test --test-reporter=spec --test-reporter-destination=stdout \
+      --test-reporter=junit --test-reporter-destination="$2" integration/*.integration.js) || rc=$?
+  wrap_bare_cases "$2"        # node puts top-level test() cases straight under <testsuites>: Trunk counts those as 0
+  return "$rc"
+}
 
 # host:port of each backend, from its URL (scheme://[user[:pass]@]host:port[/...]) or a bare host:port.
 hostport() { local u="${1#*://}"; u="${u##*@}"; echo "${u%%/*}"; }
@@ -50,14 +77,15 @@ junit="$(cd "$junit/integration-$ecosystem" && pwd)"
 ran=0 failed=()
 for dir in "${dirs[@]}"; do
   dir="${dir%/}"
-  compgen -G "$dir/integration/test_*.py" >/dev/null || continue
+  compgen -G "$dir/$pattern" >/dev/null || continue
   path="${dir#"$root"/}" ran=$((ran + 1))
   echo "=== integration: $path ==="
-  if ! (cd "$dir" && pip install --quiet --no-cache-dir -r requirements-test.txt -r requirements-integration.txt); then
-    failed+=("$path (client install)"); continue
-  fi
-  (cd "$dir" && pytest -q -p no:cacheprovider integration \
-      --junitxml="$junit/${path//\//-}.xml") || failed+=("$path")
+  "run_$ecosystem" "$dir" "$junit/${path//\//-}.xml"
+  case $? in
+    0) ;;
+    10) failed+=("$path (client install)") ;;
+    *) failed+=("$path") ;;
+  esac
 done
 
 if [ "$ran" -eq 0 ]; then

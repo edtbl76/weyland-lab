@@ -61,12 +61,28 @@ steps:
       - pip install --quiet --no-cache-dir pytest
       - bash scripts/ci/golden-integration.sh python
 
+  # B262: the Node paths (express, fastify, nestjs) against the same sidecars. node:24-slim, not -alpine: the runner is
+  # bash. The clients (pg, ioredis, kafkajs, @aws-sdk/client-s3) are each path's devDependencies, installed by npm ci.
+  - name: integration-node
+    when: [{event: [manual, cron], evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " integration-node ")'}]
+    image: node:24-slim
+    environment:
+      LANG_JUNIT_DIR: reports/junit
+      GOLDEN_DATABASE_URL: postgresql://postgres:golden@postgres:5432/golden
+      GOLDEN_VALKEY_URL: redis://valkey:6379/0
+      GOLDEN_KAFKA_BOOTSTRAP: redpanda:9092
+      GOLDEN_S3_ENDPOINT: http://minio:9000
+      GOLDEN_S3_ACCESS_KEY: golden
+      GOLDEN_S3_SECRET_KEY: golden-secret
+    commands:
+      - bash scripts/ci/golden-integration.sh node
+
   - name: trunk-upload
     image: alpine:3.20
     when:
       - event: [manual, cron]
         status: [success, failure]
-        evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " integration-python ")'
+        evaluate: 'SMOKE_ONLY != "smoke" && RUN_FIXTURES != "0" && (FIXTURE_LANES == "" || (" " + FIXTURE_LANES + " ") contains " integration-python " || (" " + FIXTURE_LANES + " ") contains " integration-node ")'
     environment:
       TRUNK_API_TOKEN:
         from_secret: trunk_org_token

@@ -158,7 +158,14 @@ Seen: `SMOKE OK: image serves — /ready, /hello and the deep contract v2 sequen
 
 **3. Integration tier against real backends** (`.woodpecker/golden-integration.yml`): Postgres, Valkey, Redpanda and
 MinIO started as Woodpecker `services:` sidecars; CI #741: `golden-integration: python OK (1 path(s))`, 5 passed,
-45 s in parallel with the other workflows.
+45 s in parallel with the other workflows. **Node (B262):** `integration-node`, the same sidecars; locally against real
+containers, 2026-11-27: `golden-integration: node OK (3 path(s))`, 6/6 per path (the shared adapters, including kafkajs
+to Redpanda, and each path's HTTP API on Postgres). The Node image smoke is the same sequence:
+
+[rogueone]
+```
+cd /home/edwardmangini/IdeaProjects/weyland/golden-paths/node/nestjs && docker build -q -t golden-node-nestjs:local . && docker run --rm golden-node-nestjs:local sh -c "$(cat .smoke)"
+```
 
 **4. A scaffold works out of the box:** `scripts/new-service.sh python/fastapi orders-api <dir>` produced a service
 whose tests pass (30, 100%) and whose image passes the same smoke.
@@ -177,4 +184,4 @@ whose tests pass (30, 100%) and whose image passes the same smoke.
 ## Next
 
 - **B160** — extend the suite to a second wave of languages (Angular, C#/.NET, PHP, Ruby, Elixir, Kotlin, Scala, C/C++, Clojure).
-- **B163** — deepen all 48 paths to deep contract v2: the reference (B260) is done; the rest are B261-B270.
+- **B163** — deepen all 48 paths to deep contract v2: Python (B260, B261) and Node (B262) are done; the rest are B263-B270.
